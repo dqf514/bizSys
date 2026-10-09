@@ -4,12 +4,15 @@ import os
 import pathlib
 import re
 
+# 优先级：环境变量 DB_URL（CI）> 本地 .env > 默认（本机 3307 开发库）
 _ENV = pathlib.Path(__file__).resolve().parent.parent / ".env"
 _URL = "mysql+pymysql://root:bizsys123@127.0.0.1:3307/bizsys?charset=utf8mb4"
 if _ENV.exists():
     for _line in _ENV.read_text(encoding="utf-8").splitlines():
         if _line.startswith("DB_URL="):
             _URL = _line.split("=", 1)[1].strip()
+if os.environ.get("DB_URL"):
+    _URL = os.environ["DB_URL"]
 
 TEST_URL = re.sub(r"(//[^/]+/)[^?/]+", r"\1bizsys_test", _URL, count=1)
 os.environ["DB_URL"] = TEST_URL
