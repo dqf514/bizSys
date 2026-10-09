@@ -1,0 +1,73 @@
+"""统一响应体与错误码注册表（前后端共用，见 api/types.ts）。"""
+
+from typing import Any
+
+# --- 错误码分域 ---
+# 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
+# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；9xxxx 集成占位
+OK = 0
+
+GENERIC_PARAM = 10001
+GENERIC_NOT_FOUND = 10002
+GENERIC_OPTIMISTIC_LOCK = 10003
+GENERIC_SYSTEM = 10005
+
+AUTH_UNAUTHORIZED = 20001
+AUTH_FORBIDDEN = 20002
+AUTH_LOCKED = 20003
+
+ADMIN_USERNAME_EXISTS = 30001
+ADMIN_NUMBER_CONFLICT = 30002
+
+CRM_TAX_NO_DUPLICATE = 40001
+
+CONTRACT_INVALID_STATE = 50001
+CONTRACT_EDITING_LOCKED = 50002
+
+TASK_INVALID_STATE = 60001
+TASK_CONTRACT_NOT_APPROVED = 60002
+
+APPROVAL_NO_TODO = 70001
+APPROVAL_NOT_ASSIGNEE = 70002
+APPROVAL_COMMENT_REQUIRED = 70003
+APPROVAL_INSTANCE_RUNNING = 70004
+APPROVAL_INVALID_STATE = 70005
+
+ADAPTER_NOT_CONFIGURED = 90001
+
+DEFAULT_MESSAGES: dict[int, str] = {
+    OK: "ok",
+    GENERIC_PARAM: "参数校验失败",
+    GENERIC_NOT_FOUND: "资源不存在",
+    GENERIC_OPTIMISTIC_LOCK: "数据已被他人修改，请刷新后重试",
+    GENERIC_SYSTEM: "系统错误",
+    AUTH_UNAUTHORIZED: "未登录或登录已过期",
+    AUTH_FORBIDDEN: "无权限",
+    AUTH_LOCKED: "账号已锁定，请稍后再试",
+    ADMIN_USERNAME_EXISTS: "用户名已存在",
+    ADMIN_NUMBER_CONFLICT: "编号规则冲突",
+    CRM_TAX_NO_DUPLICATE: "纳税识别码已存在",
+    CONTRACT_INVALID_STATE: "当前合同状态不允许该操作",
+    CONTRACT_EDITING_LOCKED: "审批中合同禁止编辑",
+    TASK_INVALID_STATE: "当前任务状态不允许该操作",
+    TASK_CONTRACT_NOT_APPROVED: "合同未审批通过，不能创建任务",
+    APPROVAL_NO_TODO: "无待办",
+    APPROVAL_NOT_ASSIGNEE: "非当前审批人",
+    APPROVAL_COMMENT_REQUIRED: "审批意见必填",
+    APPROVAL_INSTANCE_RUNNING: "已存在进行中的审批实例",
+    APPROVAL_INVALID_STATE: "当前审批状态不允许该操作",
+    ADAPTER_NOT_CONFIGURED: "适配器未配置/未启用",
+}
+
+
+def ok(data: Any = None, trace_id: str = "") -> dict:
+    return {"code": OK, "message": "ok", "data": data, "traceId": trace_id}
+
+
+def err(code: int, message: str | None = None, trace_id: str = "", data: Any = None) -> dict:
+    return {
+        "code": code,
+        "message": message or DEFAULT_MESSAGES.get(code, "错误"),
+        "data": data,
+        "traceId": trace_id,
+    }

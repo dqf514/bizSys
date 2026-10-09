@@ -1,0 +1,112 @@
+# bizSys API 契约（前后端共用，v1）
+
+> 所有路由前缀 `/api/v1`。**统一响应信封**：`{"code":0,"message":"ok","data":...,"traceId":"..."}`。
+> `code=0` 成功；非 0 为业务错误（HTTP 状态码可能仍为 200/401/403/404/422/500）。
+> 鉴权：`Authorization: Bearer <access_token>`。
+> 分页：请求 `?page=1&size=20`，响应 `data = {items, total, page, size}`。
+> 检索：`q=关键词`（模糊）`status=xx`（状态页签，`all` 表示不过滤）
+>  `filters[字段]=值`（等值/逗号多值） `range[字段]=起|止` `sort=字段:asc|desc`。
+
+## 错误码分段
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 9xxxx 集成占位
+
+## 鉴权 /auth
+- `POST /auth/login` `{username,password}` → `{access_token,refresh_token,token_type,user}`
+- `POST /auth/refresh` `{refresh_token}` → `{access_token,user}`
+- `POST /auth/logout`（可带 `{refresh_token}` 吊销）
+- `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[]}`
+  - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
+  - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）
+
+## 系统管理 /admin（权限码 admin:*）
+- `GET /admin/users`（分页检索）· `POST /admin/users` `{username,password,name,deptId,deptName,mobile,email,status,roleIds[]}`
+  `PUT /admin/users/{id}` · `DELETE /admin/users/{id}` · `POST /admin/users/{id}/reset-password` `{password}`
+  `POST /admin/users/export`（同检索参数，返回 xlsx 流）
+- `GET /admin/roles` · `POST/PUT/DELETE /admin/roles[/{id}]` · `PUT /admin/roles/{id}/menus` `{menuIds[]}`
+- `GET /admin/menus/tree?include_buttons=` · `POST/PUT/DELETE /admin/menus[/{id}]`
+- `GET /admin/dict/types`（含 items）· `GET /admin/dict/items?type=code` → `[{label,labelEn,value,extra}]`
+  `POST /admin/dict/types` · `POST/PUT/DELETE /admin/dict/items[/{id}]`
+- `GET/POST/PUT /admin/number-rules`（预览 preview 字段）
+- `GET /admin/audit-logs`（分页）
+- `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
+- `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
+
+## CRM 客户 /crm
+- `GET /crm/customers` 分页：字段
+  `{id,customerNo,name,code,customerType,taxNo,grade,status,address,country,province,city,bankName,bankAccount,payOrg,licenseFileId,remark,createTime,updateTime}`
+  检索：`q`（name/customerNo/taxNo）、`status`（enabled/disabled/all）
+- `POST /crm/customers` · `PUT /crm/customers/{id}` · `DELETE /crm/customers/{id}`
+- `POST /crm/customers/export` · `GET /crm/customers/template` · `POST /crm/customers/import`（multipart file）
+- `GET /crm/customers/options?q=&limit=20` → `[{id,label,sub}]`（模糊选择器专用，label=客户名，sub=客户编号）
+- 权限码：`crm:customer:list/create/edit/delete/list:export/import`
+
+## 合同 /contract
+- 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。
+- `GET /contract/contracts` 分页：
+  `{id,contractNo,name,customerId,customerName,contractType,subjectType,amount,startDate,endDate,payCycle,delivery,sealType,handlerId,handlerName,frameworkNo,paymentOrg,remark,status,flowInstanceId,attachments:[{id,fileName,size}],createTime,updateTime}`
+- `POST /contract/contracts` · `PUT /contract/contracts/{id}`（仅 draft/rejected）· `DELETE`（仅 draft → 逻辑删）
+- `POST /contract/contracts/{id}/submit` → 启动审批（创建 approval instance，状态→approving）
+- `GET /contract/contracts/{id}` 详情（含附件、审批时间线可选）
+- `POST /contract/contracts/{id}/attachments`（multipart file）· `GET /contract/attachments/{fileId}`（下载流）
+- `POST /contract/contracts/export` · `GET /contract/contracts/options`（仅 approved，建任务时用）
+- 权限码：`contract:list/create/edit/submit/delete/list:export`
+
+## 审批中心 /approval（自研引擎）
+- `GET /approval/tasks?tab=todo|done|initiated&page&size` →
+  `{items:[{id,instanceId,bizType,bizId,title,status,nodeName,comment,initiatorName,assigneeName,createTime,actedAt}],...}`
+  - todo=我待办(status=pending & assignee=me)；done=我已办；initiated=我发起的实例
+- `GET /approval/instances/{bizType}/{bizId}/timeline` →
+  `{instanceId,status, currentNode, records:[{action:"start|agree|reject|withdraw|add_sign|transfer",operatorName,nodeName,comment,at}]}`
+- `POST /approval/tasks/{taskId}/approve` `{comment}` · `/reject` `{comment}`（意见必填）
+- `POST /approval/tasks/{taskId}/transfer` `{toUserId,comment}` · `/add-sign` `{approverId,comment}`
+- `POST /approval/instances/{instanceId}/withdraw`
+- 管理端：`GET /approval/definitions` · `POST /approval/definitions` · `PUT /approval/definitions/{id}`
+  定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`
+- 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
+
+## 任务 /task
+- 状态机（本期）：`draft 已创建待提交 → assigning 已提交分配中 → assigned 已分配待完成
+  → in_progress 执行中 → finished 已完成 → closed 已结束`，终态 `stopped 停止`
+- `GET /task/tasks` 分页（宽表冗余）：
+  `{id,taskNo,taskName,taskType,taskTypeLabel,contractId,contractNo,customerId,customerName,
+    bizBlock,bizBlockLabel,deptId,deptName,ownerId,ownerName,content,partySystem,receiver,receiverUnit,
+    planFinishDate,status,reportCount,sampleCount,createTime,updateTime}`
+  检索：`q`（taskNo/taskName/customerName）、`status` 页签
+- `GET /task/tasks/counts` → `{draft:1,assigning:0,...}`（状态页签计数）
+- `POST /task/tasks` `{taskName,taskType,contractId,content,receiver,receiverUnit,bizBlock,deptId,planFinishDate,partySystem,items:[],samples:[]}`
+  → 自动 `taskNo`；仅允许选择 `approved` 合同（否则 60002）
+- `PUT /task/tasks/{id}`（仅 draft）· `DELETE`（仅 draft）
+- 状态动作：`POST /task/tasks/{id}/submit|start|finish|close|stop`（非法流转 60001；submit 触发站内通知）
+  - 合法流转表：`draft --submit--> assigning`；`assigning --start--> assigned`（接单确认）；
+    `assigned --start--> in_progress`（开始执行）；`in_progress --finish--> finished`；
+    `finished --close--> closed`；任意非终态 `--stop--> stopped`（终态）
+  - 前端按钮：draft 显示「提交分配」(submit)；assigning/assigned 显示「开始」(start)；
+    in_progress 显示「完成」(finish)；finished 显示「结束」(close)；非终态显示「停止」(stop)
+- `GET /task/tasks/{id}` → 详情含 `items[]` `samples[]`
+- 子条目 `task_item`：`{id,itemCode,name,std,dept,inspector,qty,settleType,needReport,reportNo,reportStatus}`
+  嵌套路由 `POST /task/tasks/{id}/items` · `PUT /task/items/{itemId}` · `DELETE /task/items/{itemId}`
+  `needReport=true` → 自动分配 `reportNo`（BG 规则）
+- 样品 `task_sample`：`{id,sampleNo,name,model,vin,vehicleType,sampleDate,inStock:"in"|"out"}`
+  `POST /task/tasks/{id}/samples`（sampleNo 自动 `任务号-01`）· `PUT /task/samples/{sid}` · `DELETE`
+  `POST /task/samples/{sid}/in` `/out`（写 `task_sample_flow` 流水）
+- `POST /task/tasks/export`
+- 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）
+
+## 前端组件键（componentKey → 懒加载组件）
+```
+workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
+approval/TodoList
+admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
+admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
+```
+
+## 字典（sys_dict）
+`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way`
+读取：`GET /admin/dict/items?type={code}`（仅 enabled，按 sort 排序）
+
+## 种子账号
+| 用户名 | 密码 | 角色 |
+|---|---|---|
+| admin | Admin@123456 | 超级管理员 |
+| manager1 | Test@123456 | 部门负责人（审批人演示） |
+| leader1 | Test@123456 | 分管领导（审批人演示） |
