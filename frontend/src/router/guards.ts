@@ -27,8 +27,10 @@ export function setupGuards(router: Router) {
         if (!auth.loaded) await auth.fetchMe()
         if (auth.menus?.length) registerMenuRoutes(auth.menus)
         else registerMenuRoutes([])
-        // retry navigation so newly added routes can match
-        return { ...to, replace: true }
+        // retry navigation so newly added routes can match.
+        // NOTE: must be path-only — spreading `to` carries name:'NotFound' (catch-all
+        // matched first) and named resolution would land on NotFound again.
+        return { path: to.fullPath, replace: true }
       } catch {
         clearTokens()
         auth.token = ''
