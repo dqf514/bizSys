@@ -87,6 +87,7 @@ from app.modules.approval.router import router as approval_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
 from app.modules.contract.router import router as contract_router  # noqa: E402
 from app.modules.crm.router import router as crm_router  # noqa: E402
+from app.modules.finance.router import router as finance_router  # noqa: E402
 from app.modules.integration.router import router as integration_router  # noqa: E402
 from app.modules.task.router import router as task_router  # noqa: E402
 
@@ -96,6 +97,7 @@ app.include_router(approval_router, prefix="/api/v1")
 app.include_router(crm_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(task_router, prefix="/api/v1")
+app.include_router(finance_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 
 

@@ -340,6 +340,64 @@ export interface ApprovalTimeline {
   records: TimelineRecord[]
 }
 
+/** Finance module — camelCase per backend convention */
+export type SettlementStatus = 'pending' | 'invoicing' | 'invoiced' | 'paid'
+
+export interface Settlement {
+  id: number
+  settlementNo: string
+  taskId: number
+  taskNo: string
+  customerName: string
+  contractNo: string
+  amount: number | string
+  invoiceableAmount: number | string
+  status: SettlementStatus
+  statusText?: string
+  remark: string
+  approvalInstanceId?: number | null
+  createBy: string | number
+  createTime: string
+}
+
+export interface Invoice {
+  id: number
+  settlementId?: number
+  invoiceNo: string
+  amount: number | string
+  invoiceDate: string
+  status: string
+}
+
+export interface Payment {
+  id: number
+  paymentNo: string
+  settlementId: number
+  settlementNo: string
+  payType: string
+  payerName: string
+  payerAccount: string
+  amount: number | string
+  bank: string
+  paidAt: string
+  remark: string
+  createBy: string | number
+  createTime: string
+}
+
+export interface SettlementDetail extends Settlement {
+  invoices: Invoice[]
+  payments: Payment[]
+  paidAmount?: number | null
+  timeline?: TimelineRecord[]
+}
+
+export interface SettlementTaskOption {
+  value: number
+  label: string
+  sub?: string
+}
+
 /** Query params following the contract search convention */
 export interface ListQuery {
   page?: number

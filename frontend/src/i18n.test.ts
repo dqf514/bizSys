@@ -24,6 +24,7 @@ describe('i18n messages wired by namespace', () => {
       'crm.customer.create',
       'contract.contract.detail',
       'task.task.outConfirm',
+      'finance.settlement.title',
     ]
     for (const key of samples) {
       expect(resolved(key), `${key} => ${resolved(key)}`).not.toBe(key)

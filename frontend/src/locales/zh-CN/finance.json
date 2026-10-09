@@ -1,0 +1,52 @@
+{
+  "settlement": {
+    "title": "结算信息",
+    "settlementNo": "结算单号",
+    "taskNo": "任务编号",
+    "customerName": "客户",
+    "contractNo": "合同号",
+    "amount": "结算金额",
+    "invoiceableAmount": "可开票金额",
+    "createBy": "结算人",
+    "createTime": "创建时间",
+    "remark": "备注",
+    "searchQ": "关键词",
+    "placeholderQ": "请输入结算单号/任务号/客户",
+    "create": "新建结算",
+    "selectTask": "选择任务",
+    "detail": "结算详情",
+    "applyInvoice": "申请开票",
+    "applyInvoiceConfirm": "确认为该结算单申请开票？",
+    "registerInvoice": "登记发票",
+    "registerPayment": "到账登记",
+    "noInvoice": "未找到可登记的发票记录",
+    "invoices": "发票记录",
+    "payments": "到账记录",
+    "invoiceNo": "发票号",
+    "invoiceDate": "开票日期",
+    "invoiceStatus": "发票状态",
+    "status": {
+      "pending": "待开票",
+      "invoicing": "开票审批中",
+      "invoiced": "已开票",
+      "paid": "已到账"
+    }
+  },
+  "payment": {
+    "title": "到账信息",
+    "paymentNo": "到账记录号",
+    "settlementNo": "结算单号",
+    "payType": "到账类型",
+    "payerName": "对方名称",
+    "payerAccount": "对方账号",
+    "amount": "金额",
+    "bank": "开户行",
+    "paidAt": "到账日期",
+    "createBy": "登记人",
+    "remark": "备注",
+    "searchQ": "关键词",
+    "placeholderQ": "请输入到账号/对方名称/结算单号",
+    "create": "到账登记",
+    "selectSettlement": "选择结算单"
+  }
+}

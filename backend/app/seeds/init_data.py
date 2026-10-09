@@ -71,6 +71,42 @@ MENU_TREE = [
             (None, "task-export", "", "", "", "task:list:export", []),
         ],
     ),
+    (
+        "menu.finance",
+        "Finance",
+        "",
+        "",
+        "Money",
+        "",
+        [
+            (
+                "menu.financeSettlement",
+                "FinanceSettlements",
+                "/finance/settlements",
+                "finance/SettlementList",
+                "Tickets",
+                "finance:settlement:list",
+                [
+                    (None, "settlement-create", "", "", "", "finance:settlement:create", []),
+                    (None, "settlement-export", "", "", "", "finance:settlement:export", []),
+                    (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
+                    (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
+                ],
+            ),
+            (
+                "menu.financePayment",
+                "FinancePayments",
+                "/finance/payments",
+                "finance/PaymentList",
+                "Wallet",
+                "finance:payment:list",
+                [
+                    (None, "payment-create", "", "", "", "finance:payment:create", []),
+                    (None, "payment-export", "", "", "", "finance:payment:export", []),
+                ],
+            ),
+        ],
+    ),
     ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
     (
         "menu.system",
@@ -226,6 +262,15 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         "交付方式",
         [("报告", "Report", "report"), ("现场交付", "On-site", "onsite"), ("电子交付", "Electronic", "electronic")],
     ),
+    "pay_type": (
+        "到账方式",
+        [
+            ("网银", "Bank Transfer", "bank_transfer"),
+            ("汇票", "Draft", "draft"),
+            ("现金", "Cash", "cash"),
+            ("POS", "POS", "pos"),
+        ],
+    ),
 }
 
 NUMBER_RULES = [
@@ -234,6 +279,8 @@ NUMBER_RULES = [
     ("contract", "HT", "%Y%m%d", 4, "daily", "HT202610090001"),
     ("task", "RW", "%Y%m%d", 4, "daily", "RW202610090001"),
     ("report", "BG", "%Y%m%d", 4, "daily", "BG202610090001"),
+    ("settlement", "HK", "%Y%m%d", 4, "daily", "HK202610090001"),
+    ("payment", "DZ", "%Y%m%d", 4, "daily", "DZ202610090001"),
 ]
 
 DEPTS = [
@@ -322,6 +369,14 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "task:assign",
         "task:submit",
         "task:list:export",
+        "finance:settlement:list",
+        "finance:settlement:create",
+        "finance:settlement:export",
+        "finance:invoice:apply",
+        "finance:invoice:edit",
+        "finance:payment:list",
+        "finance:payment:create",
+        "finance:payment:export",
         "approval:view",
     ]
     for p in biz_perms:
@@ -394,15 +449,32 @@ def _seed_number_rules(db: Session) -> None:
 
 
 def _seed_flows(db: Session) -> None:
-    """合同两级审批：部门负责人(manager1) → 分管领导(leader1)。"""
-    if db.scalar(
-        select(ApprovalDefinition).where(ApprovalDefinition.code == "contract_approve", ApprovalDefinition.deleted == 0)
-    ):
+    """合同两级审批：部门负责人(manager1) → 分管领导(leader1)；开票申请一级审批：manager1。"""
+    _seed_flow(
+        db,
+        code="contract_approve",
+        name="合同审批",
+        biz_type="contract",
+        remark="默认两级顺序审批",
+        nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
+    )
+    _seed_flow(
+        db,
+        code="invoice_apply",
+        name="开票申请审批",
+        biz_type="invoice",
+        remark="开票申请默认一级审批",
+        nodes=((1, "部门负责人审批", "manager1"),),
+    )
+
+
+def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
+    if db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)):
         return
-    d = ApprovalDefinition(code="contract_approve", name="合同审批", biz_type="contract", remark="默认两级顺序审批")
+    d = ApprovalDefinition(code=code, name=name, biz_type=biz_type, remark=remark)
     db.add(d)
     db.flush()
-    for seq, node_name, username in ((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")):
+    for seq, node_name, username in nodes:
         u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
         if not u:
             continue
