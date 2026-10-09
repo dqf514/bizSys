@@ -1,0 +1,35 @@
+# --- 依赖/构建产物 ---
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- 环境与密钥 ---
+.env
+.env.local
+.env.*.local
+*.local
+
+# --- IDE/系统 ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- 前期大媒体素材不入库（关键截图/字幕/分析文档入库） ---
+pre/SMVIC-System Intro.mp4
+pre/frames/
+pre/_scratch/
+
+# --- 运行数据 ---
+backend/uploads/
+backend/*.db
+deploy/mysql/data/
+deploy/.env
+*.log
