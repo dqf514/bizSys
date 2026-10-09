@@ -6,7 +6,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="list-page">
+  <div class="list-page" v-loading="loading">
     <div class="list-page-header">
       <div class="list-page-title">{{ title }}</div>
       <div class="list-page-actions">
@@ -14,11 +14,11 @@ defineProps<{
       </div>
     </div>
 
-    <div class="list-page-search">
+    <div v-if="$slots.searchBar" class="list-page-search">
       <slot name="searchBar" />
     </div>
 
-    <div class="list-page-tabs">
+    <div v-if="$slots.statusTabs" class="list-page-tabs">
       <slot name="statusTabs" />
     </div>
 
@@ -26,7 +26,7 @@ defineProps<{
       <slot name="toolbar" />
     </div>
 
-    <div class="list-page-table" v-loading="loading">
+    <div v-if="$slots.table" class="list-page-table">
       <slot name="table" />
     </div>
 
