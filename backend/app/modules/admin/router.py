@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -23,6 +23,7 @@ from app.modules.admin.models import (
     DictItem,
     DictType,
     Menu,
+    Notify,
     NumberRule,
     Role,
 )
@@ -618,5 +619,76 @@ def update_dept(
         raise BizException(R.GENERIC_NOT_FOUND)
     for k, v in body.model_dump().items():
         setattr(d, k, v)
+    db.commit()
+    return None
+
+
+# ---------------- 站内通知（登录即可读自己的） ----------------
+@router.get("/notifies")
+def list_notifies(
+    request: Request,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    stmt = select(Notify).where(Notify.user_id == current.id, Notify.deleted == 0)
+    unread = (request.query_params.get("status") or "") == "unread"
+    if unread:
+        stmt = stmt.where(Notify.read_flag == 0)
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    rows = db.scalars(stmt.order_by(Notify.id.desc()).offset((page - 1) * size).limit(size)).all()
+    return {
+        "items": [
+            {
+                "id": n.id,
+                "title": n.title,
+                "content": n.content,
+                "bizType": n.biz_type,
+                "bizId": n.biz_id,
+                "link": n.link,
+                "readFlag": bool(n.read_flag),
+                "createTime": _t(n.create_time),
+            }
+            for n in rows
+        ],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
+
+
+@router.get("/notifies/unread-count")
+def notify_unread_count(current: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    n = db.scalar(
+        select(func.count()).select_from(
+            select(Notify)
+            .where(Notify.user_id == current.id, Notify.read_flag == 0, Notify.deleted == 0)
+            .subquery()
+        )
+    ) or 0
+    return {"count": n}
+
+
+@router.post("/notifies/{nid}/read")
+def mark_notify_read(
+    nid: int,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    n = db.scalar(select(Notify).where(Notify.id == nid, Notify.user_id == current.id, Notify.deleted == 0))
+    if not n:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    n.read_flag = 1
+    db.commit()
+    return None
+
+
+@router.post("/notifies/read-all")
+def mark_all_read(current: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    for n in db.scalars(
+        select(Notify).where(Notify.user_id == current.id, Notify.read_flag == 0, Notify.deleted == 0)
+    ):
+        n.read_flag = 1
     db.commit()
     return None

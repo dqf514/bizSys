@@ -30,6 +30,8 @@
 - `GET /admin/audit-logs`（分页）
 - `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
 - `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
+- 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`
+  `GET /admin/notifies/unread-count` → `{count}` · `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
 
 ## CRM 客户 /crm
 - `GET /crm/customers` 分页：字段

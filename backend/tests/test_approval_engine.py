@@ -22,6 +22,13 @@ def _users(db):
     return admin, m1, l1
 
 
+def _start(db, admin, biz, title="t"):
+    return service.start(
+        db, biz_type="contract", biz_id=biz, definition_code="contract_approve",
+        title=title, initiator=admin,
+    )
+
+
 def _biz_id() -> int:
     return uuid.uuid4().int % 10**9 + 10**9  # 不与真实业务 id 冲突
 
@@ -57,12 +64,12 @@ def test_full_approve_chain(db):
 def test_error_codes(db):
     admin, m1, l1 = _users(db)
     biz = _biz_id()
-    service.start(db, biz_type="contract", biz_id=biz, definition_code="contract_approve", title="x", initiator=admin)
+    _start(db, admin, biz, "x")
     db.flush()
 
     # 70004 重复发起
     try:
-        service.start(db, biz_type="contract", biz_id=biz, definition_code="contract_approve", title="x", initiator=admin)
+        _start(db, admin, biz, "x")
         raise AssertionError("expected 70004")
     except BizException as e:
         assert e.code == 70004
@@ -102,14 +109,14 @@ def test_withdraw_transfer_addsign(db):
 
     # 撤回
     biz = _biz_id()
-    inst = service.start(db, biz_type="contract", biz_id=biz, definition_code="contract_approve", title="w", initiator=admin)
+    inst = _start(db, admin, biz, "w")
     db.flush()
     inst = service.withdraw(db, inst.id, admin)
     assert inst.status == "withdrawn"
 
     # 转办后仍可撤回（转办≠已审）
     biz2 = _biz_id()
-    inst2 = service.start(db, biz_type="contract", biz_id=biz2, definition_code="contract_approve", title="t", initiator=admin)
+    inst2 = _start(db, admin, biz2, "t")
     db.flush()
     t = _todo(db, m1, biz2)
     service.transfer(db, t[0]["id"], m1, admin, "转你")
@@ -119,7 +126,7 @@ def test_withdraw_transfer_addsign(db):
 
     # 加签
     biz3 = _biz_id()
-    service.start(db, biz_type="contract", biz_id=biz3, definition_code="contract_approve", title="a", initiator=admin)
+    _start(db, admin, biz3, "a")
     db.flush()
     t3 = _todo(db, m1, biz3)
     service.add_sign(db, t3[0]["id"], m1, admin, "帮忙")

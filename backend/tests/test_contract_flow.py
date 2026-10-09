@@ -1,8 +1,7 @@
 """合同主链路（HTTP）：客户 → 合同 → 提交 → 两级审批 → 已通过 → 导出。"""
 
-import uuid
-
 import io
+import uuid
 
 from openpyxl import load_workbook
 
@@ -64,15 +63,21 @@ def test_contract_full_flow(client, admin_headers, manager_headers, leader_heade
     assert r["code"] == 50002
 
     # manager1 同意
-    todo = [i for i in client.get("/api/v1/approval/tasks", headers=manager_headers, params={"tab": "todo"}).json()["data"]["items"] if i["bizId"] == cid]
+    page = client.get("/api/v1/approval/tasks", headers=manager_headers, params={"tab": "todo"}).json()
+    todo = [i for i in page["data"]["items"] if i["bizId"] == cid]
     assert todo
-    r = client.post(f"/api/v1/approval/tasks/{todo[0]['id']}/approve", headers=manager_headers, json={"comment": "ok"}).json()
+    r = client.post(
+        f"/api/v1/approval/tasks/{todo[0]['id']}/approve", headers=manager_headers, json={"comment": "ok"}
+    ).json()
     assert r["code"] == 0 and r["data"]["status"] == "running"
 
     # leader1 同意
-    todo = [i for i in client.get("/api/v1/approval/tasks", headers=leader_headers, params={"tab": "todo"}).json()["data"]["items"] if i["bizId"] == cid]
+    page = client.get("/api/v1/approval/tasks", headers=leader_headers, params={"tab": "todo"}).json()
+    todo = [i for i in page["data"]["items"] if i["bizId"] == cid]
     assert todo
-    r = client.post(f"/api/v1/approval/tasks/{todo[0]['id']}/approve", headers=leader_headers, json={"comment": "ok"}).json()
+    r = client.post(
+        f"/api/v1/approval/tasks/{todo[0]['id']}/approve", headers=leader_headers, json={"comment": "ok"}
+    ).json()
     assert r["code"] == 0 and r["data"]["status"] == "approved"
 
     # 合同已通过 + 时间线

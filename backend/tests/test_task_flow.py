@@ -1,8 +1,7 @@
 """任务模块（HTTP）：合同校验 60002 / 状态机 60001 / 编号 / 计数 / 导出。"""
 
-import uuid
-
 import io
+import uuid
 
 from openpyxl import load_workbook
 
@@ -27,8 +26,8 @@ def _approved_contract(client, headers):
     from sqlalchemy import select
 
     from app.core.db import SessionLocal
-    from app.modules.approval.models import ApprovalTask
     from app.modules.approval import service as approval
+    from app.modules.approval.models import ApprovalTask
 
     db = SessionLocal()
     try:

@@ -22,7 +22,7 @@ def test_contract_no_has_date(db):
 def test_preview_does_not_consume(db):
     from sqlalchemy import select
 
-    from app.modules.admin.models import NumberSeq, NumberRule
+    from app.modules.admin.models import NumberRule, NumberSeq
 
     rule = db.scalar(select(NumberRule).where(NumberRule.biz_type == "customer"))
     before = db.scalar(select(NumberSeq).where(NumberSeq.rule_id == rule.id))
