@@ -150,6 +150,8 @@ def delete_user(
     if not u or u.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     u.deleted = 1
+    # username 有物理唯一索引，逻辑删后释放登录名，避免同名重建触发 500
+    u.username = f"{u.username[:50]}#del{u.id}"
     audit(db, user_id=current.id, module="admin", action="user_delete", biz_type="user", biz_id=uid)
     db.commit()
     return None
@@ -299,6 +301,8 @@ def delete_role(
     if r.code == SUPER_ROLE:
         raise BizException(R.GENERIC_PARAM, "内置超管角色不可删")
     r.deleted = 1
+    # code 有物理唯一索引，逻辑删后释放编码，避免同名重建触发 500
+    r.code = f"{r.code[:50]}#del{r.id}"
     db.commit()
     return None
 
@@ -440,6 +444,14 @@ def create_dict_item(
     current: User = Depends(require_perm("admin:dict:edit")),
     db: Session = Depends(get_db),
 ):
+    if db.scalar(
+        select(DictItem.id).where(
+            DictItem.dict_type_code == body.dict_type_code,
+            DictItem.value == body.value,
+            DictItem.deleted == 0,
+        )
+    ):
+        raise BizException(R.GENERIC_PARAM, "该字典类型下字典值已存在")
     db.add(DictItem(**body.model_dump(), create_by=current.id))
     db.commit()
     return None
@@ -455,6 +467,16 @@ def update_dict_item(
     item = db.get(DictItem, did)
     if not item or item.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
+    dup = db.scalar(
+        select(DictItem.id).where(
+            DictItem.dict_type_code == body.dict_type_code,
+            DictItem.value == body.value,
+            DictItem.deleted == 0,
+            DictItem.id != did,
+        )
+    )
+    if dup:
+        raise BizException(R.GENERIC_PARAM, "该字典类型下字典值已存在")
     for k, v in body.model_dump().items():
         setattr(item, k, v)
     db.commit()
@@ -470,6 +492,8 @@ def delete_dict_item(
     item = db.get(DictItem, did)
     if item:
         item.deleted = 1
+        # (dict_type_code, value) 有物理唯一约束，逻辑删后释放字典值，避免重建触发 500
+        item.value = f"{item.value[:50]}#del{item.id}"
         db.commit()
     return None
 
