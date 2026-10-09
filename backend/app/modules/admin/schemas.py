@@ -2,8 +2,10 @@
 
 from pydantic import BaseModel, Field
 
+from app.core.schemas import CamelModel
 
-class UserIn(BaseModel):
+
+class UserIn(CamelModel):
     username: str = Field(min_length=2, max_length=64)
     password: str = Field(default="", max_length=128)
     name: str = ""
@@ -30,7 +32,7 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RoleIn(BaseModel):
+class RoleIn(CamelModel):
     code: str = Field(min_length=2, max_length=64)
     name: str = Field(min_length=1, max_length=64)
     data_scope: str = "all"
@@ -50,7 +52,7 @@ class RoleOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class MenuIn(BaseModel):
+class MenuIn(CamelModel):
     parent_id: int | None = None
     name: str = Field(min_length=1, max_length=64)
     title_key: str = ""
@@ -63,13 +65,13 @@ class MenuIn(BaseModel):
     visible: int = 1
 
 
-class DictTypeIn(BaseModel):
+class DictTypeIn(CamelModel):
     code: str = Field(min_length=2, max_length=64)
     name: str
     remark: str = ""
 
 
-class DictItemIn(BaseModel):
+class DictItemIn(CamelModel):
     dict_type_code: str
     label: str
     label_en: str = ""
@@ -79,7 +81,7 @@ class DictItemIn(BaseModel):
     extra: str = ""
 
 
-class NumberRuleIn(BaseModel):
+class NumberRuleIn(CamelModel):
     biz_type: str = Field(min_length=2, max_length=32)
     prefix: str = ""
     date_format: str = ""
@@ -89,19 +91,19 @@ class NumberRuleIn(BaseModel):
     example: str = ""
 
 
-class PrefIn(BaseModel):
+class PrefIn(CamelModel):
     prefs: dict[str, str] = {}
 
 
-class RoleMenusIn(BaseModel):
+class RoleMenusIn(CamelModel):
     menu_ids: list[int] = []
 
 
-class ResetPasswordIn(BaseModel):
+class ResetPasswordIn(CamelModel):
     password: str = Field(min_length=8, max_length=128)
 
 
-class DeptIn(BaseModel):
+class DeptIn(CamelModel):
     parent_id: int | None = None
     name: str
     code: str = ""

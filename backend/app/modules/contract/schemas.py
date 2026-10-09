@@ -2,10 +2,12 @@
 
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.core.schemas import CamelModel
 
 
-class ContractIn(BaseModel):
+class ContractIn(CamelModel):
     name: str = Field(..., min_length=1, max_length=255)
     customer_id: int
     contract_type: str = Field("", max_length=32)
@@ -24,5 +26,5 @@ class ContractIn(BaseModel):
     version: int | None = None  # 乐观锁校验（可选）
 
 
-class SubmitIn(BaseModel):
+class SubmitIn(CamelModel):
     comment: str = Field("", max_length=255)

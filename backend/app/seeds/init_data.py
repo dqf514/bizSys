@@ -300,29 +300,33 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         biz_role = Role(code="biz_user", name="业务人员", data_scope="dept")
         db.add(biz_role)
         db.flush()
-        biz_perms = [
-            "workbench:view",
-            "crm:customer:list",
-            "crm:customer:create",
-            "crm:customer:edit",
-            "crm:customer:list:export",
-            "contract:list",
-            "contract:create",
-            "contract:edit",
-            "contract:submit",
-            "contract:delete",
-            "contract:list:export",
-            "task:list",
-            "task:create",
-            "task:edit",
-            "task:assign",
-            "task:submit",
-            "task:list:export",
-            "approval:view",
-        ]
-        for p in biz_perms:
-            if p in perm_to_id:
-                db.add(RoleMenu(role_id=biz_role.id, menu_id=perm_to_id[p]))
+    # 每次全量重挂（菜单树是渐进演进的，避免早期创建后漏挂新权限）
+    db.query(RoleMenu).filter(RoleMenu.role_id == biz_role.id).delete()
+    biz_perms = [
+        "workbench:view",
+        "crm:customer:list",
+        "crm:customer:create",
+        "crm:customer:edit",
+        "crm:customer:delete",
+        "crm:customer:list:export",
+        "crm:customer:import",
+        "contract:list",
+        "contract:create",
+        "contract:edit",
+        "contract:submit",
+        "contract:delete",
+        "contract:list:export",
+        "task:list",
+        "task:create",
+        "task:edit",
+        "task:assign",
+        "task:submit",
+        "task:list:export",
+        "approval:view",
+    ]
+    for p in biz_perms:
+        if p in perm_to_id:
+            db.add(RoleMenu(role_id=biz_role.id, menu_id=perm_to_id[p]))
     return super_role
 
 
@@ -341,7 +345,8 @@ def _seed_admin(db: Session, super_role: Role) -> None:
     if not db.scalar(select(UserRole).where(UserRole.user_id == admin.id, UserRole.deleted == 0)):
         db.add(UserRole(user_id=admin.id, role_id=super_role.id))
 
-    # 演示审批人（两级审批种子：上级 + 分管领导用角色审批时可直接用业务人员）
+    # 演示审批人（两级审批种子：挂业务角色——有菜单/权限但不超管，审批动作靠待办指派）
+    biz_role = db.scalar(select(Role).where(Role.code == "biz_user", Role.deleted == 0)) or super_role
     for username, name in (("manager1", "部门负责人"), ("leader1", "分管领导")):
         u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
         if not u:
@@ -354,7 +359,7 @@ def _seed_admin(db: Session, super_role: Role) -> None:
             db.add(u)
             db.flush()
         if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
-            db.add(UserRole(user_id=u.id, role_id=super_role.id))
+            db.add(UserRole(user_id=u.id, role_id=biz_role.id))
 
 
 def _seed_dicts(db: Session) -> None:

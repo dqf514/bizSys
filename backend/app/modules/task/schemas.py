@@ -2,10 +2,12 @@
 
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.core.schemas import CamelModel
 
 
-class ItemIn(BaseModel):
+class ItemIn(CamelModel):
     id: int | None = None
     item_code: str = Field("", max_length=32)
     name: str = Field("", max_length=128)
@@ -19,7 +21,7 @@ class ItemIn(BaseModel):
     report_status: str = Field("", max_length=16)
 
 
-class SampleIn(BaseModel):
+class SampleIn(CamelModel):
     id: int | None = None
     name: str = Field("", max_length=128)
     model: str = Field("", max_length=64)
@@ -29,7 +31,7 @@ class SampleIn(BaseModel):
     in_stock: str = Field("in", pattern="^(in|out)$")
 
 
-class TaskIn(BaseModel):
+class TaskIn(CamelModel):
     task_name: str = Field(..., min_length=1, max_length=255)
     task_type: str = Field("", max_length=32)
     contract_id: int | None = None

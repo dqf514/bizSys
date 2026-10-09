@@ -2,13 +2,15 @@
 
 from pydantic import BaseModel, Field
 
+from app.core.schemas import CamelModel
 
-class LoginIn(BaseModel):
+
+class LoginIn(CamelModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
 
 
-class RefreshIn(BaseModel):
+class RefreshIn(CamelModel):
     refresh_token: str
 
 

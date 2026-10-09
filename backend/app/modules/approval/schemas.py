@@ -1,27 +1,29 @@
 """审批模块入参模型。"""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.core.schemas import CamelModel
 
 
-class CommentIn(BaseModel):
+class CommentIn(CamelModel):
     comment: str = Field("", max_length=500)
 
 
-class TransferIn(BaseModel):
+class TransferIn(CamelModel):
     to_user_id: int
     comment: str = Field("", max_length=500)
 
 
-class AddSignIn(BaseModel):
+class AddSignIn(CamelModel):
     approver_id: int
     comment: str = Field("", max_length=500)
 
 
-class WithdrawIn(BaseModel):
+class WithdrawIn(CamelModel):
     comment: str = Field("", max_length=500)
 
 
-class NodeIn(BaseModel):
+class NodeIn(CamelModel):
     seq: int = Field(1, ge=1)
     node_name: str = Field("", max_length=64)
     approver_type: str = Field("USER", pattern="^(USER|ROLE)$")
@@ -29,7 +31,7 @@ class NodeIn(BaseModel):
     approver_name: str = Field("", max_length=128)
 
 
-class DefinitionIn(BaseModel):
+class DefinitionIn(CamelModel):
     code: str = Field(..., min_length=2, max_length=64)
     name: str = Field(..., min_length=1, max_length=64)
     biz_type: str = Field(..., min_length=1, max_length=32)

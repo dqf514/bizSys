@@ -1,9 +1,11 @@
 """CRM 入参模型。"""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.core.schemas import CamelModel
 
 
-class CustomerIn(BaseModel):
+class CustomerIn(CamelModel):
     name: str = Field(..., min_length=1, max_length=128)
     code: str = Field("", max_length=64)
     customer_type: str = Field("", max_length=32)
