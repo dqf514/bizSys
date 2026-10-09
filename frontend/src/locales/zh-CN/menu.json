@@ -1,6 +1,5 @@
 {
   "workbench": "工作台",
-  "base": "基础信息",
   "customer": "客户管理",
   "contract": "合同管理",
   "task": "任务管理",

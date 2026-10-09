@@ -56,8 +56,40 @@ for (const file of zhFiles) {
   }
 }
 
+// 源码里 t('ns.key') 用到的键必须在 zh-CN 存在（防"两种语言同时缺键"与命名空间错挂漏网）
+const srcDir = join(here, '..', 'src')
+const NAMESPACES = new Set(zhFiles.map((f) => basename(f, '.json')))
+const available = new Set()
+for (const file of zhFiles) {
+  const domain = basename(file, '.json')
+  const zh = JSON.parse(readFileSync(join(zhDir, file), 'utf8'))
+  for (const k of flatten(zh)) available.add(`${domain}.${k}`)
+}
+const used = new Set()
+function* walkSrc(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name)
+    if (entry.isDirectory()) yield* walkSrc(p)
+    else if (/\.(vue|ts)$/.test(entry.name)) yield p
+  }
+}
+const tCall = /(?:\$?t|te)\(\s*['"]([A-Za-z_][\w.]*)['"]/g
+for (const file of walkSrc(srcDir)) {
+  const text = readFileSync(file, 'utf8')
+  for (const m of text.matchAll(tCall)) {
+    const key = m[1]
+    if (NAMESPACES.has(key.split('.')[0])) used.add(key)
+  }
+}
+const missingUsed = [...used].filter((k) => !available.has(k)).sort()
+if (missingUsed.length) {
+  failed = 1
+  console.error('[i18n-check] used but not defined in zh-CN:')
+  for (const k of missingUsed) console.error(`   ${k}`)
+}
+
 if (failed) {
   console.error('[i18n-check] FAILED')
   process.exit(1)
 }
-console.log(`[i18n-check] OK — ${zhFiles.length} domains, key sets identical`)
+console.log(`[i18n-check] OK — ${zhFiles.length} domains, key sets identical, ${used.size} used keys all defined`)

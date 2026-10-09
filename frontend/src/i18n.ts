@@ -32,7 +32,8 @@ function pack(
   contract: object,
   task: object,
 ) {
-  return { ...common, menu, auth, workbench, admin, approval, crm, contract, task }
+  // 代码统一用 `common.xxx` / `menu.xxx` 等命名空间引用，common 必须挂在 common 下
+  return { common, menu, auth, workbench, admin, approval, crm, contract, task }
 }
 
 const messages = {

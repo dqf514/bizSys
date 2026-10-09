@@ -2,9 +2,9 @@
 FROM node:24-slim AS build
 RUN corepack enable && corepack prepare pnpm@11 --activate
 WORKDIR /app
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY frontend/package.json frontend/
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install --frozen-lockfile
 COPY frontend ./frontend
 RUN pnpm build
 

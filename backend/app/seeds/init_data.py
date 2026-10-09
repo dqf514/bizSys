@@ -25,59 +25,50 @@ from app.modules.auth.models import User
 # children 中 permission 为空串表示纯目录
 MENU_TREE = [
     ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
+    # 客户/合同/任务与参考系统一致：各自是一级模块，不收拢进"基础信息"目录
     (
-        "menu.base",
-        "BaseInfo",
-        "",
-        "",
-        "Collection",
-        "",
+        "menu.customer",
+        "Customers",
+        "/crm/customers",
+        "crm/CustomerList",
+        "User",
+        "crm:customer:list",
         [
-            (
-                "menu.customer",
-                "Customers",
-                "/crm/customers",
-                "crm/CustomerList",
-                "User",
-                "crm:customer:list",
-                [
-                    (None, "customer-create", "", "", "", "crm:customer:create", []),
-                    (None, "customer-edit", "", "", "", "crm:customer:edit", []),
-                    (None, "customer-delete", "", "", "", "crm:customer:delete", []),
-                    (None, "customer-export", "", "", "", "crm:customer:list:export", []),
-                    (None, "customer-import", "", "", "", "crm:customer:import", []),
-                ],
-            ),
-            (
-                "menu.contract",
-                "Contracts",
-                "/contract/contracts",
-                "contract/ContractList",
-                "Document",
-                "contract:list",
-                [
-                    (None, "contract-create", "", "", "", "contract:create", []),
-                    (None, "contract-edit", "", "", "", "contract:edit", []),
-                    (None, "contract-submit", "", "", "", "contract:submit", []),
-                    (None, "contract-delete", "", "", "", "contract:delete", []),
-                    (None, "contract-export", "", "", "", "contract:list:export", []),
-                ],
-            ),
-            (
-                "menu.task",
-                "Tasks",
-                "/task/tasks",
-                "task/TaskList",
-                "List",
-                "task:list",
-                [
-                    (None, "task-create", "", "", "", "task:create", []),
-                    (None, "task-edit", "", "", "", "task:edit", []),
-                    (None, "task-assign", "", "", "", "task:assign", []),
-                    (None, "task-submit", "", "", "", "task:submit", []),
-                    (None, "task-export", "", "", "", "task:list:export", []),
-                ],
-            ),
+            (None, "customer-create", "", "", "", "crm:customer:create", []),
+            (None, "customer-edit", "", "", "", "crm:customer:edit", []),
+            (None, "customer-delete", "", "", "", "crm:customer:delete", []),
+            (None, "customer-export", "", "", "", "crm:customer:list:export", []),
+            (None, "customer-import", "", "", "", "crm:customer:import", []),
+        ],
+    ),
+    (
+        "menu.contract",
+        "Contracts",
+        "/contract/contracts",
+        "contract/ContractList",
+        "Document",
+        "contract:list",
+        [
+            (None, "contract-create", "", "", "", "contract:create", []),
+            (None, "contract-edit", "", "", "", "contract:edit", []),
+            (None, "contract-submit", "", "", "", "contract:submit", []),
+            (None, "contract-delete", "", "", "", "contract:delete", []),
+            (None, "contract-export", "", "", "", "contract:list:export", []),
+        ],
+    ),
+    (
+        "menu.task",
+        "Tasks",
+        "/task/tasks",
+        "task/TaskList",
+        "List",
+        "task:list",
+        [
+            (None, "task-create", "", "", "", "task:create", []),
+            (None, "task-edit", "", "", "", "task:edit", []),
+            (None, "task-assign", "", "", "", "task:assign", []),
+            (None, "task-submit", "", "", "", "task:submit", []),
+            (None, "task-export", "", "", "", "task:list:export", []),
         ],
     ),
     ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
@@ -254,11 +245,14 @@ DEPTS = [
 
 
 def _seed_menus(db: Session) -> dict[str, int]:
+    """菜单树幂等同步：新增/改父级/按树顺序设 sort；树中消失的菜单逻辑删除（种子即菜单唯一权威来源）。"""
     existing = {m.name: m for m in db.scalars(select(Menu).where(Menu.deleted == 0)).all()}
     perm_to_id: dict[str, int] = {}
+    seen: set[str] = set()
 
     def walk(nodes, parent_id: int | None):
-        for title_key, name, path, comp, icon, perm, children in nodes:
+        for idx, (title_key, name, path, comp, icon, perm, children) in enumerate(nodes):
+            seen.add(name)
             m = existing.get(name)
             if m is None:
                 m = Menu(
@@ -270,17 +264,23 @@ def _seed_menus(db: Session) -> dict[str, int]:
                     icon=icon,
                     permission=perm or "",
                     menu_type=_menu_type(children, comp, perm, path),
-                    sort=0,
+                    sort=idx,
                 )
                 db.add(m)
                 db.flush()
                 existing[name] = m
+            else:
+                # 结构演进时同步（如"基础信息"拆为一级模块后子菜单上移）
+                m.parent_id = parent_id
+                m.sort = idx
             if perm:
                 perm_to_id[perm] = m.id
             walk(children, m.id)
 
     walk(MENU_TREE, None)
-    # 排序：同级按添加顺序
+    for name, m in existing.items():
+        if name not in seen:
+            m.deleted = 1  # 例：BaseInfo 目录已拆分下线
     return perm_to_id
 
 

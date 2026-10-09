@@ -69,5 +69,7 @@ jobs:
         run: pnpm typecheck
       - name: i18n missing keys check
         run: pnpm i18n:check
+      - name: Unit tests
+        run: pnpm test
       - name: Build
         run: pnpm build

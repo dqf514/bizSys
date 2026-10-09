@@ -1,0 +1,16 @@
+# 构建上下文瘦身：宿主依赖/产物绝不能覆盖容器内安装
+**/node_modules
+**/dist
+.git
+.github
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+backend/uploads
+deploy/mysql/data
+pre
+docs
+*.log
+.env
+.env.*
