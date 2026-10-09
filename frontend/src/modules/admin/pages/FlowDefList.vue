@@ -1,0 +1,307 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, type FormInstance } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+import ListPage from '@/components/list/ListPage.vue'
+import { listFlowDefs, createFlowDef, updateFlowDef, listRoles, listUsers } from '@/api/admin'
+import type { FlowDef, FlowNode } from '@/api/types'
+
+defineOptions({ name: 'FlowDefList' })
+
+const { t } = useI18n()
+
+const items = ref<FlowDef[]>([])
+const loading = ref(false)
+
+async function load() {
+  loading.value = true
+  try {
+    const data = await listFlowDefs()
+    items.value = Array.isArray(data) ? data : (data.items ?? [])
+  } catch {
+    items.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => void load())
+
+const dialogVisible = ref(false)
+const dialogTitle = ref('')
+const formRef = ref<FormInstance>()
+const saving = ref(false)
+const editingId = ref<number | null>(null)
+const form = reactive({
+  code: '',
+  name: '',
+  bizType: 'contract',
+  enabled: true,
+  nodes: [] as FlowNode[],
+})
+
+const roleOptions = ref<{ id: number; name: string }[]>([])
+const userOptions = ref<{ id: number; name: string }[]>([])
+
+async function loadApprovers() {
+  try {
+    const roles = await listRoles({ page: 1, size: 100 })
+    roleOptions.value = (roles.items ?? []).map((r) => ({ id: r.id, name: r.name }))
+  } catch {
+    roleOptions.value = []
+  }
+  try {
+    const users = await listUsers({ page: 1, size: 100 })
+    userOptions.value = (users.items ?? []).map((u) => ({ id: u.id, name: u.name || u.username }))
+  } catch {
+    userOptions.value = []
+  }
+}
+
+function addNode() {
+  form.nodes.push({
+    seq: form.nodes.length + 1,
+    nodeName: '',
+    approverType: 'USER',
+    approverValue: '',
+    approverName: '',
+  })
+  reseq()
+}
+
+function removeNode(idx: number) {
+  form.nodes.splice(idx, 1)
+  reseq()
+}
+
+function moveNode(idx: number, dir: -1 | 1) {
+  const target = idx + dir
+  if (target < 0 || target >= form.nodes.length) return
+  const a = form.nodes[idx]!
+  const b = form.nodes[target]!
+  form.nodes[idx] = b
+  form.nodes[target] = a
+  reseq()
+}
+
+function reseq() {
+  form.nodes.forEach((n, i) => {
+    n.seq = i + 1
+  })
+}
+
+function openCreate() {
+  editingId.value = null
+  dialogTitle.value = t('admin.flow.create')
+  Object.assign(form, {
+    code: '',
+    name: '',
+    bizType: 'contract',
+    enabled: true,
+    nodes: [{ seq: 1, nodeName: '', approverType: 'USER', approverValue: '', approverName: '' }],
+  })
+  dialogVisible.value = true
+  void loadApprovers()
+}
+
+function openEdit(row: FlowDef) {
+  editingId.value = row.id
+  dialogTitle.value = t('admin.flow.edit')
+  Object.assign(form, {
+    code: row.code,
+    name: row.name,
+    bizType: row.bizType,
+    enabled: Boolean(row.enabled),
+    nodes: (row.nodes ?? []).map((n) => ({ ...n })),
+  })
+  if (!form.nodes.length) addNode()
+  dialogVisible.value = true
+  void loadApprovers()
+}
+
+async function save() {
+  if (!formRef.value) return
+  const ok = await formRef.value.validate().catch(() => false)
+  if (!ok) return
+  if (!form.nodes.length || form.nodes.some((n) => !n.nodeName)) {
+    ElMessage.warning(t('admin.flow.nodeRequired'))
+    return
+  }
+  saving.value = true
+  try {
+    const payload = {
+      code: form.code,
+      name: form.name,
+      bizType: form.bizType,
+      enabled: form.enabled,
+      nodes: form.nodes.map((n, i) => ({
+        seq: i + 1,
+        nodeName: n.nodeName,
+        approverType: n.approverType,
+        approverValue: n.approverValue,
+        approverName: n.approverName,
+      })),
+    }
+    if (editingId.value) await updateFlowDef(editingId.value, payload)
+    else await createFlowDef(payload)
+    ElMessage.success(t('common.message.saveSuccess'))
+    dialogVisible.value = false
+    void load()
+  } catch {
+    /* http notifies */
+  } finally {
+    saving.value = false
+  }
+}
+
+function onApproverChange(node: FlowNode, v: unknown) {
+  const list = node.approverType === 'ROLE' ? roleOptions.value : userOptions.value
+  node.approverName = list.find((x) => String(x.id) === String(v))?.name ?? ''
+}
+
+function bizLabel(b: string) {
+  if (b === 'contract') return t('admin.flow.bizContract')
+  if (b === 'task') return t('admin.flow.bizTask')
+  return b
+}
+</script>
+
+<template>
+  <ListPage :title="t('admin.flow.title')" :loading="loading">
+    <template #actions>
+      <el-button v-permission="'admin:flow:edit'" type="primary" @click="openCreate">
+        {{ t('admin.flow.create') }}
+      </el-button>
+      <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
+    </template>
+
+    <template #table>
+      <el-table :data="items" row-key="id" border stripe height="100%">
+        <el-table-column :label="t('admin.flow.code')" prop="code" width="130" />
+        <el-table-column :label="t('admin.flow.name')" prop="name" min-width="150" />
+        <el-table-column :label="t('admin.flow.bizType')" width="110">
+          <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('admin.flow.enabled')" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
+              {{ row.enabled ? t('common.form.enabled') : t('common.form.disabled') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('admin.flow.nodes')" min-width="260">
+          <template #default="{ row }">
+            <el-tag v-for="n in (row.nodes || [])" :key="n.seq" size="small" class="node-tag">
+              {{ n.seq }}. {{ n.nodeName }} ({{ n.approverType === 'ROLE' ? t('admin.flow.approverRole') : t('admin.flow.approverUser') }}: {{ n.approverName || n.approverValue }})
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('common.action.operate')" width="110" fixed="right">
+          <template #default="{ row }">
+            <el-button v-permission="'admin:flow:edit'" link type="primary" @click="openEdit(row as FlowDef)">
+              {{ t('common.action.edit') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
+  </ListPage>
+
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" append-to-body>
+    <el-form ref="formRef" :model="form" label-width="110px">
+      <el-form-item :label="t('admin.flow.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
+        <el-input v-model="form.code" />
+      </el-form-item>
+      <el-form-item :label="t('admin.flow.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
+        <el-input v-model="form.name" />
+      </el-form-item>
+      <el-form-item :label="t('admin.flow.bizType')">
+        <el-select v-model="form.bizType" style="width: 100%">
+          <el-option :label="t('admin.flow.bizContract')" value="contract" />
+          <el-option :label="t('admin.flow.bizTask')" value="task" />
+        </el-select>
+      </el-form-item>
+      <el-form-item :label="t('admin.flow.enabled')">
+        <el-switch v-model="form.enabled" />
+      </el-form-item>
+
+      <el-form-item :label="t('admin.flow.nodes')">
+        <div class="node-editor">
+          <div v-for="(node, idx) in form.nodes" :key="idx" class="node-row">
+            <span class="node-seq">{{ idx + 1 }}</span>
+            <el-input v-model="node.nodeName" :placeholder="t('admin.flow.nodeName')" class="node-name" />
+            <el-select v-model="node.approverType" class="node-type" @change="node.approverValue = ''">
+              <el-option :label="t('admin.flow.approverUser')" value="USER" />
+              <el-option :label="t('admin.flow.approverRole')" value="ROLE" />
+            </el-select>
+            <el-select
+              v-model="node.approverValue"
+              class="node-value"
+              filterable
+              :placeholder="t('admin.flow.approverValue')"
+              @change="onApproverChange(node, $event)"
+            >
+              <el-option
+                v-for="opt in (node.approverType === 'ROLE' ? roleOptions : userOptions)"
+                :key="opt.id"
+                :label="opt.name"
+                :value="opt.id"
+              />
+            </el-select>
+            <el-button @click="moveNode(idx, -1)">{{ t('admin.flow.moveUp') }}</el-button>
+            <el-button @click="moveNode(idx, 1)">{{ t('admin.flow.moveDown') }}</el-button>
+            <el-button type="danger" link @click="removeNode(idx)">{{ t('common.action.delete') }}</el-button>
+          </div>
+          <el-button type="primary" plain @click="addNode">{{ t('admin.flow.addNode') }}</el-button>
+        </div>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+    </template>
+  </el-dialog>
+</template>
+
+<style scoped>
+.node-tag {
+  margin: 2px 4px 2px 0;
+}
+
+.node-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+}
+
+.node-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  flex-wrap: wrap;
+}
+
+.node-seq {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bs-radius-full);
+  background: var(--bs-color-fill-light);
+  font-size: var(--bs-typography-font-size-xs);
+}
+
+.node-name {
+  width: 150px;
+}
+
+.node-type {
+  width: 110px;
+}
+
+.node-value {
+  width: 150px;
+}
+</style>

@@ -1,0 +1,17 @@
+{
+  "workbench": "Workbench",
+  "base": "Base Info",
+  "customer": "Customers",
+  "contract": "Contracts",
+  "task": "Tasks",
+  "approval": "Approvals",
+  "system": "System",
+  "users": "Users",
+  "roles": "Roles",
+  "menus": "Menus",
+  "dict": "Dictionary",
+  "numbering": "Number Rules",
+  "audit": "Audit Logs",
+  "depts": "Departments",
+  "flow": "Flow Definitions"
+}

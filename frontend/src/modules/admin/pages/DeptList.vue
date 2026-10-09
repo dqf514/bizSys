@@ -1,0 +1,128 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, type FormInstance } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+import ListPage from '@/components/list/ListPage.vue'
+import { listDepts, createDept, updateDept } from '@/api/admin'
+import type { Dept } from '@/api/types'
+
+defineOptions({ name: 'DeptList' })
+
+const { t } = useI18n()
+
+const treeData = ref<Dept[]>([])
+const loading = ref(false)
+
+async function load() {
+  loading.value = true
+  try {
+    const data = await listDepts()
+    treeData.value = Array.isArray(data) ? data : (data.items ?? [])
+  } catch {
+    treeData.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => void load())
+
+const dialogVisible = ref(false)
+const dialogTitle = ref('')
+const formRef = ref<FormInstance>()
+const saving = ref(false)
+const editingId = ref<number | null>(null)
+const form = reactive({ parentId: null as number | null, name: '', code: '', sort: 0 })
+
+function openCreate(parent?: Dept) {
+  editingId.value = null
+  dialogTitle.value = t('admin.dept.create')
+  Object.assign(form, { parentId: parent?.id ?? null, name: '', code: '', sort: 0 })
+  dialogVisible.value = true
+}
+
+function openEdit(row: Dept) {
+  editingId.value = row.id
+  dialogTitle.value = t('admin.dept.edit')
+  Object.assign(form, { parentId: row.parentId, name: row.name, code: row.code, sort: row.sort ?? 0 })
+  dialogVisible.value = true
+}
+
+async function save() {
+  if (!formRef.value) return
+  const ok = await formRef.value.validate().catch(() => false)
+  if (!ok) return
+  saving.value = true
+  try {
+    if (editingId.value) await updateDept(editingId.value, { ...form })
+    else await createDept({ ...form })
+    ElMessage.success(t('common.message.saveSuccess'))
+    dialogVisible.value = false
+    void load()
+  } catch {
+    /* http notifies */
+  } finally {
+    saving.value = false
+  }
+}
+
+</script>
+
+<template>
+  <ListPage :title="t('admin.dept.title')" :loading="loading">
+    <template #actions>
+      <el-button v-permission="'admin:dept:edit'" type="primary" @click="openCreate()">
+        {{ t('admin.dept.create') }}
+      </el-button>
+      <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
+    </template>
+
+    <template #table>
+      <el-table :data="treeData" row-key="id" border stripe default-expand-all height="100%">
+        <el-table-column :label="t('admin.dept.name')" min-width="180">
+          <template #default="{ row }">{{ row.name }}</template>
+        </el-table-column>
+        <el-table-column :label="t('admin.dept.code')" prop="code" min-width="120" />
+        <el-table-column :label="t('admin.dept.sort')" prop="sort" width="80" />
+        <el-table-column :label="t('common.action.operate')" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openCreate(row as Dept)">
+              {{ t('common.action.create') }}
+            </el-button>
+            <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openEdit(row as Dept)">
+              {{ t('common.action.edit') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </template>
+  </ListPage>
+
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" append-to-body>
+    <el-form ref="formRef" :model="form" label-width="110px">
+      <el-form-item :label="t('admin.dept.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
+        <el-input v-model="form.name" />
+      </el-form-item>
+      <el-form-item :label="t('admin.dept.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
+        <el-input v-model="form.code" />
+      </el-form-item>
+      <el-form-item :label="t('admin.dept.parent')">
+        <el-tree-select
+          v-model="form.parentId"
+          :data="treeData"
+          :props="{ label: 'name', value: 'id', children: 'children' }"
+          check-strictly
+          clearable
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item :label="t('admin.dept.sort')">
+        <el-input-number v-model="form.sort" :min="0" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+    </template>
+  </el-dialog>
+</template>

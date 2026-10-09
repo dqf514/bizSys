@@ -1,0 +1,17 @@
+{
+  "workbench": "工作台",
+  "base": "基础信息",
+  "customer": "客户管理",
+  "contract": "合同管理",
+  "task": "任务管理",
+  "approval": "审批中心",
+  "system": "系统管理",
+  "users": "用户管理",
+  "roles": "角色管理",
+  "menus": "菜单管理",
+  "dict": "字典管理",
+  "numbering": "编号规则",
+  "audit": "审计日志",
+  "depts": "部门管理",
+  "flow": "流程配置"
+}

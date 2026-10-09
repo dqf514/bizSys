@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-density="comfortable">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>bizSys</title>
+    <script>
+      // anti-FOUC: restore theme/density/accent before first paint
+      try {
+        var t = localStorage.getItem('bs.theme') || 'light'
+        var d = localStorage.getItem('bs.density') || 'comfortable'
+        var a = localStorage.getItem('bs.accent') || 'blue'
+        document.documentElement.setAttribute('data-theme', t)
+        document.documentElement.setAttribute('data-density', d)
+        document.documentElement.setAttribute('data-accent', a)
+        if (t === 'dark') document.documentElement.classList.add('dark')
+      } catch (e) {
+        /* noop */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

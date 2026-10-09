@@ -1,0 +1,15 @@
+{
+  "name": "brand-smvic",
+  "color": {
+    "brand": {
+      "primary": "#0e7490",
+      "primaryHover": "#0891b2",
+      "primaryActive": "#155e75",
+      "primarySoft": "#ecfeff",
+      "onPrimary": "#ffffff"
+    },
+    "fg": {
+      "link": "#0e7490"
+    }
+  }
+}

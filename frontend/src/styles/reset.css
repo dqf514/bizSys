@@ -1,0 +1,133 @@
+/* global reset + thin scrollbars + base transitions */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--bs-typography-font-family-sans);
+  font-size: var(--bs-density-font-size, var(--bs-typography-font-size-md));
+  line-height: var(--bs-typography-line-height-normal);
+  color: var(--bs-color-fg-default);
+  background: var(--bs-color-bg-app);
+  overflow: hidden;
+  transition:
+    background-color var(--bs-duration) var(--bs-ease),
+    color var(--bs-duration) var(--bs-ease);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--bs-color-fg-link);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bs-color-fill-darker) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--bs-color-fill-darker);
+  border-radius: var(--bs-radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--bs-color-fg-muted);
+}
+
+/* global micro transition */
+button,
+input,
+select,
+textarea,
+.el-button,
+.el-input__wrapper,
+.el-card,
+.el-dialog,
+.el-drawer {
+  transition:
+    background-color var(--bs-duration) var(--bs-ease),
+    border-color var(--bs-duration) var(--bs-ease),
+    color var(--bs-duration) var(--bs-ease),
+    box-shadow var(--bs-duration) var(--bs-ease);
+}
+
+/* utility */
+.bs-flex {
+  display: flex;
+}
+
+.bs-flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.bs-gap-2 {
+  gap: var(--bs-space-2);
+}
+
+.bs-gap-3 {
+  gap: var(--bs-space-3);
+}
+
+.bs-muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.bs-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* avoid bare hex: components must use var(--bs-*) */

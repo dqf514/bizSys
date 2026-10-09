@@ -1,0 +1,21 @@
+{
+  "title": "Workbench",
+  "welcome": "Welcome back, {name}",
+  "card": {
+    "approvalTodo": "Approval Todos",
+    "myTasks": "My Tasks",
+    "contractApproving": "Contracts Approving",
+    "customerTotal": "Customers",
+    "taskTotal": "Tasks"
+  },
+  "shortcut": "Shortcuts",
+  "shortcutCustomer": "New Customer",
+  "shortcutContract": "New Contract",
+  "shortcutTask": "New Task",
+  "shortcutApproval": "Approvals",
+  "todoList": "To-do",
+  "viewAll": "View all",
+  "noData": "Nothing to do",
+  "env": "Env",
+  "envDev": "Development"
+}

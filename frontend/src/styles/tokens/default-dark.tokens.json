@@ -1,0 +1,48 @@
+{
+  "color": {
+    "bg": {
+      "app": "#111318",
+      "surface": "#1a1d23",
+      "elevated": "#22262e",
+      "inset": "#15181d",
+      "overlay": "rgba(0, 0, 0, 0.55)"
+    },
+    "fg": {
+      "default": "#e8eaed",
+      "secondary": "#a8b0ba",
+      "muted": "#7a838f",
+      "inverse": "#111318",
+      "link": "#6ea8fe"
+    },
+    "brand": {
+      "primary": "#3b82f6",
+      "primaryHover": "#60a5fa",
+      "primaryActive": "#2563eb",
+      "primarySoft": "rgba(59, 130, 246, 0.16)",
+      "onPrimary": "#ffffff"
+    },
+    "border": {
+      "default": "#2c313a",
+      "strong": "#3c434e",
+      "subtle": "#23272e"
+    },
+    "fill": {
+      "light": "#22262e",
+      "lighter": "#1c2026",
+      "dark": "#2c313a",
+      "darker": "#3c434e",
+      "hover": "#2a2f38",
+      "active": "#323842"
+    },
+    "semantic": {
+      "success": "#34d399",
+      "successSoft": "rgba(52, 211, 153, 0.14)",
+      "warning": "#fbbf24",
+      "warningSoft": "rgba(251, 191, 36, 0.14)",
+      "danger": "#f87171",
+      "dangerSoft": "rgba(248, 113, 113, 0.14)",
+      "info": "#60a5fa",
+      "infoSoft": "rgba(96, 165, 250, 0.14)"
+    }
+  }
+}

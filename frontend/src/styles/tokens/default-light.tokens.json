@@ -1,0 +1,48 @@
+{
+  "color": {
+    "bg": {
+      "app": "#f4f5f7",
+      "surface": "#ffffff",
+      "elevated": "#ffffff",
+      "inset": "#f0f2f5",
+      "overlay": "rgba(15, 23, 42, 0.45)"
+    },
+    "fg": {
+      "default": "#1f2329",
+      "secondary": "#5a6472",
+      "muted": "#8a94a3",
+      "inverse": "#ffffff",
+      "link": "#2563eb"
+    },
+    "brand": {
+      "primary": "#2563eb",
+      "primaryHover": "#1d4ed8",
+      "primaryActive": "#1e40af",
+      "primarySoft": "#eff6ff",
+      "onPrimary": "#ffffff"
+    },
+    "border": {
+      "default": "#dfe3e8",
+      "strong": "#c5ccd6",
+      "subtle": "#edf0f3"
+    },
+    "fill": {
+      "light": "#f5f6f8",
+      "lighter": "#fafbfc",
+      "dark": "#e6e9ed",
+      "darker": "#d0d5dd",
+      "hover": "#f0f2f5",
+      "active": "#e6e9ed"
+    },
+    "semantic": {
+      "success": "#16a34a",
+      "successSoft": "#ecfdf3",
+      "warning": "#d97706",
+      "warningSoft": "#fffbeb",
+      "danger": "#dc2626",
+      "dangerSoft": "#fef2f2",
+      "info": "#2563eb",
+      "infoSoft": "#eff6ff"
+    }
+  }
+}

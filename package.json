@@ -1,0 +1,15 @@
+{
+  "name": "bizsys",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.5.2",
+  "scripts": {
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build",
+    "lint": "pnpm --filter frontend lint",
+    "typecheck": "pnpm --filter frontend typecheck",
+    "test": "pnpm --filter frontend test:unit",
+    "i18n:check": "pnpm --filter frontend i18n:check",
+    "token:build": "pnpm --filter frontend token:build"
+  }
+}

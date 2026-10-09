@@ -1,0 +1,21 @@
+{
+  "title": "工作台",
+  "welcome": "欢迎回来，{name}",
+  "card": {
+    "approvalTodo": "我的审批待办",
+    "myTasks": "我的任务",
+    "contractApproving": "合同审批中",
+    "customerTotal": "客户总数",
+    "taskTotal": "任务总数"
+  },
+  "shortcut": "快捷入口",
+  "shortcutCustomer": "新增客户",
+  "shortcutContract": "新建合同",
+  "shortcutTask": "新建任务",
+  "shortcutApproval": "审批中心",
+  "todoList": "待办事项",
+  "viewAll": "查看全部",
+  "noData": "暂无待办",
+  "env": "环境",
+  "envDev": "开发环境"
+}
