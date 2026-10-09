@@ -229,6 +229,17 @@ MENU_TREE = [
                         ],
                     ),
                     ("menu.audit", "AuditLogs", "/admin/audit", "admin/AuditLogList", "Memo", "admin:audit:list", []),
+                    (
+                        "menu.settings",
+                        "Settings",
+                        "/admin/settings",
+                        "admin/SystemSettings",
+                        "Tools",
+                        "admin:setting:list",
+                        [
+                            (None, "setting-edit", "", "", "", "admin:setting:edit", []),
+                        ],
+                    ),
                 ],
             ),
         ],

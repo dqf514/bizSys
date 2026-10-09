@@ -18,5 +18,6 @@
   "numbering": "Number Rules",
   "audit": "Audit Logs",
   "depts": "Departments",
-  "flow": "Flow Definitions"
+  "flow": "Flow Definitions",
+  "settings": "Settings"
 }

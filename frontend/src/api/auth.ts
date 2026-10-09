@@ -37,6 +37,22 @@ export function changePassword(oldPassword: string, newPassword: string) {
   })
 }
 
+export function wecomQrUrl(redirectUri: string) {
+  return request<{ url: string; state: string }>({
+    url: '/auth/wecom/qr-url',
+    method: 'get',
+    params: { redirect_uri: redirectUri },
+  })
+}
+
+export function wecomCallback(code: string, state: string) {
+  return request<LoginResult>({
+    url: '/auth/wecom/callback',
+    method: 'post',
+    data: { code, state },
+  })
+}
+
 export function updatePrefs(prefs: UserPrefs) {
   return request<void>({
     url: '/admin/prefs',

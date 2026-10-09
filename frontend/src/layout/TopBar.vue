@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon, ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -17,6 +17,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useBrandingStore } from '@/stores/branding'
 import { useThemeStore, ACCENTS, type Density, type ThemeMode, type Accent } from '@/stores/theme'
 import { changePassword as changePasswordApi } from '@/api/auth'
 import type { Locale } from '@/i18n'
@@ -30,9 +31,14 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const branding = useBrandingStore()
 const theme = useThemeStore()
 const { t } = useI18n()
 const profileVisible = ref(false)
+
+const brandText = computed(() => branding.siteName || t('common.app.short'))
+
+onMounted(() => void branding.load())
 
 const breadcrumbs = computed(() => {
   const matched = route.matched.filter((r) => r.meta?.titleKey || r.meta?.title)
@@ -137,8 +143,9 @@ async function submitPassword() {
     </button>
 
     <div class="brand">
-      <ElIcon :size="18" class="brand-icon"><Odometer /></ElIcon>
-      <span class="brand-text">{{ t('common.app.short') }}</span>
+      <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="brandText" class="brand-logo" />
+      <ElIcon v-else :size="18" class="brand-icon"><Odometer /></ElIcon>
+      <span class="brand-text">{{ brandText }}</span>
     </div>
 
     <el-breadcrumb separator="/" class="crumb">
@@ -308,6 +315,12 @@ async function submitPassword() {
 
 .brand-icon {
   color: var(--bs-color-primary);
+}
+
+.brand-logo {
+  max-width: 24px;
+  max-height: 24px;
+  object-fit: contain;
 }
 
 .crumb {

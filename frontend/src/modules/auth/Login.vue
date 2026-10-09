@@ -1,21 +1,35 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { registerMenuRoutes } from '@/router'
 import { useThemeStore } from '@/stores/theme'
+import { useBrandingStore } from '@/stores/branding'
+import { wecomQrUrl } from '@/api/auth'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
 const theme = useThemeStore()
+const branding = useBrandingStore()
 const router = useRouter()
 const route = useRoute()
 
 const activeTab = ref('account')
 const loading = ref(false)
+const wecomLoading = ref(false)
 const form = reactive({ username: '', password: '' })
+
+const siteName = computed(() => branding.siteName || t('common.app.short'))
+const logoSrc = computed(() => branding.logoUrl || '')
+
+async function afterLogin() {
+  registerMenuRoutes(auth.menus)
+  await auth.syncPrefs()
+  const redirect = (route.query.redirect as string) || '/workbench'
+  router.replace(redirect)
+}
 
 async function doLogin() {
   if (!form.username.trim()) {
@@ -29,10 +43,7 @@ async function doLogin() {
   loading.value = true
   try {
     await auth.doLogin(form.username.trim(), form.password)
-    registerMenuRoutes(auth.menus)
-    await auth.syncPrefs()
-    const redirect = (route.query.redirect as string) || '/workbench'
-    router.replace(redirect)
+    await afterLogin()
   } catch {
     /* http notifies */
   } finally {
@@ -40,9 +51,40 @@ async function doLogin() {
   }
 }
 
-function wecomPlaceholder() {
-  ElMessage.info(t('auth.login.wecomTip'))
+async function goWecomQr() {
+  wecomLoading.value = true
+  try {
+    const { url } = await wecomQrUrl(`${window.location.origin}/login`)
+    window.location.href = url
+  } catch {
+    /* http notifies */
+    wecomLoading.value = false
+  }
 }
+
+/** 企微扫码授权后重定向回 /login?code=...&state=... */
+async function handleWecomCallback() {
+  const code = route.query.code as string
+  const state = route.query.state as string
+  if (!code || !state) return false
+  wecomLoading.value = true
+  activeTab.value = 'wecom'
+  try {
+    await auth.doWecomLogin(code, state)
+    await afterLogin()
+    return true
+  } catch {
+    /* http notifies；停留在登录页 */
+    return false
+  } finally {
+    wecomLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  await branding.load()
+  await handleWecomCallback()
+})
 
 function switchLang() {
   theme.setAppLocale(locale.value === 'zh-CN' ? 'en-US' : 'zh-CN')
@@ -53,7 +95,10 @@ function switchLang() {
   <div class="login-page">
     <div class="login-card">
       <div class="login-head">
-        <h1 class="login-title">{{ t('auth.login.title') }}</h1>
+        <div class="login-brand">
+          <img v-if="logoSrc" :src="logoSrc" :alt="siteName" class="login-logo" />
+          <h1 class="login-title">{{ siteName }}</h1>
+        </div>
         <p class="login-subtitle">{{ t('auth.login.subtitle') }}</p>
       </div>
 
@@ -83,12 +128,12 @@ function switchLang() {
             </el-button>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane :label="t('auth.login.wecom')" name="wecom">
+        <el-tab-pane v-if="branding.wecomEnabled" :label="t('auth.login.wecom')" name="wecom">
           <div class="wecom-box">
-            <el-button size="large" class="login-btn" @click="wecomPlaceholder">
-              {{ t('auth.login.wecom') }}
+            <el-button size="large" class="login-btn" :loading="wecomLoading" @click="goWecomQr">
+              {{ wecomLoading ? t('auth.login.wecomRedirecting') : t('auth.login.wecomScan') }}
             </el-button>
-            <p class="wecom-tip">{{ t('auth.login.wecomTip') }}</p>
+            <p class="wecom-tip">{{ t('auth.login.wecomScanTip') }}</p>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -128,6 +173,18 @@ function switchLang() {
   display: flex;
   flex-direction: column;
   gap: var(--bs-space-4);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.login-logo {
+  max-width: 36px;
+  max-height: 36px;
+  object-fit: contain;
 }
 
 .login-title {

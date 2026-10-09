@@ -62,6 +62,16 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchMe()
   }
 
+  async function doWecomLogin(code: string, state: string) {
+    const data = await authApi.wecomCallback(code, state)
+    applySession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      user: data.user,
+    })
+    await fetchMe()
+  }
+
   async function fetchMe() {
     const profile = normalizeUser(await authApi.me())
     user.value = profile
@@ -131,6 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     hasPerm,
     doLogin,
+    doWecomLogin,
     fetchMe,
     tryRestore,
     doLogout,

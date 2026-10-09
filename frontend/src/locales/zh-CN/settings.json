@@ -1,0 +1,38 @@
+{
+  "title": "系统设置",
+  "basic": {
+    "title": "基本设置",
+    "siteName": "系统名称",
+    "siteNamePlaceholder": "请输入系统名称",
+    "logo": "系统 Logo",
+    "logoEmpty": "未设置 Logo",
+    "uploadLogo": "上传 Logo",
+    "changeLogo": "更换 Logo",
+    "logoTip": "支持 png / jpg / svg / webp，大小不超过 2MB",
+    "logoTypeError": "仅支持 png / jpg / svg / webp 格式",
+    "logoSizeError": "Logo 大小不能超过 2MB"
+  },
+  "wecom": {
+    "title": "企业微信登录",
+    "enabled": "启用扫码登录",
+    "corpId": "企业 ID（CorpId）",
+    "corpIdPlaceholder": "企业微信管理后台「我的企业」页获取",
+    "agentId": "应用 AgentId",
+    "agentIdPlaceholder": "自建应用详情页获取",
+    "secret": "应用 Secret",
+    "secretPlaceholder": "请输入自建应用 Secret",
+    "secretSetPlaceholder": "已配置（留空则不修改）",
+    "callbackUrl": "回调 URL",
+    "callbackUrlTip": "将此地址配置到企微自建应用的授权回调域",
+    "copy": "复制",
+    "notEnabledTip": "保存并启用后，登录页将显示企业微信扫码入口"
+  },
+  "guide": {
+    "title": "绑定方法说明",
+    "step1": "登录企业微信管理后台（work.weixin.qq.com），在「应用管理 → 自建」中创建自建应用，记录 AgentId 与 Secret。",
+    "step2": "在「我的企业」页面底部获取企业 ID（CorpId），并将 CorpId / AgentId / Secret 填入上方表单。",
+    "step3": "在自建应用的「企业微信授权登录」中设置授权回调域，回调地址填写上方「回调 URL」。",
+    "step4": "将企微成员的 UserId 绑定到本地账号：管理员在用户管理中查看成员账号，并在数据库 sys_user.wecom_userid 字段维护绑定关系（后续版本将提供界面绑定）。",
+    "step5": "打开「启用扫码登录」并保存，登录页即出现企业微信扫码入口；成员扫码授权后即可免密登录。"
+  }
+}

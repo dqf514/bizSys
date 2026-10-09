@@ -18,6 +18,9 @@
 - `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[]}`
   - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
   - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）
+- 企业微信扫码登录（免登录，凭据见系统设置；配置/联调步骤见 docs/wecom-setup.md）：
+  - `GET /auth/wecom/qr-url?redirect_uri=` → `{url,state}`（state 存 Redis 10min 一次性，防 CSRF；未启用/未配置 90001）
+  - `POST /auth/wecom/callback` `{code,state}` → 与 /auth/login 相同结构；错误码：20005 企微账号未绑定本地用户 / 20006 state 无效或已过期
 
 ## 系统管理 /admin（权限码 admin:*）
 - `GET /admin/users`（分页检索）· `POST /admin/users` `{username,password,name,deptId,deptName,mobile,email,status,roleIds[]}`
@@ -31,6 +34,11 @@
 - `GET /admin/audit-logs`（分页）
 - `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
 - `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
+- 系统设置（sys_config，Secret AES-GCM 加密落库、接口只回 secretSet 布尔）：
+  - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl}}`
+  - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{enabled,corpId,agentId,secret?,callbackUrl?}}`（secret 空=不修改）
+  - `POST /admin/settings/logo`（admin:setting:edit，multipart file；限 png/jpg/svg/webp ≤2MB）→ `{logoUrl}`
+- 免登录公共接口：`GET /public/branding` → `{siteName,logoUrl,wecomEnabled}` · `GET /public/logo` → Logo 文件流
 - 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`
   `GET /admin/notifies/unread-count` → `{count}` · `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
 

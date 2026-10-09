@@ -27,6 +27,45 @@ class WecomAdapter(BaseAdapter):
     key = "wecom"
     name = "企业微信"
 
+    GETTOKEN_URL = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
+    USERINFO_URL = "https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo"
+
+    def get_access_token(self, corp_id: str, secret: str) -> str:
+        """corpId+secret 换 access_token，Redis 缓存（提前 200s 过期）。凭据来自 sys_config。
+
+        注意：无真实凭据，本路径未实测（联调后移除本注释）。
+        """
+        import httpx
+
+        from app.core.redis import get_redis
+
+        cache_key = f"wecom:access_token:{corp_id}"
+        r = get_redis()
+        cached = r.get(cache_key)
+        if cached:
+            return cached
+        resp = httpx.get(self.GETTOKEN_URL, params={"corpid": corp_id, "corpsecret": secret}, timeout=10)
+        data = resp.json()
+        if data.get("errcode") != 0:
+            raise BizException(R.ADAPTER_NOT_CONFIGURED, f"企微 gettoken 失败：{data.get('errmsg', data)}")
+        token = data["access_token"]
+        r.setex(cache_key, max(int(data.get("expires_in", 7200)) - 200, 60), token)
+        return token
+
+    def sso_userid(self, corp_id: str, secret: str, code: str) -> str:
+        """扫码/免登 code 换成员 userid（技术设计 §9.1）。未实测：需真实凭据。"""
+        import httpx
+
+        token = self.get_access_token(corp_id, secret)
+        resp = httpx.get(self.USERINFO_URL, params={"access_token": token, "code": code}, timeout=10)
+        data = resp.json()
+        if data.get("errcode") != 0:
+            raise BizException(R.ADAPTER_NOT_CONFIGURED, f"企微 getuserinfo 失败：{data.get('errmsg', data)}")
+        userid = data.get("userid") or ""
+        if not userid:  # 外部联系人/非成员扫码无 userid
+            raise BizException(R.AUTH_WECOM_NOT_BOUND, "企微侧未返回成员 userid（仅企业成员可登录）")
+        return userid
+
     def send_message(self, userid: str, content: str) -> dict:
         self._guard()
         return {}

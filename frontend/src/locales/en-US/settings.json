@@ -1,0 +1,38 @@
+{
+  "title": "System Settings",
+  "basic": {
+    "title": "General",
+    "siteName": "Site Name",
+    "siteNamePlaceholder": "Enter site name",
+    "logo": "Site Logo",
+    "logoEmpty": "No logo uploaded",
+    "uploadLogo": "Upload Logo",
+    "changeLogo": "Change Logo",
+    "logoTip": "Supports png / jpg / svg / webp, up to 2MB",
+    "logoTypeError": "Only png / jpg / svg / webp are allowed",
+    "logoSizeError": "Logo must be smaller than 2MB"
+  },
+  "wecom": {
+    "title": "WeCom Login",
+    "enabled": "Enable QR Login",
+    "corpId": "Corp ID",
+    "corpIdPlaceholder": "Found on the 'My Company' page of the WeCom admin console",
+    "agentId": "AgentId",
+    "agentIdPlaceholder": "Found on the self-built app detail page",
+    "secret": "App Secret",
+    "secretPlaceholder": "Enter the self-built app secret",
+    "secretSetPlaceholder": "Configured (leave blank to keep unchanged)",
+    "callbackUrl": "Callback URL",
+    "callbackUrlTip": "Set this URL as the OAuth callback of the self-built app",
+    "copy": "Copy",
+    "notEnabledTip": "After saving and enabling, the WeCom QR entry appears on the login page"
+  },
+  "guide": {
+    "title": "Binding Guide",
+    "step1": "Log in to the WeCom admin console (work.weixin.qq.com), create a self-built app under 'App Management', and note its AgentId and Secret.",
+    "step2": "Find the Corp ID at the bottom of the 'My Company' page, then fill CorpId / AgentId / Secret into the form above.",
+    "step3": "In the self-built app's 'WeCom Authorization Login' section, configure the trusted domain and set the callback to the 'Callback URL' above.",
+    "step4": "Bind WeCom member UserIds to local accounts: admins can review accounts in User Management and maintain the binding in the sys_user.wecom_userid column (a UI for binding is planned).",
+    "step5": "Turn on 'Enable QR Login' and save — the WeCom QR entry appears on the login page, and members can sign in by scanning."
+  }
+}
