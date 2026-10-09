@@ -117,7 +117,13 @@
   "lang": {
     "zhCN": "中文",
     "enUS": "English",
+    "shortZh": "中",
+    "shortEn": "EN",
     "switch": "切换语言"
+  },
+  "shell": {
+    "env": "dev",
+    "menuCount": "{count} 个菜单"
   },
   "command": {
     "title": "命令面板",

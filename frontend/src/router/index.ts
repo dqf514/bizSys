@@ -138,7 +138,14 @@ const router = createRouter({
       name: 'Shell',
       component: () => import('@/layout/AppShell.vue'),
       redirect: '/workbench',
-      children: [],
+      children: [
+        {
+          path: '/redirect/:path(.*)',
+          name: 'Redirect',
+          component: () => import('@/modules/common/Redirect.vue'),
+          meta: { tabless: true },
+        },
+      ],
     },
     {
       path: '/:pathMatch(.*)*',

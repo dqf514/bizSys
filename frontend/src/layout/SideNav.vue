@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, resolveComponent } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -9,7 +9,6 @@ import type { MenuNode } from '@/api/types'
 const props = defineProps<{ collapsed: boolean }>()
 
 const route = useRoute()
-const router = useRouter()
 const auth = useAuthStore()
 const { t } = useI18n()
 
@@ -30,10 +29,6 @@ function renderIcon(icon?: string) {
   const comp = resolveComponent(icon)
   if (!comp) return null
   return h(ElIcon, null, { default: () => h(comp as never) })
-}
-
-function go(node: MenuNode) {
-  if (node.path) router.push(node.path)
 }
 
 function menuTitle(node: MenuNode) {
@@ -60,13 +55,12 @@ function menuTitle(node: MenuNode) {
             v-for="child in node.children"
             :key="child.id"
             :index="child.path"
-            @click="go(child)"
           >
             <component :is="renderIcon(child.icon)" v-if="child.icon" />
             <span class="nav-label">{{ menuTitle(child) }}</span>
           </ElMenuItem>
         </ElSubMenu>
-        <ElMenuItem v-else :index="node.path" @click="go(node)">
+        <ElMenuItem v-else :index="node.path">
           <component :is="renderIcon(node.icon)" v-if="node.icon" />
           <span class="nav-label">{{ menuTitle(node) }}</span>
         </ElMenuItem>

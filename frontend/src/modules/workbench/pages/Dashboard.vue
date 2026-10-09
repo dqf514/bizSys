@@ -32,24 +32,24 @@ async function loadStats() {
       return 0
     }
   }
-  stats.value = {
-    approvalTodo: await safe(async () => {
+  const [approvalTodo, myTasks, contractApproving, customerTotal, taskTotal] = await Promise.all([
+    safe(async () => {
       const d = await listApprovalTasks('todo', { page: 1, size: 1 })
       return d.total ?? 0
     }),
-    myTasks: await safe(async () => {
+    safe(async () => {
       const d = await listTasks({ page: 1, size: 1 })
       return d.total ?? 0
     }),
-    contractApproving: await safe(async () => {
+    safe(async () => {
       const d = await listContracts({ page: 1, size: 1, status: 'approving' })
       return d.total ?? 0
     }),
-    customerTotal: await safe(async () => {
+    safe(async () => {
       const d = await listCustomers({ page: 1, size: 1, status: 'all' })
       return d.total ?? 0
     }),
-    taskTotal: await safe(async () => {
+    safe(async () => {
       try {
         const c = await taskCounts()
         return Object.values(c ?? {}).reduce((a, b) => a + Number(b || 0), 0)
@@ -58,7 +58,8 @@ async function loadStats() {
         return d.total ?? 0
       }
     }),
-  }
+  ])
+  stats.value = { approvalTodo, myTasks, contractApproving, customerTotal, taskTotal }
   loading.value = false
 }
 

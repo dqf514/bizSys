@@ -1,9 +1,15 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { dictItems } from '@/api/admin'
 import type { DictItemOption } from '@/api/types'
 import { useI18n } from 'vue-i18n'
 
 const cache = new Map<string, DictItemOption[]>()
+
+/** drop cached dict items — one type precisely, or everything */
+export function clearDictCache(type?: string) {
+  if (type) cache.delete(type)
+  else cache.clear()
+}
 
 export function useDict() {
   const { locale } = useI18n()
@@ -31,8 +37,8 @@ export function useDict() {
     return optionsOf(await load(type, force))
   }
 
-  function clearCache() {
-    cache.clear()
+  function clearCache(type?: string) {
+    clearDictCache(type)
   }
 
   return { load, options, labelOf, optionsOf, clearCache }
@@ -43,6 +49,7 @@ export function useDictOptions(type: string) {
   const items = ref<DictItemOption[]>([])
   const loading = ref(false)
   const { options: toOptions } = useDict()
+  const { locale } = useI18n()
   const opts = ref<{ label: string; value: string }[]>([])
 
   async function reload() {
@@ -55,5 +62,7 @@ export function useDictOptions(type: string) {
   }
 
   void reload()
+  // re-map labels when the locale changes (served from cache, no refetch)
+  watch(locale, () => void reload())
   return { items, opts, loading, reload }
 }

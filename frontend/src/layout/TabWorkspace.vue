@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTabsStore } from '@/stores/tabs'
@@ -72,32 +72,43 @@ function ctx(action: 'close' | 'closeOthers' | 'closeRight' | 'pin' | 'refresh')
   }
 }
 
-// scroll restore for list pages
+// scroll restore for list pages (keyed by tab.key, matching tabs store)
 const scrollRef = ref<HTMLElement>()
+
+function currentTabKey() {
+  return (route.meta?.tabKey as string) || route.path
+}
 
 function rememberScroll() {
   const el = scrollRef.value
   if (!el) return
-  tabsStore.updateScroll(route.path, el.scrollTop)
+  tabsStore.updateScroll(currentTabKey(), el.scrollTop)
+}
+
+function restoreScroll() {
+  nextTick(() => {
+    const el = scrollRef.value
+    if (el) el.scrollTop = tabsStore.getScroll(currentTabKey())
+  })
+}
+
+function hideCtxMenu() {
+  menuVisible.value = false
 }
 
 onMounted(() => {
-  document.addEventListener('click', () => {
-    menuVisible.value = false
-  })
-  nextTick(() => {
-    const el = scrollRef.value
-    if (el) el.scrollTop = tabsStore.getScroll(route.path)
-  })
+  document.addEventListener('click', hideCtxMenu)
+  restoreScroll()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', hideCtxMenu)
 })
 
 watch(
   () => route.path,
   () => {
-    nextTick(() => {
-      const el = scrollRef.value
-      if (el) el.scrollTop = tabsStore.getScroll(route.path)
-    })
+    restoreScroll()
   },
 )
 </script>

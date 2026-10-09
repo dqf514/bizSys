@@ -44,7 +44,20 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const openTabs = computed(() => tabs.value)
 
+  // throttle full sessionStorage serialization (scroll tracking fires often)
+  let persistTimer: ReturnType<typeof setTimeout> | null = null
   function persist() {
+    if (persistTimer) return
+    persistTimer = setTimeout(() => {
+      persistTimer = null
+      saveTabs(tabs.value, active.value)
+    }, 300)
+  }
+  function persistNow() {
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
+    }
     saveTabs(tabs.value, active.value)
   }
 
@@ -135,6 +148,12 @@ export const useTabsStore = defineStore('tabs', () => {
     persist()
   }
 
+  function reset() {
+    tabs.value = []
+    active.value = ''
+    persistNow()
+  }
+
   function togglePin(key: string) {
     const tab = tabs.value.find((t) => t.key === key)
     if (!tab) return
@@ -168,6 +187,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeOthers,
     closeRight,
     closeAll,
+    reset,
     togglePin,
     setActive,
     updateScroll,

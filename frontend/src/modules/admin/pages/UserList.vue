@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -223,11 +223,6 @@ function onReset() {
   searchModel.value = { q: '' }
   list.reset()
 }
-
-watch(
-  () => list.query.status,
-  (v) => list.setStatus(String(v)),
-)
 </script>
 
 <template>

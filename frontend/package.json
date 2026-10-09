@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm token:build && vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "build": "pnpm token:build && pnpm i18n:check && pnpm scan:literal:strict && vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test:unit": "vitest run",
     "i18n:check": "node scripts/i18n-check.mjs",
     "token:build": "node scripts/build-tokens.mjs",
-    "scan:literal": "node scripts/scan-literal.mjs"
+    "scan:literal": "node scripts/scan-literal.mjs",
+    "scan:literal:strict": "node scripts/scan-literal.mjs --strict"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

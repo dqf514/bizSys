@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/api/http'
 import * as authApi from '@/api/auth'
 import type { MenuNode, UserProfile } from '@/api/types'
+import { resetRoutes } from '@/router'
+import { useTabsStore } from './tabs'
 import { useThemeStore } from './theme'
 
 function normalizeUser(raw: UserProfile): UserProfile {
@@ -98,6 +100,9 @@ export const useAuthStore = defineStore('auth', () => {
     perms.value = []
     menus.value = []
     loaded.value = false
+    // drop dynamic routes and tab state so the next session starts clean
+    resetRoutes()
+    useTabsStore().reset()
   }
 
   /** sync current theme/locale prefs to server after login */

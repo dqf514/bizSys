@@ -153,12 +153,17 @@ function availableActions(status: TaskStatus): { action: TaskAction; labelKey: s
     draft: [
       { action: 'submit', labelKey: 'task.task.submit', type: 'warning' },
     ],
-    assigning: [],
+    assigning: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
     assigned: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
     in_progress: [{ action: 'finish', labelKey: 'task.task.finish', type: 'success' }],
     finished: [{ action: 'close', labelKey: 'task.task.close', type: 'info' }],
   }
-  return map[status] ?? []
+  const actions = [...(map[status] ?? [])]
+  // any non-terminal status can be stopped
+  if (status !== 'closed' && status !== 'stopped') {
+    actions.push({ action: 'stop', labelKey: 'task.task.stop', type: 'danger' })
+  }
+  return actions
 }
 </script>
 
@@ -176,7 +181,7 @@ function availableActions(status: TaskStatus): { action: TaskAction; labelKey: s
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
-        @reset="searchModel = { q: '' }; list.reset()"
+        @reset="searchModel = { q: '', customerName: '' }; list.reset()"
       />
     </template>
 

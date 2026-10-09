@@ -117,7 +117,13 @@
   "lang": {
     "zhCN": "中文",
     "enUS": "English",
+    "shortZh": "中",
+    "shortEn": "EN",
     "switch": "Switch language"
+  },
+  "shell": {
+    "env": "dev",
+    "menuCount": "{count} menus"
   },
   "command": {
     "title": "Command Palette",

@@ -10,6 +10,7 @@
     "typecheck": "pnpm --filter frontend typecheck",
     "test": "pnpm --filter frontend test:unit",
     "i18n:check": "pnpm --filter frontend i18n:check",
+    "scan:literal": "pnpm --filter frontend scan:literal:strict",
     "token:build": "pnpm --filter frontend token:build"
   }
 }

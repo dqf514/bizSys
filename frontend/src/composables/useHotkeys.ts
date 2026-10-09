@@ -25,6 +25,20 @@ export function useHotkeys() {
       return
     }
 
+    // Ctrl+N: quick create — open the command palette
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+      if (typing) return
+      e.preventDefault()
+      commandVisible.value = true
+      return
+    }
+
+    // Esc: close the top-most overlay we own (command palette); ElDialog handles its own
+    if (e.key === 'Escape' && commandVisible.value) {
+      commandVisible.value = false
+      return
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
       if (typing) return
       e.preventDefault()
@@ -34,6 +48,7 @@ export function useHotkeys() {
         tabs.close(active.key, true)
         const next = tabs.tabs.find((x) => x.key === tabs.active) ?? tabs.tabs[0]
         if (next) router.push(next.fullPath || next.path)
+        else router.push('/workbench')
       }
       return
     }

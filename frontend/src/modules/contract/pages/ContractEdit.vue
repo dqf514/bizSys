@@ -46,6 +46,8 @@ const form = reactive({
 })
 
 const attachments = ref<Attachment[]>([])
+// files chosen before the contract is saved — uploaded for real after create
+const pendingFiles = ref<{ localId: string; file: File }[]>([])
 
 const typeOpts = useDictOptions('contract_type')
 const payCycleOpts = useDictOptions('pay_cycle')
@@ -99,7 +101,8 @@ async function save() {
     const payload = {
       ...form,
       amount: Number(form.amount) || 0,
-      attachments: attachments.value,
+      // never submit locally-staged attachments (their ids are placeholders)
+      attachments: attachments.value.filter((a) => !pendingFiles.value.some((p) => p.localId === a.id)),
     }
     if (isEdit.value && contractId.value) {
       await updateContract(contractId.value, payload)
@@ -107,6 +110,9 @@ async function save() {
       const created = await createContract(payload)
       contractId.value = created?.id ?? null
       isEdit.value = true
+    }
+    if (contractId.value && pendingFiles.value.length) {
+      await flushPending(contractId.value)
     }
     ElMessage.success(t('common.message.saveSuccess'))
     router.push('/contract/contracts')
@@ -117,12 +123,44 @@ async function save() {
   }
 }
 
+function onFilesUpdate(files: Attachment[]) {
+  attachments.value = files
+  // dropping a staged file in the list must also drop it from the upload queue
+  pendingFiles.value = pendingFiles.value.filter((p) => files.some((f) => f.id === p.localId))
+}
+
 async function upload(file: File) {
   if (!contractId.value) {
-    // hold locally until saved
-    return { id: Date.now(), fileName: file.name, size: file.size }
+    // stage locally; uploaded for real once the contract exists
+    const localId = `local-${Date.now()}-${pendingFiles.value.length}`
+    pendingFiles.value.push({ localId, file })
+    return { id: localId, fileName: file.name, size: file.size }
   }
   return uploadContractAttachment(contractId.value, file)
+}
+
+async function flushPending(id: number) {
+  for (const p of [...pendingFiles.value]) {
+    const real = await uploadContractAttachment(id, p.file)
+    attachments.value = attachments.value.map((a) => (a.id === p.localId ? real : a))
+    pendingFiles.value = pendingFiles.value.filter((x) => x.localId !== p.localId)
+  }
+}
+
+async function download(fileId: number | string, fileName: string) {
+  const pending = pendingFiles.value.find((p) => p.localId === fileId)
+  if (pending) {
+    const url = URL.createObjectURL(pending.file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    return
+  }
+  return downloadAttachment(fileId, fileName)
 }
 
 function cancel() {
@@ -226,8 +264,8 @@ function cancel() {
             <UploadFiles
               :files="attachments"
               :upload="upload"
-              :download="downloadAttachment"
-              @update:files="attachments = $event"
+              :download="download"
+              @update:files="onFilesUpdate"
             />
           </el-form-item>
         </el-col>

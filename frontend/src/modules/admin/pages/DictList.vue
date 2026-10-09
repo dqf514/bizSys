@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import { clearDictCache } from '@/composables/useDict'
 import {
   dictTypes,
   createDictType,
@@ -119,6 +120,7 @@ async function saveItem() {
   try {
     if (editingItemId.value) await updateDictItem(editingItemId.value, { ...itemForm })
     else await createDictItem({ ...itemForm, dictTypeCode: itemForm.dictTypeCode })
+    clearDictCache(itemForm.dictTypeCode || undefined)
     ElMessage.success(t('common.message.saveSuccess'))
     itemDialog.value = false
     void load()
@@ -138,6 +140,7 @@ async function removeItem(row: DictItem) {
   }
   try {
     await deleteDictItem(row.id)
+    clearDictCache(row.dictTypeCode ?? activeType.value?.code ?? undefined)
     ElMessage.success(t('common.message.deleteSuccess'))
     void load()
   } catch {

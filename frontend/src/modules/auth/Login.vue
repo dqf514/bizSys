@@ -15,7 +15,7 @@ const route = useRoute()
 
 const activeTab = ref('account')
 const loading = ref(false)
-const form = reactive({ username: 'admin', password: 'Admin@123456' })
+const form = reactive({ username: '', password: '' })
 
 async function doLogin() {
   if (!form.username.trim()) {
@@ -34,7 +34,7 @@ async function doLogin() {
     const redirect = (route.query.redirect as string) || '/workbench'
     router.replace(redirect)
   } catch {
-    ElMessage.error(t('auth.login.failed'))
+    /* http notifies */
   } finally {
     loading.value = false
   }
@@ -101,7 +101,7 @@ function switchLang() {
       </div>
 
       <button class="lang-switch" type="button" @click="switchLang">
-        {{ theme.locale === 'zh-CN' ? 'English' : '中文' }}
+        {{ theme.locale === 'zh-CN' ? t('common.lang.enUS') : t('common.lang.zhCN') }}
       </button>
     </div>
   </div>

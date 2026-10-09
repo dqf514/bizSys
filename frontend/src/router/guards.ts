@@ -1,6 +1,7 @@
 import type { Router } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabsStore } from '@/stores/tabs'
+import { clearTokens } from '@/api/http'
 import { registerMenuRoutes, isRoutesRegistered } from './index'
 
 const PUBLIC_PATHS = ['/login']
@@ -29,6 +30,7 @@ export function setupGuards(router: Router) {
         // retry navigation so newly added routes can match
         return { ...to, replace: true }
       } catch {
+        clearTokens()
         auth.token = ''
         return { path: '/login', query: { redirect: to.fullPath } }
       }
@@ -39,6 +41,8 @@ export function setupGuards(router: Router) {
 
   router.afterEach((to) => {
     if (to.path.startsWith('/login')) return
+    // redirect / NotFound are transient — never open tabs for them
+    if (to.meta?.tabless || to.name === 'NotFound') return
     const tabs = useTabsStore()
     tabs.openFromRoute(to)
   })

@@ -58,6 +58,7 @@
     "statusFinished": "已完成",
     "statusClosed": "已结束",
     "statusStopped": "停止",
+    "statusSettled": "已结算",
     "items": "项目条目",
     "itemCode": "条目编码",
     "itemName": "条目名称",

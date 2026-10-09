@@ -58,6 +58,7 @@
     "statusFinished": "Finished",
     "statusClosed": "Closed",
     "statusStopped": "Stopped",
+    "statusSettled": "Settled",
     "items": "Items",
     "itemCode": "Item Code",
     "itemName": "Item Name",

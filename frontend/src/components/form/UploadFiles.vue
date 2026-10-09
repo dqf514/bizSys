@@ -33,11 +33,10 @@ async function onFile(e: Event) {
   uploading.value = true
   try {
     const result = await props.upload(file)
-    const next: Attachment = result?.id
-      ? result
-      : { id: Date.now(), fileName: file.name, size: file.size }
-    emit('update:files', [...props.files, next])
-    ElMessage.success(t('common.message.saveSuccess'))
+    if (result?.id) {
+      emit('update:files', [...props.files, result])
+      ElMessage.success(t('common.message.saveSuccess'))
+    }
   } catch {
     /* http notifies */
   } finally {

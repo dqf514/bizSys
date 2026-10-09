@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon, ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import {
   Fold,
   Expand,
@@ -17,6 +18,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore, ACCENTS, type Density, type ThemeMode, type Accent } from '@/stores/theme'
+import { changePassword as changePasswordApi } from '@/api/auth'
 import type { Locale } from '@/i18n'
 
 defineProps<{ collapsed: boolean }>()
@@ -72,16 +74,56 @@ async function doLogout() {
   router.push('/login')
 }
 
+const pwdVisible = ref(false)
+const pwdFormRef = ref<FormInstance>()
+const pwdSaving = ref(false)
+const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+const pwdRules = computed<FormRules>(() => ({
+  oldPassword: [{ required: true, message: t('common.form.required'), trigger: 'blur' }],
+  newPassword: [{ required: true, message: t('common.form.required'), trigger: 'blur' }],
+  confirmPassword: [
+    { required: true, message: t('common.form.required'), trigger: 'blur' },
+    {
+      validator: (_rule, value: string, cb) =>
+        value === pwdForm.newPassword ? cb() : cb(new Error(t('auth.user.passwordMismatch'))),
+      trigger: 'blur',
+    },
+  ],
+}))
+
 function changePassword() {
-  ElMessageBox.prompt(t('auth.user.newPassword'), t('auth.user.changePassword'), {
-    inputType: 'password',
-  })
-    .then(() => {
-      ElMessage.success(t('auth.user.changeSuccess'))
-    })
-    .catch(() => {
-      /* cancel */
-    })
+  pwdForm.oldPassword = ''
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  pwdVisible.value = true
+}
+
+async function submitPassword() {
+  if (!pwdFormRef.value) return
+  const ok = await pwdFormRef.value.validate().catch(() => false)
+  if (!ok) return
+  pwdSaving.value = true
+  try {
+    await changePasswordApi(pwdForm.oldPassword, pwdForm.newPassword)
+    pwdVisible.value = false
+    ElMessage.success(t('auth.user.changeSuccess'))
+    try {
+      await ElMessageBox.confirm(t('auth.user.reloginTip'), t('common.action.confirm'), {
+        confirmButtonText: t('auth.user.relogin'),
+        cancelButtonText: t('auth.user.reloginLater'),
+        type: 'success',
+      })
+      await auth.doLogout()
+      router.push('/login')
+    } catch {
+      /* stay logged in */
+    }
+  } catch {
+    /* http notifies */
+  } finally {
+    pwdSaving.value = false
+  }
 }
 </script>
 
@@ -161,7 +203,7 @@ function changePassword() {
 
       <ElDropdown trigger="click" @command="setLang">
         <button class="icon-btn lang-btn" type="button" :title="t('common.lang.switch')">
-          {{ theme.locale === 'zh-CN' ? '中' : 'EN' }}
+          {{ theme.locale === 'zh-CN' ? t('common.lang.shortZh') : t('common.lang.shortEn') }}
         </button>
         <template #dropdown>
           <ElDropdownMenu>
@@ -205,6 +247,26 @@ function changePassword() {
         <el-descriptions-item :label="t('auth.user.email')">{{ auth.user?.email || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="t('auth.user.mobile')">{{ auth.user?.mobile || '-' }}</el-descriptions-item>
       </el-descriptions>
+    </el-dialog>
+
+    <el-dialog v-model="pwdVisible" :title="t('auth.user.changePassword')" width="420px" append-to-body>
+      <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="110px">
+        <el-form-item :label="t('auth.user.oldPassword')" prop="oldPassword">
+          <el-input v-model="pwdForm.oldPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item :label="t('auth.user.newPassword')" prop="newPassword">
+          <el-input v-model="pwdForm.newPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item :label="t('auth.user.confirmPassword')" prop="confirmPassword">
+          <el-input v-model="pwdForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">
+          {{ t('common.action.save') }}
+        </el-button>
+      </template>
     </el-dialog>
   </div>
 </template>

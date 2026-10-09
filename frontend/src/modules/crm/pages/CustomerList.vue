@@ -211,7 +211,7 @@ async function doImport() {
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
-        @reset="searchModel = { q: '' }; list.reset()"
+        @reset="searchModel = { q: '', taxNo: '' }; list.reset()"
       />
     </template>
 

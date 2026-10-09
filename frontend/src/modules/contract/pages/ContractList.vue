@@ -173,7 +173,7 @@ function fmtAmount(row: Record<string, unknown>) {
               </el-button>
               <el-button
                 v-if="row.status === 'draft'"
-                v-permission="'contract:create'"
+                v-permission="'contract:delete'"
                 link
                 type="danger"
                 @click="remove(row as unknown as Contract)"

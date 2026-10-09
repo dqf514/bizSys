@@ -60,7 +60,7 @@ function viewDetail(row: AuditLog) {
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
-        @reset="searchModel = { q: '' }; list.reset()"
+        @reset="searchModel = { q: '', module: '' }; list.reset()"
       />
     </template>
 

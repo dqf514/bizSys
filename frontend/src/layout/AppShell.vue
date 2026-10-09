@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import TopBar from './TopBar.vue'
 import SideNav from './SideNav.vue'
 import TabWorkspace from './TabWorkspace.vue'
@@ -8,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCommandPalette } from '@/composables/useHotkeys'
 
 const auth = useAuthStore()
+const { t } = useI18n()
 const navCollapsed = ref(localStorage.getItem('bs.navCollapsed') === '1')
 const { commandVisible } = useCommandPalette()
 
@@ -38,9 +40,9 @@ const gridStyle = computed(() => ({
     </div>
     <footer class="shell-status">
       <span class="status-item">{{ auth.user?.name || auth.user?.username || '' }}</span>
-      <span class="status-item status-env">dev</span>
+      <span class="status-item status-env">{{ t('common.shell.env') }}</span>
       <span class="bs-flex-1" />
-      <span class="status-item">{{ auth.menus.length }} menus</span>
+      <span class="status-item">{{ t('common.shell.menuCount', { count: auth.menus.length }) }}</span>
     </footer>
     <CommandPalette v-model:visible="commandVisible" />
   </div>

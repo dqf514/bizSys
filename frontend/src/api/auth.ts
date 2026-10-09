@@ -29,6 +29,14 @@ export function me() {
   return request<UserProfile>({ url: '/auth/me', method: 'get' })
 }
 
+export function changePassword(oldPassword: string, newPassword: string) {
+  return request<void>({
+    url: '/auth/password',
+    method: 'post',
+    data: { old_password: oldPassword, new_password: newPassword },
+  })
+}
+
 export function updatePrefs(prefs: UserPrefs) {
   return request<void>({
     url: '/admin/prefs',

@@ -15,5 +15,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <router-view />
+  <el-config-provider :locale="theme.elementLocale">
+    <router-view />
+  </el-config-provider>
 </template>

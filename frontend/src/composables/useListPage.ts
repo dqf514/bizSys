@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref, type Ref } from 'vue'
+import { computed, onActivated, onMounted, reactive, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 
@@ -140,6 +140,15 @@ export function useListPage<T = unknown>(options: UseListPageOptions<T>) {
 
   if (options.autoLoad !== false) {
     onMounted(() => {
+      void load()
+    })
+    // refresh when a keep-alive tab is re-entered (skip the initial activation)
+    let firstActivation = true
+    onActivated(() => {
+      if (firstActivation) {
+        firstActivation = false
+        return
+      }
       void load()
     })
   }
