@@ -1,4 +1,4 @@
-# bizSys — SMVIC 业务系统
+# bizSys — HMVIC 业务系统
 
 模块化单体业务系统（客户 CRM / 合同管理 / 审批中心 / 任务管理），桌面级 Web 外壳（页签工作区 + 双主题 + 中英双语）。
 
@@ -9,12 +9,12 @@
 
 ## 技术栈
 
-| 层 | 选型 |
-|---|---|
-| 后端 | Python 3.13 · FastAPI · SQLAlchemy 2（同步）· Alembic · MySQL 8 · Redis 7 · PyJWT/bcrypt · openpyxl |
-| 审批流 | 自研轻量可配置引擎（定义/节点/实例/待办/记录 5 表；顺序多级 + 或签/加签/转办/撤回） |
-| 前端 | Vue 3 · TypeScript · Vite · Pinia · Element Plus · vue-i18n（单包，见 ADR-0003） |
-| 部署 | Docker Compose（mysql/redis/backend/frontend-nginx）· GitHub Actions CI |
+| 层   | 选型                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------- |
+| 后端  | Python 3.13 · FastAPI · SQLAlchemy 2（同步）· Alembic · MySQL 8 · Redis 7 · PyJWT/bcrypt · openpyxl |
+| 审批流 | 自研轻量可配置引擎（定义/节点/实例/待办/记录 5 表；顺序多级 + 或签/加签/转办/撤回）                                                |
+| 前端  | Vue 3 · TypeScript · Vite · Pinia · Element Plus · vue-i18n（单包，见 ADR-0003）                      |
+| 部署  | Docker Compose（mysql/redis/backend/frontend-nginx）· GitHub Actions CI                           |
 
 ## 快速开始（开发模式）
 
@@ -37,11 +37,11 @@ pnpm dev                        # http://localhost:5173，/api 已代理到 8000
 
 ### 种子账号
 
-| 用户名 | 密码 | 角色 |
-|---|---|---|
-| admin | Admin@123456 | 超级管理员 |
-| manager1 | Test@123456 | 部门负责人（合同一级审批） |
-| leader1 | Test@123456 | 分管领导（合同二级审批） |
+| 用户名      | 密码           | 角色            |
+| -------- | ------------ | ------------- |
+| admin    | Admin@123456 | 超级管理员         |
+| manager1 | Test@123456  | 部门负责人（合同一级审批） |
+| leader1  | Test@123456  | 分管领导（合同二级审批）  |
 
 ## 测试与质量
 
