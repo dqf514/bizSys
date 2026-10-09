@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { computed, h, resolveComponent } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
-import { useI18n } from 'vue-i18n'
+import { ElMenu } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import type { MenuNode } from '@/api/types'
+import SideNavItem from './SideNavItem.vue'
 
 const props = defineProps<{ collapsed: boolean }>()
 
 const route = useRoute()
 const auth = useAuthStore()
-const { t } = useI18n()
 
 const active = computed(() => route.path)
 
@@ -23,17 +22,6 @@ function visibleMenus(nodes: MenuNode[]): MenuNode[] {
 }
 
 const menus = computed(() => visibleMenus(auth.menus))
-
-function renderIcon(icon?: string) {
-  if (!icon) return null
-  const comp = resolveComponent(icon)
-  if (!comp) return null
-  return h(ElIcon, null, { default: () => h(comp as never) })
-}
-
-function menuTitle(node: MenuNode) {
-  return node.titleKey ? t(node.titleKey) : node.name
-}
 </script>
 
 <template>
@@ -45,26 +33,7 @@ function menuTitle(node: MenuNode) {
       class="nav-menu"
       router
     >
-      <template v-for="node in menus" :key="node.id">
-        <ElSubMenu v-if="node.menuType === 'dir' && node.children?.length" :index="String(node.id)">
-          <template #title>
-            <component :is="renderIcon(node.icon)" v-if="node.icon" />
-            <span class="nav-label">{{ menuTitle(node) }}</span>
-          </template>
-          <ElMenuItem
-            v-for="child in node.children"
-            :key="child.id"
-            :index="child.path"
-          >
-            <component :is="renderIcon(child.icon)" v-if="child.icon" />
-            <span class="nav-label">{{ menuTitle(child) }}</span>
-          </ElMenuItem>
-        </ElSubMenu>
-        <ElMenuItem v-else :index="node.path">
-          <component :is="renderIcon(node.icon)" v-if="node.icon" />
-          <span class="nav-label">{{ menuTitle(node) }}</span>
-        </ElMenuItem>
-      </template>
+      <SideNavItem v-for="node in menus" :key="node.id" :node="node" />
     </ElMenu>
   </div>
 </template>
