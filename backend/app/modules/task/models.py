@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.models import BaseModel
@@ -16,14 +16,14 @@ class Task(BaseModel):
     task_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="任务编号 RW...")
     task_name: Mapped[str] = mapped_column(String(255), index=True)
     task_type: Mapped[str] = mapped_column(String(32), default="", index=True, comment="字典 task_type")
-    contract_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    contract_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     contract_no: Mapped[str] = mapped_column(String(32), default="", comment="合同号冗余")
-    customer_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    customer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     customer_name: Mapped[str] = mapped_column(String(128), default="", comment="客户名冗余")
     biz_block: Mapped[str] = mapped_column(String(32), default="", index=True, comment="字典 biz_block")
-    dept_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    dept_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     dept_name: Mapped[str] = mapped_column(String(64), default="")
-    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True, comment="负责人")
+    owner_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="负责人")
     owner_name: Mapped[str] = mapped_column(String(64), default="")
     content: Mapped[str | None] = mapped_column(Text, nullable=True, comment="试验/工作内容")
     party_system: Mapped[str] = mapped_column(String(64), default="", comment="外部系统")
@@ -78,8 +78,8 @@ class TaskSampleFlow(BaseModel):
 
     __tablename__ = "task_sample_flow"
 
-    sample_id: Mapped[int] = mapped_column(Integer, index=True)
-    task_id: Mapped[int] = mapped_column(Integer, index=True)
+    sample_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    task_id: Mapped[int] = mapped_column(BigInteger, index=True)
     action: Mapped[str] = mapped_column(String(8), comment="in/out")
     operator_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     operator_name: Mapped[str] = mapped_column(String(64), default="")

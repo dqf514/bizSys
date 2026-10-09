@@ -21,7 +21,17 @@ TRANSITIONS: dict[str, tuple[set[str], str | None]] = {
     "stop": ({"draft", "assigning", "assigned", "in_progress", "finished"}, "stopped"),
 }
 
-TERMINAL = {"closed", "stopped", "approved"}
+TERMINAL = {"closed", "stopped", "approved", "settled"}
+
+
+def mark_settled(db: Session, task: Task) -> Task:
+    """closed → settled：由财务模块创建结算单时触发（终态之一）。"""
+    if task.status != "closed":
+        raise BizException(R.TASK_INVALID_STATE, f"状态「{task.status}」不允许结算")
+    task.status = "settled"
+    task.version += 1
+    task.update_time = datetime.now()
+    return task
 
 
 def dict_labels(db: Session, dict_code: str) -> dict[str, str]:
@@ -132,14 +142,17 @@ def sync_items(db: Session, task: Task, items) -> None:
 def sync_samples(db: Session, task: Task, samples) -> None:
     keep_ids = {s.id for s in samples if s.id}
     for old in list(task.samples):
+        if old.deleted:
+            continue  # 已逻辑删除的留底：其 sample_no 永久占用，永不复用
         if old.id not in keep_ids:
             db.delete(old)
+            task.samples.remove(old)  # 同步内存集合，避免响应带出已删行
     existing = {s.id: s for s in task.samples}
-    seq = 1
     for body in samples:
         row = existing.get(body.id) if body.id else None
         if row is None:
-            row = TaskSample(task_id=task.id, sample_no=f"{task.task_no}-{seq:02d}")
+            db.flush()  # autoflush=False：让 next_sample_no 看到本批已新增行
+            row = TaskSample(task_id=task.id, sample_no=next_sample_no(db, task))
             db.add(row)
             task.samples.append(row)
         row.name = body.name
@@ -148,16 +161,12 @@ def sync_samples(db: Session, task: Task, samples) -> None:
         row.vehicle_type = body.vehicle_type
         row.sample_date = body.sample_date
         row.in_stock = body.in_stock
-        seq += 1
     db.flush()
 
 
 def next_sample_no(db: Session, task: Task) -> str:
-    from sqlalchemy import func
-
-    n = db.scalar(
-        select(func.count()).select_from(
-            select(TaskSample).where(TaskSample.task_id == task.id, TaskSample.deleted == 0).subquery()
-        )
-    ) or 0
-    return f"{task.task_no}-{n + 1:02d}"
+    """取同任务历史最大位次（含逻辑删除行）+1：sample_no 有唯一索引，删样品后再加不能撞号。"""
+    prefix = f"{task.task_no}-"
+    nos = db.scalars(select(TaskSample.sample_no).where(TaskSample.task_id == task.id)).all()
+    seqs = [int(no[len(prefix):]) for no in nos if no.startswith(prefix) and no[len(prefix):].isdigit()]
+    return f"{prefix}{max(seqs, default=0) + 1:02d}"

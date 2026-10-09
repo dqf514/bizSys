@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.events import ApprovalCompleted, ApprovalRejected, subscribe
+from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.contract.models import Contract
@@ -58,8 +58,22 @@ def _handle_rejected(event: ApprovalRejected) -> None:
     c.update_time = datetime.now()
 
 
+def _handle_withdrawn(event: ApprovalWithdrawn) -> None:
+    """撤回后回写 draft（可编辑/可再提交），避免合同卡在 approving。"""
+    if event.biz_type != "contract":
+        return
+    db: Session = event.db
+    c = db.get(Contract, event.biz_id)
+    if not c or c.deleted or c.status != "approving":
+        return
+    c.status = "draft"
+    c.flow_instance_id = event.instance_id
+    c.update_time = datetime.now()
+
+
 subscribe(ApprovalCompleted, _handle_completed)
 subscribe(ApprovalRejected, _handle_rejected)
+subscribe(ApprovalWithdrawn, _handle_withdrawn)
 
 
 def form_snapshot(c: Contract) -> dict:

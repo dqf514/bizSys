@@ -248,7 +248,7 @@ def submit_contract(
     current: User = Depends(require_perm("contract:submit")),
     db: Session = Depends(get_db),
 ):
-    c = db.get(Contract, cid)
+    c = db.get(Contract, cid, with_for_update=True)  # 锁合同行：并发提交审批只放行一个
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     if c.status not in ("draft", "rejected"):
@@ -316,9 +316,15 @@ def upload_attachment(
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(c)
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in settings.upload_ext_set:
+        raise BizException(R.GENERIC_PARAM, f"不支持的文件类型：{ext or '无扩展名'}")
     data = file.file.read()
     if not data:
         raise BizException(R.GENERIC_PARAM, "文件为空")
+    if len(data) > settings.upload_max_mb * 1024 * 1024:
+        raise BizException(R.GENERIC_PARAM, f"文件超过大小上限 {settings.upload_max_mb}MB")
     rel = Path("contract") / f"{uuid.uuid4().hex}"
     dest = Path(settings.upload_dir) / rel
     dest.parent.mkdir(parents=True, exist_ok=True)

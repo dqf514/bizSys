@@ -32,6 +32,7 @@ STATUS_CN = {
     "in_progress": "执行中",
     "finished": "已完成",
     "closed": "已结束",
+    "settled": "已结算",
     "stopped": "已停止",
 }
 STATUSES = list(STATUS_CN)
@@ -319,22 +320,27 @@ def delete_task(
 # ---------------- 状态动作 ----------------
 
 _ACTION_PERM = {
-    "submit": "task:submit",
-    "start": "task:edit",
-    "finish": "task:edit",
-    "close": "task:edit",
-    "stop": "task:edit",
+    # 分配类动作（提交分配/接单）除主权限外还需 task:assign（种子已发该权限码）
+    "submit": ("task:submit", "task:assign"),
+    "start": ("task:edit", "task:assign"),
+    "finish": ("task:edit",),
+    "close": ("task:edit",),
+    "stop": ("task:edit",),
 }
 
 
 def _action_endpoint(action: str):
-    perm = _ACTION_PERM[action]
+    perms = _ACTION_PERM[action]
 
     def _run(
         tid: int,
-        current: User = Depends(require_perm(perm)),
+        current: User = Depends(require_perm(perms[0])),
         db: Session = Depends(get_db),
     ):
+        if "super" not in current.role_codes:
+            for p in perms[1:]:
+                if p not in current.perm_codes:
+                    raise BizException(R.AUTH_FORBIDDEN, f"缺少权限：{p}", http_status=403)
         t = _load(db, tid)
         svc.transition(db, t, action, current)
         audit(db, user_id=current.id, module="task", action=f"task_{action}", biz_type="task", biz_id=tid,

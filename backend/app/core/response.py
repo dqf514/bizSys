@@ -4,7 +4,7 @@ from typing import Any
 
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
-# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；9xxxx 集成占位
+# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位
 OK = 0
 
 GENERIC_PARAM = 10001
@@ -15,6 +15,7 @@ GENERIC_SYSTEM = 10005
 AUTH_UNAUTHORIZED = 20001
 AUTH_FORBIDDEN = 20002
 AUTH_LOCKED = 20003
+AUTH_OLD_PASSWORD_WRONG = 20004
 
 ADMIN_USERNAME_EXISTS = 30001
 ADMIN_NUMBER_CONFLICT = 30002
@@ -33,6 +34,10 @@ APPROVAL_COMMENT_REQUIRED = 70003
 APPROVAL_INSTANCE_RUNNING = 70004
 APPROVAL_INVALID_STATE = 70005
 
+FINANCE_INVALID_STATE = 80001
+FINANCE_SETTLEMENT_EXISTS = 80002
+FINANCE_NOT_TASK_CREATOR = 80003
+
 ADAPTER_NOT_CONFIGURED = 90001
 
 DEFAULT_MESSAGES: dict[int, str] = {
@@ -44,6 +49,7 @@ DEFAULT_MESSAGES: dict[int, str] = {
     AUTH_UNAUTHORIZED: "未登录或登录已过期",
     AUTH_FORBIDDEN: "无权限",
     AUTH_LOCKED: "账号已锁定，请稍后再试",
+    AUTH_OLD_PASSWORD_WRONG: "原密码错误",
     ADMIN_USERNAME_EXISTS: "用户名已存在",
     ADMIN_NUMBER_CONFLICT: "编号规则冲突",
     CRM_TAX_NO_DUPLICATE: "纳税识别码已存在",
@@ -56,6 +62,9 @@ DEFAULT_MESSAGES: dict[int, str] = {
     APPROVAL_COMMENT_REQUIRED: "审批意见必填",
     APPROVAL_INSTANCE_RUNNING: "已存在进行中的审批实例",
     APPROVAL_INVALID_STATE: "当前审批状态不允许该操作",
+    FINANCE_INVALID_STATE: "当前财务单据状态不允许该操作",
+    FINANCE_SETTLEMENT_EXISTS: "该任务已存在结算单",
+    FINANCE_NOT_TASK_CREATOR: "仅任务创建人可发起结算",
     ADAPTER_NOT_CONFIGURED: "适配器未配置/未启用",
 }
 

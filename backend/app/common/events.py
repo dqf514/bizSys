@@ -52,6 +52,18 @@ class ApprovalRejected:
 
 
 @dataclass
+class ApprovalWithdrawn:
+    """审批被发起人撤回（业务方应把单据回写为可编辑状态）。"""
+
+    biz_type: str
+    biz_id: int
+    instance_id: int
+    operator_id: int
+    at: datetime = field(default_factory=datetime.now)
+    db: Any = field(default=None, repr=False, compare=False)
+
+
+@dataclass
 class TaskAssigned:
     """任务已分配（触发站内提醒 / 企微占位）。"""
 

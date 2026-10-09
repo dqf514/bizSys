@@ -8,7 +8,7 @@ from app.core.deps import get_current_user
 from app.core.route import EnvelopeRoute
 from app.modules.auth import service
 from app.modules.auth.models import User
-from app.modules.auth.schemas import LoginIn, RefreshIn
+from app.modules.auth.schemas import LoginIn, PasswordIn, RefreshIn
 
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=EnvelopeRoute)
 
@@ -38,3 +38,13 @@ def logout(
 @router.get("/me")
 def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return service.me(db, user)
+
+
+@router.post("/password")
+def change_password(
+    body: PasswordIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service.change_password(db, user, body.old_password, body.new_password)
+    return None

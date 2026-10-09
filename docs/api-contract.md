@@ -8,12 +8,13 @@
 >  `filters[字段]=值`（等值/逗号多值） `range[字段]=起|止` `sort=字段:asc|desc`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 9xxxx 集成占位
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位
 
 ## 鉴权 /auth
 - `POST /auth/login` `{username,password}` → `{access_token,refresh_token,token_type,user}`
-- `POST /auth/refresh` `{refresh_token}` → `{access_token,user}`
+- `POST /auth/refresh` `{refresh_token}` → `{access_token,refresh_token,token_type,user}`（旋转：旧 refresh_token 立即吊销）
 - `POST /auth/logout`（可带 `{refresh_token}` 吊销）
+- `POST /auth/password` `{old_password,new_password}`（新密码至少 8 位；原密码错误 20004）
 - `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[]}`
   - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
   - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）
@@ -48,6 +49,7 @@
   `{id,contractNo,name,customerId,customerName,contractType,subjectType,amount,startDate,endDate,payCycle,delivery,sealType,handlerId,handlerName,frameworkNo,paymentOrg,remark,status,flowInstanceId,attachments:[{id,fileName,size}],createTime,updateTime}`
 - `POST /contract/contracts` · `PUT /contract/contracts/{id}`（仅 draft/rejected）· `DELETE`（仅 draft → 逻辑删）
 - `POST /contract/contracts/{id}/submit` → 启动审批（创建 approval instance，状态→approving）
+- `POST /contract/contracts/{id}/void` → 作废（审批中需先撤回；已作废 50001）
 - `GET /contract/contracts/{id}` 详情（含附件、审批时间线可选）
 - `POST /contract/contracts/{id}/attachments`（multipart file）· `GET /contract/attachments/{fileId}`（下载流）
 - `POST /contract/contracts/export` · `GET /contract/contracts/options`（仅 approved，建任务时用）
@@ -57,6 +59,7 @@
 - `GET /approval/tasks?tab=todo|done|initiated&page&size` →
   `{items:[{id,instanceId,bizType,bizId,title,status,nodeName,comment,initiatorName,assigneeName,createTime,actedAt}],...}`
   - todo=我待办(status=pending & assignee=me)；done=我已办；initiated=我发起的实例
+- `GET /approval/instances/{instance_id}` → 实例快照 + 时间线（含 formSnapshot、records）
 - `GET /approval/instances/{bizType}/{bizId}/timeline` →
   `{instanceId,status, currentNode, records:[{action:"start|agree|reject|withdraw|add_sign|transfer",operatorName,nodeName,comment,at}]}`
 - `POST /approval/tasks/{taskId}/approve` `{comment}` · `/reject` `{comment}`（意见必填）
@@ -68,7 +71,8 @@
 
 ## 任务 /task
 - 状态机（本期）：`draft 已创建待提交 → assigning 已提交分配中 → assigned 已分配待完成
-  → in_progress 执行中 → finished 已完成 → closed 已结束`，终态 `stopped 停止`
+  → in_progress 执行中 → finished 已完成 → closed 已结束`，终态 `stopped 停止`、`settled 已结算`
+  （closed → settled 由财务模块创建结算单触发，见「财务」章节）
 - `GET /task/tasks` 分页（宽表冗余）：
   `{id,taskNo,taskName,taskType,taskTypeLabel,contractId,contractNo,customerId,customerName,
     bizBlock,bizBlockLabel,deptId,deptName,ownerId,ownerName,content,partySystem,receiver,receiverUnit,
@@ -94,16 +98,42 @@
 - `POST /task/tasks/export`
 - 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）
 
+## 财务 /finance
+- 结算单状态机：`pending 待开票 → invoicing 开票审批中 → invoiced 已开票 → paid 已到账`；
+  审批驳回/撤回 → 回 `pending`。
+- 主链路：任务 closed → 建任务人创建结算单（任务 → settled，一任务一单）→ 申请开票（审批流 invoice_apply）
+  → 审批通过生成发票行 → 财务登记发票信息 → 到账登记（累计到账 ≥ 结算金额 → paid）。
+- `GET /finance/settlements` 分页：
+  `{id,settlementNo,taskId,taskNo,customerName,contractNo,amount,invoiceableAmount,status,statusText,remark,
+    approvalInstanceId,createBy,createTime}`
+  检索：`q`（settlementNo/taskNo/customerName/contractNo）、`status` 页签
+- `GET /finance/settlements/task-options?q=` → `[{value,label,sub}]`
+  （仅 `closed` 且无结算单的任务；value=taskId，label=任务编号，sub=客户名称/合同号）
+- `POST /finance/settlements` `{taskId,amount,invoiceableAmount?,remark?}` → 201；
+  仅任务创建人（或超管）可对 closed 任务创建；`settlementNo` 走 HK 编号规则；成功后任务 closed → settled。
+  错误：80001 任务状态不允许结算 / 80002 该任务已有结算单 / 80003 非任务创建人
+- `GET /finance/settlements/{id}` → 详情 + `invoices[]` + `payments[]` + `paidAmount` + 开票审批 `timeline`
+- `POST /finance/settlements/{id}/apply-invoice` `{comment?}` → 启动开票审批
+  （bizType=invoice，definition=invoice_apply），结算单 → invoicing；审批通过 → invoiced 并生成发票行
+- `PUT /finance/invoices/{id}` `{invoiceNo,amount,invoiceDate?}` → 财务登记发票信息
+- `GET /finance/payments` 分页：
+  `{id,paymentNo,settlementId,settlementNo,payType,payerName,payerAccount,amount,bank,paidAt,remark,createBy,createTime}`
+- `POST /finance/payments` `{settlementId,payType,payerName,payerAccount?,amount,bank?,paidAt,remark?}` → 201；
+  仅 invoiced 状态结算单可登记；`paymentNo` 走 DZ 编号规则；累计到账 ≥ 结算金额 → 结算单 paid
+- `GET /finance/settlements/export` · `GET /finance/payments/export`（同检索参数，返回 xlsx 流）
+- 权限码：`finance:settlement:list/create/export`、`finance:invoice:apply/edit`、`finance:payment:list/create/export`
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
+finance/SettlementList  finance/PaymentList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
 ```
 
 ## 字典（sys_dict）
-`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way`
+`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type`
 读取：`GET /admin/dict/items?type={code}`（仅 enabled，按 sort 排序）
 
 ## 种子账号

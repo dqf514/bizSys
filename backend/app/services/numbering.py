@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import response as R
@@ -38,9 +39,16 @@ def next_no(db: Session, biz_type: str) -> str:
         select(NumberSeq).where(NumberSeq.rule_id == rule.id, NumberSeq.period_key == period).with_for_update()
     )
     if row is None:
-        row = NumberSeq(rule_id=rule.id, period_key=period, value=0)
-        db.add(row)
-        db.flush()
+        try:
+            with db.begin_nested():  # savepoint：并发首建撞唯一键只回滚本次插入
+                row = NumberSeq(rule_id=rule.id, period_key=period, value=0)
+                db.add(row)
+                db.flush()
+        except IntegrityError:
+            # 另一事务已先行创建，重读并加行锁
+            row = db.scalar(
+                select(NumberSeq).where(NumberSeq.rule_id == rule.id, NumberSeq.period_key == period).with_for_update()
+            )
     row.value += 1
     db.flush()
     return format_no(rule, period, row.value)

@@ -4,7 +4,7 @@
 - 顺序多级节点，同节点或签（任一 pending 被同意即过，其余 cancel）；
 - 同意到末节点 → instance=approved → 发布 ApprovalCompleted（同事务）；
 - 驳回意见必填 → instance=rejected → 发布 ApprovalRejected；
-- 撤回仅发起人且尚无人处理；
+- 撤回仅发起人且尚无人处理 → instance=withdrawn → 发布 ApprovalWithdrawn；
 - 加签：当前节点追加审批人（仍或签）；转办：改派当前待办。
 """
 
@@ -14,7 +14,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.events import ApprovalCompleted, ApprovalRejected, publish
+from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, publish
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.admin.models import Role, UserRole
@@ -121,13 +121,16 @@ def start(
     form_snapshot: dict | None = None,
 ) -> ApprovalInstance:
     """发起审批（业务模块唯一入口之一）。已存在 running 实例 → 70004。"""
+    # 行锁兜底：调用方应先锁定业务行（如合同提交已 with_for_update），此处锁已有 running 行防并发双实例
     running = db.scalar(
-        select(ApprovalInstance).where(
+        select(ApprovalInstance)
+        .where(
             ApprovalInstance.biz_type == biz_type,
             ApprovalInstance.biz_id == biz_id,
             ApprovalInstance.status == "running",
             ApprovalInstance.deleted == 0,
         )
+        .with_for_update()
     )
     if running:
         raise BizException(R.APPROVAL_INSTANCE_RUNNING)
@@ -165,7 +168,8 @@ def start(
 
 
 def _get_open_task(db: Session, task_id: int, user: User) -> ApprovalTask:
-    task = db.get(ApprovalTask, task_id)
+    # 行锁：或签节点两人同时同意时串行化，后到者看到 status 已变 → 70001
+    task = db.get(ApprovalTask, task_id, with_for_update=True)
     if not task or task.deleted or task.status != "pending":
         raise BizException(R.APPROVAL_NO_TODO)
     if task.assignee_id != user.id:
@@ -265,6 +269,15 @@ def withdraw(db: Session, instance_id: int, user: User, comment: str = "") -> Ap
     instance.finished_at = datetime.now()
     _record(db, instance, "withdraw", user, comment or "发起人撤回")
     db.flush()
+    publish(
+        ApprovalWithdrawn(
+            biz_type=instance.biz_type,
+            biz_id=instance.biz_id,
+            instance_id=instance.id,
+            operator_id=user.id,
+            db=db,
+        )
+    )
     return instance
 
 

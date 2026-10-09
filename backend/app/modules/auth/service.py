@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
 from app.core import response as R
+from app.core.config import settings
 from app.core.exceptions import BizException
 from app.core.redis import get_redis
 from app.core.security import (
@@ -14,7 +15,7 @@ from app.core.security import (
     decode_token,
     verify_password,
 )
-from app.modules.admin.models import UserPref
+from app.modules.admin.models import LoginLog, UserPref
 from app.modules.auth.models import User
 
 FAIL_KEY = "login_fail:{username}"
@@ -41,6 +42,11 @@ def _clear_fail(username: str) -> None:
     get_redis().delete(FAIL_KEY.format(username=username))
 
 
+def _login_log(db: Session, username: str, success: int, reason: str = "", ip: str = "", ua: str = "") -> None:
+    """登录日志（sys_login_log）：成功/失败都留痕。"""
+    db.add(LoginLog(username=username, success=success, reason=reason, ip=ip or "", ua=(ua or "")[:255]))
+
+
 def login(db: Session, username: str, password: str, ip: str = "", ua: str = "") -> dict:
     _fail_guard(username)
     user: User | None = db.query(User).filter(User.username == username, User.deleted == 0).first()
@@ -52,8 +58,9 @@ def login(db: Session, username: str, password: str, ip: str = "", ua: str = "")
         roles = user.role_codes
         access = create_access_token(user.id, roles, perms)
         refresh, jti = create_refresh_token(user.id)
-        get_redis().setex(f"refresh:{jti}", 60 * 60 * 24 * 7, str(user.id))
+        get_redis().setex(f"refresh:{jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
         audit(db, user_id=user.id, module="auth", action="login", detail={"username": username}, ip=ip)
+        _login_log(db, username, 1, ip=ip, ua=ua)
         db.commit()
         return {
             "access_token": access,
@@ -71,6 +78,7 @@ def login(db: Session, username: str, password: str, ip: str = "", ua: str = "")
             detail={"reason": user.status},
             ip=ip,
         )
+        _login_log(db, username, 0, reason=user.status, ip=ip, ua=ua)
         db.commit()
         raise BizException(R.AUTH_FORBIDDEN, http_status=401)
 
@@ -83,6 +91,7 @@ def login(db: Session, username: str, password: str, ip: str = "", ua: str = "")
         detail={"username": username},
         ip=ip,
     )
+    _login_log(db, username, 0, reason="用户名或密码错误", ip=ip, ua=ua)
     db.commit()
     raise BizException(R.AUTH_UNAUTHORIZED, "用户名或密码错误", http_status=401)
 
@@ -100,7 +109,16 @@ def refresh(db: Session, refresh_token: str) -> dict:
     if not user or user.deleted or user.status != "enabled":
         raise BizException(R.AUTH_UNAUTHORIZED, http_status=401) from None
     access = create_access_token(user.id, user.role_codes, user.perm_codes)
-    return {"access_token": access, "token_type": "Bearer", "user": _user_out(db, user)}
+    # 旋转：吊销旧 refresh，签发新 refresh（旧 token 立即失效）
+    new_refresh, new_jti = create_refresh_token(user.id)
+    r.delete(f"refresh:{jti}")
+    r.setex(f"refresh:{new_jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
+    return {
+        "access_token": access,
+        "refresh_token": new_refresh,
+        "token_type": "Bearer",
+        "user": _user_out(db, user),
+    }
 
 
 def logout(db: Session, refresh_token: str | None, user: User) -> None:
@@ -111,6 +129,7 @@ def logout(db: Session, refresh_token: str | None, user: User) -> None:
         except Exception:
             pass
     audit(db, user_id=user.id, module="auth", action="logout")
+    db.commit()
 
 
 def _prefs(db: Session, user_id: int) -> dict[str, str]:
@@ -143,7 +162,7 @@ def me(db: Session, user: User) -> dict:
 
 def change_password(db: Session, user: User, old: str, new: str) -> None:
     if not verify_password(old, user.password_hash):
-        raise BizException(R.GENERIC_PARAM, "原密码错误")
+        raise BizException(R.AUTH_OLD_PASSWORD_WRONG)
     from app.core.security import hash_password
 
     if len(new) < 8:

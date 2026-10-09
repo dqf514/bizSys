@@ -4,7 +4,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.common.events import ApprovalCompleted, ApprovalRejected, subscribe
+from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.common.pagination import PageParams
 from app.core.exceptions import BizException
 from app.modules.approval import service
@@ -133,4 +133,17 @@ def test_withdraw_transfer_addsign(db):
     assert len(_todo(db, admin, biz3)) == 1
     tl = service.timeline(db, "contract", biz3)
     assert [x["action"] for x in tl["records"]] == ["start", "add_sign"]
+    db.rollback()
+
+
+def test_withdraw_publishes_event(db):
+    """撤回发布 ApprovalWithdrawn（合同等订阅方据此回写可编辑状态）。"""
+    got: list = []
+    subscribe(ApprovalWithdrawn, lambda e: got.append((e.biz_type, e.biz_id)))
+    admin, m1, l1 = _users(db)
+    biz = _biz_id()
+    inst = _start(db, admin, biz, "w")
+    db.flush()
+    service.withdraw(db, inst.id, admin)
+    assert ("contract", biz) in got
     db.rollback()

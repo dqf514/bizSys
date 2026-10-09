@@ -11,6 +11,7 @@ from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PageParams
 from app.core import response as R
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
@@ -258,7 +259,11 @@ def import_customers(
     current: User = Depends(require_perm("crm:customer:import")),
     db: Session = Depends(get_db),
 ):
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise BizException(R.GENERIC_PARAM, "仅支持 .xlsx 文件")
     data = file.file.read()
+    if len(data) > settings.upload_max_mb * 1024 * 1024:
+        raise BizException(R.GENERIC_PARAM, f"文件超过大小上限 {settings.upload_max_mb}MB")
     cols = [{"key": c["key"], "label": c["label"]} for c in EXPORT_COLS if c["key"] != "createTime"]
 
     def require_name(v, row):

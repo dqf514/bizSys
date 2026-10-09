@@ -9,12 +9,13 @@ UUID = uuid.uuid4().hex[:8]
 
 
 def _create_customer(client, headers):
+    suf = uuid.uuid4().hex[:8]  # 每次调用独立后缀：测试库数据跨用例/跨运行持久
     r = client.post(
         "/api/v1/crm/customers",
         headers=headers,
         json={
-            "name": f"测试客户_{UUID}",
-            "tax_no": f"913401TEST{UUID}",
+            "name": f"测试客户_{suf}",
+            "tax_no": f"913401TEST{suf}",
             "customer_type": "enterprise",
             "grade": "A",
             "status": "enabled",
@@ -29,7 +30,7 @@ def test_contract_full_flow(client, admin_headers, manager_headers, leader_heade
 
     # 税号重复 40001
     r = client.post(
-        "/api/v1/crm/customers", headers=admin_headers, json={"name": "dup", "tax_no": f"913401TEST{UUID}"}
+        "/api/v1/crm/customers", headers=admin_headers, json={"name": "dup", "tax_no": cust["taxNo"]}
     ).json()
     assert r["code"] == 40001
 
@@ -94,3 +95,61 @@ def test_contract_full_flow(client, admin_headers, manager_headers, leader_heade
     assert resp.status_code == 200
     wb = load_workbook(io.BytesIO(resp.content))
     assert wb.active.max_row >= 2
+
+
+def test_withdraw_then_edit_and_resubmit(client, admin_headers):
+    """提交 → 撤回 → 合同回 draft，可再编辑/再提交（修复前卡在 approving）。"""
+    cust = _create_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": f"撤回合同_{UUID}", "customer_id": cust["id"], "amount": 8000},
+    ).json()
+    assert r["code"] == 0, r
+    cid = r["data"]["id"]
+    r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving"
+    inst_id = r["data"]["flowInstanceId"]
+
+    r = client.post(f"/api/v1/approval/instances/{inst_id}/withdraw", headers=admin_headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "withdrawn"
+    r = client.get(f"/api/v1/contract/contracts/{cid}", headers=admin_headers).json()
+    assert r["data"]["status"] == "draft"
+
+    # 可再编辑
+    r = client.put(
+        f"/api/v1/contract/contracts/{cid}",
+        headers=admin_headers,
+        json={"name": f"撤回合同改_{UUID}", "customer_id": cust["id"], "amount": 9000, "version": r["data"]["version"]},
+    ).json()
+    assert r["code"] == 0, r
+
+    # 可再提交
+    r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving"
+
+
+def test_attachment_upload_validation(client, admin_headers):
+    """附件上传：扩展名白名单 / 空文件 → 业务错误码而非 500。"""
+    cust = _create_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": f"附件合同_{UUID}", "customer_id": cust["id"], "amount": 100},
+    ).json()
+    cid = r["data"]["id"]
+
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("evil.exe", io.BytesIO(b"MZ"), "application/octet-stream")},
+    ).json()
+    assert r["code"] == 10001
+
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["fileName"] == "a.pdf"

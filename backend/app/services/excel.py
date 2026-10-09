@@ -9,6 +9,9 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.core import response as R
+from app.core.exceptions import BizException
+
 HeaderFill = PatternFill("solid", fgColor="D9E2F3")
 HeaderFont = Font(bold=True)
 
@@ -80,7 +83,10 @@ def import_rows(
 
     返回 (ok_rows, errors)；errors: [{row, field, message}]（row 为文件行号，含表头偏移）。
     """
-    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception:
+        raise BizException(R.GENERIC_PARAM, "文件不是有效的 xlsx") from None
     ws = wb.active
     rows_iter = ws.iter_rows(values_only=True)
     try:

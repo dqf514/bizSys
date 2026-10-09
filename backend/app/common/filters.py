@@ -19,6 +19,8 @@ from sqlalchemy import Select, func, or_
 from sqlalchemy.orm import Session
 
 from app.common.pagination import PageParams
+from app.core import response as R
+from app.core.exceptions import BizException
 
 
 def _parse_sort(raw: str | None, allowed: set[str], default: tuple[str, str]):
@@ -110,7 +112,7 @@ def _parse_date(s: str) -> datetime:
             return datetime.strptime(s, fmt)
         except ValueError:
             continue
-    return datetime.strptime(s[:10], "%Y-%m-%d")
+    raise BizException(R.GENERIC_PARAM, f"非法日期格式：{s}")
 
 
 __all__ = ["apply_list_filters", "_parse_date"]
