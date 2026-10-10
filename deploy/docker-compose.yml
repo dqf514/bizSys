@@ -4,6 +4,7 @@ services:
   mysql:
     image: mysql:8.4
     container_name: bizsys-mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-bizsys123}
       MYSQL_DATABASE: bizsys
@@ -14,7 +15,8 @@ services:
       - --default-time-zone=+08:00
       - --max_connections=500
     ports:
-      - "3307:3306"
+      # 仅本机/网关需要访问数据库时使用；不需要外部访问可改为 "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+      - "${MYSQL_BIND:-0.0.0.0}:${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
@@ -27,8 +29,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: bizsys-redis
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      # 不需要外部访问 Redis 时可改为 "127.0.0.1:${REDIS_PORT:-6379}:6379"
+      - "${REDIS_BIND:-0.0.0.0}:${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -40,6 +44,7 @@ services:
       context: ..
       dockerfile: deploy/backend.Dockerfile
     container_name: bizsys-api
+    restart: unless-stopped
     environment:
       DB_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-bizsys123}@mysql:3306/bizsys?charset=utf8mb4
       REDIS_URL: redis://redis:6379/0
@@ -47,7 +52,7 @@ services:
       ENV: prod
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
     ports:
-      - "8000:8000"
+      - "${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -61,8 +66,10 @@ services:
       context: ..
       dockerfile: deploy/frontend.Dockerfile
     container_name: bizsys-web
+    restart: unless-stopped
     ports:
-      - "8080:80"
+      # 局域网/网关入口（portal.hmvic.cn 反代指向此端口）
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:80"
     depends_on:
       - backend
 
