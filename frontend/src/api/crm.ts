@@ -1,5 +1,5 @@
 import { request, download, toQuery } from './http'
-import type { Customer, ListQuery, OptionItem, PageResult } from './types'
+import type { Customer, CustomerDetail, CustomerOption, ListQuery, PageResult } from './types'
 
 export function listCustomers(params: ListQuery) {
   return request<PageResult<Customer>>({
@@ -10,7 +10,7 @@ export function listCustomers(params: ListQuery) {
 }
 
 export function getCustomer(id: number) {
-  return request<Customer>({ url: `/crm/customers/${id}`, method: 'get' })
+  return request<CustomerDetail>({ url: `/crm/customers/${id}`, method: 'get' })
 }
 
 export function createCustomer(data: Partial<Customer>) {
@@ -47,7 +47,7 @@ export function importCustomers(file: File) {
 }
 
 export function customerOptions(q: string, limit = 20) {
-  return request<OptionItem[]>({
+  return request<CustomerOption[]>({
     url: '/crm/customers/options',
     method: 'get',
     params: { q, limit },

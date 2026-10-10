@@ -18,6 +18,8 @@
     "handlerName": "经办人",
     "frameworkNo": "框架合同号",
     "paymentOrg": "付款单位",
+    "contactPerson": "联系人",
+    "contactPhone": "联系电话",
     "remark": "备注",
     "status": "状态",
     "attachments": "附件",
@@ -34,6 +36,7 @@
     "tabAttachments": "附件",
     "tabTimeline": "审批过程",
     "tabTasksReports": "任务与报告",
+    "tabFinance": "财务信息",
     "relatedTasks": "关联任务",
     "relatedReports": "关联报告",
     "searchName": "合同名称",
@@ -51,5 +54,15 @@
     "amountInvalid": "请输入有效金额",
     "dateRangeRequired": "请选择起止日期",
     "uploadTip": "拖拽或点击上传附件"
+  },
+  "finance": {
+    "contractAmount": "合同金额",
+    "settledTotal": "累计结算",
+    "invoicedTotal": "累计开票",
+    "paidTotal": "累计到账",
+    "outstanding": "未到账余额",
+    "settlements": "结算记录",
+    "invoices": "开票记录",
+    "payments": "到账记录"
   }
 }

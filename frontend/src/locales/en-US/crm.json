@@ -15,6 +15,8 @@
     "bankName": "Bank Name",
     "bankAccount": "Bank Account",
     "payOrg": "Pay Organization",
+    "contactPerson": "Contact Person",
+    "contactPhone": "Contact Phone",
     "licenseFileId": "Business License",
     "remark": "Remark",
     "createTime": "Created at",
@@ -34,5 +36,16 @@
     "disabled": "Disabled",
     "importTitle": "Import Customers",
     "importTip": "xlsx files only, download the template first"
+  },
+  "detail": {
+    "basicInfo": "Basic Info",
+    "contracts": "Contracts",
+    "tasks": "Tasks",
+    "settlements": "Settlements",
+    "contractCount": "Contracts",
+    "contractTotal": "Contract Total",
+    "taskCount": "Tasks",
+    "settledTotal": "Settled Total",
+    "paidTotal": "Paid Total"
   }
 }

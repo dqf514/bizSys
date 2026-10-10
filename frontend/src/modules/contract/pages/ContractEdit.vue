@@ -45,6 +45,8 @@ const form = reactive({
   handlerName: '',
   frameworkNo: '',
   paymentOrg: '',
+  contactPerson: '',
+  contactPhone: '',
   remark: '',
 })
 
@@ -79,6 +81,8 @@ async function load() {
       handlerName: data.handlerName ?? '',
       frameworkNo: data.frameworkNo ?? '',
       paymentOrg: data.paymentOrg ?? '',
+      contactPerson: data.contactPerson ?? '',
+      contactPhone: data.contactPhone ?? '',
       remark: data.remark ?? '',
     })
     attachments.value = data.attachments ?? []
@@ -205,6 +209,12 @@ function cancel() {
                 (v, opt) => {
                   form.customerId = v as number
                   form.customerName = opt?.label ?? ''
+                  if (opt) {
+                    // customer change overwrites with the customer's own values; user can still edit afterwards
+                    form.paymentOrg = opt.payOrg ?? ''
+                    form.contactPerson = opt.contactPerson ?? ''
+                    form.contactPhone = opt.contactPhone ?? ''
+                  }
                 }
               "
             />
@@ -282,6 +292,16 @@ function cancel() {
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.paymentOrg')">
             <SmartInput v-model="form.paymentOrg" field="contract.paymentOrg" :maxlength="128" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('contract.contract.contactPerson')">
+            <el-input v-model="form.contactPerson" :maxlength="64" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('contract.contract.contactPhone')">
+            <el-input v-model="form.contactPhone" :maxlength="32" />
           </el-form-item>
         </el-col>
         <el-col :span="24">

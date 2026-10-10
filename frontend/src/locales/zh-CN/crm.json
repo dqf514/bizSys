@@ -15,6 +15,8 @@
     "bankName": "开户行",
     "bankAccount": "银行账号",
     "payOrg": "付款单位",
+    "contactPerson": "联系人",
+    "contactPhone": "联系电话",
     "licenseFileId": "营业执照",
     "remark": "备注",
     "createTime": "创建时间",
@@ -34,5 +36,16 @@
     "disabled": "停用",
     "importTitle": "导入客户",
     "importTip": "仅支持 xlsx 文件，可先下载模板"
+  },
+  "detail": {
+    "basicInfo": "基本信息",
+    "contracts": "合同",
+    "tasks": "任务",
+    "settlements": "结算",
+    "contractCount": "合同数",
+    "contractTotal": "合同总额",
+    "taskCount": "任务数",
+    "settledTotal": "累计结算",
+    "paidTotal": "累计到账"
   }
 }

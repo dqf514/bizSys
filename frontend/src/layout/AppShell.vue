@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import TopBar from './TopBar.vue'
 import SideNav from './SideNav.vue'
 import TabWorkspace from './TabWorkspace.vue'
+import ContextPanel from './ContextPanel.vue'
 import CommandPalette from './CommandPalette.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCommandPalette } from '@/composables/useHotkeys'
@@ -20,8 +21,8 @@ function toggleNav() {
 
 const gridStyle = computed(() => ({
   gridTemplateColumns: navCollapsed.value
-    ? 'var(--bs-layout-sidenav-collapsed-width) 1fr'
-    : 'var(--bs-layout-sidenav-width) 1fr',
+    ? 'var(--bs-layout-sidenav-collapsed-width) 1fr auto'
+    : 'var(--bs-layout-sidenav-width) 1fr auto',
 }))
 </script>
 
@@ -37,6 +38,7 @@ const gridStyle = computed(() => ({
       <main class="shell-main">
         <TabWorkspace />
       </main>
+      <ContextPanel />
     </div>
     <footer class="shell-status">
       <span class="status-item">{{ auth.user?.name || auth.user?.username || '' }}</span>

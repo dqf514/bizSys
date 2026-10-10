@@ -185,6 +185,8 @@ export interface Customer {
   bankName: string
   bankAccount: string
   payOrg: string
+  contactPerson: string
+  contactPhone: string
   licenseFileId: string | number | null
   remark: string
   createTime: string
@@ -195,6 +197,32 @@ export interface OptionItem {
   id: number | string
   label: string
   sub?: string
+}
+
+/** /crm/customers/options carries extra payload for form auto-fill */
+export interface CustomerOption extends OptionItem {
+  payOrg?: string
+  taxNo?: string
+  contactPerson?: string
+  contactPhone?: string
+}
+
+/** /contract/contracts/options carries the bound customer for chain display */
+export interface ContractOption extends OptionItem {
+  customerId?: number | null
+  customerName?: string
+}
+
+export interface CustomerSummary {
+  contractCount: number
+  contractTotal: number | string
+  taskCount: number
+  settledTotal: number | string
+  paidTotal: number | string
+}
+
+export interface CustomerDetail extends Customer {
+  summary?: CustomerSummary
 }
 
 export interface Attachment {
@@ -223,6 +251,8 @@ export interface Contract {
   handlerName: string
   frameworkNo: string
   paymentOrg: string
+  contactPerson: string
+  contactPhone: string
   remark: string
   status: ContractStatus
   flowInstanceId: number | null
@@ -361,7 +391,9 @@ export interface Settlement {
   settlementNo: string
   taskId: number
   taskNo: string
+  customerId?: number | null
   customerName: string
+  contractId?: number | null
   contractNo: string
   amount: number | string
   invoiceableAmount: number | string
@@ -390,6 +422,8 @@ export interface InvoiceListItem {
   settlementId: number
   settlementNo: string
   taskNo: string
+  contractId?: number | null
+  customerId?: number | null
   customerName: string
   amount: number | string
   invoiceDate: string
@@ -404,6 +438,8 @@ export interface Payment {
   paymentNo: string
   settlementId: number
   settlementNo: string
+  contractId?: number | null
+  customerId?: number | null
   payType: string
   payerName: string
   payerAccount: string
@@ -426,6 +462,17 @@ export interface SettlementTaskOption {
   value: number
   label: string
   sub?: string
+}
+
+/** GET /contract/contracts/{id}/finance-summary */
+export interface ContractFinanceSummary {
+  contractAmount: number | string
+  settledTotal: number | string
+  invoicedTotal: number | string
+  paidTotal: number | string
+  settlementCount: number
+  invoiceCount: number
+  paymentCount: number
 }
 
 /** Report module — camelCase per backend convention */

@@ -1,23 +1,41 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
-import { getContract, downloadAttachment, voidContract } from '@/api/contract'
+import SettlementDetailDrawer from '@/modules/finance/components/SettlementDetailDrawer.vue'
+import { getContract, getContractFinanceSummary, downloadAttachment, voidContract } from '@/api/contract'
+import { getCustomer } from '@/api/crm'
 import { getTimeline } from '@/api/approval'
 import { listTasks } from '@/api/task'
 import { listReports } from '@/api/report'
-import type { Attachment, Contract, Report, Task, TimelineRecord } from '@/api/types'
+import { listSettlements, listInvoices, listPayments } from '@/api/finance'
+import { useDictOptions } from '@/composables/useDict'
+import { useContextStore, type ContextSection } from '@/stores/context'
+import type {
+  Attachment,
+  Contract,
+  ContractFinanceSummary,
+  CustomerDetail,
+  InvoiceListItem,
+  Payment,
+  Report,
+  Settlement,
+  Task,
+  TimelineRecord,
+} from '@/api/types'
 
 defineOptions({ name: 'ContractDetail' })
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const context = useContextStore()
 
 const detail = ref<Contract | null>(null)
+const customerDetail = ref<CustomerDetail | null>(null)
 const attachments = ref<Attachment[]>([])
 const records = ref<TimelineRecord[]>([])
 const loading = ref(false)
@@ -59,10 +77,121 @@ watch(activeTab, (tab) => {
     tasksReportsLoaded = true
     void loadTasksReports()
   }
+  if (tab === 'finance' && !financeLoaded) {
+    financeLoaded = true
+    void loadFinance()
+  }
 })
 
 function openTask(row: Task) {
   router.push(`/task/tasks/${row.id}`)
+}
+
+/* ---------- 财务信息 ---------- */
+const financeSummary = ref<ContractFinanceSummary | null>(null)
+const settlements = ref<Settlement[]>([])
+const invoices = ref<InvoiceListItem[]>([])
+const payments = ref<Payment[]>([])
+const financeLoading = ref(false)
+let financeLoaded = false
+
+const settleDrawerVisible = ref(false)
+const settleDrawerId = ref<number | null>(null)
+
+const payTypeOpts = useDictOptions('pay_type')
+
+function payTypeLabel(value: unknown) {
+  const v = String(value ?? '')
+  return payTypeOpts.opts.value.find((x) => x.value === v)?.label || v || '-'
+}
+
+function fmtMoney(v: number | string | undefined | null) {
+  const n = Number(v ?? 0)
+  return Number.isFinite(n) ? n.toLocaleString() : String(v ?? '-')
+}
+
+function outstanding() {
+  if (!financeSummary.value) return '-'
+  return fmtMoney(Number(financeSummary.value.contractAmount ?? 0) - Number(financeSummary.value.paidTotal ?? 0))
+}
+
+/* ---------- 关联面板 ---------- */
+function publishContext() {
+  const d = detail.value
+  if (!d) return
+  const sections: ContextSection[] = []
+  const cust = customerDetail.value
+  sections.push({
+    key: 'customer',
+    title: 'common.context.customer',
+    type: 'fields',
+    items: [
+      { label: 'crm.customer.name', value: cust?.name || d.customerName },
+      { label: 'crm.customer.grade', value: cust?.grade || '-' },
+      { label: 'crm.customer.contactPerson', value: cust?.contactPerson || d.contactPerson || '-' },
+      { label: 'crm.customer.contactPhone', value: cust?.contactPhone || d.contactPhone || '-' },
+    ],
+  })
+  const fs = financeSummary.value
+  if (fs) {
+    sections.push({
+      key: 'finance',
+      title: 'common.context.financeOverview',
+      type: 'stats',
+      items: [
+        { label: 'contract.finance.settledTotal', value: fmtMoney(fs.settledTotal) },
+        { label: 'contract.finance.invoicedTotal', value: fmtMoney(fs.invoicedTotal) },
+        { label: 'contract.finance.paidTotal', value: fmtMoney(fs.paidTotal) },
+        { label: 'contract.finance.outstanding', value: outstanding(), emphasize: true },
+      ],
+    })
+  }
+  sections.push({
+    key: 'links',
+    title: 'common.context.quickLinks',
+    type: 'links',
+    items: [
+      { label: 'common.context.newTask', to: '/task/tasks/new' },
+      { label: 'common.context.settlements', to: '/finance/settlements' },
+    ],
+  })
+  context.publish({ title: d.name, subtitle: d.contractNo, recordKey: `contract:${d.id}`, sections })
+}
+
+async function loadFinanceSummary(id: number) {
+  try {
+    financeSummary.value = await getContractFinanceSummary(id)
+  } catch {
+    financeSummary.value = null
+  }
+  publishContext()
+}
+
+async function loadFinance() {
+  const id = Number(route.params.id)
+  if (!id) return
+  financeLoading.value = true
+  try {
+    const [s, i, p] = await Promise.all([
+      listSettlements({ page: 1, size: 100, filters: { contract_id: id } }),
+      listInvoices({ page: 1, size: 100, filters: { contract_id: id } }),
+      listPayments({ page: 1, size: 100, filters: { contract_id: id } }),
+    ])
+    settlements.value = s.items ?? []
+    invoices.value = i.items ?? []
+    payments.value = p.items ?? []
+  } catch {
+    settlements.value = []
+    invoices.value = []
+    payments.value = []
+  } finally {
+    financeLoading.value = false
+  }
+}
+
+function openSettlement(row: Settlement) {
+  settleDrawerId.value = row.id
+  settleDrawerVisible.value = true
 }
 
 async function load() {
@@ -73,6 +202,19 @@ async function load() {
     const data = await getContract(id)
     detail.value = data
     attachments.value = data.attachments ?? []
+    void loadFinanceSummary(id)
+    customerDetail.value = null
+    if (data.customerId) {
+      getCustomer(data.customerId)
+        .then((c) => {
+          customerDetail.value = c
+          publishContext()
+        })
+        .catch(() => {
+          /* customer section falls back to contract fields */
+        })
+    }
+    publishContext()
     if (data.flowInstanceId || data.status === 'approving' || data.status === 'approved') {
       timelineLoading.value = true
       try {
@@ -92,6 +234,13 @@ async function load() {
 }
 
 onMounted(() => void load())
+
+// keep-alive page: re-publish when the tab becomes active again, clear when leaving
+onActivated(() => {
+  if (detail.value) publishContext()
+})
+onDeactivated(() => context.clear())
+onUnmounted(() => context.clear())
 
 async function doVoid() {
   if (!detail.value) return
@@ -131,6 +280,29 @@ async function doVoid() {
       </div>
     </div>
 
+    <div v-if="financeSummary" class="finance-strip">
+      <div class="stat-card">
+        <div class="stat-label">{{ t('contract.finance.contractAmount') }}</div>
+        <div class="stat-value">{{ fmtMoney(financeSummary.contractAmount) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{ t('contract.finance.settledTotal') }}</div>
+        <div class="stat-value">{{ fmtMoney(financeSummary.settledTotal) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{ t('contract.finance.invoicedTotal') }}</div>
+        <div class="stat-value">{{ fmtMoney(financeSummary.invoicedTotal) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{ t('contract.finance.paidTotal') }}</div>
+        <div class="stat-value stat-paid">{{ fmtMoney(financeSummary.paidTotal) }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{ t('contract.finance.outstanding') }}</div>
+        <div class="stat-value stat-outstanding">{{ outstanding() }}</div>
+      </div>
+    </div>
+
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('contract.contract.tabBasic')" name="basic">
         <el-descriptions v-if="detail" :column="2" border>
@@ -148,6 +320,8 @@ async function doVoid() {
           <el-descriptions-item :label="t('contract.contract.handlerName')">{{ detail.handlerName || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.frameworkNo')">{{ detail.frameworkNo || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.paymentOrg')">{{ detail.paymentOrg || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.contactPerson')">{{ detail.contactPerson || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.contactPhone')">{{ detail.contactPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.remark')" :span="2">{{ detail.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
@@ -200,7 +374,67 @@ async function doVoid() {
           </el-table>
         </div>
       </el-tab-pane>
+      <el-tab-pane :label="t('contract.contract.tabFinance')" name="finance">
+        <div v-loading="financeLoading" class="finance-tables">
+          <div class="section-title">{{ t('contract.finance.settlements') }}</div>
+          <el-table :data="settlements" border stripe size="small">
+            <el-table-column :label="t('finance.settlement.settlementNo')" width="150">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openSettlement(row as unknown as Settlement)">
+                  {{ row.settlementNo }}
+                </el-button>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('finance.settlement.amount')" width="120">
+              <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
+            </el-table-column>
+            <el-table-column :label="t('finance.settlement.invoiceableAmount')" width="120">
+              <template #default="{ row }">{{ fmtMoney(row.invoiceableAmount) }}</template>
+            </el-table-column>
+            <el-table-column :label="t('common.form.status')" width="110">
+              <template #default="{ row }">
+                <StatusTag :status="String(row.status)" i18n-prefix="finance.settlement.status" />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('finance.settlement.createTime')" prop="createTime" width="160" />
+          </el-table>
+
+          <div class="section-title">{{ t('contract.finance.invoices') }}</div>
+          <el-table :data="invoices" border stripe size="small">
+            <el-table-column :label="t('finance.invoice.invoiceNo')" prop="invoiceNo" width="160">
+              <template #default="{ row }">{{ row.invoiceNo || '-' }}</template>
+            </el-table-column>
+            <el-table-column :label="t('finance.invoice.settlementNo')" prop="settlementNo" width="150" />
+            <el-table-column :label="t('finance.invoice.amount')" width="120">
+              <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
+            </el-table-column>
+            <el-table-column :label="t('finance.invoice.invoiceDate')" width="120">
+              <template #default="{ row }">{{ row.invoiceDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column :label="t('common.form.status')" width="110">
+              <template #default="{ row }">
+                <StatusTag :status="String(row.status)" i18n-prefix="finance.invoice.status" />
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="section-title">{{ t('contract.finance.payments') }}</div>
+          <el-table :data="payments" border stripe size="small">
+            <el-table-column :label="t('finance.payment.paymentNo')" prop="paymentNo" width="160" />
+            <el-table-column :label="t('finance.payment.payerName')" prop="payerName" min-width="140" />
+            <el-table-column :label="t('finance.payment.amount')" width="120">
+              <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
+            </el-table-column>
+            <el-table-column :label="t('finance.payment.payType')" width="110">
+              <template #default="{ row }">{{ payTypeLabel(row.payType) }}</template>
+            </el-table-column>
+            <el-table-column :label="t('finance.payment.paidAt')" prop="paidAt" width="120" />
+          </el-table>
+        </div>
+      </el-tab-pane>
     </el-tabs>
+
+    <SettlementDetailDrawer v-model="settleDrawerVisible" :settlement-id="settleDrawerId" />
   </div>
 </template>
 
@@ -259,5 +493,44 @@ async function doVoid() {
 .section-title {
   font-weight: 600;
   color: var(--bs-color-fg-default);
+}
+
+.finance-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--bs-space-3);
+}
+
+.stat-card {
+  padding: var(--bs-space-3) var(--bs-space-4);
+  border: 1px solid var(--bs-color-border-subtle);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-bg-app);
+}
+
+.stat-label {
+  font-size: var(--bs-typography-font-size-sm);
+  color: var(--bs-color-fg-secondary);
+}
+
+.stat-value {
+  margin-top: var(--bs-space-1);
+  font-size: var(--bs-typography-font-size-xxl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-paid {
+  color: var(--bs-color-semantic-success);
+}
+
+.stat-outstanding {
+  color: var(--bs-color-semantic-warning);
+}
+
+.finance-tables {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-3);
 }
 </style>

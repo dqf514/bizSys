@@ -6,6 +6,8 @@ export interface RemoteOption {
   id: number | string
   label: string
   sub?: string
+  /** option payloads may carry extra keys (e.g. customer payOrg) passed through on change */
+  [key: string]: unknown
 }
 
 const props = withDefaults(

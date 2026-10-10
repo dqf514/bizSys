@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -23,6 +23,7 @@ from app.modules.auth.models import User
 from app.modules.contract import schemas as S
 from app.modules.contract import service as svc
 from app.modules.contract.models import Contract, ContractAttachment
+from app.modules.finance.models import Invoice, Payment, Settlement
 from app.services.excel import export_xlsx_styled, now_filename
 from app.services.numbering import next_no
 
@@ -83,6 +84,8 @@ def _out(c: Contract) -> dict:
         "handlerName": c.handler_name,
         "frameworkNo": c.framework_no,
         "paymentOrg": c.payment_org,
+        "contactPerson": c.contact_person or "",
+        "contactPhone": c.contact_phone or "",
         "remark": c.remark or "",
         "status": c.status,
         "statusText": STATUS_CN.get(c.status, c.status),
@@ -119,6 +122,8 @@ def _apply(c: Contract, body: S.ContractIn, customer_name: str) -> None:
     c.handler_name = body.handler_name
     c.framework_no = body.framework_no
     c.payment_org = body.payment_org
+    c.contact_person = body.contact_person
+    c.contact_phone = body.contact_phone
     c.remark = body.remark
 
 
@@ -165,7 +170,16 @@ def contract_options(
 
         stmt = stmt.where(or_(Contract.name.like(like), Contract.contract_no.like(like)))
     rows = db.scalars(stmt.order_by(Contract.update_time.desc()).limit(limit)).all()
-    return [{"id": c.id, "label": c.name, "sub": c.contract_no} for c in rows]
+    return [
+        {
+            "id": c.id,
+            "label": c.name,
+            "sub": c.contract_no,
+            "customerId": c.customer_id,
+            "customerName": c.customer_name,
+        }
+        for c in rows
+    ]
 
 
 @router.get("/contracts/{cid}")
@@ -180,6 +194,43 @@ def get_contract(
     data = _out(c)
     data["timeline"] = approval_svc.timeline(db, "contract", cid)["records"]
     return data
+
+
+@router.get("/contracts/{cid}/finance-summary")
+def contract_finance_summary(
+    cid: int,
+    user: User = Depends(require_perm("contract:list")),
+    db: Session = Depends(get_db),
+):
+    """合同财务汇总：结算/开票/到账（均按未删除行统计，开票含全部状态）。"""
+    c = db.get(Contract, cid)
+    if not c or c.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    settlement_count, settled_total = db.execute(
+        select(func.count(), func.coalesce(func.sum(Settlement.amount), 0)).where(
+            Settlement.contract_id == cid, Settlement.deleted == 0
+        )
+    ).one()
+    settlement_sub = select(Settlement.id).where(Settlement.contract_id == cid, Settlement.deleted == 0)
+    invoice_count, invoiced_total = db.execute(
+        select(func.count(), func.coalesce(func.sum(Invoice.amount), 0)).where(
+            Invoice.settlement_id.in_(settlement_sub), Invoice.deleted == 0
+        )
+    ).one()
+    payment_count, paid_total = db.execute(
+        select(func.count(), func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.settlement_id.in_(settlement_sub), Payment.deleted == 0
+        )
+    ).one()
+    return {
+        "contractAmount": float(c.amount) if c.amount is not None else None,
+        "settledTotal": float(settled_total or 0),
+        "invoicedTotal": float(invoiced_total or 0),
+        "paidTotal": float(paid_total or 0),
+        "settlementCount": settlement_count,
+        "invoiceCount": invoice_count,
+        "paymentCount": payment_count,
+    }
 
 
 @router.post("/contracts", status_code=201)

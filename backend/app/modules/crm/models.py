@@ -23,5 +23,7 @@ class Customer(BaseModel):
     bank_name: Mapped[str] = mapped_column(String(128), default="", comment="开户行")
     bank_account: Mapped[str] = mapped_column(String(64), default="", comment="银行账号")
     pay_org: Mapped[str] = mapped_column(String(128), default="", comment="付款单位")
+    contact_person: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="联系人")
+    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="联系电话")
     license_file_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="营业执照附件ID")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)

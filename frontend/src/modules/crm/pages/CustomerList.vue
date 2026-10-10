@@ -9,6 +9,7 @@ import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import SmartInput from '@/components/form/SmartInput.vue'
+import CustomerDetailDrawer from '../components/CustomerDetailDrawer.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
@@ -61,6 +62,7 @@ const columns: ListColumn[] = [
   { prop: 'customerNo', labelKey: 'crm.customer.customerNo', width: 130, fixed: 'left' },
   { prop: 'name', labelKey: 'crm.customer.name', minWidth: 180, fixed: 'left' },
   { prop: 'customerType', labelKey: 'crm.customer.customerType', width: 110 },
+  { prop: 'contactPerson', labelKey: 'crm.customer.contactPerson', width: 110 },
   { prop: 'taxNo', labelKey: 'crm.customer.taxNo', width: 170 },
   { prop: 'grade', labelKey: 'crm.customer.grade', width: 80 },
   { prop: 'status', labelKey: 'crm.customer.status', width: 90 },
@@ -92,8 +94,18 @@ const form = reactive({
   bankName: '',
   bankAccount: '',
   payOrg: '',
+  contactPerson: '',
+  contactPhone: '',
   remark: '',
 })
+
+const detailVisible = ref(false)
+const detailId = ref<number | null>(null)
+
+function openDetail(row: Customer) {
+  detailId.value = row.id
+  detailVisible.value = true
+}
 
 const importVisible = ref(false)
 const importFile = ref<File | null>(null)
@@ -115,6 +127,8 @@ function openCreate() {
     bankName: '',
     bankAccount: '',
     payOrg: '',
+    contactPerson: '',
+    contactPhone: '',
     remark: '',
   })
   dialogVisible.value = true
@@ -137,6 +151,8 @@ function openEdit(row: Customer) {
     bankName: row.bankName ?? '',
     bankAccount: row.bankAccount ?? '',
     payOrg: row.payOrg ?? '',
+    contactPerson: row.contactPerson ?? '',
+    contactPhone: row.contactPhone ?? '',
     remark: row.remark ?? '',
   })
   dialogVisible.value = true
@@ -244,6 +260,9 @@ async function doImport() {
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
+        </template>
+        <template #name="{ row }">
+          <el-button link type="primary" @click="openDetail(row as unknown as Customer)">{{ row.name }}</el-button>
         </template>
         <template #customerType="{ row }">
           {{ typeOpts.opts.value.find((x) => x.value === row.customerType)?.label || row.customerType || '-' }}
@@ -354,6 +373,16 @@ async function doImport() {
             <SmartInput v-model="form.payOrg" field="crm.customer.payOrg" :maxlength="128" />
           </el-form-item>
         </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('crm.customer.contactPerson')">
+            <el-input v-model="form.contactPerson" :maxlength="64" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('crm.customer.contactPhone')">
+            <el-input v-model="form.contactPhone" :maxlength="32" />
+          </el-form-item>
+        </el-col>
         <el-col :span="24">
           <el-form-item :label="t('crm.customer.remark')">
             <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -366,6 +395,8 @@ async function doImport() {
       <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
     </template>
   </el-dialog>
+
+  <CustomerDetailDrawer v-model="detailVisible" :customer-id="detailId" />
 
   <el-dialog v-model="importVisible" :title="t('crm.customer.importTitle')" width="440px" append-to-body>
     <p class="import-tip">{{ t('crm.customer.importTip') }}</p>

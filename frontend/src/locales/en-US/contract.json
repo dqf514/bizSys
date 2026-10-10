@@ -18,6 +18,8 @@
     "handlerName": "Handler",
     "frameworkNo": "Framework No.",
     "paymentOrg": "Payment Org",
+    "contactPerson": "Contact Person",
+    "contactPhone": "Contact Phone",
     "remark": "Remark",
     "status": "Status",
     "attachments": "Attachments",
@@ -34,6 +36,7 @@
     "tabAttachments": "Attachments",
     "tabTimeline": "Approval Timeline",
     "tabTasksReports": "Tasks & Reports",
+    "tabFinance": "Finance",
     "relatedTasks": "Related Tasks",
     "relatedReports": "Related Reports",
     "searchName": "Contract Name",
@@ -51,5 +54,15 @@
     "amountInvalid": "Invalid amount",
     "dateRangeRequired": "Please select date range",
     "uploadTip": "Drag & drop or click to upload"
+  },
+  "finance": {
+    "contractAmount": "Contract Amount",
+    "settledTotal": "Settled Total",
+    "invoicedTotal": "Invoiced Total",
+    "paidTotal": "Paid Total",
+    "outstanding": "Outstanding",
+    "settlements": "Settlements",
+    "invoices": "Invoices",
+    "payments": "Payments"
   }
 }

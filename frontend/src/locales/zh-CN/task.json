@@ -7,6 +7,7 @@
     "contractNo": "关联合同",
     "contractId": "关联合同",
     "customerName": "客户名称",
+    "customerFromContract": "选择合同后自动带出",
     "bizBlock": "业务板块",
     "deptName": "承担部门",
     "deptId": "承担部门",

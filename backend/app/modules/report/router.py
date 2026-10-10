@@ -103,11 +103,13 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
 def _filtered(db: Session, request: Request, page: PageParams):
     stmt = select(Report)
     extra = []
-    contract_id = request.query_params.get("contract_id") or request.query_params.get("filters[contract_id]")
-    if contract_id:  # 报告无 contract_id 列，经任务关联过滤
-        extra.append(
-            Report.task_id.in_(select(Task.id).where(Task.deleted == 0, Task.contract_id == contract_id))
-        )
+    # 报告无 contract_id/customer_id 列，经任务关联过滤（?x= 与 filters[x]= 两种写法均可）
+    for key in ("contract_id", "customer_id"):
+        raw = request.query_params.get(key) or request.query_params.get(f"filters[{key}]")
+        if raw:
+            extra.append(
+                Report.task_id.in_(select(Task.id).where(Task.deleted == 0, getattr(Task, key) == raw))
+            )
     q = (request.query_params.get("q") or "").strip()
     if q:  # 报告号/文件名 + 任务号/条目名/客户名（子查询）
         like = f"%{q}%"

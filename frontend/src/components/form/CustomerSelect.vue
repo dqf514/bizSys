@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { customerOptions } from '@/api/crm'
 import RemoteSelect from './RemoteSelect.vue'
-import type { RemoteOption } from './RemoteSelect.vue'
+import type { CustomerOption } from '@/api/types'
 
 const props = defineProps<{
   modelValue?: number | string | null
@@ -12,13 +12,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number | string | null): void
-  (e: 'change', v: number | string | null, option?: RemoteOption): void
+  (e: 'change', v: number | string | null, option?: CustomerOption): void
 }>()
 
 async function fetch(q: string) {
   try {
     const list = await customerOptions(q, 20)
-    return (list ?? []).map((x) => ({ id: x.id, label: x.label, sub: x.sub }))
+    // keep the full payload (payOrg/taxNo/contactPerson/contactPhone) for auto-fill on change
+    return (list ?? []).map((x) => ({ ...x }))
   } catch {
     return []
   }
@@ -33,6 +34,6 @@ async function fetch(q: string) {
     :disabled="props.disabled"
     :width="props.width ?? '100%'"
     @update:model-value="emit('update:modelValue', $event)"
-    @change="(v, opt) => emit('change', v, opt)"
+    @change="(v, opt) => emit('change', v, opt as CustomerOption | undefined)"
   />
 </template>

@@ -20,6 +20,8 @@ class Settlement(BaseModel):
     task_no: Mapped[str] = mapped_column(String(32), default="", comment="任务编号冗余")
     contract_no: Mapped[str] = mapped_column(String(32), default="", comment="合同号冗余")
     customer_name: Mapped[str] = mapped_column(String(128), default="", comment="客户名冗余")
+    contract_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="ctr_contract.id")
+    customer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="crm_customer.id")
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), comment="结算金额")
     invoiceable_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), comment="可开票金额")
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)

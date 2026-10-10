@@ -283,6 +283,16 @@ def test_report_list_contract_filter(client, admin_headers):
         assert row["contractId"] == cid and row["contractNo"]
         assert all(i["contractId"] == cid for i in lst["items"])
 
+    # customer_id 同样支持两种写法（经任务关联过滤）
+    cust_id = client.get(f"/api/v1/contract/contracts/{cid}", headers=headers).json()["data"]["customerId"]
+    for params in ({"customer_id": cust_id}, {"filters[customer_id]": cust_id}):
+        lst = client.get("/api/v1/report/reports", headers=headers, params=params).json()["data"]
+        assert any(i["id"] == rid for i in lst["items"])
+    lst = client.get(
+        "/api/v1/report/reports", headers=headers, params={"filters[customer_id]": cust_id + 10**6}
+    ).json()["data"]
+    assert all(i["id"] != rid for i in lst["items"])
+
     # 无关合同查不到该报告
     lst = client.get(
         "/api/v1/report/reports", headers=headers, params={"contract_id": cid + 10**6}

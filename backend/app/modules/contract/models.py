@@ -29,6 +29,8 @@ class Contract(BaseModel):
     handler_name: Mapped[str] = mapped_column(String(64), default="")
     framework_no: Mapped[str] = mapped_column(String(64), default="", comment="框架合同号")
     payment_org: Mapped[str] = mapped_column(String(128), default="", comment="付款单位")
+    contact_person: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="联系人")
+    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="联系电话")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
     flow_instance_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)

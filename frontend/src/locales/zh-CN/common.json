@@ -3,6 +3,21 @@
     "title": "业务系统",
     "short": "bizSys"
   },
+  "context": {
+    "title": "关联信息",
+    "collapse": "收起关联面板",
+    "expand": "展开关联面板",
+    "customer": "客户",
+    "financeOverview": "财务概览",
+    "quickLinks": "快捷入口",
+    "relatedContract": "关联合同",
+    "reportProgress": "报告进度",
+    "newTask": "新建任务",
+    "settlements": "结算信息",
+    "needReport": "需出报告",
+    "sealed": "已签章",
+    "pendingSeal": "待签章"
+  },
   "action": {
     "search": "查询",
     "reset": "重置",

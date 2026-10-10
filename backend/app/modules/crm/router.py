@@ -4,7 +4,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -17,8 +17,11 @@ from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
+from app.modules.contract.models import Contract
 from app.modules.crm import schemas as S
 from app.modules.crm.models import Customer
+from app.modules.finance.models import Payment, Settlement
+from app.modules.task.models import Task
 from app.services.excel import export_xlsx_styled, import_rows, now_filename, template_xlsx
 from app.services.numbering import next_no
 
@@ -69,6 +72,8 @@ def _out(c: Customer) -> dict:
         "bankName": c.bank_name,
         "bankAccount": c.bank_account,
         "payOrg": c.pay_org,
+        "contactPerson": c.contact_person or "",
+        "contactPhone": c.contact_phone or "",
         "licenseFileId": c.license_file_id,
         "remark": c.remark or "",
         "createTime": _t(c.create_time),
@@ -100,6 +105,8 @@ def _apply(c: Customer, body: S.CustomerIn) -> None:
     c.bank_name = body.bank_name
     c.bank_account = body.bank_account
     c.pay_org = body.pay_org
+    c.contact_person = body.contact_person
+    c.contact_phone = body.contact_phone
     c.license_file_id = body.license_file_id
     c.remark = body.remark
 
@@ -145,7 +152,18 @@ def customer_options(
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(Customer.name.like(like), Customer.customer_no.like(like)))
     rows = db.scalars(stmt.order_by(Customer.update_time.desc()).limit(limit)).all()
-    return [{"id": c.id, "label": c.name, "sub": c.customer_no} for c in rows]
+    return [
+        {
+            "id": c.id,
+            "label": c.name,
+            "sub": c.customer_no,
+            "payOrg": c.pay_org,
+            "taxNo": c.tax_no,
+            "contactPerson": c.contact_person or "",
+            "contactPhone": c.contact_phone or "",
+        }
+        for c in rows
+    ]
 
 
 @router.post("/customers", status_code=201)
@@ -192,8 +210,6 @@ def delete_customer(
     c = db.get(Customer, cid)
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    from app.modules.contract.models import Contract  # 局部导入避免模块循环依赖
-
     used = db.scalar(
         select(Contract.id).where(Contract.customer_id == cid, Contract.deleted == 0).limit(1)
     )
@@ -311,3 +327,41 @@ def import_customers(
     )
     db.commit()
     return {"created": created, "errors": errors, "skipped": skipped}
+
+
+# 注意：必须放在 /customers/options、/customers/template 等静态 GET 路由之后，避免 {cid} 抢占匹配
+@router.get("/customers/{cid}")
+def get_customer(
+    cid: int,
+    user: User = Depends(require_perm("crm:customer:list")),
+    db: Session = Depends(get_db),
+):
+    """客户详情 + 汇总（合同/任务/结算/到账）。"""
+    c = db.get(Customer, cid)
+    if not c or c.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    data = _out(c)
+    contract_count, contract_total = db.execute(
+        select(func.count(), func.coalesce(func.sum(Contract.amount), 0)).where(
+            Contract.customer_id == cid, Contract.deleted == 0
+        )
+    ).one()
+    task_count = db.scalar(select(func.count()).where(Task.customer_id == cid, Task.deleted == 0)) or 0
+    settled_total = db.scalar(
+        select(func.coalesce(func.sum(Settlement.amount), 0)).where(
+            Settlement.customer_id == cid, Settlement.deleted == 0
+        )
+    )
+    paid_total = db.scalar(
+        select(func.coalesce(func.sum(Payment.amount), 0))
+        .join(Settlement, Settlement.id == Payment.settlement_id)
+        .where(Settlement.customer_id == cid, Settlement.deleted == 0, Payment.deleted == 0)
+    )
+    data["summary"] = {
+        "contractCount": contract_count,
+        "contractTotal": float(contract_total or 0),
+        "taskCount": task_count,
+        "settledTotal": float(settled_total or 0),
+        "paidTotal": float(paid_total or 0),
+    }
+    return data

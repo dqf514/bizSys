@@ -102,6 +102,8 @@ def _settlement_out(s: Settlement) -> dict:
         "taskNo": s.task_no,
         "customerName": s.customer_name,
         "contractNo": s.contract_no,
+        "contractId": s.contract_id,
+        "customerId": s.customer_id,
         "amount": _money(s.amount),
         "invoiceableAmount": _money(s.invoiceable_amount),
         "status": s.status,
@@ -113,11 +115,14 @@ def _settlement_out(s: Settlement) -> dict:
     }
 
 
-def _invoice_out(i: Invoice) -> dict:
+def _invoice_out(i: Invoice, s: Settlement | None = None) -> dict:
     return {
         "id": i.id,
         "settlementId": i.settlement_id,
+        "settlementNo": s.settlement_no if s else "",
         "invoiceNo": i.invoice_no or "",
+        "contractId": s.contract_id if s else None,
+        "customerId": s.customer_id if s else None,
         "amount": _money(i.amount),
         "invoiceDate": _d(i.invoice_date),
         "status": i.status,
@@ -127,12 +132,14 @@ def _invoice_out(i: Invoice) -> dict:
     }
 
 
-def _payment_out(p: Payment, settlement_no: str = "") -> dict:
+def _payment_out(p: Payment, s: Settlement | None = None) -> dict:
     return {
         "id": p.id,
         "paymentNo": p.payment_no,
         "settlementId": p.settlement_id,
-        "settlementNo": settlement_no,
+        "settlementNo": s.settlement_no if s else "",
+        "contractId": s.contract_id if s else None,
+        "customerId": s.customer_id if s else None,
         "payType": p.pay_type,
         "payerName": p.payer_name,
         "payerAccount": p.payer_account,
@@ -164,7 +171,7 @@ def _settlement_filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["settlement_no", "task_no", "customer_name", "contract_no"],
-        filter_cols={"status", "task_id"},
+        filter_cols={"status", "task_id", "contract_id", "customer_id"},
         range_cols={"create_time"},
         sort_cols={"update_time", "create_time", "id", "settlement_no", "amount"},
     )
@@ -229,6 +236,8 @@ def create_settlement(
         task_no=t.task_no,
         contract_no=t.contract_no,
         customer_name=t.customer_name,
+        contract_id=t.contract_id,
+        customer_id=t.customer_id,
         amount=body.amount,
         invoiceable_amount=body.invoiceable_amount if body.invoiceable_amount is not None else body.amount,
         status="pending",
@@ -286,8 +295,8 @@ def get_settlement(
     payments = db.scalars(
         select(Payment).where(Payment.settlement_id == sid, Payment.deleted == 0).order_by(Payment.id)
     ).all()
-    data["invoices"] = [_invoice_out(i) for i in invoices]
-    data["payments"] = [_payment_out(p, s.settlement_no) for p in payments]
+    data["invoices"] = [_invoice_out(i, s) for i in invoices]
+    data["payments"] = [_payment_out(p, s) for p in payments]
     data["paidAmount"] = _money(sum((p.amount for p in payments), Decimal(0)))
     data["timeline"] = approval_svc.timeline(db, "invoice", sid)["records"]
     return data
@@ -332,9 +341,20 @@ def apply_invoice(
 # ---------------- 发票登记 ----------------
 
 
+def _rel_filters(model, params) -> list:
+    """合同/客户过滤：发票/到账无关联列，经结算单子查询（?contract_id= 与 filters[contract_id]= 均可）。"""
+    extra = []
+    for key in ("contract_id", "customer_id"):
+        raw = params.get(key) or params.get(f"filters[{key}]")
+        if raw:
+            sub = select(Settlement.id).where(Settlement.deleted == 0, getattr(Settlement, key) == raw)
+            extra.append(model.settlement_id.in_(sub))
+    return extra
+
+
 def _invoice_filtered(db: Session, request: Request, page: PageParams):
     stmt = select(Invoice)
-    extra = []
+    extra = _rel_filters(Invoice, request.query_params)
     q = (request.query_params.get("q") or "").strip()
     if q:  # 发票号 / 关联结算单号 / 客户名
         like = f"%{q}%"
@@ -355,33 +375,19 @@ def _invoice_filtered(db: Session, request: Request, page: PageParams):
     )
 
 
-def _settlement_brief_map(db: Session, ids: list[int]) -> dict[int, tuple]:
+def _settlement_brief_map(db: Session, ids: list[int]) -> dict[int, Settlement]:
     if not ids:
         return {}
-    rows = db.execute(
-        select(Settlement.id, Settlement.settlement_no, Settlement.task_no, Settlement.customer_name).where(
-            Settlement.id.in_(ids)
-        )
-    ).all()
-    return {r[0]: r for r in rows}
+    return {s.id: s for s in db.scalars(select(Settlement).where(Settlement.id.in_(ids)))}
 
 
-def _invoice_list_out(i: Invoice, smap: dict[int, tuple]) -> dict:
+def _invoice_list_out(i: Invoice, smap: dict[int, Settlement]) -> dict:
     s = smap.get(i.settlement_id)
-    return {
-        "id": i.id,
-        "invoiceNo": i.invoice_no or "",
-        "settlementId": i.settlement_id,
-        "settlementNo": s[1] if s else "",
-        "taskNo": s[2] if s else "",
-        "customerName": s[3] if s else "",
-        "amount": _money(i.amount),
-        "invoiceDate": _d(i.invoice_date),
-        "status": i.status,
-        "statusText": INVOICE_STATUS_CN.get(i.status, i.status),
-        "createBy": i.create_by,
-        "createTime": _t(i.create_time),
-    }
+    data = _invoice_out(i, s)
+    data["taskNo"] = s.task_no if s else ""
+    data["customerName"] = s.customer_name if s else ""
+    data["statusText"] = INVOICE_STATUS_CN.get(i.status, i.status)
+    return data
 
 
 @router.get("/invoices")
@@ -451,7 +457,7 @@ def register_invoice(
     i.update_time = datetime.now()
     audit(db, user_id=current.id, module="finance", action="invoice_register", biz_type="invoice", biz_id=iid)
     db.commit()
-    return _invoice_out(i)
+    return _invoice_out(i, db.get(Settlement, i.settlement_id))
 
 
 # ---------------- 到账登记 ----------------
@@ -469,14 +475,8 @@ def _payment_filtered(db: Session, request: Request, page: PageParams):
         filter_cols={"pay_type", "settlement_id"},
         range_cols={"paid_at", "create_time"},
         sort_cols={"update_time", "create_time", "id", "payment_no", "amount", "paid_at"},
+        extra_where=_rel_filters(Payment, request.query_params),
     )
-
-
-def _settlement_no_map(db: Session, ids: list[int]) -> dict[int, str]:
-    if not ids:
-        return {}
-    rows = db.execute(select(Settlement.id, Settlement.settlement_no).where(Settlement.id.in_(ids))).all()
-    return dict(rows)
 
 
 @router.get("/payments")
@@ -489,9 +489,9 @@ def list_payments(
 ):
     stmt, total = _payment_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
-    no_map = _settlement_no_map(db, [p.settlement_id for p in rows])
+    smap = _settlement_brief_map(db, [p.settlement_id for p in rows])
     return {
-        "items": [_payment_out(p, no_map.get(p.settlement_id, "")) for p in rows],
+        "items": [_payment_out(p, smap.get(p.settlement_id)) for p in rows],
         "total": total,
         "page": page,
         "size": size,
@@ -531,7 +531,7 @@ def create_payment(
         s.update_time = datetime.now()
     audit(db, user_id=current.id, module="finance", action="payment_create", biz_type="payment", biz_id=p.id)
     db.commit()
-    return _payment_out(p, s.settlement_no)
+    return _payment_out(p, s)
 
 
 @router.get("/payments/export")
@@ -542,8 +542,8 @@ def export_payments(
 ):
     stmt, _ = _payment_filtered(db, request, SimpleNamespace(page=1, size=100_000))
     rows = db.scalars(stmt).all()
-    no_map = _settlement_no_map(db, [p.settlement_id for p in rows])
-    payload = export_xlsx_styled([_payment_out(p, no_map.get(p.settlement_id, "")) for p in rows],
+    smap = _settlement_brief_map(db, [p.settlement_id for p in rows])
+    payload = export_xlsx_styled([_payment_out(p, smap.get(p.settlement_id)) for p in rows],
                                  PAYMENT_EXPORT_COLS, "payments")
     audit(
         db,

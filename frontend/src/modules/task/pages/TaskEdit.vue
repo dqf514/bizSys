@@ -36,6 +36,9 @@ const form = reactive({
   partySystem: '',
 })
 
+// display only — the server binds the customer from the chosen contract
+const customerName = ref('')
+
 const items = ref<TaskItem[]>([])
 const samples = ref<TaskSample[]>([])
 const deptTree = ref<Dept[]>([])
@@ -88,6 +91,7 @@ async function load() {
   loading.value = true
   try {
     const data = await getTask(taskId.value)
+    customerName.value = data.customerName ?? ''
     Object.assign(form, {
       taskName: data.taskName ?? '',
       taskType: data.taskType ?? '',
@@ -216,9 +220,13 @@ async function save() {
               (v, opt) => {
                 form.contractId = v as number
                 form.contractNo = opt?.label ?? ''
+                customerName = opt?.customerName ?? ''
               }
             "
           />
+        </el-form-item>
+        <el-form-item :label="t('task.task.customerName')">
+          <el-input :model-value="customerName" disabled :placeholder="t('task.task.customerFromContract')" />
         </el-form-item>
       </el-form>
 

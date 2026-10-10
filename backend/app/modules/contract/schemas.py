@@ -22,6 +22,8 @@ class ContractIn(CamelModel):
     handler_name: str = Field("", max_length=64)
     framework_no: str = Field("", max_length=64)
     payment_org: str = Field("", max_length=128)
+    contact_person: str = Field("", max_length=64)
+    contact_phone: str = Field("", max_length=32)
     remark: str = Field("", max_length=2000)
     version: int | None = None  # 乐观锁校验（可选）
 

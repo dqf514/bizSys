@@ -298,3 +298,73 @@ def test_finance_invalid_state_and_not_found(client, admin_headers):
         "/api/v1/finance/settlements", headers=headers, json={"task_id": r["data"]["id"], "amount": 100}
     ).json()
     assert r["code"] == 80001
+
+
+def test_settlement_links_and_finance_summary(client, admin_headers, manager_headers):
+    """结算单持久化 contract_id/customer_id；三表按合同/客户过滤；合同财务汇总；任务按客户过滤。"""
+    headers = admin_headers
+    tid, task = _closed_task(client, headers)
+    cid, cust_id = task["contractId"], task["customerId"]
+
+    # 合同下拉带 customerId/customerName（建任务自动填充用）
+    con = client.get(f"/api/v1/contract/contracts/{cid}", headers=headers).json()["data"]
+    opts = client.get(
+        "/api/v1/contract/contracts/options", headers=headers, params={"q": con["name"]}
+    ).json()["data"]
+    opt = next(o for o in opts if o["id"] == cid)
+    assert opt["customerId"] == cust_id and opt["customerName"] == task["customerName"]
+
+    # 创建结算单：从任务带出合同/客户关联
+    r = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": tid, "amount": 10000}).json()
+    assert r["code"] == 0, r
+    sid = r["data"]["id"]
+    assert r["data"]["contractId"] == cid and r["data"]["customerId"] == cust_id
+
+    # 结算单列表：filters[contract_id] / filters[customer_id]
+    for key, val in (("contract_id", cid), ("customer_id", cust_id)):
+        lst = client.get(
+            "/api/v1/finance/settlements", headers=headers, params={f"filters[{key}]": val}
+        ).json()["data"]
+        assert any(i["id"] == sid for i in lst["items"])
+        snake = "contractId" if key == "contract_id" else "customerId"
+        assert all(i[snake] == val for i in lst["items"])
+
+    # 任务列表：filters[customer_id]
+    lst = client.get("/api/v1/task/tasks", headers=headers, params={"filters[customer_id]": cust_id}).json()["data"]
+    assert any(i["id"] == tid for i in lst["items"])
+    assert all(i["customerId"] == cust_id for i in lst["items"])
+
+    # 开票通过 + 到账 → 发票/到账行
+    assert client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()["code"] == 0
+    todo = _todo_id(client, manager_headers, "invoice", sid)
+    assert client.post(
+        f"/api/v1/approval/tasks/{todo}/approve", headers=manager_headers, json={"comment": "同意"}
+    ).json()["code"] == 0
+    r = client.post(
+        "/api/v1/finance/payments",
+        headers=headers,
+        json={"settlement_id": sid, "pay_type": "bank_transfer", "payer_name": "测试付款方",
+              "amount": 10000, "paid_at": "2026-10-10"},
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["contractId"] == cid and r["data"]["customerId"] == cust_id
+
+    # 发票/到账列表：两种参数写法均可按合同/客户过滤，行内带出 contractId/customerId
+    for params in ({"filters[contract_id]": cid}, {"contract_id": cid}):
+        lst = client.get("/api/v1/finance/invoices", headers=headers, params=params).json()["data"]
+        assert lst["total"] == 1
+        assert lst["items"][0]["contractId"] == cid and lst["items"][0]["customerId"] == cust_id
+    lst = client.get(
+        "/api/v1/finance/payments", headers=headers, params={"filters[customer_id]": cust_id}
+    ).json()["data"]
+    assert lst["total"] == 1 and lst["items"][0]["customerId"] == cust_id
+
+    # 合同财务汇总
+    d = client.get(f"/api/v1/contract/contracts/{cid}/finance-summary", headers=headers).json()["data"]
+    assert d["contractAmount"] == 10000.0
+    assert d["settledTotal"] == 10000.0 and d["settlementCount"] == 1
+    assert d["invoicedTotal"] == 10000.0 and d["invoiceCount"] == 1
+    assert d["paidTotal"] == 10000.0 and d["paymentCount"] == 1
+
+    # 不存在的合同 → 10002
+    assert client.get("/api/v1/contract/contracts/99999999/finance-summary", headers=headers).json()["code"] == 10002

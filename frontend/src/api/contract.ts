@@ -1,5 +1,5 @@
 import { request, download, toQuery } from './http'
-import type { Attachment, Contract, ListQuery, OptionItem, PageResult } from './types'
+import type { Attachment, Contract, ContractFinanceSummary, ContractOption, ListQuery, PageResult } from './types'
 
 export function listContracts(params: ListQuery) {
   return request<PageResult<Contract>>({
@@ -49,10 +49,17 @@ export function exportContracts(params: ListQuery) {
 }
 
 export function contractOptions(q?: string) {
-  return request<OptionItem[]>({
+  return request<ContractOption[]>({
     url: '/contract/contracts/options',
     method: 'get',
     params: q ? { q } : {},
+  })
+}
+
+export function getContractFinanceSummary(id: number) {
+  return request<ContractFinanceSummary>({
+    url: `/contract/contracts/${id}/finance-summary`,
+    method: 'get',
   })
 }
 

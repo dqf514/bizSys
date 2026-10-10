@@ -161,7 +161,7 @@ def _filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["task_no", "task_name", "customer_name"],
-        filter_cols={"status", "task_type", "biz_block", "dept_id", "owner_id", "contract_id"},
+        filter_cols={"status", "task_type", "biz_block", "dept_id", "owner_id", "contract_id", "customer_id"},
         range_cols={"plan_finish_date", "create_time"},
         sort_cols={"update_time", "create_time", "id", "task_no", "plan_finish_date"},
     )

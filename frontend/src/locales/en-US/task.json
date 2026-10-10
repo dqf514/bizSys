@@ -7,6 +7,7 @@
     "contractNo": "Contract",
     "contractId": "Contract",
     "customerName": "Customer",
+    "customerFromContract": "Filled from the selected contract",
     "bizBlock": "Biz Block",
     "deptName": "Department",
     "deptId": "Department",

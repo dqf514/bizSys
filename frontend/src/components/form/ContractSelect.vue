@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { contractOptions } from '@/api/contract'
 import RemoteSelect from './RemoteSelect.vue'
-import type { RemoteOption } from './RemoteSelect.vue'
+import type { ContractOption } from '@/api/types'
 
 const props = defineProps<{
   modelValue?: number | string | null
@@ -12,14 +12,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number | string | null): void
-  (e: 'change', v: number | string | null, option?: RemoteOption): void
+  (e: 'change', v: number | string | null, option?: ContractOption): void
 }>()
 
 async function fetch(q: string) {
   try {
     // backend /contract/contracts/options returns approved contracts only
+    // keep the full payload (customerId/customerName) for chain display on change
     const list = await contractOptions(q)
-    return (list ?? []).map((x) => ({ id: x.id, label: x.label, sub: x.sub }))
+    return (list ?? []).map((x) => ({ ...x }))
   } catch {
     return []
   }
@@ -34,6 +35,6 @@ async function fetch(q: string) {
     :disabled="props.disabled"
     :width="props.width ?? '100%'"
     @update:model-value="emit('update:modelValue', $event)"
-    @change="(v, opt) => emit('change', v, opt)"
+    @change="(v, opt) => emit('change', v, opt as ContractOption | undefined)"
   />
 </template>

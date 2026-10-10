@@ -3,6 +3,21 @@
     "title": "Business System",
     "short": "bizSys"
   },
+  "context": {
+    "title": "Related",
+    "collapse": "Collapse context panel",
+    "expand": "Expand context panel",
+    "customer": "Customer",
+    "financeOverview": "Finance Overview",
+    "quickLinks": "Quick Links",
+    "relatedContract": "Related Contract",
+    "reportProgress": "Report Progress",
+    "newTask": "New Task",
+    "settlements": "Settlements",
+    "needReport": "Report Required",
+    "sealed": "Sealed",
+    "pendingSeal": "Pending Seal"
+  },
   "action": {
     "search": "Search",
     "reset": "Reset",

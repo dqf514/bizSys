@@ -19,5 +19,7 @@ class CustomerIn(CamelModel):
     bank_name: str = Field("", max_length=128)
     bank_account: str = Field("", max_length=64)
     pay_org: str = Field("", max_length=128)
+    contact_person: str = Field("", max_length=64)
+    contact_phone: str = Field("", max_length=32)
     license_file_id: str | None = None
     remark: str = Field("", max_length=2000)

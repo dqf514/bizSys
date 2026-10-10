@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
+import { useContextStore, type ContextSection } from '@/stores/context'
 import {
   getTask,
   deleteTask,
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const router = useRouter()
+const context = useContextStore()
 
 const detail = ref<Task | null>(null)
 const items = ref<TaskItem[]>([])
@@ -80,6 +82,7 @@ async function load() {
     samples.value = data.samples ?? []
     logs.value = data.logs ?? []
     emit('loaded', data)
+    publishContext()
   } catch {
     detail.value = null
   } finally {
@@ -87,6 +90,49 @@ async function load() {
   }
   void loadReports()
 }
+
+/* ---------- 关联面板 ---------- */
+function publishContext() {
+  const d = detail.value
+  if (!d) return
+  const sections: ContextSection[] = []
+  if (d.contractId) {
+    sections.push({
+      key: 'contract',
+      title: 'common.context.relatedContract',
+      type: 'links',
+      items: [{ label: d.contractNo || String(d.contractId), to: `/contract/contracts/${d.contractId}` }],
+    })
+  }
+  sections.push({
+    key: 'customer',
+    title: 'common.context.customer',
+    type: 'fields',
+    items: [{ label: 'task.task.customerName', value: d.customerName || '-' }],
+  })
+  const needReport = items.value.filter((i) => i.needReport).length
+  const sealed = items.value.filter((i) => i.reportStatus === 'sealed').length
+  const uploadedNotSealed = items.value.filter((i) => i.reportStatus && i.reportStatus !== 'sealed').length
+  sections.push({
+    key: 'reportProgress',
+    title: 'common.context.reportProgress',
+    type: 'stats',
+    items: [
+      { label: 'common.context.needReport', value: needReport },
+      { label: 'common.context.sealed', value: sealed },
+      { label: 'common.context.pendingSeal', value: uploadedNotSealed, emphasize: uploadedNotSealed > 0 },
+    ],
+  })
+  context.publish({ title: d.taskName, subtitle: d.taskNo, recordKey: `task:${d.id}`, sections })
+}
+
+// used both as a routed page (keep-alive) and inside the TaskList quick-view drawer:
+// re-publish when re-activated, clear when deactivated or unmounted (drawer close)
+onActivated(() => {
+  if (detail.value) publishContext()
+})
+onDeactivated(() => context.clear())
+onUnmounted(() => context.clear())
 
 watch(
   () => props.taskId,
