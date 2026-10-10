@@ -27,21 +27,6 @@ MENU_TREE = [
     ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
     # 客户/合同/任务与参考系统一致：各自是一级模块，不收拢进"基础信息"目录
     (
-        "menu.customer",
-        "Customers",
-        "/crm/customers",
-        "crm/CustomerList",
-        "User",
-        "crm:customer:list",
-        [
-            (None, "customer-create", "", "", "", "crm:customer:create", []),
-            (None, "customer-edit", "", "", "", "crm:customer:edit", []),
-            (None, "customer-delete", "", "", "", "crm:customer:delete", []),
-            (None, "customer-export", "", "", "", "crm:customer:list:export", []),
-            (None, "customer-import", "", "", "", "crm:customer:import", []),
-        ],
-    ),
-    (
         "menu.contract",
         "Contracts",
         "/contract/contracts",
@@ -72,6 +57,21 @@ MENU_TREE = [
         ],
     ),
     (
+        "menu.customer",
+        "Customers",
+        "/crm/customers",
+        "crm/CustomerList",
+        "User",
+        "crm:customer:list",
+        [
+            (None, "customer-create", "", "", "", "crm:customer:create", []),
+            (None, "customer-edit", "", "", "", "crm:customer:edit", []),
+            (None, "customer-delete", "", "", "", "crm:customer:delete", []),
+            (None, "customer-export", "", "", "", "crm:customer:list:export", []),
+            (None, "customer-import", "", "", "", "crm:customer:import", []),
+        ],
+    ),
+    (
         "menu.finance",
         "Finance",
         "",
@@ -79,6 +79,17 @@ MENU_TREE = [
         "Money",
         "",
         [
+            (
+                "menu.financeInvoice",
+                "FinanceInvoices",
+                "/finance/invoices",
+                "finance/InvoiceList",
+                "Postcard",
+                "finance:invoice:list",
+                [
+                    (None, "invoice-export", "", "", "", "finance:invoice:export", []),
+                ],
+            ),
             (
                 "menu.financeSettlement",
                 "FinanceSettlements",
@@ -91,17 +102,6 @@ MENU_TREE = [
                     (None, "settlement-export", "", "", "", "finance:settlement:export", []),
                     (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
                     (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
-                ],
-            ),
-            (
-                "menu.financeInvoice",
-                "FinanceInvoices",
-                "/finance/invoices",
-                "finance/InvoiceList",
-                "Postcard",
-                "finance:invoice:list",
-                [
-                    (None, "invoice-export", "", "", "", "finance:invoice:export", []),
                 ],
             ),
             (

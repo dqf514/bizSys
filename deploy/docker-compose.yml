@@ -46,6 +46,8 @@ services:
     container_name: bizsys-api
     restart: unless-stopped
     environment:
+      # 后端容器时区（东八区），与 MySQL --default-time-zone 保持一致
+      TZ: Asia/Shanghai
       DB_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-bizsys123}@mysql:3306/bizsys?charset=utf8mb4
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
