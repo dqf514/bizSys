@@ -41,6 +41,7 @@
   "menu": {
     "title": "菜单管理",
     "name": "名称",
+    "displayName": "显示名称",
     "titleKey": "标题键",
     "path": "路由路径",
     "componentKey": "组件键",
@@ -56,7 +57,11 @@
     "typeMenu": "菜单",
     "typeButton": "按钮",
     "root": "根节点",
-    "includeButtons": "含按钮"
+    "includeButtons": "含按钮",
+    "preview": "导航预览",
+    "dragHint": "拖拽调整同级菜单顺序，保存后对所有用户生效",
+    "saveOrder": "保存排序",
+    "resetOrder": "重置排序"
   },
   "dict": {
     "title": "字典管理",

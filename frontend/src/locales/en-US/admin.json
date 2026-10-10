@@ -41,6 +41,7 @@
   "menu": {
     "title": "Menus",
     "name": "Name",
+    "displayName": "Display name",
     "titleKey": "Title key",
     "path": "Route path",
     "componentKey": "Component key",
@@ -56,7 +57,11 @@
     "typeMenu": "Menu",
     "typeButton": "Button",
     "root": "Root",
-    "includeButtons": "Include buttons"
+    "includeButtons": "Include buttons",
+    "preview": "Nav preview",
+    "dragHint": "Drag to reorder sibling menus; applies to all users after saving",
+    "saveOrder": "Save order",
+    "resetOrder": "Reset order"
   },
   "dict": {
     "title": "Dictionary",

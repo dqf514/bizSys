@@ -358,14 +358,18 @@ DEPTS = [
 
 
 def _seed_menus(db: Session) -> dict[str, int]:
-    """菜单树幂等同步：新增/改父级/按树顺序设 sort；树中消失的菜单逻辑删除（种子即菜单唯一权威来源）。"""
+    """菜单树幂等种子：只负责补齐缺失菜单、同步代码耦合字段；结构/排序由菜单管理维护。
+
+    - 缺失的种子菜单：按 MENU_TREE 的 parent_id/sort 插入。
+    - 已存在的种子菜单：仅同步 title_key/path/component_key/icon/permission/menu_type，
+      不回写 parent_id/sort（管理员在菜单管理里的结构调整与排序得以保留）。
+    - 树外的菜单（界面自定义新增）：保留，不做逻辑删除。
+    """
     existing = {m.name: m for m in db.scalars(select(Menu).where(Menu.deleted == 0)).all()}
     perm_to_id: dict[str, int] = {}
-    seen: set[str] = set()
 
     def walk(nodes, parent_id: int | None):
         for idx, (title_key, name, path, comp, icon, perm, children) in enumerate(nodes):
-            seen.add(name)
             m = existing.get(name)
             if m is None:
                 m = Menu(
@@ -383,17 +387,18 @@ def _seed_menus(db: Session) -> dict[str, int]:
                 db.flush()
                 existing[name] = m
             else:
-                # 结构演进时同步（如"基础信息"拆为一级模块后子菜单上移）
-                m.parent_id = parent_id
-                m.sort = idx
+                # 仅同步代码耦合字段；parent_id/sort 由菜单管理维护
+                m.title_key = title_key or ""
+                m.path = path
+                m.component_key = comp
+                m.icon = icon
+                m.permission = perm or ""
+                m.menu_type = _menu_type(children, comp, perm, path)
             if perm:
                 perm_to_id[perm] = m.id
             walk(children, m.id)
 
     walk(MENU_TREE, None)
-    for name, m in existing.items():
-        if name not in seen:
-            m.deleted = 1  # 例：BaseInfo 目录已拆分下线
     return perm_to_id
 
 

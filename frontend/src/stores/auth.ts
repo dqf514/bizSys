@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/api/http'
 import * as authApi from '@/api/auth'
 import type { MenuNode, UserProfile } from '@/api/types'
-import { resetRoutes } from '@/router'
+import { resetRoutes, registerMenuRoutes } from '@/router'
 import { useTabsStore } from './tabs'
 import { useThemeStore } from './theme'
 
@@ -97,6 +97,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** re-pull menus and re-register dynamic routes so menu edits apply without re-login */
+  async function refreshMenus() {
+    await fetchMe()
+    resetRoutes()
+    registerMenuRoutes(menus.value)
+  }
+
   async function doLogout() {
     try {
       await authApi.logout(refreshToken.value || undefined)
@@ -144,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
     doWecomLogin,
     fetchMe,
     tryRestore,
+    refreshMenus,
     doLogout,
     syncPrefs,
     applySession,
