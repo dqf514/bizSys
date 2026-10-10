@@ -22,6 +22,7 @@
     "noInvoice": "未找到可登记的发票记录",
     "invoices": "发票记录",
     "payments": "到账记录",
+    "invoiceTimeline": "开票审批时间线",
     "invoiceNo": "发票号",
     "invoiceDate": "开票日期",
     "invoiceStatus": "发票状态",

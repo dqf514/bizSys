@@ -9,7 +9,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listApprovalTasks, getTimeline, type ApprovalTab } from '@/api/approval'
+import { listApprovalTasks, getTimeline, getInstance, type ApprovalTab } from '@/api/approval'
 import type { ApprovalTask, TimelineRecord } from '@/api/types'
 
 defineOptions({ name: 'TodoList' })
@@ -55,11 +55,15 @@ const drawerVisible = ref(false)
 const current = ref<ApprovalTask | null>(null)
 const records = ref<TimelineRecord[]>([])
 const timelineLoading = ref(false)
+const snapshot = ref<Record<string, unknown> | null>(null)
+const snapshotLoading = ref(false)
 
 async function openDetail(row: ApprovalTask) {
   current.value = row
   drawerVisible.value = true
   timelineLoading.value = true
+  snapshotLoading.value = true
+  snapshot.value = null
   try {
     const tl = await getTimeline(row.bizType, row.bizId)
     records.value = tl.records ?? []
@@ -68,6 +72,29 @@ async function openDetail(row: ApprovalTask) {
   } finally {
     timelineLoading.value = false
   }
+  try {
+    const inst = await getInstance(row.instanceId)
+    snapshot.value = inst.snapshot ?? null
+  } catch {
+    snapshot.value = null
+  } finally {
+    snapshotLoading.value = false
+  }
+}
+
+/** snake_case / camelCase 字段名转可读标签 */
+function snapshotLabel(key: string) {
+  const words = key
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+function snapshotValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '-'
+  if (typeof v === 'object') return JSON.stringify(v, null, 2)
+  return String(v)
 }
 
 function onDone() {
@@ -161,6 +188,16 @@ onMounted(() => {
       <div class="section-title">{{ t('approval.approval.timeline') }}</div>
       <ApprovalTimeline :records="records" :loading="timelineLoading" />
 
+      <template v-if="snapshot && Object.keys(snapshot).length">
+        <div class="section-title">{{ t('approval.approval.formSnapshot') }}</div>
+        <el-descriptions :column="1" border v-loading="snapshotLoading">
+          <el-descriptions-item v-for="(v, k) in snapshot" :key="k" :label="snapshotLabel(String(k))">
+            <pre v-if="typeof v === 'object' && v !== null" class="snapshot-json">{{ snapshotValue(v) }}</pre>
+            <template v-else>{{ snapshotValue(v) }}</template>
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+
       <div class="section-title">{{ t('approval.approval.detail') }}</div>
       <ApprovalActionbar
         :task="current"
@@ -182,5 +219,12 @@ onMounted(() => {
 .section-title {
   font-weight: 600;
   color: var(--bs-color-fg-default);
+}
+
+.snapshot-json {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--bs-typography-font-size-xs);
 }
 </style>

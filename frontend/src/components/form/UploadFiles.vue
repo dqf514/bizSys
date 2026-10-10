@@ -9,6 +9,8 @@ const props = defineProps<{
   files: Attachment[]
   upload: (file: File) => Promise<Attachment | void>
   download: (fileId: number | string, fileName: string) => Promise<void>
+  /** 已落库附件（数值 id）的删除接口；本地暂存文件不会触发 */
+  removeFn?: (fileId: number) => Promise<void>
   disabled?: boolean
 }>()
 
@@ -44,7 +46,16 @@ async function onFile(e: Event) {
   }
 }
 
-function remove(id: number | string) {
+async function remove(id: number | string) {
+  // 真实附件（数值 id）先调删除接口；本地暂存的 pendingFiles（字符串 localId）仅本地剔除
+  if (props.removeFn && typeof id === 'number') {
+    try {
+      await props.removeFn(id)
+    } catch {
+      /* http notifies */
+      return
+    }
+  }
   emit(
     'update:files',
     props.files.filter((f) => f.id !== id),
@@ -66,7 +77,7 @@ function fmtSize(size: number) {
         <span class="file-name bs-truncate">{{ f.fileName }}</span>
         <span class="file-size">{{ fmtSize(f.size) }}</span>
         <el-button link type="primary" :icon="Download" @click="props.download(f.id, f.fileName)" />
-        <el-button v-if="!props.disabled" link type="danger" :icon="Delete" @click="remove(f.id)" />
+        <el-button v-if="!props.disabled" link type="danger" :icon="Delete" @click="void remove(f.id)" />
       </div>
     </div>
     <el-button v-if="!props.disabled" :loading="uploading" @click="pick">

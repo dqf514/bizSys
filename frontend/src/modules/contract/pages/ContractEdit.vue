@@ -12,6 +12,7 @@ import {
   updateContract,
   uploadContractAttachment,
   downloadAttachment,
+  deleteAttachment,
 } from '@/api/contract'
 import type { Attachment, Contract } from '@/api/types'
 
@@ -147,6 +148,11 @@ async function flushPending(id: number) {
   }
 }
 
+async function removeAttachment(fileId: number) {
+  await deleteAttachment(fileId)
+  ElMessage.success(t('common.message.deleteSuccess'))
+}
+
 async function download(fileId: number | string, fileName: string) {
   const pending = pendingFiles.value.find((p) => p.localId === fileId)
   if (pending) {
@@ -265,6 +271,7 @@ function cancel() {
               :files="attachments"
               :upload="upload"
               :download="download"
+              :remove-fn="removeAttachment"
               @update:files="onFilesUpdate"
             />
           </el-form-item>

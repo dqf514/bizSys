@@ -9,6 +9,7 @@ import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
+import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import PaymentCreateDialog from '../components/PaymentCreateDialog.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
@@ -441,6 +442,9 @@ function openPaymentRegister(row: Settlement) {
           </el-table-column>
           <el-table-column prop="paidAt" :label="t('finance.payment.paidAt')" width="110" />
         </el-table>
+
+        <div class="section-title">{{ t('finance.settlement.invoiceTimeline') }}</div>
+        <ApprovalTimeline :records="detail.timeline ?? []" />
       </template>
     </div>
   </el-drawer>

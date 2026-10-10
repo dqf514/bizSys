@@ -71,7 +71,10 @@
     "itemReportNo": "报告编号",
     "itemReportStatus": "报告状态",
     "addItem": "添加条目",
+    "editItem": "编辑条目",
     "removeItem": "删除条目",
+    "needReportTip": "勾选「需报告」后，保存时系统将自动分配报告编号",
+    "deleteItemConfirm": "确认删除该条目？",
     "samples": "样品信息",
     "sampleNo": "样品编号",
     "sampleName": "样品名称",
@@ -85,12 +88,18 @@
     "sampleStatusIn": "在库",
     "sampleStatusOut": "出库",
     "addSample": "添加样品",
+    "registerSample": "补登样品",
+    "editSample": "编辑样品",
     "removeSample": "删除样品",
+    "deleteSampleConfirm": "确认删除该样品？",
     "inConfirm": "确认该样品入库？",
     "outConfirm": "确认该样品出库？",
     "logAction": "动作",
     "logOperator": "操作人",
     "logTime": "时间",
-    "logRemark": "说明"
+    "logRemark": "说明",
+    "logSampleNo": "样品编号",
+    "logActionIn": "入库",
+    "logActionOut": "出库"
   }
 }

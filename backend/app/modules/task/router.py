@@ -266,6 +266,23 @@ def _detail(db: Session, t: Task) -> dict:
     data = _out(t, labels, cnts.get(t.id, (0, 0)))
     data["items"] = [_item_out(i) for i in t.items if not i.deleted]
     data["samples"] = [_sample_out(s) for s in t.samples if not s.deleted]
+    flow_rows = db.execute(
+        select(TaskSampleFlow, TaskSample.sample_no)
+        .outerjoin(TaskSample, TaskSample.id == TaskSampleFlow.sample_id)
+        .where(TaskSampleFlow.task_id == t.id, TaskSampleFlow.deleted == 0)
+        .order_by(TaskSampleFlow.at.desc(), TaskSampleFlow.id.desc())
+    ).all()
+    data["logs"] = [
+        {
+            "id": f.id,
+            "sampleNo": sample_no or "",
+            "action": f.action,
+            "operatorName": f.operator_name,
+            "createTime": _t(f.at),
+            "remark": f.remark or "",
+        }
+        for f, sample_no in flow_rows
+    ]
     return data
 
 

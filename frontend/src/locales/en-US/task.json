@@ -71,7 +71,10 @@
     "itemReportNo": "Report No.",
     "itemReportStatus": "Report Status",
     "addItem": "Add Item",
+    "editItem": "Edit Item",
     "removeItem": "Remove Item",
+    "needReportTip": "When \"Need Report\" is checked, a report no. is assigned automatically on save",
+    "deleteItemConfirm": "Delete this item?",
     "samples": "Samples",
     "sampleNo": "Sample No.",
     "sampleName": "Sample Name",
@@ -85,12 +88,18 @@
     "sampleStatusIn": "In",
     "sampleStatusOut": "Out",
     "addSample": "Add Sample",
+    "registerSample": "Register Sample",
+    "editSample": "Edit Sample",
     "removeSample": "Remove Sample",
+    "deleteSampleConfirm": "Delete this sample?",
     "inConfirm": "Stock this sample in?",
     "outConfirm": "Stock this sample out?",
     "logAction": "Action",
     "logOperator": "Operator",
     "logTime": "Time",
-    "logRemark": "Remark"
+    "logRemark": "Remark",
+    "logSampleNo": "Sample No.",
+    "logActionIn": "Stock In",
+    "logActionOut": "Stock Out"
   }
 }

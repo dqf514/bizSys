@@ -140,6 +140,7 @@
     "moveDown": "Move down",
     "create": "New Flow",
     "edit": "Edit Flow",
+    "deleteConfirm": "Delete this flow definition? It will be rejected if there are running approval instances.",
     "bizContract": "Contract",
     "bizTask": "Task",
     "nodeRequired": "At least one node is required"

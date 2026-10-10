@@ -10,7 +10,7 @@ import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listContracts, deleteContract, submitContract, exportContracts } from '@/api/contract'
+import { listContracts, deleteContract, submitContract, voidContract, exportContracts } from '@/api/contract'
 import type { Contract } from '@/api/types'
 
 defineOptions({ name: 'ContractList' })
@@ -96,6 +96,21 @@ async function remove(row: Contract) {
   }
 }
 
+async function doVoid(row: Contract) {
+  try {
+    await ElMessageBox.confirm(t('contract.contract.voidConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await voidContract(row.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
+}
+
 function fmtAmount(row: Record<string, unknown>) {
   const n = Number(row.amount ?? 0)
   return Number.isFinite(n) ? n.toLocaleString() : String(row.amount ?? '-')
@@ -148,7 +163,7 @@ function fmtAmount(row: Record<string, unknown>) {
           <el-button link type="primary" @click="openDetail(row as unknown as Contract)">{{ row.contractNo }}</el-button>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="230" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="290" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="['draft', 'rejected'].includes(String(row.status))"
@@ -170,6 +185,15 @@ function fmtAmount(row: Record<string, unknown>) {
               </el-button>
               <el-button link type="primary" @click="openDetail(row as unknown as Contract)">
                 {{ t('common.action.detail') }}
+              </el-button>
+              <el-button
+                v-if="['draft', 'rejected', 'approved'].includes(String(row.status))"
+                v-permission="'contract:edit'"
+                link
+                type="danger"
+                @click="doVoid(row as unknown as Contract)"
+              >
+                {{ t('contract.contract.void') }}
               </el-button>
               <el-button
                 v-if="row.status === 'draft'"

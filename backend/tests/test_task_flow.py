@@ -156,6 +156,38 @@ def test_sample_no_unique_after_delete(client, admin_headers):
     assert nos == [f"{tno}-02", f"{tno}-03"], nos
 
 
+def test_task_detail_logs(client, admin_headers):
+    """任务详情 logs：样品登记/出入库流水按时间倒序返回，含样品编号/动作/操作人。"""
+    headers = admin_headers
+    approved_id = _approved_contract(client, headers)
+    r = client.post(
+        "/api/v1/task/tasks",
+        headers=headers,
+        json={"task_name": f"日志_{UUID}", "contract_id": approved_id},
+    ).json()
+    assert r["code"] == 0, r
+    tid = r["data"]["id"]
+
+    # 详情页补登样品（写「初始登记」流水）
+    r = client.post(f"/api/v1/task/tasks/{tid}/samples", headers=headers, json={"name": "样车X"}).json()
+    assert r["code"] == 0, r
+    sid = r["data"]["id"]
+    sno = r["data"]["sampleNo"]
+
+    assert client.post(f"/api/v1/task/samples/{sid}/out", headers=headers).json()["code"] == 0
+    assert client.post(f"/api/v1/task/samples/{sid}/in", headers=headers).json()["code"] == 0
+
+    r = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()
+    assert r["code"] == 0, r
+    logs = r["data"]["logs"]
+    assert len(logs) >= 3, logs
+    # 倒序：最新的入库在最前
+    assert [x["action"] for x in logs[:3]] == ["in", "out", "in"]
+    assert all(x["sampleNo"] == sno for x in logs)
+    assert all(x["operatorName"] for x in logs)
+    assert logs[-1]["remark"] == "初始登记"
+
+
 def test_invalid_date_filter_is_biz_error(client, admin_headers):
     """非法日期区间 → 10001 业务错误，不再 500。"""
     r = client.get(

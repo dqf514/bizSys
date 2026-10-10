@@ -29,6 +29,14 @@ export function submitContract(id: number) {
   return request<void>({ url: `/contract/contracts/${id}/submit`, method: 'post' })
 }
 
+export function voidContract(id: number) {
+  return request<Contract>({ url: `/contract/contracts/${id}/void`, method: 'post' })
+}
+
+export function deleteAttachment(fileId: number | string) {
+  return request<void>({ url: `/contract/attachments/${fileId}`, method: 'delete' })
+}
+
 export function exportContracts(params: ListQuery) {
   return download(
     {

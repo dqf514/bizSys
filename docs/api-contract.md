@@ -60,6 +60,7 @@
 - `POST /contract/contracts/{id}/void` → 作废（审批中需先撤回；已作废 50001）
 - `GET /contract/contracts/{id}` 详情（含附件、审批时间线可选）
 - `POST /contract/contracts/{id}/attachments`（multipart file）· `GET /contract/attachments/{fileId}`（下载流）
+- `DELETE /contract/attachments/{fileId}`（contract:edit；仅 draft/rejected 合同可删，审批中 50002；逻辑删 + 审计）
 - `POST /contract/contracts/export` · `GET /contract/contracts/options`（仅 approved，建任务时用）
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
@@ -74,6 +75,7 @@
 - `POST /approval/tasks/{taskId}/transfer` `{toUserId,comment}` · `/add-sign` `{approverId,comment}`
 - `POST /approval/instances/{instanceId}/withdraw`
 - 管理端：`GET /approval/definitions` · `POST /approval/definitions` · `PUT /approval/definitions/{id}`
+  · `DELETE /approval/definitions/{id}`（admin:flow:edit；有运行中实例时拒绝，逻辑删）
   定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
 
@@ -96,7 +98,9 @@
     `finished --close--> closed`；任意非终态 `--stop--> stopped`（终态）
   - 前端按钮：draft 显示「提交分配」(submit)；assigning/assigned 显示「开始」(start)；
     in_progress 显示「完成」(finish)；finished 显示「结束」(close)；非终态显示「停止」(stop)
-- `GET /task/tasks/{id}` → 详情含 `items[]` `samples[]`
+- `GET /task/tasks/{id}` → 详情含 `items[]` `samples[]` `logs[]`
+  （`logs` 为该任务全部样品的 `task_sample_flow` 流水，按时间倒序：
+  `[{id,sampleNo,action:"in"|"out",operatorName,createTime,remark}]`）
 - 子条目 `task_item`：`{id,itemCode,name,std,dept,inspector,qty,settleType,needReport,reportNo,reportStatus}`
   嵌套路由 `POST /task/tasks/{id}/items` · `PUT /task/items/{itemId}` · `DELETE /task/items/{itemId}`
   `needReport=true` → 自动分配 `reportNo`（BG 规则）

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, type FormInstance } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
-import { listFlowDefs, createFlowDef, updateFlowDef, listRoles, listUsers } from '@/api/admin'
+import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, listUsers } from '@/api/admin'
 import type { FlowDef, FlowNode } from '@/api/types'
 
 defineOptions({ name: 'FlowDefList' })
@@ -164,6 +164,21 @@ function bizLabel(b: string) {
   if (b === 'task') return t('admin.flow.bizTask')
   return b
 }
+
+async function remove(row: FlowDef) {
+  try {
+    await ElMessageBox.confirm(t('admin.flow.deleteConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await deleteFlowDef(row.id)
+    ElMessage.success(t('common.message.deleteSuccess'))
+    void load()
+  } catch {
+    /* http notifies */
+  }
+}
 </script>
 
 <template>
@@ -196,10 +211,13 @@ function bizLabel(b: string) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.action.operate')" width="110" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'admin:flow:edit'" link type="primary" @click="openEdit(row as FlowDef)">
               {{ t('common.action.edit') }}
+            </el-button>
+            <el-button v-permission="'admin:flow:edit'" link type="danger" @click="remove(row as FlowDef)">
+              {{ t('common.action.delete') }}
             </el-button>
           </template>
         </el-table-column>

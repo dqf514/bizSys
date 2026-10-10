@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
-import { getTask, sampleFlow } from '@/api/task'
+import {
+  getTask,
+  sampleFlow,
+  addTaskItem,
+  updateTaskItem,
+  deleteTaskItem,
+  addTaskSample,
+  updateTaskSample,
+  deleteTaskSample,
+} from '@/api/task'
 import type { Task, TaskItem, TaskLog, TaskSample } from '@/api/types'
 
 defineOptions({ name: 'TaskDetail' })
@@ -20,12 +29,20 @@ const logs = ref<TaskLog[]>([])
 const loading = ref(false)
 const activeTab = ref('basic')
 
+const taskId = computed(() => Number(route.params.id) || 0)
+const status = computed(() => detail.value?.status ?? '')
+// 与后端一致：条目增改允许 assigning/assigned/in_progress（draft 走编辑页）；删除仅 draft
+const canMaintainItems = computed(() => ['assigning', 'assigned', 'in_progress'].includes(status.value))
+const canMaintainSamples = computed(() =>
+  ['draft', 'assigning', 'assigned', 'in_progress'].includes(status.value),
+)
+const isDraft = computed(() => status.value === 'draft')
+
 async function load() {
-  const id = Number(route.params.id)
-  if (!id) return
+  if (!taskId.value) return
   loading.value = true
   try {
-    const data = await getTask(id)
+    const data = await getTask(taskId.value)
     detail.value = data
     items.value = data.items ?? []
     samples.value = data.samples ?? []
@@ -51,9 +68,181 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
     await sampleFlow(row.id, action)
     row.inStock = action === 'in' ? 'in' : 'out'
     ElMessage.success(t('common.message.submitSuccess'))
+    void load()
   } catch {
     /* http notifies */
   }
+}
+
+/* ---------- 条目维护 ---------- */
+const itemVisible = ref(false)
+const itemSaving = ref(false)
+const itemFormRef = ref<FormInstance>()
+const editingItemId = ref<number | null>(null)
+const itemForm = reactive({
+  itemCode: '',
+  name: '',
+  std: '',
+  dept: '',
+  inspector: '',
+  qty: 1 as number,
+  settleType: '',
+  needReport: false,
+})
+
+function openItemCreate() {
+  editingItemId.value = null
+  Object.assign(itemForm, {
+    itemCode: '',
+    name: '',
+    std: '',
+    dept: '',
+    inspector: '',
+    qty: 1,
+    settleType: '',
+    needReport: false,
+  })
+  itemVisible.value = true
+}
+
+function openItemEdit(row: TaskItem) {
+  editingItemId.value = row.id ?? null
+  Object.assign(itemForm, {
+    itemCode: row.itemCode ?? '',
+    name: row.name ?? '',
+    std: row.std ?? '',
+    dept: row.dept ?? '',
+    inspector: row.inspector ?? '',
+    qty: Number(row.qty) || 0,
+    settleType: row.settleType ?? '',
+    needReport: Boolean(row.needReport),
+  })
+  itemVisible.value = true
+}
+
+async function saveItem() {
+  if (!itemFormRef.value) return
+  const ok = await itemFormRef.value.validate().catch(() => false)
+  if (!ok) return
+  itemSaving.value = true
+  try {
+    const payload = {
+      itemCode: itemForm.itemCode,
+      name: itemForm.name,
+      std: itemForm.std,
+      dept: itemForm.dept,
+      inspector: itemForm.inspector,
+      qty: Number(itemForm.qty) || 0,
+      settleType: itemForm.settleType,
+      needReport: itemForm.needReport ? 1 : 0,
+    }
+    if (editingItemId.value) await updateTaskItem(editingItemId.value, payload as never)
+    else await addTaskItem(taskId.value, payload as never)
+    ElMessage.success(t('common.message.saveSuccess'))
+    itemVisible.value = false
+    void load()
+  } catch {
+    /* http notifies */
+  } finally {
+    itemSaving.value = false
+  }
+}
+
+async function removeItem(row: TaskItem) {
+  if (!row.id) return
+  try {
+    await ElMessageBox.confirm(t('task.task.deleteItemConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await deleteTaskItem(row.id)
+    ElMessage.success(t('common.message.deleteSuccess'))
+    void load()
+  } catch {
+    /* http notifies */
+  }
+}
+
+/* ---------- 样品维护 ---------- */
+const sampleVisible = ref(false)
+const sampleSaving = ref(false)
+const sampleFormRef = ref<FormInstance>()
+const editingSampleId = ref<number | null>(null)
+const sampleForm = reactive({
+  name: '',
+  model: '',
+  vin: '',
+  vehicleType: '',
+  sampleDate: '',
+  inStock: 'in' as 'in' | 'out',
+})
+
+function openSampleCreate() {
+  editingSampleId.value = null
+  Object.assign(sampleForm, { name: '', model: '', vin: '', vehicleType: '', sampleDate: '', inStock: 'in' })
+  sampleVisible.value = true
+}
+
+function openSampleEdit(row: TaskSample) {
+  editingSampleId.value = row.id ?? null
+  Object.assign(sampleForm, {
+    name: row.name ?? '',
+    model: row.model ?? '',
+    vin: row.vin ?? '',
+    vehicleType: row.vehicleType ?? '',
+    sampleDate: row.sampleDate ?? '',
+    inStock: row.inStock === 'out' ? 'out' : 'in',
+  })
+  sampleVisible.value = true
+}
+
+async function saveSample() {
+  if (!sampleFormRef.value) return
+  const ok = await sampleFormRef.value.validate().catch(() => false)
+  if (!ok) return
+  sampleSaving.value = true
+  try {
+    const payload = {
+      name: sampleForm.name,
+      model: sampleForm.model,
+      vin: sampleForm.vin,
+      vehicleType: sampleForm.vehicleType,
+      sampleDate: sampleForm.sampleDate || undefined,
+      inStock: sampleForm.inStock,
+    }
+    if (editingSampleId.value) await updateTaskSample(editingSampleId.value, payload as never)
+    else await addTaskSample(taskId.value, payload as never)
+    ElMessage.success(t('common.message.saveSuccess'))
+    sampleVisible.value = false
+    void load()
+  } catch {
+    /* http notifies */
+  } finally {
+    sampleSaving.value = false
+  }
+}
+
+async function removeSample(row: TaskSample) {
+  if (!row.id) return
+  try {
+    await ElMessageBox.confirm(t('task.task.deleteSampleConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await deleteTaskSample(row.id)
+    ElMessage.success(t('common.message.deleteSuccess'))
+    void load()
+  } catch {
+    /* http notifies */
+  }
+}
+
+function logActionLabel(action: string) {
+  if (action === 'in') return t('task.task.logActionIn')
+  if (action === 'out') return t('task.task.logActionOut')
+  return action || '-'
 }
 </script>
 
@@ -87,6 +276,11 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
       </el-tab-pane>
 
       <el-tab-pane :label="t('task.task.tabItems')" name="items">
+        <div v-if="canMaintainItems" class="tab-toolbar">
+          <el-button v-permission="'task:edit'" size="small" type="primary" plain @click="openItemCreate">
+            {{ t('task.task.addItem') }}
+          </el-button>
+        </div>
         <el-table :data="items" border stripe size="small">
           <el-table-column :label="t('task.task.itemCode')" prop="itemCode" width="120" />
           <el-table-column :label="t('task.task.itemName')" prop="name" min-width="140" />
@@ -96,10 +290,42 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
           <el-table-column :label="t('task.task.itemQty')" prop="qty" width="80" />
           <el-table-column :label="t('task.task.itemReportNo')" prop="reportNo" width="130" />
           <el-table-column :label="t('task.task.itemReportStatus')" prop="reportStatus" width="110" />
+          <el-table-column
+            v-if="canMaintainItems || isDraft"
+            :label="t('common.action.operate')"
+            width="130"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <el-button
+                v-if="canMaintainItems"
+                v-permission="'task:edit'"
+                link
+                type="primary"
+                @click="openItemEdit(row as unknown as TaskItem)"
+              >
+                {{ t('common.action.edit') }}
+              </el-button>
+              <el-button
+                v-if="isDraft"
+                v-permission="'task:edit'"
+                link
+                type="danger"
+                @click="removeItem(row as unknown as TaskItem)"
+              >
+                {{ t('common.action.delete') }}
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <el-tab-pane :label="t('task.task.tabSamples')" name="samples">
+        <div v-if="canMaintainSamples" class="tab-toolbar">
+          <el-button v-permission="'task:edit'" size="small" type="primary" plain @click="openSampleCreate">
+            {{ t('task.task.registerSample') }}
+          </el-button>
+        </div>
         <el-table :data="samples" border stripe size="small">
           <el-table-column :label="t('task.task.sampleNo')" prop="sampleNo" width="130" />
           <el-table-column :label="t('task.task.sampleName')" prop="name" min-width="130" />
@@ -112,7 +338,7 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
               <StatusTag :status="String(row.inStock)" i18n-prefix="task.task.sampleStatus" />
             </template>
           </el-table-column>
-          <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="row.inStock !== 'in'"
@@ -130,6 +356,24 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
               >
                 {{ t('task.task.sampleOut') }}
               </el-button>
+              <el-button
+                v-if="canMaintainSamples"
+                v-permission="'task:edit'"
+                link
+                type="primary"
+                @click="openSampleEdit(row as unknown as TaskSample)"
+              >
+                {{ t('common.action.edit') }}
+              </el-button>
+              <el-button
+                v-if="isDraft"
+                v-permission="'task:edit'"
+                link
+                type="danger"
+                @click="removeSample(row as unknown as TaskSample)"
+              >
+                {{ t('common.action.delete') }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -137,13 +381,132 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
 
       <el-tab-pane :label="t('task.task.tabLogs')" name="logs">
         <el-table :data="logs" border stripe size="small">
-          <el-table-column :label="t('task.task.logAction')" prop="action" width="120" />
+          <el-table-column :label="t('task.task.logSampleNo')" prop="sampleNo" width="150" />
+          <el-table-column :label="t('task.task.logAction')" width="100">
+            <template #default="{ row }">{{ logActionLabel(String(row.action)) }}</template>
+          </el-table-column>
           <el-table-column :label="t('task.task.logOperator')" prop="operatorName" width="120" />
           <el-table-column :label="t('task.task.logTime')" prop="createTime" width="160" />
           <el-table-column :label="t('task.task.logRemark')" prop="remark" min-width="180" />
         </el-table>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 条目维护弹窗 -->
+    <el-dialog
+      v-model="itemVisible"
+      :title="editingItemId ? t('task.task.editItem') : t('task.task.addItem')"
+      width="640px"
+      append-to-body
+    >
+      <el-form ref="itemFormRef" :model="itemForm" label-width="110px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemCode')" prop="itemCode">
+              <el-input v-model="itemForm.itemCode" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item
+              :label="t('task.task.itemName')"
+              prop="name"
+              :rules="[{ required: true, message: t('common.form.required') }]"
+            >
+              <el-input v-model="itemForm.name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemStd')" prop="std">
+              <el-input v-model="itemForm.std" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemDept')" prop="dept">
+              <el-input v-model="itemForm.dept" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemInspector')" prop="inspector">
+              <el-input v-model="itemForm.inspector" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemQty')" prop="qty">
+              <el-input-number v-model="itemForm.qty" :min="0" controls-position="right" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemSettleType')" prop="settleType">
+              <el-input v-model="itemForm.settleType" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.itemNeedReport')" prop="needReport">
+              <el-switch v-model="itemForm.needReport" />
+              <div class="form-tip">{{ t('task.task.needReportTip') }}</div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="itemVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="itemSaving" @click="saveItem">{{ t('common.action.save') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 样品维护弹窗 -->
+    <el-dialog
+      v-model="sampleVisible"
+      :title="editingSampleId ? t('task.task.editSample') : t('task.task.registerSample')"
+      width="640px"
+      append-to-body
+    >
+      <el-form ref="sampleFormRef" :model="sampleForm" label-width="110px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item
+              :label="t('task.task.sampleName')"
+              prop="name"
+              :rules="[{ required: true, message: t('common.form.required') }]"
+            >
+              <el-input v-model="sampleForm.name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.sampleModel')" prop="model">
+              <el-input v-model="sampleForm.model" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.sampleVin')" prop="vin">
+              <el-input v-model="sampleForm.vin" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.sampleVehicleType')" prop="vehicleType">
+              <el-input v-model="sampleForm.vehicleType" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.sampleDate')" prop="sampleDate">
+              <el-date-picker v-model="sampleForm.sampleDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.sampleInStock')" prop="inStock">
+              <el-radio-group v-model="sampleForm.inStock">
+                <el-radio value="in">{{ t('task.task.sampleStatusIn') }}</el-radio>
+                <el-radio value="out">{{ t('task.task.sampleStatusOut') }}</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="sampleVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="sampleSaving" @click="saveSample">{{ t('common.action.save') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -170,5 +533,17 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
   gap: var(--bs-space-2);
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
+}
+
+.tab-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--bs-space-2);
+}
+
+.form-tip {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  line-height: 1.4;
 }
 </style>

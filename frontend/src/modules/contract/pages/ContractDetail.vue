@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
-import { getContract, downloadAttachment } from '@/api/contract'
+import { getContract, downloadAttachment, voidContract } from '@/api/contract'
 import { getTimeline } from '@/api/approval'
 import type { Attachment, Contract, TimelineRecord } from '@/api/types'
 
@@ -48,6 +49,22 @@ async function load() {
 }
 
 onMounted(() => void load())
+
+async function doVoid() {
+  if (!detail.value) return
+  try {
+    await ElMessageBox.confirm(t('contract.contract.voidConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await voidContract(detail.value.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    void load()
+  } catch {
+    /* http notifies */
+  }
+}
 </script>
 
 <template>
@@ -57,7 +74,18 @@ onMounted(() => void load())
         {{ detail?.name || t('contract.contract.detail') }}
         <StatusTag v-if="detail" :status="detail.status" i18n-prefix="contract.contract.status" />
       </h2>
-      <el-button @click="router.push('/contract/contracts')">{{ t('common.action.back') }}</el-button>
+      <div class="header-actions">
+        <el-button
+          v-if="detail && ['draft', 'rejected', 'approved'].includes(detail.status)"
+          v-permission="'contract:edit'"
+          type="danger"
+          plain
+          @click="doVoid"
+        >
+          {{ t('contract.contract.void') }}
+        </el-button>
+        <el-button @click="router.push('/contract/contracts')">{{ t('common.action.back') }}</el-button>
+      </div>
     </div>
 
     <el-tabs v-model="activeTab">
@@ -123,6 +151,12 @@ onMounted(() => void load())
   gap: var(--bs-space-2);
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
 }
 
 .file-list {

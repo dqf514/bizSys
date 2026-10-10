@@ -140,6 +140,7 @@
     "moveDown": "下移",
     "create": "新增流程",
     "edit": "编辑流程",
+    "deleteConfirm": "确认删除该流程定义？存在运行中的审批实例时将被拒绝。",
     "bizContract": "合同",
     "bizTask": "任务",
     "nodeRequired": "至少配置一个节点"

@@ -298,6 +298,7 @@ export interface TaskSample {
 
 export interface TaskLog {
   id: number
+  sampleNo?: string
   action: string
   operatorName: string
   createTime: string
@@ -338,6 +339,18 @@ export interface ApprovalTimeline {
   status: string
   currentNode: string
   records: TimelineRecord[]
+}
+
+export interface ApprovalInstanceDetail {
+  instanceId: number
+  bizType: string
+  bizId: number
+  title: string
+  status: string
+  initiatorName: string
+  currentNode: string
+  snapshot: Record<string, unknown> | null
+  timeline?: TimelineRecord[]
 }
 
 /** Finance module — camelCase per backend convention */

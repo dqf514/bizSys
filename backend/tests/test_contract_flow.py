@@ -153,3 +153,41 @@ def test_attachment_upload_validation(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
     assert r["data"]["fileName"] == "a.pdf"
+
+
+def test_attachment_delete_state_guard(client, admin_headers):
+    """附件删除：draft 可删（逻辑删，详情不再返回）；approving 拒 50002。"""
+    cust = _create_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": f"附件删除_{UUID}", "customer_id": cust["id"], "amount": 100},
+    ).json()
+    cid = r["data"]["id"]
+
+    # draft：上传后可删
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("draft.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+    ).json()
+    assert r["code"] == 0, r
+    fid = r["data"]["id"]
+    r = client.delete(f"/api/v1/contract/attachments/{fid}", headers=admin_headers).json()
+    assert r["code"] == 0, r
+    detail = client.get(f"/api/v1/contract/contracts/{cid}", headers=admin_headers).json()["data"]
+    assert all(a["id"] != fid for a in detail["attachments"])
+    # 再删一次 → 404 业务码
+    r = client.delete(f"/api/v1/contract/attachments/{fid}", headers=admin_headers).json()
+    assert r["code"] == 10002
+
+    # approving：拒绝删除
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("lock.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+    ).json()
+    fid2 = r["data"]["id"]
+    assert client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()["code"] == 0
+    r = client.delete(f"/api/v1/contract/attachments/{fid2}", headers=admin_headers).json()
+    assert r["code"] == 50002

@@ -367,6 +367,27 @@ def download_attachment(
     )
 
 
+@router.delete("/attachments/{file_id}")
+def delete_attachment(
+    file_id: int,
+    current: User = Depends(require_perm("contract:edit")),
+    db: Session = Depends(get_db),
+):
+    a = db.get(ContractAttachment, file_id)
+    if not a or a.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    c = db.get(Contract, a.contract_id)
+    if not c or c.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    svc.check_editable(c)  # 仅 draft/rejected 合同可删附件
+    a.deleted = 1
+    c.update_time = datetime.now()
+    audit(db, user_id=current.id, module="contract", action="attachment_delete", biz_type="contract",
+          biz_id=c.id, detail={"fileId": file_id, "file": a.file_name})
+    db.commit()
+    return None
+
+
 # ---------------- 导出 ----------------
 
 

@@ -1,5 +1,12 @@
 import { request, toQuery } from './http'
-import type { ApprovalTask, ApprovalTimeline, ListQuery, PageResult, UserProfile } from './types'
+import type {
+  ApprovalInstanceDetail,
+  ApprovalTask,
+  ApprovalTimeline,
+  ListQuery,
+  PageResult,
+  UserProfile,
+} from './types'
 
 export type ApprovalTab = 'todo' | 'done' | 'initiated'
 
@@ -14,6 +21,13 @@ export function listApprovalTasks(tab: ApprovalTab, params: ListQuery) {
 export function getTimeline(bizType: string, bizId: number) {
   return request<ApprovalTimeline>({
     url: `/approval/instances/${bizType}/${bizId}/timeline`,
+    method: 'get',
+  })
+}
+
+export function getInstance(instanceId: number) {
+  return request<ApprovalInstanceDetail>({
+    url: `/approval/instances/${instanceId}`,
     method: 'get',
   })
 }

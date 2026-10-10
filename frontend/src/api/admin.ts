@@ -179,3 +179,7 @@ export function createFlowDef(data: Partial<FlowDef>) {
 export function updateFlowDef(id: number, data: Partial<FlowDef>) {
   return request<FlowDef>({ url: `/approval/definitions/${id}`, method: 'put', data })
 }
+
+export function deleteFlowDef(id: number) {
+  return request<void>({ url: `/approval/definitions/${id}`, method: 'delete' })
+}

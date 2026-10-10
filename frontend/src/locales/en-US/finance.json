@@ -22,6 +22,7 @@
     "noInvoice": "No invoice available to register",
     "invoices": "Invoices",
     "payments": "Payments",
+    "invoiceTimeline": "Invoice Approval Timeline",
     "invoiceNo": "Invoice No.",
     "invoiceDate": "Invoice Date",
     "invoiceStatus": "Invoice Status",
