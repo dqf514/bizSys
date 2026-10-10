@@ -168,3 +168,37 @@ def test_disabled_or_deleted_role_grants_nothing(db):
     db.expire(user)
     assert user.perm_codes == []
     assert user.role_codes == []
+
+
+def test_menu_tree_includes_ancestor_dirs(db):
+    # 角色只挂叶子菜单时，树应自动补齐祖先目录（分组结构完整，叶子不平铺到顶层）
+    from app.core.security import hash_password
+    from app.modules.admin.models import Menu, Role, RoleMenu, UserRole
+    from app.modules.admin.service import menu_tree_for_user
+    from app.modules.auth.models import User
+
+    suf = uuid.uuid4().hex[:8]
+    grp = Menu(name=f"grp_{suf}", title_key="menu.system", menu_type="dir", sort=900)
+    db.add(grp)
+    db.flush()
+    sub = Menu(name=f"sub_{suf}", title_key="menu.sysOrg", menu_type="dir", parent_id=grp.id, sort=1)
+    db.add(sub)
+    db.flush()
+    leaf = Menu(
+        name=f"leaf_{suf}", title_key="menu.users", menu_type="menu", path=f"/t/{suf}", parent_id=sub.id, sort=1
+    )
+    role = Role(code=f"role_{suf}", name="测试角色")
+    db.add_all([leaf, role])
+    db.flush()
+    db.add(RoleMenu(role_id=role.id, menu_id=leaf.id))  # 只授权叶子
+    user = User(username=f"treeu_{suf}", password_hash=hash_password("x"), name="t")
+    db.add(user)
+    db.flush()
+    db.add(UserRole(user_id=user.id, role_id=role.id))
+    db.flush()
+
+    tree = menu_tree_for_user(db, user)
+    grp_node = next((n for n in tree if n["id"] == grp.id), None)
+    assert grp_node is not None, "叶子不应被提升为顶层节点"
+    assert grp_node["children"][0]["id"] == sub.id
+    assert grp_node["children"][0]["children"][0]["id"] == leaf.id
