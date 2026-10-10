@@ -46,6 +46,9 @@
     "searchQ": "Keyword",
     "placeholderQ": "Invoice no. / settlement no. / customer",
     "register": "Register Invoice",
+    "apply": "Apply Invoice",
+    "selectSettlement": "Select Settlement",
+    "applyHint": "Only settlements in \"Pending Invoice\" status can be selected. Submitting starts the invoice approval.",
     "status": {
       "approving": "Approving",
       "issued": "Issued"

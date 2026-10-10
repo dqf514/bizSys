@@ -8,8 +8,9 @@ import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listInvoices, updateInvoice, exportInvoices } from '@/api/finance'
+import { listInvoices, updateInvoice, exportInvoices, applyInvoice, listSettlements } from '@/api/finance'
 import type { InvoiceListItem } from '@/api/types'
 
 defineOptions({ name: 'InvoiceList' })
@@ -101,11 +102,54 @@ async function saveInvoice() {
     invoiceSaving.value = false
   }
 }
+
+/* ---------- apply invoice (entry from invoice page) ---------- */
+const applyVisible = ref(false)
+const applySaving = ref(false)
+const applySettlementId = ref<number | null>(null)
+
+function openApply() {
+  applySettlementId.value = null
+  applyVisible.value = true
+}
+
+/** 只允许「待开票」结算单：与结算列表的行内入口同一规则 */
+async function fetchPendingSettlements(q: string): Promise<RemoteOption[]> {
+  try {
+    const data = await listSettlements({ q: q || undefined, filters: { status: 'pending' }, size: 50 })
+    return (data.items ?? []).map((s) => ({
+      id: s.id,
+      label: `${s.settlementNo} · ${s.customerName ?? ''}`,
+      sub: `¥${Number(s.invoiceableAmount ?? s.amount ?? 0).toLocaleString()}`,
+    }))
+  } catch {
+    return []
+  }
+}
+
+async function doApply() {
+  if (!applySettlementId.value) return
+  applySaving.value = true
+  try {
+    await applyInvoice(applySettlementId.value)
+    ElMessage.success(t('common.message.submitSuccess'))
+    applyVisible.value = false
+    applySettlementId.value = null
+    list.refresh()
+  } catch {
+    /* http notifies */
+  } finally {
+    applySaving.value = false
+  }
+}
 </script>
 
 <template>
   <ListPage :title="t('finance.invoice.title')" :loading="list.loading.value">
     <template #actions>
+      <el-button v-permission="'finance:invoice:apply'" type="primary" @click="openApply">
+        {{ t('finance.invoice.apply') }}
+      </el-button>
       <ExportButton v-permission="'finance:invoice:export'" :export-fn="() => list.exportList()" />
     </template>
 
@@ -186,6 +230,21 @@ async function saveInvoice() {
     <template #footer>
       <el-button @click="invoiceVisible = false">{{ t('common.action.cancel') }}</el-button>
       <el-button type="primary" :loading="invoiceSaving" @click="saveInvoice">{{ t('common.action.save') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="applyVisible" :title="t('finance.invoice.apply')" width="520px" append-to-body>
+    <el-form label-width="110px">
+      <el-form-item :label="t('finance.invoice.selectSettlement')" required>
+        <RemoteSelect v-model="applySettlementId" :fetch="fetchPendingSettlements" />
+      </el-form-item>
+      <p style="margin: 0; font-size: 12px; color: var(--bs-color-fg-muted)">{{ t('finance.invoice.applyHint') }}</p>
+    </el-form>
+    <template #footer>
+      <el-button @click="applyVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="primary" :disabled="!applySettlementId" :loading="applySaving" @click="doApply">
+        {{ t('common.action.submit') }}
+      </el-button>
     </template>
   </el-dialog>
 </template>

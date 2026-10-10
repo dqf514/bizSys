@@ -46,6 +46,9 @@
     "searchQ": "关键词",
     "placeholderQ": "请输入发票号/结算单号/客户",
     "register": "登记发票",
+    "apply": "申请开票",
+    "selectSettlement": "选择结算单",
+    "applyHint": "仅可选择「待开票」状态的结算单，提交后进入开票审批",
     "status": {
       "approving": "审批中",
       "issued": "已开票"
