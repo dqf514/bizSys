@@ -3,7 +3,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
+import SmartInput from '@/components/form/SmartInput.vue'
 import { useDictOptions } from '@/composables/useDict'
+import { recordSmartHistory } from '@/composables/smartInputHistory'
 import { createPayment, listSettlements } from '@/api/finance'
 import type { Settlement } from '@/api/types'
 
@@ -88,6 +90,8 @@ async function save() {
       paidAt: form.paidAt,
       remark: form.remark || undefined,
     })
+    recordSmartHistory('finance.payment.payerName', form.payerName)
+    recordSmartHistory('finance.payment.bank', form.bank)
     ElMessage.success(t('common.message.createSuccess'))
     visible.value = false
     emit('saved')
@@ -119,7 +123,13 @@ async function save() {
         prop="payType"
         :rules="[{ required: true, message: t('common.form.required') }]"
       >
-        <el-select v-model="form.payType" style="width: 100%">
+        <el-select
+          v-model="form.payType"
+          clearable
+          filterable
+          :placeholder="t('common.form.placeholderSelect')"
+          style="width: 100%"
+        >
           <el-option v-for="o in payTypeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
       </el-form-item>
@@ -128,10 +138,10 @@ async function save() {
         prop="payerName"
         :rules="[{ required: true, message: t('common.form.required') }]"
       >
-        <el-input v-model="form.payerName" />
+        <SmartInput v-model="form.payerName" field="finance.payment.payerName" :maxlength="128" />
       </el-form-item>
       <el-form-item :label="t('finance.payment.payerAccount')">
-        <el-input v-model="form.payerAccount" />
+        <el-input v-model="form.payerAccount" :maxlength="64" />
       </el-form-item>
       <el-form-item
         :label="t('finance.payment.amount')"
@@ -141,7 +151,7 @@ async function save() {
         <el-input-number v-model="form.amount" :min="0" :precision="2" style="width: 100%" />
       </el-form-item>
       <el-form-item :label="t('finance.payment.bank')">
-        <el-input v-model="form.bank" />
+        <SmartInput v-model="form.bank" field="finance.payment.bank" :maxlength="128" />
       </el-form-item>
       <el-form-item
         :label="t('finance.payment.paidAt')"

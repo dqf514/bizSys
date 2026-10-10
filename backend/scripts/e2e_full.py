@@ -210,6 +210,16 @@ def _todo_task_id(token: str, biz_id: int) -> int | None:
     return None
 
 
+def _todo_report_task_id(token: str, rid: int) -> int | None:
+    st, code, data = api("GET", "/approval/tasks", token, params={"tab": "todo", "size": 50})
+    if code != 0:
+        return None
+    for it in data["items"]:
+        if it["bizType"] == "report" and it["bizId"] == rid:
+            return it["id"]
+    return None
+
+
 def _get_contract(admin: str, cid: int) -> dict:
     st, code, c = api("GET", f"/contract/contracts/{cid}", admin)
     assert code == 0, f"get contract {cid}: {code}"
@@ -434,10 +444,70 @@ def test_task(admin: str, manager: str, contract_ids: dict) -> dict:
     expect_biz_error("task.start on draft -> 60001", "POST", f"/task/tasks/{t1}/start", admin, want_code=60001)
     expect_biz_error("task.finish on draft -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
 
-    # 提交分配 → 通知部门用户（manager 在 dept 中则收到）
-    err = _run_task_to_closed(admin, t1)
-    rec("task.flow to closed", err == "", err)
-    expect_biz_error("task.finish on closed -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
+    # 提交分配 → finished；needReport 条目未签章 → close 门禁 60003
+    err = ""
+    for action, want in (("submit", "assigning"), ("start", "assigned"),
+                         ("start", "in_progress"), ("finish", "finished")):
+        st, code, _ = _task_action(admin, t1, action)
+        if code != 0:
+            err = f"action {action} failed code={code}"
+            break
+    if not err:
+        st, code, t = api("GET", f"/task/tasks/{t1}", admin)
+        if t["status"] != "finished":
+            err = f"status={t['status']} want=finished"
+    rec("task.flow to finished", err == "", err)
+    expect_biz_error("task.close unsealed report -> 60003", "POST", f"/task/tasks/{t1}/close", admin,
+                     want_code=60003)
+
+    # 报告链路：上传 → 签批 → 批准（自动转 PDF，无 soffice 降级）→ 签章 → close 放行
+    rid = None
+    if items:
+        item = items[0]
+        st, code, opts = api("GET", "/report/reports/item-options", admin, params={"q": item.get("reportNo", "")})
+        rec("report.item-options", code == 0 and any(o["value"] == item["id"] for o in (opts or [])),
+            f"opts={opts}")
+        st, code, rep = api(
+            "POST", "/report/reports", admin, data={"item_id": str(item["id"])},
+            files={"file": ("E2E报告.docx", b"PK fake docx",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")})
+        rec("report.upload", st == 201 and code == 0 and rep.get("status") == "uploaded",
+            f"http={st} code={code}")
+        rid = rep.get("id") if rep else None
+        expect_biz_error("report.duplicate -> 61001", "POST", "/report/reports", admin, want_code=61001,
+                         data={"item_id": str(item["id"])},
+                         files={"file": ("E2E报告2.docx", b"PK fake",
+                                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")})
+        st, code, _ = api("POST", f"/report/reports/{rid}/submit", admin, json={})
+        rec("report.submit", code == 0, f"code={code}")
+        t = _todo_report_task_id(manager, rid)
+        if t:
+            st, code, _ = api("POST", f"/approval/tasks/{t}/approve", manager, json={"comment": "同意签批"})
+            rec("report.manager approve", code == 0, f"code={code}")
+        else:
+            rec("report.manager approve", False, "todo not found")
+        st, code, d = api("GET", f"/report/reports/{rid}", admin)
+        rec("report.approved + pdf fallback", code == 0 and d.get("status") == "approved" and d.get("pdfReady")
+            and "未安装转换器" in (d.get("remark") or ""),
+            f"status={d.get('status') if d else None} remark={d.get('remark') if d else None}")
+        rec("report.timeline", bool(d.get("timeline")), f"records={len(d.get('timeline') or [])}")
+        st, code, _ = api("POST", f"/report/reports/{rid}/seal", admin, json={})
+        rec("report.seal", code == 0, f"code={code}")
+        st, code, d = api("GET", f"/report/reports/{rid}", admin)
+        rec("report.sealed state", code == 0 and d.get("status") == "sealed" and d.get("sealTime"),
+            f"status={d.get('status') if d else None}")
+        st, code, lst = api("GET", "/report/reports", admin, params={"status": "sealed"})
+        rec("report.list sealed", code == 0 and any(i["id"] == rid for i in lst["items"]))
+        r = api("GET", f"/report/reports/{rid}/download", admin, params={"pdf": 1}, raw=True)
+        rec("report.download pdf", r.status_code == 200 and len(r.content) > 0, f"http={r.status_code}")
+        r = api("GET", "/report/reports/export", admin, raw=True)
+        rec("report.export", r.status_code == 200 and r.content[:2] == b"PK", f"http={r.status_code}")
+        err = ""
+        st, code, res = _task_action(admin, t1, "close")
+        if code != 0:
+            err = f"close failed code={code}"
+        rec("task.close after report sealed", err == "", err)
+        expect_biz_error("task.finish on closed -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
 
     st, code, counts = api("GET", "/task/tasks/counts", admin)
     rec("task.counts", code == 0 and isinstance(counts, dict) and counts.get("closed", 0) >= 1, f"counts={counts}")

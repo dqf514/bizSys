@@ -8,8 +8,10 @@ import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import SmartInput from '@/components/form/SmartInput.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
+import { recordSmartHistory } from '@/composables/smartInputHistory'
 import {
   listCustomers,
   createCustomer,
@@ -148,6 +150,11 @@ async function save() {
   try {
     if (editingId.value) await updateCustomer(editingId.value, { ...form })
     else await createCustomer({ ...form })
+    recordSmartHistory('crm.customer.country', form.country)
+    recordSmartHistory('crm.customer.province', form.province)
+    recordSmartHistory('crm.customer.city', form.city)
+    recordSmartHistory('crm.customer.bankName', form.bankName)
+    recordSmartHistory('crm.customer.payOrg', form.payOrg)
     ElMessage.success(t('common.message.saveSuccess'))
     dialogVisible.value = false
     list.refresh()
@@ -275,7 +282,13 @@ async function doImport() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.customerType')">
-            <el-select v-model="form.customerType" clearable style="width: 100%">
+            <el-select
+              v-model="form.customerType"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
               <el-option v-for="o in typeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -287,7 +300,13 @@ async function doImport() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.grade')">
-            <el-select v-model="form.grade" clearable style="width: 100%">
+            <el-select
+              v-model="form.grade"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
               <el-option v-for="o in gradeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -307,32 +326,32 @@ async function doImport() {
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('crm.customer.country')">
-            <el-input v-model="form.country" />
+            <SmartInput v-model="form.country" field="crm.customer.country" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('crm.customer.province')">
-            <el-input v-model="form.province" />
+            <SmartInput v-model="form.province" field="crm.customer.province" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('crm.customer.city')">
-            <el-input v-model="form.city" />
+            <SmartInput v-model="form.city" field="crm.customer.city" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.bankName')">
-            <el-input v-model="form.bankName" />
+            <SmartInput v-model="form.bankName" field="crm.customer.bankName" :maxlength="128" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.bankAccount')">
-            <el-input v-model="form.bankAccount" />
+            <el-input v-model="form.bankAccount" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.payOrg')">
-            <el-input v-model="form.payOrg" />
+            <SmartInput v-model="form.payOrg" field="crm.customer.payOrg" :maxlength="128" />
           </el-form-item>
         </el-col>
         <el-col :span="24">

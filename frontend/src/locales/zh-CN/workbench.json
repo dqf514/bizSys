@@ -8,13 +8,34 @@
     "customerTotal": "客户总数",
     "taskTotal": "任务总数"
   },
+  "widget": {
+    "stats": "概览",
+    "approvalTodo": "我的审批待办",
+    "notify": "通知公告",
+    "myTasks": "我的任务进行中",
+    "calendar": "本月日历",
+    "quickLinks": "快捷入口"
+  },
+  "customize": "自定义",
+  "customizeTitle": "自定义工作台",
+  "customizeTip": "勾选要显示的板块，使用箭头调整展示顺序",
+  "viewAll": "查看全部",
+  "markAllRead": "全部已读",
+  "emptyApproval": "暂无待办审批",
+  "emptyNotify": "暂无通知",
+  "emptyTasks": "暂无进行中任务",
+  "emptyLinks": "暂无可用入口",
+  "calendar": {
+    "created": "创建",
+    "due": "计划完成"
+  },
   "shortcut": "快捷入口",
   "shortcutCustomer": "新增客户",
   "shortcutContract": "新建合同",
   "shortcutTask": "新建任务",
   "shortcutApproval": "审批中心",
+  "shortcutSettlement": "结算管理",
   "todoList": "待办事项",
-  "viewAll": "查看全部",
   "noData": "暂无待办",
   "env": "环境",
   "envDev": "开发环境"

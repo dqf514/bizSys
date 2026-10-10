@@ -13,6 +13,7 @@ from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.contract import models as contract_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401
 from app.modules.finance import models as finance_models  # noqa: F401
+from app.modules.report import models as report_models  # noqa: F401
 from app.modules.settings import models as settings_models  # noqa: F401
 from app.modules.task import models as task_models  # noqa: F401
 

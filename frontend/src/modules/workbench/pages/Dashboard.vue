@@ -1,117 +1,131 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Setting } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { listApprovalTasks } from '@/api/approval'
-import { listTasks, taskCounts } from '@/api/task'
-import { listContracts } from '@/api/contract'
-import { listCustomers } from '@/api/crm'
+import { updatePrefs } from '@/api/auth'
+import type { DashboardPrefs, DashboardWidgetPref } from '@/api/types'
+import StatCards from '../components/StatCards.vue'
+import ApprovalTodoCard from '../components/ApprovalTodoCard.vue'
+import NotifyCard from '../components/NotifyCard.vue'
+import MyTasksCard from '../components/MyTasksCard.vue'
+import MonthCalendar from '../components/MonthCalendar.vue'
+import QuickLinks from '../components/QuickLinks.vue'
+import CustomizeDialog from '../components/CustomizeDialog.vue'
 
 defineOptions({ name: 'Dashboard' })
 
 const { t } = useI18n()
-const router = useRouter()
 const auth = useAuthStore()
 
-const stats = ref({
-  approvalTodo: 0,
-  myTasks: 0,
-  contractApproving: 0,
-  customerTotal: 0,
-  taskTotal: 0,
-})
-const loading = ref(false)
-
-async function loadStats() {
-  loading.value = true
-  const safe = async (fn: () => Promise<number>) => {
-    try {
-      return await fn()
-    } catch {
-      return 0
-    }
-  }
-  const [approvalTodo, myTasks, contractApproving, customerTotal, taskTotal] = await Promise.all([
-    safe(async () => {
-      const d = await listApprovalTasks('todo', { page: 1, size: 1 })
-      return d.total ?? 0
-    }),
-    safe(async () => {
-      const d = await listTasks({ page: 1, size: 1 })
-      return d.total ?? 0
-    }),
-    safe(async () => {
-      const d = await listContracts({ page: 1, size: 1, status: 'approving' })
-      return d.total ?? 0
-    }),
-    safe(async () => {
-      const d = await listCustomers({ page: 1, size: 1, status: 'all' })
-      return d.total ?? 0
-    }),
-    safe(async () => {
-      try {
-        const c = await taskCounts()
-        return Object.values(c ?? {}).reduce((a, b) => a + Number(b || 0), 0)
-      } catch {
-        const d = await listTasks({ page: 1, size: 1 })
-        return d.total ?? 0
-      }
-    }),
-  ])
-  stats.value = { approvalTodo, myTasks, contractApproving, customerTotal, taskTotal }
-  loading.value = false
+interface WidgetMeta {
+  key: string
+  labelKey: string
+  component: Component
+  /** grid columns out of 12 on wide screens */
+  span: 6 | 12
 }
 
-onMounted(() => {
-  void loadStats()
-})
+const WIDGET_META: WidgetMeta[] = [
+  { key: 'stats', labelKey: 'workbench.widget.stats', component: StatCards, span: 12 },
+  { key: 'approvalTodo', labelKey: 'workbench.widget.approvalTodo', component: ApprovalTodoCard, span: 6 },
+  { key: 'notify', labelKey: 'workbench.widget.notify', component: NotifyCard, span: 6 },
+  { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6 },
+  { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6 },
+  { key: 'quickLinks', labelKey: 'workbench.widget.quickLinks', component: QuickLinks, span: 12 },
+]
 
-const cards = [
-  { key: 'approvalTodo', labelKey: 'workbench.card.approvalTodo', path: '/approval', color: 'var(--bs-color-semantic-warning)' },
-  { key: 'myTasks', labelKey: 'workbench.card.myTasks', path: '/task/tasks', color: 'var(--bs-color-primary)' },
-  { key: 'contractApproving', labelKey: 'workbench.card.contractApproving', path: '/contract/contracts', color: 'var(--bs-color-semantic-info)' },
-  { key: 'customerTotal', labelKey: 'workbench.card.customerTotal', path: '/crm/customers', color: 'var(--bs-color-semantic-success)' },
-  { key: 'taskTotal', labelKey: 'workbench.card.taskTotal', path: '/task/tasks', color: 'var(--bs-color-semantic-danger)' },
-] as const
+const WIDGET_LABEL_KEYS: Record<string, string> = Object.fromEntries(
+  WIDGET_META.map((w) => [w.key, w.labelKey]),
+)
 
-const shortcuts = [
-  { labelKey: 'workbench.shortcutCustomer', path: '/crm/customers' },
-  { labelKey: 'workbench.shortcutContract', path: '/contract/contracts/new' },
-  { labelKey: 'workbench.shortcutTask', path: '/task/tasks/new' },
-  { labelKey: 'workbench.shortcutApproval', path: '/approval' },
-] as const
+const DEFAULT_WIDGETS: DashboardWidgetPref[] = WIDGET_META.map((w) => ({ key: w.key, visible: true }))
+
+function readPrefWidgets(): DashboardWidgetPref[] {
+  const raw = auth.user?.prefs?.dashboard
+  if (typeof raw !== 'string' || !raw) return DEFAULT_WIDGETS.map((w) => ({ ...w }))
+  try {
+    const parsed = JSON.parse(raw) as DashboardPrefs
+    const saved = Array.isArray(parsed?.widgets) ? parsed.widgets : []
+    const known = new Set(WIDGET_META.map((w) => w.key))
+    const ordered = saved
+      .filter((w) => w && typeof w.key === 'string' && known.has(w.key))
+      .map((w) => ({ key: w.key, visible: w.visible !== false }))
+    // append widgets added after the pref was saved
+    for (const d of DEFAULT_WIDGETS) {
+      if (!ordered.some((w) => w.key === d.key)) ordered.push({ ...d })
+    }
+    return ordered.length ? ordered : DEFAULT_WIDGETS.map((w) => ({ ...w }))
+  } catch {
+    return DEFAULT_WIDGETS.map((w) => ({ ...w }))
+  }
+}
+
+const widgets = ref<DashboardWidgetPref[]>(readPrefWidgets())
+const customizeVisible = ref(false)
+
+const visibleWidgets = computed(() =>
+  widgets.value
+    .filter((w) => w.visible)
+    .map((w) => WIDGET_META.find((m) => m.key === w.key))
+    .filter((m): m is WidgetMeta => Boolean(m)),
+)
+
+function persist() {
+  const payload = JSON.stringify({ widgets: widgets.value } satisfies DashboardPrefs)
+  if (auth.user?.prefs) auth.user.prefs.dashboard = payload
+  void updatePrefs({ dashboard: payload }).catch(() => {
+    /* prefs sync optional */
+  })
+}
+
+function onCustomizeSave(next: DashboardWidgetPref[]) {
+  widgets.value = next
+  persist()
+}
+
+// re-read prefs when the profile (re)loads, e.g. after login on this page
+watch(
+  () => auth.user?.prefs?.dashboard,
+  (val) => {
+    if (typeof val === 'string' && val !== JSON.stringify({ widgets: widgets.value })) {
+      widgets.value = readPrefWidgets()
+    }
+  },
+)
 </script>
 
 <template>
-  <div class="dashboard" v-loading="loading">
-    <div class="welcome">
-      <h2 class="welcome-title">{{ t('workbench.welcome', { name: auth.user?.name || auth.user?.username || '' }) }}</h2>
-      <p class="welcome-sub">{{ t('workbench.title') }}</p>
+  <div class="dashboard">
+    <div class="page-header">
+      <div class="welcome">
+        <h2 class="welcome-title">
+          {{ t('workbench.welcome', { name: auth.user?.name || auth.user?.username || '' }) }}
+        </h2>
+        <p class="welcome-sub">{{ t('workbench.title') }}</p>
+      </div>
+      <el-button :icon="Setting" @click="customizeVisible = true">
+        {{ t('workbench.customize') }}
+      </el-button>
     </div>
 
-    <div class="stat-grid">
-      <div v-for="card in cards" :key="card.key" class="stat-card" @click="router.push(card.path)">
-        <div class="stat-label">{{ t(card.labelKey) }}</div>
-        <div class="stat-value" :style="{ color: card.color }">
-          {{ (stats as Record<string, number>)[card.key] ?? 0 }}
-        </div>
+    <div class="widget-grid">
+      <div
+        v-for="w in visibleWidgets"
+        :key="w.key"
+        class="widget-cell"
+        :class="`span-${w.span}`"
+      >
+        <component :is="w.component" />
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">{{ t('workbench.shortcut') }}</div>
-      <div class="shortcut-grid">
-        <el-button
-          v-for="s in shortcuts"
-          :key="s.path"
-          class="shortcut-btn"
-          @click="router.push(s.path)"
-        >
-          {{ t(s.labelKey) }}
-        </el-button>
-      </div>
-    </div>
+    <CustomizeDialog
+      v-model="customizeVisible"
+      :widgets="widgets"
+      :label-keys="WIDGET_LABEL_KEYS"
+      @save="onCustomizeSave"
+    />
   </div>
 </template>
 
@@ -125,6 +139,13 @@ const shortcuts = [
   overflow: auto;
 }
 
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--bs-space-3);
+}
+
 .welcome-title {
   font-size: var(--bs-typography-font-size-xl);
   font-weight: 600;
@@ -136,46 +157,21 @@ const shortcuts = [
   color: var(--bs-color-fg-muted);
 }
 
-.stat-grid {
+.widget-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--bs-space-3);
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--bs-space-4);
+  align-items: stretch;
 }
 
-.stat-card {
-  padding: var(--bs-space-4);
-  border: 1px solid var(--bs-color-border-subtle);
-  border-radius: var(--bs-radius-md);
-  background: var(--bs-color-bg-surface);
-  cursor: pointer;
-  transition: box-shadow var(--bs-duration) var(--bs-ease);
+.widget-cell {
+  min-width: 0;
+  grid-column: span 12;
 }
 
-.stat-card:hover {
-  box-shadow: var(--bs-shadow-elevation2);
-}
-
-.stat-label {
-  font-size: var(--bs-typography-font-size-sm);
-  color: var(--bs-color-fg-secondary);
-}
-
-.stat-value {
-  margin-top: var(--bs-space-2);
-  font-size: var(--bs-typography-font-size-xxl);
-  font-weight: 700;
-}
-
-.section-title {
-  margin-bottom: var(--bs-space-2);
-  font-size: var(--bs-typography-font-size-md);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
-}
-
-.shortcut-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bs-space-2);
+@media (min-width: 960px) {
+  .widget-cell.span-6 {
+    grid-column: span 6;
+  }
 }
 </style>

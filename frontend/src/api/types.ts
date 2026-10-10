@@ -428,6 +428,61 @@ export interface SettlementTaskOption {
   sub?: string
 }
 
+/** Report module — camelCase per backend convention */
+export type ReportStatus = 'uploaded' | 'approving' | 'approved' | 'rejected' | 'sealed'
+
+export interface Report {
+  id: number
+  reportNo: string
+  taskId: number
+  taskNo: string
+  taskItemId: number
+  itemName: string
+  customerName: string
+  fileName: string
+  status: ReportStatus
+  statusText?: string
+  pdfReady?: boolean
+  sealBy?: string
+  sealTime?: string
+  remark?: string
+  approvalInstanceId?: number | null
+  createBy: string
+  createTime: string
+}
+
+export interface ReportDetail extends Report {
+  timeline?: TimelineRecord[]
+}
+
+export interface ReportItemOption {
+  value: number
+  label: string
+  sub?: string
+}
+
+/** In-app notification from /admin/notifies */
+export interface NotifyItem {
+  id: number
+  title: string
+  content: string
+  bizType: string
+  bizId: number | null
+  link: string
+  readFlag: boolean
+  createTime: string
+}
+
+/** Dashboard widget layout entry, persisted in user prefs (`dashboard` key, JSON string) */
+export interface DashboardWidgetPref {
+  key: string
+  visible: boolean
+}
+
+export interface DashboardPrefs {
+  widgets: DashboardWidgetPref[]
+}
+
 /** Query params following the contract search convention */
 export interface ListQuery {
   page?: number

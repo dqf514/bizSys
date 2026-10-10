@@ -333,7 +333,7 @@ function onReset() {
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('admin.user.roles')">
-        <el-select v-model="form.roleIds" multiple style="width: 100%">
+        <el-select v-model="form.roleIds" multiple filterable style="width: 100%">
           <el-option v-for="r in roleOptions" :key="r.id" :label="r.name" :value="r.id" />
         </el-select>
       </el-form-item>

@@ -1,0 +1,40 @@
+{
+  "report": {
+    "title": "报告管理",
+    "reportNo": "报告编号",
+    "taskNo": "任务编号",
+    "itemName": "实验条目",
+    "customerName": "客户",
+    "fileName": "文件名",
+    "createBy": "上传人",
+    "createTime": "上传时间",
+    "sealBy": "签章人",
+    "sealTime": "签章时间",
+    "remark": "备注",
+    "searchQ": "关键词",
+    "placeholderQ": "请输入报告编号/任务号/条目/客户",
+    "upload": "上传报告",
+    "selectItem": "选择条目",
+    "selectItemTip": "仅显示已启用报告且未上传的条目",
+    "selectFile": "选择文件",
+    "fileTip": "支持 pdf/doc/docx，不超过大小上限",
+    "noFile": "请选择报告文件",
+    "submit": "提交审批",
+    "submitConfirm": "确认提交该报告进入签批流程？",
+    "seal": "签章",
+    "sealConfirm": "确认对该报告盖章签章？签章后任务方可结束。",
+    "downloadRaw": "下载原件",
+    "downloadPdf": "下载PDF",
+    "detail": "报告详情",
+    "pdfReady": "PDF 已生成",
+    "pdfFallback": "PDF 为原件（未转换）",
+    "timeline": "签批时间线",
+    "status": {
+      "uploaded": "已上传待审",
+      "approving": "审批中",
+      "approved": "批准通过",
+      "rejected": "已驳回",
+      "sealed": "签章完成"
+    }
+  }
+}

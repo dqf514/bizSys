@@ -4,8 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import CustomerSelect from '@/components/form/CustomerSelect.vue'
+import SmartInput from '@/components/form/SmartInput.vue'
 import UploadFiles from '@/components/form/UploadFiles.vue'
 import { useDictOptions } from '@/composables/useDict'
+import { recordSmartHistory } from '@/composables/smartInputHistory'
 import {
   getContract,
   createContract,
@@ -115,6 +117,10 @@ async function save() {
     if (contractId.value && pendingFiles.value.length) {
       await flushPending(contractId.value)
     }
+    recordSmartHistory('contract.sealType', form.sealType)
+    recordSmartHistory('contract.handlerName', form.handlerName)
+    recordSmartHistory('contract.frameworkNo', form.frameworkNo)
+    recordSmartHistory('contract.paymentOrg', form.paymentOrg)
     ElMessage.success(t('common.message.saveSuccess'))
     router.push('/contract/contracts')
   } catch {
@@ -206,7 +212,13 @@ function cancel() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.contractType')">
-            <el-select v-model="form.contractType" clearable style="width: 100%">
+            <el-select
+              v-model="form.contractType"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
               <el-option v-for="o in typeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
@@ -228,36 +240,48 @@ function cancel() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.payCycle')">
-            <el-select v-model="form.payCycle" clearable style="width: 100%">
+            <el-select
+              v-model="form.payCycle"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
               <el-option v-for="o in payCycleOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.delivery')">
-            <el-select v-model="form.delivery" clearable style="width: 100%">
+            <el-select
+              v-model="form.delivery"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
               <el-option v-for="o in deliveryOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.sealType')">
-            <el-input v-model="form.sealType" />
+            <SmartInput v-model="form.sealType" field="contract.sealType" :maxlength="32" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.handlerName')">
-            <el-input v-model="form.handlerName" />
+            <SmartInput v-model="form.handlerName" field="contract.handlerName" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.frameworkNo')">
-            <el-input v-model="form.frameworkNo" />
+            <SmartInput v-model="form.frameworkNo" field="contract.frameworkNo" :maxlength="64" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.paymentOrg')">
-            <el-input v-model="form.paymentOrg" />
+            <SmartInput v-model="form.paymentOrg" field="contract.paymentOrg" :maxlength="128" />
           </el-form-item>
         </el-col>
         <el-col :span="24">

@@ -1,0 +1,40 @@
+{
+  "report": {
+    "title": "Reports",
+    "reportNo": "Report No.",
+    "taskNo": "Task No.",
+    "itemName": "Test Item",
+    "customerName": "Customer",
+    "fileName": "File Name",
+    "createBy": "Uploaded By",
+    "createTime": "Upload Time",
+    "sealBy": "Sealed By",
+    "sealTime": "Seal Time",
+    "remark": "Remark",
+    "searchQ": "Keyword",
+    "placeholderQ": "Report no. / task no. / item / customer",
+    "upload": "Upload Report",
+    "selectItem": "Select Item",
+    "selectItemTip": "Only items requiring a report and not yet uploaded are listed",
+    "selectFile": "Choose File",
+    "fileTip": "pdf/doc/docx allowed, within the size limit",
+    "noFile": "Please choose a report file",
+    "submit": "Submit for Approval",
+    "submitConfirm": "Submit this report into the sign-off flow?",
+    "seal": "Seal",
+    "sealConfirm": "Seal this report? The task can be closed only after sealing.",
+    "downloadRaw": "Download Original",
+    "downloadPdf": "Download PDF",
+    "detail": "Report Detail",
+    "pdfReady": "PDF generated",
+    "pdfFallback": "PDF falls back to original file",
+    "timeline": "Sign-off Timeline",
+    "status": {
+      "uploaded": "Uploaded",
+      "approving": "Approving",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "sealed": "Sealed"
+    }
+  }
+}

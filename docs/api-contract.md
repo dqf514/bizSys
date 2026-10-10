@@ -92,7 +92,8 @@
 - `POST /task/tasks` `{taskName,taskType,contractId,content,receiver,receiverUnit,bizBlock,deptId,planFinishDate,partySystem,items:[],samples:[]}`
   → 自动 `taskNo`；仅允许选择 `approved` 合同（否则 60002）
 - `PUT /task/tasks/{id}`（仅 draft）· `DELETE`（仅 draft）
-- 状态动作：`POST /task/tasks/{id}/submit|start|finish|close|stop`（非法流转 60001；submit 触发站内通知）
+- 状态动作：`POST /task/tasks/{id}/submit|start|finish|close|stop`（非法流转 60001；submit 触发站内通知；
+  close 时存在 needReport=1 且未签章（reportStatus≠sealed）的条目 → 60003，消息列出未完成条目）
   - 合法流转表：`draft --submit--> assigning`；`assigning --start--> assigned`（接单确认）；
     `assigned --start--> in_progress`（开始执行）；`in_progress --finish--> finished`；
     `finished --close--> closed`；任意非终态 `--stop--> stopped`（终态）
@@ -143,10 +144,37 @@
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
 
+## 报告 /report
+- 状态机：`uploaded 已上传待审 → approving 审批中 → approved 批准通过 → sealed 签章完成`；
+  审批驳回 → `rejected 已驳回`（可重新提交），撤回 → 回 `uploaded`。
+- 主链路：条目 needReport=1 自动分配 reportNo（BG 规则）→ 上传报告 → 签批（审批流 report_sign）
+  → 批准自动转 PDF → 签章（seal_by/seal_time 留痕）→ sealed；**存在未签章报告条目的任务 close 拒绝（60003）**。
+- `GET /report/reports` 分页：
+  `{id,reportNo,taskId,taskNo,taskItemId,itemName,customerName,fileName,status,statusText,pdfReady,
+    sealBy,sealTime,remark,approvalInstanceId,createBy,createTime}`
+  检索：`q`（reportNo/fileName/任务号/任务名/条目名/客户名）、`status` 页签
+- `GET /report/reports/item-options?q=` → `[{value,label,sub}]`
+  （仅 needReport=1 且尚无未删除报告的条目；value=taskItemId，label=报告编号，sub=任务号/条目名）
+- `POST /report/reports`（multipart：`item_id` + `file`；限 pdf/doc/docx ≤ upload_max_mb）→ 201；
+  一条目仅一条未删除报告（重复 61001）；创建即 uploaded 并同步 `task_item.reportStatus`
+- `POST /report/reports/{id}/submit` `{comment?}`（report:submit）→ 启动签批
+  （bizType=report，definition=report_sign），→ approving；仅 uploaded/rejected 可提交（否则 61002）
+- 审批事件：通过 → approved + 自动转 PDF（探测 soffice/LibreOffice；未安装或失败降级为
+  pdfFileId=原件并在 remark 标注，不阻断流程）；驳回 → rejected；撤回 → uploaded
+- `POST /report/reports/{id}/seal` `{comment?}`（report:seal；仅 approved）→ 签章占位适配器
+  （CA 未定前：seal_by/seal_time 留痕 + 审计；pypdf 可用时末页叠加文字水印），→ sealed
+- `GET /report/reports/{id}` → 详情 + 签批 `timeline`
+- `GET /report/reports/{id}/download?pdf=0|1`（原件 / 转换后 PDF 流）
+- `GET /report/reports/export`（同检索参数，返回 xlsx 流）
+- 权限码：`report:list/create/submit/seal/export`
+- 错误码：60003 存在未完成签章的报告，任务不能结束 / 61001 该条目已存在报告 / 61002 当前报告状态不允许该操作
+- 菜单：报告管理（Reports，`/report/reports`，componentKey `report/ReportList`）
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
 finance/SettlementList  finance/InvoiceList  finance/PaymentList
+report/ReportList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList

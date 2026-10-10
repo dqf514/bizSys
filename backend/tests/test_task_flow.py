@@ -60,6 +60,30 @@ def _approved_contract(client, headers):
     return cid
 
 
+def _approve_report(rid: int):
+    """批准报告签批当前待办（一级：manager1）。"""
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.approval import service as approval
+    from app.modules.approval.models import ApprovalInstance, ApprovalTask
+    from app.modules.auth.models import User
+
+    db = SessionLocal()
+    try:
+        target = None
+        for t in db.scalars(select(ApprovalTask).where(ApprovalTask.status == "pending", ApprovalTask.deleted == 0)):
+            inst = db.get(ApprovalInstance, t.instance_id)
+            if inst and inst.biz_type == "report" and inst.biz_id == rid:
+                target = t
+                break
+        assert target, "report pending task not found"
+        approval.approve(db, target.id, db.get(User, target.assignee_id), "ok")
+        db.commit()
+    finally:
+        db.close()
+
+
 def test_task_state_machine_and_errors(client, admin_headers):
     headers = admin_headers
     approved_id = _approved_contract(client, headers)
@@ -98,16 +122,34 @@ def test_task_state_machine_and_errors(client, admin_headers):
     r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 60001
 
-    # 全链路流转
+    # 全链路流转到 finished；条目 need_report=1 未签章 → close 门禁 60003
     for action, expect in [
         ("submit", "assigning"),
         ("start", "assigned"),
         ("start", "in_progress"),
         ("finish", "finished"),
-        ("close", "closed"),
     ]:
         r = client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()
         assert r["code"] == 0 and r["data"]["status"] == expect, (action, r)
+    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
+    assert r["code"] == 60003, r
+
+    # 补齐报告链路（上传 → 签批 → 批准 → 签章）后 close 放行
+    detail = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]
+    item_id = detail["items"][0]["id"]
+    r = client.post(
+        "/api/v1/report/reports",
+        headers=headers,
+        data={"item_id": str(item_id)},
+        files={"file": ("报告.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    ).json()
+    assert r["code"] == 0, r
+    rid = r["data"]["id"]
+    assert client.post(f"/api/v1/report/reports/{rid}/submit", headers=headers, json={}).json()["code"] == 0
+    _approve_report(rid)
+    assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 0
+    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "closed", r
 
     # 终态禁改
     r = client.put(f"/api/v1/task/tasks/{tid}", headers=headers, json={"task_name": "y", "version": 1}).json()

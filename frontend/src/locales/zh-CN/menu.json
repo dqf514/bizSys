@@ -4,6 +4,7 @@
   "contract": "合同管理",
   "task": "任务管理",
   "finance": "财务管理",
+  "report": "报告管理",
   "financeSettlement": "结算信息",
   "financeInvoice": "开票申请",
   "financePayment": "到账信息",

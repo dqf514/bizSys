@@ -8,13 +8,34 @@
     "customerTotal": "Customers",
     "taskTotal": "Tasks"
   },
+  "widget": {
+    "stats": "Overview",
+    "approvalTodo": "My Approval Todos",
+    "notify": "Notifications",
+    "myTasks": "My Tasks In Progress",
+    "calendar": "Calendar",
+    "quickLinks": "Shortcuts"
+  },
+  "customize": "Customize",
+  "customizeTitle": "Customize Workbench",
+  "customizeTip": "Check widgets to show and use the arrows to reorder them",
+  "viewAll": "View all",
+  "markAllRead": "Mark all read",
+  "emptyApproval": "No pending approvals",
+  "emptyNotify": "No notifications",
+  "emptyTasks": "No tasks in progress",
+  "emptyLinks": "No shortcuts available",
+  "calendar": {
+    "created": "Created",
+    "due": "Due"
+  },
   "shortcut": "Shortcuts",
   "shortcutCustomer": "New Customer",
   "shortcutContract": "New Contract",
   "shortcutTask": "New Task",
   "shortcutApproval": "Approvals",
+  "shortcutSettlement": "Settlements",
   "todoList": "To-do",
-  "viewAll": "View all",
   "noData": "Nothing to do",
   "env": "Env",
   "envDev": "Development"

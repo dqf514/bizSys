@@ -4,6 +4,7 @@
   "contract": "Contracts",
   "task": "Tasks",
   "finance": "Finance",
+  "report": "Reports",
   "financeSettlement": "Settlements",
   "financeInvoice": "Invoices",
   "financePayment": "Payments",

@@ -118,6 +118,20 @@ MENU_TREE = [
             ),
         ],
     ),
+    (
+        "menu.report",
+        "Reports",
+        "/report/reports",
+        "report/ReportList",
+        "Document",
+        "report:list",
+        [
+            (None, "report-create", "", "", "", "report:create", []),
+            (None, "report-submit", "", "", "", "report:submit", []),
+            (None, "report-seal", "", "", "", "report:seal", []),
+            (None, "report-export", "", "", "", "report:export", []),
+        ],
+    ),
     ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
     (
         "menu.system",
@@ -431,6 +445,11 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "finance:payment:list",
         "finance:payment:create",
         "finance:payment:export",
+        "report:list",
+        "report:create",
+        "report:submit",
+        "report:seal",
+        "report:export",
         "approval:view",
     ]
     for p in biz_perms:
@@ -518,6 +537,14 @@ def _seed_flows(db: Session) -> None:
         name="开票申请审批",
         biz_type="invoice",
         remark="开票申请默认一级审批",
+        nodes=((1, "部门负责人审批", "manager1"),),
+    )
+    _seed_flow(
+        db,
+        code="report_sign",
+        name="报告签批",
+        biz_type="report",
+        remark="报告签批默认一级审批",
         nodes=((1, "部门负责人审批", "manager1"),),
     )
 

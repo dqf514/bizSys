@@ -24,6 +24,21 @@ TRANSITIONS: dict[str, tuple[set[str], str | None]] = {
 TERMINAL = {"closed", "stopped", "approved", "settled"}
 
 
+def _check_reports_sealed(db: Session, task: Task) -> None:
+    """结束门禁：need_report=1 的条目必须全部签章完成（report_status=sealed）。"""
+    rows = db.scalars(
+        select(TaskItem).where(
+            TaskItem.task_id == task.id,
+            TaskItem.deleted == 0,
+            TaskItem.need_report == 1,
+            TaskItem.report_status != "sealed",
+        )
+    ).all()
+    if rows:
+        names = "、".join(f"{i.name or i.item_code}({i.report_no})" for i in rows)
+        raise BizException(R.TASK_REPORT_UNFINISHED, f"以下条目报告未完成签章，任务不能结束：{names}")
+
+
 def mark_settled(db: Session, task: Task) -> Task:
     """closed → settled：由财务模块创建结算单时触发（终态之一）。"""
     if task.status != "closed":
@@ -54,6 +69,8 @@ def transition(db: Session, task: Task, action: str, user: User) -> Task:
         raise BizException(R.TASK_INVALID_STATE, f"状态「{task.status}」不允许执行「{action}」")
     if action == "start":
         target = "assigned" if task.status == "assigning" else "in_progress"
+    if action == "close":
+        _check_reports_sealed(db, task)
     old = task.status
     task.status = target
     task.version += 1
