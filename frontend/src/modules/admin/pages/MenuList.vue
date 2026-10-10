@@ -112,7 +112,23 @@ async function saveOrder() {
       const group = groupNodes(key)
       order.forEach((id, i) => {
         const node = group.find((n) => n.id === id)
-        if (node && (node.sort ?? 0) !== i) updates.push(updateMenu(id, { sort: i }))
+        if (node && (node.sort ?? 0) !== i) {
+          // 后端更新接口是全量 schema（name 必填），排序保存也要带上完整字段
+          updates.push(
+            updateMenu(id, {
+              parentId: node.parentId,
+              name: node.name,
+              titleKey: node.titleKey,
+              path: node.path,
+              componentKey: node.componentKey,
+              icon: node.icon,
+              permission: node.permission,
+              menuType: node.menuType,
+              sort: i,
+              visible: node.visible,
+            }),
+          )
+        }
       })
     }
     await Promise.all(updates)
