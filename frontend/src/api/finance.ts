@@ -1,5 +1,6 @@
 import { request, download, toQuery } from './http'
 import type {
+  InvoiceListItem,
   ListQuery,
   PageResult,
   Payment,
@@ -62,6 +63,25 @@ export function applyInvoice(id: number) {
 
 export function updateInvoice(id: number, data: UpdateInvoicePayload) {
   return request<SettlementDetail>({ url: `/finance/invoices/${id}`, method: 'put', data })
+}
+
+export function listInvoices(params: ListQuery) {
+  return request<PageResult<InvoiceListItem>>({
+    url: '/finance/invoices',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function exportInvoices(params: ListQuery) {
+  return download(
+    {
+      url: '/finance/invoices/export',
+      method: 'get',
+      params: toQuery(params as Record<string, unknown>),
+    },
+    'invoices.xlsx',
+  )
 }
 
 export function listPayments(params: ListQuery) {

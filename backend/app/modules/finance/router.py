@@ -47,6 +47,23 @@ SETTLEMENT_EXPORT_COLS = [
     {"key": "createTime", "label": "创建时间", "width": 19},
 ]
 
+INVOICE_STATUS_CN = {
+    "approving": "审批中",
+    "issued": "已开票",
+}
+
+INVOICE_EXPORT_COLS = [
+    {"key": "invoiceNo", "label": "发票号", "width": 20},
+    {"key": "settlementNo", "label": "结算单号", "width": 20},
+    {"key": "taskNo", "label": "任务编号", "width": 20},
+    {"key": "customerName", "label": "客户名称", "width": 26},
+    {"key": "amount", "label": "开票金额(元)", "width": 14},
+    {"key": "invoiceDate", "label": "开票日期", "width": 12},
+    {"key": "status", "label": "状态", "width": 12},
+    {"key": "createBy", "label": "登记人", "width": 12},
+    {"key": "createTime", "label": "申请时间", "width": 19},
+]
+
 PAYMENT_EXPORT_COLS = [
     {"key": "paymentNo", "label": "到账单号", "width": 20},
     {"key": "settlementNo", "label": "结算单号", "width": 20},
@@ -313,6 +330,108 @@ def apply_invoice(
 
 
 # ---------------- 发票登记 ----------------
+
+
+def _invoice_filtered(db: Session, request: Request, page: PageParams):
+    stmt = select(Invoice)
+    extra = []
+    q = (request.query_params.get("q") or "").strip()
+    if q:  # 发票号 / 关联结算单号 / 客户名
+        like = f"%{q}%"
+        sub = select(Settlement.id).where(
+            Settlement.deleted == 0,
+            or_(Settlement.settlement_no.like(like), Settlement.customer_name.like(like)),
+        )
+        extra.append(or_(Invoice.invoice_no.like(like), Invoice.settlement_id.in_(sub)))
+    return apply_list_filters(
+        stmt,
+        Invoice,
+        request.query_params,
+        db,
+        page,
+        filter_cols={"settlement_id"},
+        sort_cols={"update_time", "create_time", "id", "amount", "invoice_date"},
+        extra_where=extra,
+    )
+
+
+def _settlement_brief_map(db: Session, ids: list[int]) -> dict[int, tuple]:
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Settlement.id, Settlement.settlement_no, Settlement.task_no, Settlement.customer_name).where(
+            Settlement.id.in_(ids)
+        )
+    ).all()
+    return {r[0]: r for r in rows}
+
+
+def _invoice_list_out(i: Invoice, smap: dict[int, tuple]) -> dict:
+    s = smap.get(i.settlement_id)
+    return {
+        "id": i.id,
+        "invoiceNo": i.invoice_no or "",
+        "settlementId": i.settlement_id,
+        "settlementNo": s[1] if s else "",
+        "taskNo": s[2] if s else "",
+        "customerName": s[3] if s else "",
+        "amount": _money(i.amount),
+        "invoiceDate": _d(i.invoice_date),
+        "status": i.status,
+        "statusText": INVOICE_STATUS_CN.get(i.status, i.status),
+        "createBy": i.create_by,
+        "createTime": _t(i.create_time),
+    }
+
+
+@router.get("/invoices")
+def list_invoices(
+    request: Request,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=200),
+    user: User = Depends(require_perm("finance:invoice:list")),
+    db: Session = Depends(get_db),
+):
+    stmt, total = _invoice_filtered(db, request, PageParams(page=page, size=size))
+    rows = db.scalars(stmt).all()
+    smap = _settlement_brief_map(db, [i.settlement_id for i in rows])
+    return {
+        "items": [_invoice_list_out(i, smap) for i in rows],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
+
+
+@router.get("/invoices/export")
+def export_invoices(
+    request: Request,
+    current: User = Depends(require_perm("finance:invoice:export")),
+    db: Session = Depends(get_db),
+):
+    stmt, _ = _invoice_filtered(db, request, SimpleNamespace(page=1, size=100_000))
+    rows = db.scalars(stmt).all()
+    smap = _settlement_brief_map(db, [i.settlement_id for i in rows])
+    items = []
+    for i in rows:
+        item = _invoice_list_out(i, smap)
+        item["status"] = INVOICE_STATUS_CN.get(i.status, i.status)
+        items.append(item)
+    payload = export_xlsx_styled(items, INVOICE_EXPORT_COLS, "invoices")
+    audit(
+        db,
+        user_id=current.id,
+        module="finance",
+        action="invoice_export",
+        detail={"count": len(items)},
+        trace_id=getattr(request.state, "trace_id", ""),
+    )
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('invoices')}"},
+    )
 
 
 @router.put("/invoices/{iid}")

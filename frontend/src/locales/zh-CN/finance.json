@@ -32,6 +32,24 @@
       "paid": "已到账"
     }
   },
+  "invoice": {
+    "title": "开票申请",
+    "invoiceNo": "发票号",
+    "settlementNo": "结算单号",
+    "taskNo": "任务编号",
+    "customerName": "客户",
+    "amount": "开票金额",
+    "invoiceDate": "开票日期",
+    "createBy": "登记人",
+    "createTime": "申请时间",
+    "searchQ": "关键词",
+    "placeholderQ": "请输入发票号/结算单号/客户",
+    "register": "登记发票",
+    "status": {
+      "approving": "审批中",
+      "issued": "已开票"
+    }
+  },
   "payment": {
     "title": "到账信息",
     "paymentNo": "到账记录号",

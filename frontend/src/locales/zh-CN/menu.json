@@ -5,6 +5,7 @@
   "task": "任务管理",
   "finance": "财务管理",
   "financeSettlement": "结算信息",
+  "financeInvoice": "开票申请",
   "financePayment": "到账信息",
   "approval": "审批中心",
   "system": "系统管理",

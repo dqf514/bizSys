@@ -19,6 +19,7 @@ const typeMap: Record<string, string> = {
   rejected: 'danger',
   voided: 'info',
   pending: 'warning',
+  issued: 'success',
   invoicing: 'warning',
   invoiced: 'success',
   paid: 'success',

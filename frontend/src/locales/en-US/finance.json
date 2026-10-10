@@ -32,6 +32,24 @@
       "paid": "Paid"
     }
   },
+  "invoice": {
+    "title": "Invoices",
+    "invoiceNo": "Invoice No.",
+    "settlementNo": "Settlement No.",
+    "taskNo": "Task No.",
+    "customerName": "Customer",
+    "amount": "Amount",
+    "invoiceDate": "Invoice Date",
+    "createBy": "Registered By",
+    "createTime": "Applied at",
+    "searchQ": "Keyword",
+    "placeholderQ": "Invoice no. / settlement no. / customer",
+    "register": "Register Invoice",
+    "status": {
+      "approving": "Approving",
+      "issued": "Issued"
+    }
+  },
   "payment": {
     "title": "Payments",
     "paymentNo": "Payment No.",

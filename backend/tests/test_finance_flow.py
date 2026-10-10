@@ -221,10 +221,68 @@ def test_finance_perm_forbidden(client, admin_headers):
 
     resp = client.get("/api/v1/finance/settlements", headers=headers)
     assert resp.status_code == 403 and resp.json()["code"] == 20002
+    resp = client.get("/api/v1/finance/invoices", headers=headers)
+    assert resp.status_code == 403 and resp.json()["code"] == 20002
+    resp = client.get("/api/v1/finance/invoices/export", headers=headers)
+    assert resp.status_code == 403 and resp.json()["code"] == 20002
     resp = client.get("/api/v1/finance/payments", headers=headers)
     assert resp.status_code == 403 and resp.json()["code"] == 20002
     resp = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": 1, "amount": 1})
     assert resp.status_code == 403 and resp.json()["code"] == 20002
+
+
+def test_invoice_list_and_export(client, admin_headers, manager_headers):
+    """发票列表：审批通过生成 issued 行（带出结算单号/任务号/客户），q 搜索，导出 xlsx。"""
+    headers = admin_headers
+    tid, _task = _closed_task(client, headers)
+    r = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": tid, "amount": 5000}).json()
+    assert r["code"] == 0, r
+    sid = r["data"]["id"]
+    sno = r["data"]["settlementNo"]
+
+    # 审批中：发票行尚未生成（审批通过才落行）
+    r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "invoicing", r
+    lst = client.get("/api/v1/finance/invoices", headers=headers, params={"q": sno}).json()["data"]
+    assert lst["total"] == 0
+
+    # 审批通过 → issued 发票行，关联带出 settlementNo/taskNo/customerName
+    todo = _todo_id(client, manager_headers, "invoice", sid)
+    r = client.post(
+        f"/api/v1/approval/tasks/{todo}/approve", headers=manager_headers, json={"comment": "同意"}
+    ).json()
+    assert r["code"] == 0, r
+    lst = client.get("/api/v1/finance/invoices", headers=headers, params={"q": sno}).json()["data"]
+    assert lst["total"] == 1
+    inv = lst["items"][0]
+    assert inv["status"] == "issued" and inv["invoiceNo"] == ""
+    assert inv["settlementId"] == sid and inv["settlementNo"] == sno
+    assert inv["taskNo"] and inv["customerName"] and inv["createTime"]
+
+    # 状态页签过滤
+    d = client.get("/api/v1/finance/invoices", headers=headers, params={"status": "issued", "q": sno}).json()["data"]
+    assert d["total"] == 1
+    d = client.get(
+        "/api/v1/finance/invoices", headers=headers, params={"status": "approving", "q": sno}
+    ).json()["data"]
+    assert d["total"] == 0
+
+    # 登记发票号后可按发票号搜索
+    inv_no = f"INV-LIST-{uuid.uuid4().hex[:8]}"
+    r = client.put(
+        f"/api/v1/finance/invoices/{inv['id']}",
+        headers=headers,
+        json={"invoice_no": inv_no, "amount": 5000, "invoice_date": "2026-10-10"},
+    ).json()
+    assert r["code"] == 0, r
+    d = client.get("/api/v1/finance/invoices", headers=headers, params={"q": inv_no}).json()["data"]
+    assert d["total"] == 1 and d["items"][0]["invoiceNo"] == inv_no
+
+    # 导出（GET，xlsx 流）
+    resp = client.get("/api/v1/finance/invoices/export", headers=headers)
+    assert resp.status_code == 200
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.active.max_row >= 2
 
 
 def test_finance_invalid_state_and_not_found(client, admin_headers):

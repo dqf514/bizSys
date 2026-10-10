@@ -5,6 +5,7 @@
   "task": "Tasks",
   "finance": "Finance",
   "financeSettlement": "Settlements",
+  "financeInvoice": "Invoices",
   "financePayment": "Payments",
   "approval": "Approvals",
   "system": "System",

@@ -94,6 +94,17 @@ MENU_TREE = [
                 ],
             ),
             (
+                "menu.financeInvoice",
+                "FinanceInvoices",
+                "/finance/invoices",
+                "finance/InvoiceList",
+                "Postcard",
+                "finance:invoice:list",
+                [
+                    (None, "invoice-export", "", "", "", "finance:invoice:export", []),
+                ],
+            ),
+            (
                 "menu.financePayment",
                 "FinancePayments",
                 "/finance/payments",
@@ -415,6 +426,8 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "finance:settlement:export",
         "finance:invoice:apply",
         "finance:invoice:edit",
+        "finance:invoice:list",
+        "finance:invoice:export",
         "finance:payment:list",
         "finance:payment:create",
         "finance:payment:export",

@@ -369,6 +369,23 @@ export interface Invoice {
   status: string
 }
 
+export type InvoiceStatus = 'approving' | 'issued'
+
+export interface InvoiceListItem {
+  id: number
+  invoiceNo: string
+  settlementId: number
+  settlementNo: string
+  taskNo: string
+  customerName: string
+  amount: number | string
+  invoiceDate: string
+  status: InvoiceStatus
+  statusText?: string
+  createBy: string | number
+  createTime: string
+}
+
 export interface Payment {
   id: number
   paymentNo: string

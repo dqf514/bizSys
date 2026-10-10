@@ -124,17 +124,25 @@
 - `POST /finance/settlements/{id}/apply-invoice` `{comment?}` → 启动开票审批
   （bizType=invoice，definition=invoice_apply），结算单 → invoicing；审批通过 → invoiced 并生成发票行
 - `PUT /finance/invoices/{id}` `{invoiceNo,amount,invoiceDate?}` → 财务登记发票信息
+- `GET /finance/invoices` 分页：
+  `{id,invoiceNo,settlementId,settlementNo,taskNo,customerName,amount,invoiceDate,status,statusText,createBy,createTime}`
+  （settlementNo/taskNo/customerName 关联 fin_settlement 带出；status ∈ `approving 审批中 / issued 已开票`）
+  检索：`q`（invoiceNo/settlementNo/customerName）、`status` 页签
 - `GET /finance/payments` 分页：
   `{id,paymentNo,settlementId,settlementNo,payType,payerName,payerAccount,amount,bank,paidAt,remark,createBy,createTime}`
 - `POST /finance/payments` `{settlementId,payType,payerName,payerAccount?,amount,bank?,paidAt,remark?}` → 201；
   仅 invoiced 状态结算单可登记；`paymentNo` 走 DZ 编号规则；累计到账 ≥ 结算金额 → 结算单 paid
-- `GET /finance/settlements/export` · `GET /finance/payments/export`（同检索参数，返回 xlsx 流）
-- 权限码：`finance:settlement:list/create/export`、`finance:invoice:apply/edit`、`finance:payment:list/create/export`
+- `GET /finance/settlements/export` · `GET /finance/invoices/export` · `GET /finance/payments/export`
+  （同检索参数，返回 xlsx 流）
+- 权限码：`finance:settlement:list/create/export`、`finance:invoice:apply/edit/list/export`、
+  `finance:payment:list/create/export`
+- 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
+  到账信息（FinancePayments）
 
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
-finance/SettlementList  finance/PaymentList
+finance/SettlementList  finance/InvoiceList  finance/PaymentList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
