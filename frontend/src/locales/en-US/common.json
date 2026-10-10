@@ -91,6 +91,12 @@
     "unsavedLeave": "You have unsaved changes. Leave anyway?",
     "tabLimit": "Tab limit reached"
   },
+  "navSort": {
+    "customize": "Customize",
+    "title": "Navigation Order",
+    "hint": "Drag to reorder the sidebar. Only affects your account.",
+    "resetDefault": "Restore Default"
+  },
   "status": {
     "enabled": "Enabled",
     "disabled": "Disabled",

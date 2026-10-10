@@ -91,6 +91,12 @@
     "unsavedLeave": "有未保存的修改，确认离开？",
     "tabLimit": "页签数量已达上限"
   },
+  "navSort": {
+    "customize": "自定义排序",
+    "title": "导航排序",
+    "hint": "拖拽调整左侧导航顺序，仅对当前账号生效",
+    "resetDefault": "恢复默认"
+  },
   "status": {
     "enabled": "启用",
     "disabled": "停用",
