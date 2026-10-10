@@ -143,11 +143,11 @@ watch(
 
     <div ref="scrollRef" class="tab-content" @scroll.passive="rememberScroll">
       <router-view v-slot="{ Component }">
-        <Transition name="page" mode="out-in">
-          <KeepAlive :include="includeNames">
-            <component :is="Component" :key="route.path" />
-          </KeepAlive>
-        </Transition>
+        <!-- 不用 Transition 包 KeepAlive：路由重建后 out-in 状态机会卡死导致空白；
+             入场动效改为组件根节点的 CSS 动画（见 motion.css .page-anim） -->
+        <KeepAlive :include="includeNames">
+          <component :is="Component" :key="route.path" class="page-anim" />
+        </KeepAlive>
       </router-view>
     </div>
 

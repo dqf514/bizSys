@@ -46,24 +46,9 @@
 .bs-stagger > *:nth-child(11) { animation-delay: 300ms; }
 .bs-stagger > *:nth-child(12) { animation-delay: 330ms; }
 
-/* page transition (TabWorkspace router-view) */
-.page-enter-active {
-  transition:
-    opacity var(--bs-motion-base) var(--bs-motion-curve),
-    transform var(--bs-motion-base) var(--bs-motion-curve);
-}
-
-.page-leave-active {
-  transition: opacity var(--bs-motion-fast) var(--bs-motion-curve);
-}
-
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.page-leave-to {
-  opacity: 0;
+/* page enter animation (TabWorkspace router-view root; mount-triggered, KeepAlive-safe) */
+.page-anim {
+  animation: bs-fade-up var(--bs-motion-base) var(--bs-motion-curve) both;
 }
 
 /* pop transition (context menus, small popovers) */
@@ -96,12 +81,11 @@
 @media (prefers-reduced-motion: reduce) {
   .bs-fade-up,
   .bs-fade-in,
-  .bs-stagger > * {
+  .bs-stagger > *,
+  .page-anim {
     animation: none;
   }
 
-  .page-enter-active,
-  .page-leave-active,
   .pop-enter-active,
   .pop-leave-active,
   .bs-hover-lift {
