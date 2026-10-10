@@ -94,7 +94,15 @@ def _money(v: Decimal | None):
     return float(v) if v is not None else None
 
 
-def _settlement_out(s: Settlement) -> dict:
+def _user_names(db: Session, ids) -> dict[int, str]:
+    """create_by 存的是用户 id，展示层统一解析为姓名（批量查询，避免 N+1）。"""
+    uid_set = {i for i in ids if i}
+    if not uid_set:
+        return {}
+    return dict(db.execute(select(User.id, User.name).where(User.id.in_(uid_set))).all())
+
+
+def _settlement_out(s: Settlement, users: dict[int, str]) -> dict:
     return {
         "id": s.id,
         "settlementNo": s.settlement_no,
@@ -110,12 +118,13 @@ def _settlement_out(s: Settlement) -> dict:
         "statusText": STATUS_CN.get(s.status, s.status),
         "remark": s.remark or "",
         "approvalInstanceId": s.approval_instance_id,
-        "createBy": s.create_by,
+        "createBy": users.get(s.create_by, "") if s.create_by else "",
         "createTime": _t(s.create_time),
     }
 
 
-def _invoice_out(i: Invoice, s: Settlement | None = None) -> dict:
+def _invoice_out(i: Invoice, s: Settlement | None = None, users: dict[int, str] | None = None) -> dict:
+    users = users or {}
     return {
         "id": i.id,
         "settlementId": i.settlement_id,
@@ -127,12 +136,13 @@ def _invoice_out(i: Invoice, s: Settlement | None = None) -> dict:
         "invoiceDate": _d(i.invoice_date),
         "status": i.status,
         "approvalInstanceId": i.approval_instance_id,
-        "createBy": i.create_by,
+        "createBy": users.get(i.create_by, "") if i.create_by else "",
         "createTime": _t(i.create_time),
     }
 
 
-def _payment_out(p: Payment, s: Settlement | None = None) -> dict:
+def _payment_out(p: Payment, s: Settlement | None = None, users: dict[int, str] | None = None) -> dict:
+    users = users or {}
     return {
         "id": p.id,
         "paymentNo": p.payment_no,
@@ -147,7 +157,7 @@ def _payment_out(p: Payment, s: Settlement | None = None) -> dict:
         "bank": p.bank,
         "paidAt": _d(p.paid_at),
         "remark": p.remark or "",
-        "createBy": p.create_by,
+        "createBy": users.get(p.create_by, "") if p.create_by else "",
         "createTime": _t(p.create_time),
     }
 
@@ -187,7 +197,8 @@ def list_settlements(
 ):
     stmt, total = _settlement_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
-    return {"items": [_settlement_out(s) for s in rows], "total": total, "page": page, "size": size}
+    users = _user_names(db, {s.create_by for s in rows})
+    return {"items": [_settlement_out(s, users) for s in rows], "total": total, "page": page, "size": size}
 
 
 @router.get("/settlements/task-options")
@@ -249,7 +260,7 @@ def create_settlement(
     task_svc.mark_settled(db, t)  # closed → settled
     audit(db, user_id=current.id, module="finance", action="settlement_create", biz_type="settlement", biz_id=s.id)
     db.commit()
-    return _settlement_out(s)
+    return _settlement_out(s, _user_names(db, {s.create_by}))
 
 
 @router.get("/settlements/export")
@@ -259,9 +270,11 @@ def export_settlements(
     db: Session = Depends(get_db),
 ):
     stmt, _ = _settlement_filtered(db, request, SimpleNamespace(page=1, size=100_000))
+    settlements = db.scalars(stmt).all()
+    users = _user_names(db, {s.create_by for s in settlements})
     rows = []
-    for s in db.scalars(stmt).all():
-        item = _settlement_out(s)
+    for s in settlements:
+        item = _settlement_out(s, users)
         item["status"] = STATUS_CN.get(s.status, s.status)
         rows.append(item)
     payload = export_xlsx_styled(rows, SETTLEMENT_EXPORT_COLS, "settlements")
@@ -288,15 +301,18 @@ def get_settlement(
     db: Session = Depends(get_db),
 ):
     s = _load_settlement(db, sid)
-    data = _settlement_out(s)
     invoices = db.scalars(
         select(Invoice).where(Invoice.settlement_id == sid, Invoice.deleted == 0).order_by(Invoice.id)
     ).all()
     payments = db.scalars(
         select(Payment).where(Payment.settlement_id == sid, Payment.deleted == 0).order_by(Payment.id)
     ).all()
-    data["invoices"] = [_invoice_out(i, s) for i in invoices]
-    data["payments"] = [_payment_out(p, s) for p in payments]
+    users = _user_names(
+        db, {s.create_by} | {i.create_by for i in invoices} | {p.create_by for p in payments}
+    )
+    data = _settlement_out(s, users)
+    data["invoices"] = [_invoice_out(i, s, users) for i in invoices]
+    data["payments"] = [_payment_out(p, s, users) for p in payments]
     data["paidAmount"] = _money(sum((p.amount for p in payments), Decimal(0)))
     data["timeline"] = approval_svc.timeline(db, "invoice", sid)["records"]
     return data
@@ -335,7 +351,7 @@ def apply_invoice(
         detail={"instanceId": inst.id, "comment": body.comment if body else ""},
     )
     db.commit()
-    return _settlement_out(s)
+    return _settlement_out(s, _user_names(db, {s.create_by}))
 
 
 # ---------------- 发票登记 ----------------
@@ -381,9 +397,9 @@ def _settlement_brief_map(db: Session, ids: list[int]) -> dict[int, Settlement]:
     return {s.id: s for s in db.scalars(select(Settlement).where(Settlement.id.in_(ids)))}
 
 
-def _invoice_list_out(i: Invoice, smap: dict[int, Settlement]) -> dict:
+def _invoice_list_out(i: Invoice, smap: dict[int, Settlement], users: dict[int, str]) -> dict:
     s = smap.get(i.settlement_id)
-    data = _invoice_out(i, s)
+    data = _invoice_out(i, s, users)
     data["taskNo"] = s.task_no if s else ""
     data["customerName"] = s.customer_name if s else ""
     data["statusText"] = INVOICE_STATUS_CN.get(i.status, i.status)
@@ -401,8 +417,9 @@ def list_invoices(
     stmt, total = _invoice_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
     smap = _settlement_brief_map(db, [i.settlement_id for i in rows])
+    users = _user_names(db, {i.create_by for i in rows})
     return {
-        "items": [_invoice_list_out(i, smap) for i in rows],
+        "items": [_invoice_list_out(i, smap, users) for i in rows],
         "total": total,
         "page": page,
         "size": size,
@@ -418,9 +435,10 @@ def export_invoices(
     stmt, _ = _invoice_filtered(db, request, SimpleNamespace(page=1, size=100_000))
     rows = db.scalars(stmt).all()
     smap = _settlement_brief_map(db, [i.settlement_id for i in rows])
+    users = _user_names(db, {i.create_by for i in rows})
     items = []
     for i in rows:
-        item = _invoice_list_out(i, smap)
+        item = _invoice_list_out(i, smap, users)
         item["status"] = INVOICE_STATUS_CN.get(i.status, i.status)
         items.append(item)
     payload = export_xlsx_styled(items, INVOICE_EXPORT_COLS, "invoices")
@@ -457,7 +475,7 @@ def register_invoice(
     i.update_time = datetime.now()
     audit(db, user_id=current.id, module="finance", action="invoice_register", biz_type="invoice", biz_id=iid)
     db.commit()
-    return _invoice_out(i, db.get(Settlement, i.settlement_id))
+    return _invoice_out(i, db.get(Settlement, i.settlement_id), _user_names(db, {i.create_by}))
 
 
 # ---------------- 到账登记 ----------------
@@ -490,8 +508,9 @@ def list_payments(
     stmt, total = _payment_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
     smap = _settlement_brief_map(db, [p.settlement_id for p in rows])
+    users = _user_names(db, {p.create_by for p in rows})
     return {
-        "items": [_payment_out(p, smap.get(p.settlement_id)) for p in rows],
+        "items": [_payment_out(p, smap.get(p.settlement_id), users) for p in rows],
         "total": total,
         "page": page,
         "size": size,
@@ -531,7 +550,7 @@ def create_payment(
         s.update_time = datetime.now()
     audit(db, user_id=current.id, module="finance", action="payment_create", biz_type="payment", biz_id=p.id)
     db.commit()
-    return _payment_out(p, s)
+    return _payment_out(p, s, _user_names(db, {p.create_by}))
 
 
 @router.get("/payments/export")
@@ -543,7 +562,8 @@ def export_payments(
     stmt, _ = _payment_filtered(db, request, SimpleNamespace(page=1, size=100_000))
     rows = db.scalars(stmt).all()
     smap = _settlement_brief_map(db, [p.settlement_id for p in rows])
-    payload = export_xlsx_styled([_payment_out(p, smap.get(p.settlement_id)) for p in rows],
+    users = _user_names(db, {p.create_by for p in rows})
+    payload = export_xlsx_styled([_payment_out(p, smap.get(p.settlement_id), users) for p in rows],
                                  PAYMENT_EXPORT_COLS, "payments")
     audit(
         db,
