@@ -27,4 +27,20 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.directive('permission', permission)
 
+// 非路由场景的动态 import 失败兜底（与 router.onError 同策：整页刷新一次）
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = String(e.reason?.message ?? e.reason ?? '')
+  if (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Loading chunk')
+  ) {
+    const key = `bs.chunkReload:${window.location.pathname}`
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1')
+      window.location.reload()
+    }
+  }
+})
+
 app.mount('#app')
