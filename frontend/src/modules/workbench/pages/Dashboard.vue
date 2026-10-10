@@ -109,7 +109,7 @@ watch(
       </el-button>
     </div>
 
-    <div class="widget-grid">
+    <div class="widget-grid bs-stagger">
       <div
         v-for="w in visibleWidgets"
         :key="w.key"

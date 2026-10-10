@@ -1,0 +1,114 @@
+/* system-wide motion layer — restrained enterprise motion, all timing via tokens */
+
+@keyframes bs-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bs-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bs-fade-up {
+  animation: bs-fade-up var(--bs-motion-slow) var(--bs-motion-curve) both;
+}
+
+.bs-fade-in {
+  animation: bs-fade-in var(--bs-motion-slow) var(--bs-motion-curve) both;
+}
+
+/* staggered children (30ms steps, up to 12) */
+.bs-stagger > * {
+  animation: bs-fade-up var(--bs-motion-slow) var(--bs-motion-curve) both;
+}
+
+.bs-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.bs-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.bs-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.bs-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.bs-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.bs-stagger > *:nth-child(6) { animation-delay: 150ms; }
+.bs-stagger > *:nth-child(7) { animation-delay: 180ms; }
+.bs-stagger > *:nth-child(8) { animation-delay: 210ms; }
+.bs-stagger > *:nth-child(9) { animation-delay: 240ms; }
+.bs-stagger > *:nth-child(10) { animation-delay: 270ms; }
+.bs-stagger > *:nth-child(11) { animation-delay: 300ms; }
+.bs-stagger > *:nth-child(12) { animation-delay: 330ms; }
+
+/* page transition (TabWorkspace router-view) */
+.page-enter-active {
+  transition:
+    opacity var(--bs-motion-base) var(--bs-motion-curve),
+    transform var(--bs-motion-base) var(--bs-motion-curve);
+}
+
+.page-leave-active {
+  transition: opacity var(--bs-motion-fast) var(--bs-motion-curve);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.page-leave-to {
+  opacity: 0;
+}
+
+/* pop transition (context menus, small popovers) */
+.pop-enter-active,
+.pop-leave-active {
+  transition:
+    opacity var(--bs-motion-fast) var(--bs-motion-curve),
+    transform var(--bs-motion-fast) var(--bs-motion-curve);
+}
+
+.pop-enter-from,
+.pop-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+/* subtle card lift on hover */
+.bs-hover-lift {
+  transition:
+    transform var(--bs-duration) var(--bs-ease),
+    box-shadow var(--bs-duration) var(--bs-ease);
+}
+
+.bs-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--bs-shadow-elevation2);
+}
+
+/* accessibility: honor reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .bs-fade-up,
+  .bs-fade-in,
+  .bs-stagger > * {
+    animation: none;
+  }
+
+  .page-enter-active,
+  .page-leave-active,
+  .pop-enter-active,
+  .pop-leave-active,
+  .bs-hover-lift {
+    transition: none;
+  }
+
+  .bs-hover-lift:hover {
+    transform: none;
+  }
+}

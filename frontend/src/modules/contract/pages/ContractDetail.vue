@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import CountUp from '@/components/common/CountUp.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import SettlementDetailDrawer from '@/modules/finance/components/SettlementDetailDrawer.vue'
 import { getContract, getContractFinanceSummary, downloadAttachment, voidContract } from '@/api/contract'
@@ -109,6 +110,17 @@ function fmtMoney(v: number | string | undefined | null) {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n.toLocaleString() : String(v ?? '-')
 }
+
+function toNum(v: number | string | undefined | null) {
+  const n = Number(v ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+
+const outstandingValue = computed(() => {
+  const fs = financeSummary.value
+  if (!fs) return 0
+  return toNum(fs.contractAmount) - toNum(fs.paidTotal)
+})
 
 function outstanding() {
   if (!financeSummary.value) return '-'
@@ -280,26 +292,26 @@ async function doVoid() {
       </div>
     </div>
 
-    <div v-if="financeSummary" class="finance-strip">
+    <div v-if="financeSummary" class="finance-strip bs-stagger">
       <div class="stat-card">
         <div class="stat-label">{{ t('contract.finance.contractAmount') }}</div>
-        <div class="stat-value">{{ fmtMoney(financeSummary.contractAmount) }}</div>
+        <div class="stat-value"><CountUp :value="toNum(financeSummary.contractAmount)" /></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">{{ t('contract.finance.settledTotal') }}</div>
-        <div class="stat-value">{{ fmtMoney(financeSummary.settledTotal) }}</div>
+        <div class="stat-value"><CountUp :value="toNum(financeSummary.settledTotal)" /></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">{{ t('contract.finance.invoicedTotal') }}</div>
-        <div class="stat-value">{{ fmtMoney(financeSummary.invoicedTotal) }}</div>
+        <div class="stat-value"><CountUp :value="toNum(financeSummary.invoicedTotal)" /></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">{{ t('contract.finance.paidTotal') }}</div>
-        <div class="stat-value stat-paid">{{ fmtMoney(financeSummary.paidTotal) }}</div>
+        <div class="stat-value stat-paid"><CountUp :value="toNum(financeSummary.paidTotal)" /></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">{{ t('contract.finance.outstanding') }}</div>
-        <div class="stat-value stat-outstanding">{{ outstanding() }}</div>
+        <div class="stat-value stat-outstanding"><CountUp :value="outstandingValue" /></div>
       </div>
     </div>
 

@@ -143,27 +143,31 @@ watch(
 
     <div ref="scrollRef" class="tab-content" @scroll.passive="rememberScroll">
       <router-view v-slot="{ Component }">
-        <KeepAlive :include="includeNames">
-          <component :is="Component" :key="route.path" />
-        </KeepAlive>
+        <Transition name="page" mode="out-in">
+          <KeepAlive :include="includeNames">
+            <component :is="Component" :key="route.path" />
+          </KeepAlive>
+        </Transition>
       </router-view>
     </div>
 
     <teleport to="body">
-      <div
-        v-if="menuVisible"
-        class="tab-ctx-menu"
-        :style="{ left: menuPos.x + 'px', top: menuPos.y + 'px' }"
-        @click.stop
-      >
-        <div class="ctx-item" @click="ctx('close')">{{ t('common.tab.close') }}</div>
-        <div class="ctx-item" @click="ctx('closeOthers')">{{ t('common.tab.closeOthers') }}</div>
-        <div class="ctx-item" @click="ctx('closeRight')">{{ t('common.tab.closeRight') }}</div>
-        <div class="ctx-item" @click="ctx('pin')">
-          {{ menuTab?.pinned ? t('common.tab.unpin') : t('common.tab.pin') }}
+      <Transition name="pop">
+        <div
+          v-if="menuVisible"
+          class="tab-ctx-menu"
+          :style="{ left: menuPos.x + 'px', top: menuPos.y + 'px' }"
+          @click.stop
+        >
+          <div class="ctx-item" @click="ctx('close')">{{ t('common.tab.close') }}</div>
+          <div class="ctx-item" @click="ctx('closeOthers')">{{ t('common.tab.closeOthers') }}</div>
+          <div class="ctx-item" @click="ctx('closeRight')">{{ t('common.tab.closeRight') }}</div>
+          <div class="ctx-item" @click="ctx('pin')">
+            {{ menuTab?.pinned ? t('common.tab.unpin') : t('common.tab.pin') }}
+          </div>
+          <div class="ctx-item" @click="ctx('refresh')">{{ t('common.tab.refresh') }}</div>
         </div>
-        <div class="ctx-item" @click="ctx('refresh')">{{ t('common.tab.refresh') }}</div>
-      </div>
+      </Transition>
     </teleport>
   </div>
 </template>

@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import CountUp from '@/components/common/CountUp.vue'
 import SettlementDetailDrawer from '@/modules/finance/components/SettlementDetailDrawer.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { getCustomer } from '@/api/crm'
@@ -44,6 +45,11 @@ function gradeLabel(value: unknown) {
 function fmtMoney(v: number | string | undefined | null) {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n.toLocaleString() : String(v ?? '-')
+}
+
+function toNum(v: number | string | undefined | null) {
+  const n = Number(v ?? 0)
+  return Number.isFinite(n) ? n : 0
 }
 
 async function load() {
@@ -157,26 +163,26 @@ function openSettlement(row: Settlement) {
           <el-descriptions-item :label="t('crm.customer.remark')" :span="2">{{ detail.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
 
-        <div v-if="detail.summary" class="stat-strip">
+        <div v-if="detail.summary" class="stat-strip bs-stagger">
           <div class="stat-card">
             <div class="stat-label">{{ t('crm.detail.contractCount') }}</div>
-            <div class="stat-value">{{ detail.summary.contractCount }}</div>
+            <div class="stat-value"><CountUp :value="toNum(detail.summary.contractCount)" /></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">{{ t('crm.detail.contractTotal') }}</div>
-            <div class="stat-value">{{ fmtMoney(detail.summary.contractTotal) }}</div>
+            <div class="stat-value"><CountUp :value="toNum(detail.summary.contractTotal)" /></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">{{ t('crm.detail.taskCount') }}</div>
-            <div class="stat-value">{{ detail.summary.taskCount }}</div>
+            <div class="stat-value"><CountUp :value="toNum(detail.summary.taskCount)" /></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">{{ t('crm.detail.settledTotal') }}</div>
-            <div class="stat-value">{{ fmtMoney(detail.summary.settledTotal) }}</div>
+            <div class="stat-value"><CountUp :value="toNum(detail.summary.settledTotal)" /></div>
           </div>
           <div class="stat-card">
             <div class="stat-label">{{ t('crm.detail.paidTotal') }}</div>
-            <div class="stat-value stat-paid">{{ fmtMoney(detail.summary.paidTotal) }}</div>
+            <div class="stat-value stat-paid"><CountUp :value="toNum(detail.summary.paidTotal)" /></div>
           </div>
         </div>
 

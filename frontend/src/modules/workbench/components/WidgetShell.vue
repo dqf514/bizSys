@@ -10,7 +10,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="widget-shell" v-loading="loading">
+  <section class="widget-shell bs-hover-lift" v-loading="loading">
     <header class="widget-header">
       <span class="widget-title">
         {{ title }}

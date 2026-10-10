@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import WidgetShell from './WidgetShell.vue'
+import CountUp from '@/components/common/CountUp.vue'
 import { listApprovalTasks } from '@/api/approval'
 import { listTasks, taskCounts } from '@/api/task'
 import { listContracts } from '@/api/contract'
@@ -77,11 +78,11 @@ const cards = [
 
 <template>
   <WidgetShell :title="t('workbench.widget.stats')" :loading="loading">
-    <div class="stat-grid">
-      <div v-for="card in cards" :key="card.key" class="stat-card" @click="router.push(card.path)">
+    <div class="stat-grid bs-stagger">
+      <div v-for="card in cards" :key="card.key" class="stat-card bs-hover-lift" @click="router.push(card.path)">
         <div class="stat-label">{{ t(card.labelKey) }}</div>
         <div class="stat-value" :style="{ color: card.color }">
-          {{ (stats as Record<string, number>)[card.key] ?? 0 }}
+          <CountUp :value="(stats as Record<string, number>)[card.key] ?? 0" />
         </div>
       </div>
     </div>
@@ -101,11 +102,6 @@ const cards = [
   border-radius: var(--bs-radius-md);
   background: var(--bs-color-bg-app);
   cursor: pointer;
-  transition: box-shadow var(--bs-duration) var(--bs-ease);
-}
-
-.stat-card:hover {
-  box-shadow: var(--bs-shadow-elevation2);
 }
 
 .stat-label {

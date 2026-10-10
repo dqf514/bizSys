@@ -85,7 +85,7 @@ function statColumns(section: ContextSection) {
     </div>
 
     <el-tooltip v-else-if="context.hasContent" :content="t('common.context.expand')" placement="left">
-      <button class="reopen-handle" type="button" @click="context.toggle()">
+      <button class="reopen-handle bs-fade-in" type="button" @click="context.toggle()">
         <el-icon><DArrowLeft /></el-icon>
       </button>
     </el-tooltip>

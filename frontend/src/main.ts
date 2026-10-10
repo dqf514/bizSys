@@ -12,6 +12,7 @@ import { permission } from './directives/permission'
 import './styles/tokens.css'
 import './styles/element-vars.css'
 import './styles/reset.css'
+import './styles/motion.css'
 
 const app = createApp(App)
 app.use(createPinia())
