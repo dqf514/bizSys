@@ -56,6 +56,7 @@
     "tabItems": "Items",
     "tabSamples": "Samples",
     "tabLogs": "Logs",
+    "tabReports": "Reports",
     "statusDraft": "Draft",
     "statusAssigning": "Assigning",
     "statusAssigned": "Assigned",

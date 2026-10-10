@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
+import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
 import {
   getTask,
   deleteTask,
@@ -17,7 +19,8 @@ import {
   deleteTaskSample,
   type TaskAction,
 } from '@/api/task'
-import type { Task, TaskItem, TaskLog, TaskSample, TaskStatus } from '@/api/types'
+import { listReports } from '@/api/report'
+import type { Report, Task, TaskItem, TaskLog, TaskSample, TaskStatus } from '@/api/types'
 
 defineOptions({ name: 'TaskDetailPanel' })
 
@@ -41,6 +44,8 @@ const detail = ref<Task | null>(null)
 const items = ref<TaskItem[]>([])
 const samples = ref<TaskSample[]>([])
 const logs = ref<TaskLog[]>([])
+const reports = ref<Report[]>([])
+const reportsLoading = ref(false)
 const loading = ref(false)
 const activeTab = ref('basic')
 
@@ -51,6 +56,19 @@ const canMaintainSamples = computed(() =>
   ['draft', 'assigning', 'assigned', 'in_progress'].includes(status.value),
 )
 const isDraft = computed(() => status.value === 'draft')
+
+async function loadReports() {
+  if (!props.taskId) return
+  reportsLoading.value = true
+  try {
+    const data = await listReports({ page: 1, size: 100, filters: { task_id: props.taskId } })
+    reports.value = data.items ?? []
+  } catch {
+    reports.value = []
+  } finally {
+    reportsLoading.value = false
+  }
+}
 
 async function load() {
   if (!props.taskId) return
@@ -67,6 +85,7 @@ async function load() {
   } finally {
     loading.value = false
   }
+  void loadReports()
 }
 
 watch(
@@ -337,6 +356,22 @@ async function removeSample(row: TaskSample) {
   }
 }
 
+/* ---------- 报告（只读列表 + 上传入口） ---------- */
+const reportUploadVisible = ref(false)
+const reportDetailVisible = ref(false)
+const reportDetailId = ref<number | null>(null)
+
+function openReportDetail(row: Report) {
+  reportDetailId.value = row.id
+  reportDetailVisible.value = true
+}
+
+function onReportUploaded() {
+  void loadReports()
+  void load()
+  emit('changed')
+}
+
 function logActionLabel(action: string) {
   if (action === 'in') return t('task.task.logActionIn')
   if (action === 'out') return t('task.task.logActionOut')
@@ -492,6 +527,32 @@ function logActionLabel(action: string) {
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane :label="t('task.task.tabReports')" name="reports">
+        <div class="tab-toolbar">
+          <el-button v-permission="'report:create'" size="small" type="primary" plain @click="reportUploadVisible = true">
+            {{ t('report.report.upload') }}
+          </el-button>
+        </div>
+        <el-table v-loading="reportsLoading" :data="reports" border stripe size="small">
+          <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" />
+          <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="140" />
+          <el-table-column :label="t('report.report.fileName')" prop="fileName" min-width="160" />
+          <el-table-column :label="t('common.form.status')" width="110">
+            <template #default="{ row }">
+              <StatusTag :status="String(row.status)" i18n-prefix="report.report.status" />
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" />
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openReportDetail(row as unknown as Report)">
+                {{ t('common.action.detail') }}
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane :label="t('task.task.tabLogs')" name="logs">
         <el-table :data="logs" border stripe size="small">
           <el-table-column :label="t('task.task.logSampleNo')" prop="sampleNo" width="150" />
@@ -620,6 +681,9 @@ function logActionLabel(action: string) {
         <el-button type="primary" :loading="sampleSaving" @click="saveSample">{{ t('common.action.save') }}</el-button>
       </template>
     </el-dialog>
+    <!-- 报告上传 / 详情 -->
+    <ReportUploadDialog v-model="reportUploadVisible" :task-id="taskId" @uploaded="onReportUploaded" />
+    <ReportDetailDrawer v-model="reportDetailVisible" :report-id="reportDetailId" />
   </div>
 </template>
 

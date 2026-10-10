@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -7,7 +7,9 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import { getContract, downloadAttachment, voidContract } from '@/api/contract'
 import { getTimeline } from '@/api/approval'
-import type { Attachment, Contract, TimelineRecord } from '@/api/types'
+import { listTasks } from '@/api/task'
+import { listReports } from '@/api/report'
+import type { Attachment, Contract, Report, Task, TimelineRecord } from '@/api/types'
 
 defineOptions({ name: 'ContractDetail' })
 
@@ -21,6 +23,47 @@ const records = ref<TimelineRecord[]>([])
 const loading = ref(false)
 const timelineLoading = ref(false)
 const activeTab = ref('basic')
+
+/* ---------- 任务与报告（页签首次激活时加载） ---------- */
+const tasks = ref<Task[]>([])
+const reports = ref<Report[]>([])
+const tasksLoading = ref(false)
+const reportsLoading = ref(false)
+let tasksReportsLoaded = false
+
+async function loadTasksReports() {
+  const id = Number(route.params.id)
+  if (!id) return
+  tasksLoading.value = true
+  reportsLoading.value = true
+  try {
+    const data = await listTasks({ page: 1, size: 100, filters: { contract_id: id } })
+    tasks.value = data.items ?? []
+  } catch {
+    tasks.value = []
+  } finally {
+    tasksLoading.value = false
+  }
+  try {
+    const data = await listReports({ page: 1, size: 100, filters: { contract_id: id } })
+    reports.value = data.items ?? []
+  } catch {
+    reports.value = []
+  } finally {
+    reportsLoading.value = false
+  }
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'tasksReports' && !tasksReportsLoaded) {
+    tasksReportsLoaded = true
+    void loadTasksReports()
+  }
+})
+
+function openTask(row: Task) {
+  router.push(`/task/tasks/${row.id}`)
+}
 
 async function load() {
   const id = Number(route.params.id)
@@ -124,6 +167,39 @@ async function doVoid() {
       <el-tab-pane :label="t('contract.contract.tabTimeline')" name="timeline">
         <ApprovalTimeline :records="records" :loading="timelineLoading" />
       </el-tab-pane>
+
+      <el-tab-pane :label="t('contract.contract.tabTasksReports')" name="tasksReports">
+        <div class="tasks-reports">
+          <div class="section-title">{{ t('contract.contract.relatedTasks') }}</div>
+          <el-table v-loading="tasksLoading" :data="tasks" border stripe size="small">
+            <el-table-column :label="t('task.task.taskNo')" width="150">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openTask(row as unknown as Task)">{{ row.taskNo }}</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('task.task.taskName')" prop="taskName" min-width="160" />
+            <el-table-column :label="t('common.form.status')" width="110">
+              <template #default="{ row }">
+                <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('task.task.createTime')" prop="createTime" width="160" />
+          </el-table>
+
+          <div class="section-title">{{ t('contract.contract.relatedReports') }}</div>
+          <el-table v-loading="reportsLoading" :data="reports" border stripe size="small">
+            <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" />
+            <el-table-column :label="t('report.report.taskNo')" prop="taskNo" width="140" />
+            <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="130" />
+            <el-table-column :label="t('common.form.status')" width="110">
+              <template #default="{ row }">
+                <StatusTag :status="String(row.status)" i18n-prefix="report.report.status" />
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" />
+          </el-table>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -172,5 +248,16 @@ async function doVoid() {
   padding: 8px 12px;
   border: 1px solid var(--bs-color-border-subtle);
   border-radius: var(--bs-radius-sm);
+}
+
+.tasks-reports {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-3);
+}
+
+.section-title {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
 }
 </style>

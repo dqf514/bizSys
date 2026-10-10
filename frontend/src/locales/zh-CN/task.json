@@ -56,6 +56,7 @@
     "tabItems": "项目条目",
     "tabSamples": "样品信息",
     "tabLogs": "操作日志",
+    "tabReports": "报告信息",
     "statusDraft": "已创建待提交",
     "statusAssigning": "已提交分配中",
     "statusAssigned": "已分配待完成",

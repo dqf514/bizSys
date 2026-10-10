@@ -438,6 +438,8 @@ export interface Report {
   taskNo: string
   taskItemId: number
   itemName: string
+  contractId?: number | null
+  contractNo?: string
   customerName: string
   fileName: string
   status: ReportStatus

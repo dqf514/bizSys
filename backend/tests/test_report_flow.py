@@ -243,3 +243,48 @@ def test_close_guard_without_report(client, admin_headers):
         assert client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
     assert r["code"] == 60003 and item["name"] in r["message"], r
+
+
+def test_report_list_contract_filter(client, admin_headers):
+    """报告列表 contract_id 过滤（经任务关联），行内带出 contractId/contractNo；item-options 支持 task_id。"""
+    headers = admin_headers
+    suf = uuid.uuid4().hex[:8]
+    cid = _approved_contract(client, headers)
+    r = client.post(
+        "/api/v1/task/tasks",
+        headers=headers,
+        json={
+            "task_name": f"合同过滤任务_{suf}",
+            "contract_id": cid,
+            "items": [{"name": f"条目B_{suf}", "need_report": 1}],
+        },
+    ).json()
+    assert r["code"] == 0, r
+    tid = r["data"]["id"]
+    item = r["data"]["items"][0]
+
+    # item-options：task_id 限定到本任务 / 其他任务为空
+    opts = client.get(
+        "/api/v1/report/reports/item-options", headers=headers, params={"task_id": tid}
+    ).json()["data"]
+    assert any(o["value"] == item["id"] for o in opts)
+    assert client.get(
+        "/api/v1/report/reports/item-options", headers=headers, params={"task_id": tid + 10**6}
+    ).json()["data"] == []
+
+    r = _upload(client, headers, item["id"])
+    assert r["code"] == 0, r
+    rid = r["data"]["id"]
+
+    # contract_id 直参 / filters[contract_id] 两种写法等价
+    for params in ({"contract_id": cid}, {"filters[contract_id]": cid}):
+        lst = client.get("/api/v1/report/reports", headers=headers, params=params).json()["data"]
+        row = next(i for i in lst["items"] if i["id"] == rid)
+        assert row["contractId"] == cid and row["contractNo"]
+        assert all(i["contractId"] == cid for i in lst["items"])
+
+    # 无关合同查不到该报告
+    lst = client.get(
+        "/api/v1/report/reports", headers=headers, params={"contract_id": cid + 10**6}
+    ).json()["data"]
+    assert all(i["id"] != rid for i in lst["items"])

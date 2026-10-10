@@ -3,6 +3,7 @@
     "title": "报告管理",
     "reportNo": "报告编号",
     "taskNo": "任务编号",
+    "contractNo": "合同号",
     "itemName": "实验条目",
     "customerName": "客户",
     "fileName": "文件名",

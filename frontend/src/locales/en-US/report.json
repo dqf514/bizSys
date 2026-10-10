@@ -3,6 +3,7 @@
     "title": "Reports",
     "reportNo": "Report No.",
     "taskNo": "Task No.",
+    "contractNo": "Contract No.",
     "itemName": "Test Item",
     "customerName": "Customer",
     "fileName": "File Name",

@@ -40,6 +40,7 @@ ALLOWED_EXT = {"pdf", "doc", "docx"}
 EXPORT_COLS = [
     {"key": "reportNo", "label": "报告编号", "width": 20},
     {"key": "taskNo", "label": "任务编号", "width": 20},
+    {"key": "contractNo", "label": "关联合同", "width": 20},
     {"key": "itemName", "label": "实验条目", "width": 24},
     {"key": "customerName", "label": "客户名称", "width": 26},
     {"key": "fileName", "label": "文件名", "width": 28},
@@ -83,6 +84,8 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
         "taskNo": task.task_no if task else "",
         "taskItemId": r.task_item_id,
         "itemName": item.name if item else "",
+        "contractId": task.contract_id if task else None,
+        "contractNo": task.contract_no if task else "",
         "customerName": task.customer_name if task else "",
         "fileName": r.file_name,
         "status": r.status,
@@ -100,6 +103,11 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
 def _filtered(db: Session, request: Request, page: PageParams):
     stmt = select(Report)
     extra = []
+    contract_id = request.query_params.get("contract_id") or request.query_params.get("filters[contract_id]")
+    if contract_id:  # 报告无 contract_id 列，经任务关联过滤
+        extra.append(
+            Report.task_id.in_(select(Task.id).where(Task.deleted == 0, Task.contract_id == contract_id))
+        )
     q = (request.query_params.get("q") or "").strip()
     if q:  # 报告号/文件名 + 任务号/条目名/客户名（子查询）
         like = f"%{q}%"
@@ -146,11 +154,12 @@ def list_reports(
 @router.get("/reports/item-options")
 def item_options(
     q: str = Query("", max_length=64),
+    task_id: int | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     user: User = Depends(require_perm("report:create")),
     db: Session = Depends(get_db),
 ):
-    """可上传报告的条目：need_report=1 且有 report_no，尚无未删除报告。"""
+    """可上传报告的条目：need_report=1 且有 report_no，尚无未删除报告；task_id 可限定到单个任务。"""
     stmt = (
         select(TaskItem, Task)
         .join(Task, Task.id == TaskItem.task_id)
@@ -162,6 +171,8 @@ def item_options(
             ~select(Report.id).where(Report.task_item_id == TaskItem.id, Report.deleted == 0).exists(),
         )
     )
+    if task_id:
+        stmt = stmt.where(TaskItem.task_id == task_id)
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(TaskItem.report_no.like(like), TaskItem.name.like(like), Task.task_no.like(like)))

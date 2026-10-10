@@ -9,11 +9,14 @@ export function listReports(params: ListQuery) {
   })
 }
 
-export function reportItemOptions(q?: string) {
+export function reportItemOptions(q?: string, taskId?: number) {
+  const params: Record<string, string | number> = {}
+  if (q) params.q = q
+  if (taskId) params.task_id = taskId
   return request<ReportItemOption[]>({
     url: '/report/reports/item-options',
     method: 'get',
-    params: q ? { q } : {},
+    params,
   })
 }
 
