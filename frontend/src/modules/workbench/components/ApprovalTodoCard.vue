@@ -18,7 +18,7 @@ const loading = ref(false)
 async function load() {
   loading.value = true
   try {
-    const d = await listApprovalTasks('todo', { page: 1, size: 8 })
+    const d = await listApprovalTasks('todo', { page: 1, size: 5 })
     items.value = d.items ?? []
     total.value = d.total ?? 0
   } catch {

@@ -47,7 +47,7 @@ async function load() {
   try {
     const d = await listTasks({
       page: 1,
-      size: 8,
+      size: 5,
       status: 'in_progress',
       filters: { owner_id: auth.user?.id },
     })
