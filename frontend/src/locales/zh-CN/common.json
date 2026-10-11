@@ -117,7 +117,9 @@
     "remove": "移除快捷方式",
     "color": "选择颜色",
     "emptyHint": "点击右侧 + 号，将当前页面固定为快捷方式",
-    "limitTip": "快捷方式最多 12 个"
+    "limitTip": "快捷方式最多 12 个",
+    "favorite": "收藏本页",
+    "unfavorite": "取消收藏"
   },
   "status": {
     "enabled": "启用",

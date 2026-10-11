@@ -14,12 +14,15 @@ import {
   SwitchButton,
   Lock,
   Odometer,
+  Star,
+  StarFilled,
 } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useBrandingStore } from '@/stores/branding'
 import { useThemeStore, ACCENTS, type Density, type ThemeMode, type Accent } from '@/stores/theme'
 import { changePassword as changePasswordApi } from '@/api/auth'
+import { useShortcuts } from '@/composables/useShortcuts'
 import type { Locale } from '@/i18n'
 
 defineProps<{ collapsed: boolean }>()
@@ -34,6 +37,7 @@ const auth = useAuthStore()
 const branding = useBrandingStore()
 const theme = useThemeStore()
 const { t } = useI18n()
+const { isEligible, isFavorite, toggleFavorite } = useShortcuts()
 const profileVisible = ref(false)
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
@@ -155,6 +159,20 @@ async function submitPassword() {
     </el-breadcrumb>
 
     <div class="spacer" />
+
+    <button
+      v-if="isEligible"
+      class="icon-btn star-btn"
+      :class="{ favored: isFavorite }"
+      type="button"
+      :title="isFavorite ? t('common.shortcut.unfavorite') : t('common.shortcut.favorite')"
+      @click="toggleFavorite"
+    >
+      <ElIcon :size="16">
+        <StarFilled v-if="isFavorite" />
+        <Star v-else />
+      </ElIcon>
+    </button>
 
     <button class="cmd-trigger" type="button" @click="emit('open-command')">
       <ElIcon :size="14"><Search /></ElIcon>
@@ -303,6 +321,11 @@ async function submitPassword() {
 .icon-btn:hover {
   background: var(--bs-color-fill-hover);
   color: var(--bs-color-fg-default);
+}
+
+.star-btn.favored,
+.star-btn.favored:hover {
+  color: var(--bs-color-primary);
 }
 
 .brand {

@@ -117,7 +117,9 @@
     "remove": "Remove shortcut",
     "color": "Pick a color",
     "emptyHint": "Click + on the right to pin the current page as a shortcut",
-    "limitTip": "Up to 12 shortcuts"
+    "limitTip": "Up to 12 shortcuts",
+    "favorite": "Favorite this page",
+    "unfavorite": "Remove favorite"
   },
   "status": {
     "enabled": "Enabled",

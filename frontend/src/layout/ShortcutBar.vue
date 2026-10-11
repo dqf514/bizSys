@@ -1,119 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
-import * as authApi from '@/api/auth'
-import type { MenuNode } from '@/api/types'
-
-interface Shortcut {
-  path: string
-  color: string
-}
-
-const MAX_SHORTCUTS = 12
-const PALETTE = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-const DEFAULT_COLOR = 'a'
-// sentinel for "user removed every shortcut" — distinguishes from "never customized"
-const EMPTY_CSV = '-'
+import { SHORTCUT_PALETTE, useShortcuts, type Shortcut } from '@/composables/useShortcuts'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const { t } = useI18n()
+const { shortcuts, canAdd, addCurrent, remove, setColor, reorder } = useShortcuts()
 
-function findMenuNode(nodes: MenuNode[], path: string): MenuNode | null {
-  for (const node of nodes) {
-    if (node.menuType === 'menu' && node.path === path) return node
-    const hit = node.children?.length ? findMenuNode(node.children, path) : null
-    if (hit) return hit
-  }
-  return null
-}
-
-/** resolved per render so locale switches re-translate automatically */
-function titleFor(path: string): string {
-  const node = findMenuNode(auth.menus, path)
-  if (node) return node.titleKey ? t(node.titleKey) : node.name
-  const meta = router.resolve(path).meta
-  const titleKey = meta?.titleKey as string | undefined
-  if (titleKey) return t(titleKey)
-  return (meta?.title as string) || path
-}
-
-function parseCsv(csv: string): Shortcut[] {
-  return csv
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((pair) => {
-      const idx = pair.lastIndexOf(':')
-      const path = idx > 0 ? pair.slice(0, idx) : pair
-      const color = idx > 0 ? pair.slice(idx + 1) : DEFAULT_COLOR
-      return { path, color: PALETTE.includes(color) ? color : DEFAULT_COLOR }
-    })
-    .filter((s) => s.path.startsWith('/'))
-    .slice(0, MAX_SHORTCUTS)
-}
-
-const savedCsv = computed(() => {
-  const raw = auth.user?.prefs?.navShortcuts
-  return typeof raw === 'string' ? raw : undefined
-})
-
-const shortcuts = computed(() => {
-  const raw = savedCsv.value
-  const list = raw === undefined ? seedDefaults() : parseCsv(raw)
-  return list.map((s) => ({ ...s, title: titleFor(s.path) }))
-})
-
-/** in-memory defaults until the user customizes once */
-function seedDefaults(): Shortcut[] {
-  const seeds: Shortcut[] = []
-  for (const path of ['/workbench', '/approval']) {
-    if (findMenuNode(auth.menus, path)) seeds.push({ path, color: DEFAULT_COLOR })
-  }
-  return seeds
-}
-
-function persist(list: Shortcut[]) {
-  const csv = list.length ? list.map((s) => `${s.path}:${s.color}`).join(',') : EMPTY_CSV
-  if (auth.user) auth.user.prefs = { ...(auth.user.prefs ?? {}), navShortcuts: csv }
-  authApi.updatePrefs({ navShortcuts: csv }).catch(() => {
-    /* keep local state; server sync best-effort */
-  })
-}
-
-function mutate(fn: (list: Shortcut[]) => void) {
-  const list = shortcuts.value.map(({ path, color }) => ({ path, color }))
-  fn(list)
-  persist(list.slice(0, MAX_SHORTCUTS))
-}
-
-const canAdd = computed(() => {
-  if (route.name === 'NotFound' || route.meta?.tabless || route.path.startsWith('/login')) return false
-  if (shortcuts.value.length >= MAX_SHORTCUTS) return false
-  return !shortcuts.value.some((s) => s.path === route.path)
-})
-
-function addCurrent() {
-  if (shortcuts.value.length >= MAX_SHORTCUTS) {
-    ElMessage.warning(t('common.shortcut.limitTip'))
-    return
-  }
-  if (!canAdd.value) return
-  mutate((list) => {
-    list.push({ path: route.path, color: DEFAULT_COLOR })
-  })
-}
-
-function remove(path: string) {
-  mutate((list) => {
-    const i = list.findIndex((s) => s.path === path)
-    if (i >= 0) list.splice(i, 1)
-  })
-}
+const PALETTE = SHORTCUT_PALETTE
 
 function go(shortcut: Shortcut) {
   if (route.path !== shortcut.path) router.push(shortcut.path)
@@ -129,11 +25,7 @@ function onDragStart(i: number) {
 function onDrop(i: number) {
   const from = dragIndex.value
   dragIndex.value = -1
-  if (from < 0 || from === i) return
-  mutate((list) => {
-    const [item] = list.splice(from, 1)
-    if (item) list.splice(i, 0, item)
-  })
+  reorder(from, i)
 }
 
 // ---- color palette popover ----
@@ -146,14 +38,10 @@ function openPalette(e: MouseEvent, path: string) {
   palettePos.value = { x: e.clientX, y: e.clientY + 6 }
 }
 
-function setColor(color: string) {
+function pickColor(color: string) {
   const path = paletteFor.value
   paletteFor.value = null
-  if (!path) return
-  mutate((list) => {
-    const target = list.find((s) => s.path === path)
-    if (target) target.color = color
-  })
+  if (path) setColor(path, color)
 }
 
 function hidePalette() {
@@ -223,7 +111,7 @@ onUnmounted(() => {
             :class="`c-${c}`"
             type="button"
             :title="t('common.shortcut.color')"
-            @click="setColor(c)"
+            @click="pickColor(c)"
           />
         </div>
       </Transition>
