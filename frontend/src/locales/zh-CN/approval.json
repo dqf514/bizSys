@@ -48,6 +48,8 @@
     "statusRunning": "进行中",
     "bizContract": "合同",
     "bizTask": "任务",
+    "bizReport": "报告",
+    "bizInvoice": "开票申请",
     "formSnapshot": "业务快照",
     "operator": "操作人",
     "node": "节点",

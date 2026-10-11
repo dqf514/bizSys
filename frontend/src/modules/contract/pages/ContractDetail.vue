@@ -112,10 +112,19 @@ const settleDrawerVisible = ref(false)
 const settleDrawerId = ref<number | null>(null)
 
 const payTypeOpts = useDictOptions('pay_type')
+const typeOpts = useDictOptions('contract_type')
+const payCycleOpts = useDictOptions('pay_cycle')
+const deliveryOpts = useDictOptions('delivery_way')
 
 function payTypeLabel(value: unknown) {
   const v = String(value ?? '')
   return payTypeOpts.opts.value.find((x) => x.value === v)?.label || v || '-'
+}
+
+function dictLabel(list: { label: string; value: string }[], value: unknown) {
+  const v = String(value ?? '')
+  if (!v) return '-'
+  return list.find((x) => x.value === v)?.label || v
 }
 
 function fmtMoney(v: number | string | undefined | null) {
@@ -341,13 +350,13 @@ async function doVoid() {
           <el-descriptions-item :label="t('contract.contract.contractNo')">{{ detail.contractNo }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.name')">{{ detail.name }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.customerName')">{{ detail.customerName }}</el-descriptions-item>
-          <el-descriptions-item :label="t('contract.contract.contractType')">{{ detail.contractType || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.contractType')">{{ dictLabel(typeOpts.opts.value, detail.contractType) }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.amount')">{{ detail.amount }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.subjectType')">{{ detail.subjectType || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.startDate')">{{ detail.startDate }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.endDate')">{{ detail.endDate }}</el-descriptions-item>
-          <el-descriptions-item :label="t('contract.contract.payCycle')">{{ detail.payCycle || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('contract.contract.delivery')">{{ detail.delivery || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.payCycle')">{{ dictLabel(payCycleOpts.opts.value, detail.payCycle) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.delivery')">{{ dictLabel(deliveryOpts.opts.value, detail.delivery) }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.sealType')">{{ detail.sealType || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.handlerName')">{{ detail.handlerName || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.frameworkNo')">{{ detail.frameworkNo || '-' }}</el-descriptions-item>

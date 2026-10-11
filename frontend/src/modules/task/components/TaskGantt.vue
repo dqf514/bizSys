@@ -49,6 +49,7 @@ const STATUS_KEYS: { value: string; labelKey: string }[] = [
   { value: 'in_progress', labelKey: 'task.task.statusInProgress' },
   { value: 'finished', labelKey: 'task.task.statusFinished' },
   { value: 'closed', labelKey: 'task.task.statusClosed' },
+  { value: 'settled', labelKey: 'task.task.statusSettled' },
   { value: 'stopped', labelKey: 'task.task.statusStopped' },
 ]
 

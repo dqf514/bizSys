@@ -31,6 +31,7 @@
     "pdfFallback": "PDF 为原件（未转换）",
     "timeline": "签批时间线",
     "status": {
+      "pending": "待上传",
       "uploaded": "已上传待审",
       "approving": "审批中",
       "approved": "批准通过",

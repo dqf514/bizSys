@@ -10,6 +10,7 @@ import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useDictOptions } from '@/composables/useDict'
 import { listContracts, deleteContract, submitContract, voidContract, exportContracts } from '@/api/contract'
 import type { Contract } from '@/api/types'
 
@@ -17,6 +18,7 @@ defineOptions({ name: 'ContractList' })
 
 const { t } = useI18n()
 const router = useRouter()
+const typeOpts = useDictOptions('contract_type')
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
@@ -156,6 +158,11 @@ function fmtAmount(row: Record<string, unknown>) {
         @update:size="list.setSize"
       >
         <template #amount="{ row }">{{ fmtAmount(row) }}</template>
+        <template #contractType="{ row }">
+          {{
+            typeOpts.opts.value.find((x) => x.value === row.contractType)?.label || row.contractType || '-'
+          }}
+        </template>
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="contract.contract.status" />
         </template>

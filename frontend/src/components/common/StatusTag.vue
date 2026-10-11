@@ -45,7 +45,14 @@ const label = computed(() => {
   const prefix = props.i18nPrefix ?? 'common.status'
   const key = `${prefix}.${props.status}`
   const translated = t(key)
-  return translated === key ? props.status : translated
+  if (translated !== key) return translated
+  // 兼容 statusXxx 扁平键（contract/task/approval 等命名空间用的是这种写法）
+  const camelKey = `${prefix}${props.status
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join('')}`
+  const camel = t(camelKey)
+  return camel === camelKey ? props.status : camel
 })
 </script>
 

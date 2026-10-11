@@ -31,6 +31,7 @@
     "pdfFallback": "PDF falls back to original file",
     "timeline": "Sign-off Timeline",
     "status": {
+      "pending": "Pending",
       "uploaded": "Uploaded",
       "approving": "Approving",
       "approved": "Approved",

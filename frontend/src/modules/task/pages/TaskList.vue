@@ -36,6 +36,7 @@ const statusTabs = ref<StatusTabItem[]>([
   { value: 'in_progress', labelKey: 'task.task.statusInProgress', count: 0 },
   { value: 'finished', labelKey: 'task.task.statusFinished', count: 0 },
   { value: 'closed', labelKey: 'task.task.statusClosed', count: 0 },
+  { value: 'settled', labelKey: 'task.task.statusSettled', count: 0 },
   { value: 'stopped', labelKey: 'task.task.statusStopped', count: 0 },
   { value: 'all', labelKey: 'common.action.all', count: 0 },
 ])

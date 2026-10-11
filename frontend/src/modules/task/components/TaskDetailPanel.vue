@@ -490,7 +490,16 @@ function logActionLabel(action: string) {
           <el-table-column :label="t('task.task.itemInspector')" prop="inspector" width="100" />
           <el-table-column :label="t('task.task.itemQty')" prop="qty" width="80" />
           <el-table-column :label="t('task.task.itemReportNo')" prop="reportNo" width="130" />
-          <el-table-column :label="t('task.task.itemReportStatus')" prop="reportStatus" width="110" />
+          <el-table-column :label="t('task.task.itemReportStatus')" width="120">
+            <template #default="{ row }">
+              <StatusTag
+                v-if="row.reportStatus"
+                :status="String(row.reportStatus)"
+                i18n-prefix="report.report.status"
+              />
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
           <el-table-column
             v-if="canMaintainItems || isDraft"
             :label="t('common.action.operate')"

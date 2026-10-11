@@ -91,10 +91,17 @@ function snapshotLabel(key: string) {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-function snapshotValue(v: unknown): string {
+function snapshotValue(v: unknown, key = ''): string {
   if (v === null || v === undefined || v === '') return '-'
   if (typeof v === 'object') return JSON.stringify(v, null, 2)
-  return String(v)
+  const s = String(v)
+  // 状态类字段把枚举翻成中文（如 uploaded -> 已上传待审）
+  if (/status/i.test(key) && /^[a-z_]+$/.test(s)) {
+    const tk = `report.report.status.${s}`
+    const tr = t(tk)
+    if (tr !== tk) return tr
+  }
+  return s
 }
 
 function onDone() {
@@ -105,6 +112,8 @@ function onDone() {
 function bizTypeLabel(bt: string) {
   if (bt === 'contract') return t('approval.approval.bizContract')
   if (bt === 'task') return t('approval.approval.bizTask')
+  if (bt === 'report') return t('approval.approval.bizReport')
+  if (bt === 'invoice') return t('approval.approval.bizInvoice')
   return bt
 }
 
@@ -192,8 +201,8 @@ onMounted(() => {
         <div class="section-title">{{ t('approval.approval.formSnapshot') }}</div>
         <el-descriptions :column="1" border v-loading="snapshotLoading">
           <el-descriptions-item v-for="(v, k) in snapshot" :key="k" :label="snapshotLabel(String(k))">
-            <pre v-if="typeof v === 'object' && v !== null" class="snapshot-json">{{ snapshotValue(v) }}</pre>
-            <template v-else>{{ snapshotValue(v) }}</template>
+            <pre v-if="typeof v === 'object' && v !== null" class="snapshot-json">{{ snapshotValue(v, String(k)) }}</pre>
+            <template v-else>{{ snapshotValue(v, String(k)) }}</template>
           </el-descriptions-item>
         </el-descriptions>
       </template>

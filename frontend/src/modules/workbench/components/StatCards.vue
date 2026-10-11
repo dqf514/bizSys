@@ -8,11 +8,13 @@ import { listApprovalTasks } from '@/api/approval'
 import { listTasks, taskCounts } from '@/api/task'
 import { listContracts } from '@/api/contract'
 import { listCustomers } from '@/api/crm'
+import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'StatCards' })
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
 
 const stats = ref({
   approvalTodo: 0,
@@ -38,7 +40,7 @@ async function loadStats() {
       return d.total ?? 0
     }),
     safe(async () => {
-      const d = await listTasks({ page: 1, size: 1 })
+      const d = await listTasks({ page: 1, size: 1, filters: { owner_id: auth.user?.id } })
       return d.total ?? 0
     }),
     safe(async () => {
@@ -52,7 +54,8 @@ async function loadStats() {
     safe(async () => {
       try {
         const c = await taskCounts()
-        return Object.values(c ?? {}).reduce((a, b) => a + Number(b || 0), 0)
+        // all 已经是各状态之和，避免与状态明细重复累加
+        return Number(c?.all ?? 0)
       } catch {
         const d = await listTasks({ page: 1, size: 1 })
         return d.total ?? 0

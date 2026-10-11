@@ -48,6 +48,8 @@
     "statusRunning": "Running",
     "bizContract": "Contract",
     "bizTask": "Task",
+    "bizReport": "Report",
+    "bizInvoice": "Invoice",
     "formSnapshot": "Business Snapshot",
     "operator": "Operator",
     "node": "Node",
