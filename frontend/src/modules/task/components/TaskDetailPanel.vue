@@ -47,6 +47,7 @@ const items = ref<TaskItem[]>([])
 const samples = ref<TaskSample[]>([])
 const logs = ref<TaskLog[]>([])
 const reports = ref<Report[]>([])
+const reportsTotal = ref(0)
 const reportsLoading = ref(false)
 const loading = ref(false)
 const activeTab = ref('basic')
@@ -65,8 +66,10 @@ async function loadReports() {
   try {
     const data = await listReports({ page: 1, size: 100, filters: { task_id: props.taskId } })
     reports.value = data.items ?? []
+    reportsTotal.value = data.total ?? reports.value.length
   } catch {
     reports.value = []
+    reportsTotal.value = 0
   } finally {
     reportsLoading.value = false
   }
@@ -469,7 +472,11 @@ function logActionLabel(action: string) {
         </el-descriptions>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('task.task.tabItems')" name="items">
+      <el-tab-pane name="items">
+        <template #label>
+          {{ t('task.task.tabItems') }}
+          <span v-if="items.length" class="bs-tab-count">({{ items.length }})</span>
+        </template>
         <div v-if="canMaintainItems" class="tab-toolbar">
           <el-button v-permission="'task:edit'" size="small" type="primary" plain @click="openItemCreate">
             {{ t('task.task.addItem') }}
@@ -514,7 +521,11 @@ function logActionLabel(action: string) {
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('task.task.tabSamples')" name="samples">
+      <el-tab-pane name="samples">
+        <template #label>
+          {{ t('task.task.tabSamples') }}
+          <span v-if="samples.length" class="bs-tab-count">({{ samples.length }})</span>
+        </template>
         <div v-if="canMaintainSamples" class="tab-toolbar">
           <el-button v-permission="'task:edit'" size="small" type="primary" plain @click="openSampleCreate">
             {{ t('task.task.registerSample') }}
@@ -573,7 +584,11 @@ function logActionLabel(action: string) {
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('task.task.tabReports')" name="reports">
+      <el-tab-pane name="reports">
+        <template #label>
+          {{ t('task.task.tabReports') }}
+          <span v-if="reportsTotal" class="bs-tab-count">({{ reportsTotal }})</span>
+        </template>
         <div class="tab-toolbar">
           <el-button v-permission="'report:create'" size="small" type="primary" plain @click="reportUploadVisible = true">
             {{ t('report.report.upload') }}
@@ -599,7 +614,11 @@ function logActionLabel(action: string) {
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('task.task.tabLogs')" name="logs">
+      <el-tab-pane name="logs">
+        <template #label>
+          {{ t('task.task.tabLogs') }}
+          <span v-if="logs.length" class="bs-tab-count">({{ logs.length }})</span>
+        </template>
         <el-table :data="logs" border stripe size="small">
           <el-table-column :label="t('task.task.logSampleNo')" prop="sampleNo" width="150" />
           <el-table-column :label="t('task.task.logAction')" width="100">

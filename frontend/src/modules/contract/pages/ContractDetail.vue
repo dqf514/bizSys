@@ -46,6 +46,7 @@ const activeTab = ref('basic')
 /* ---------- 任务与报告（页签首次激活时加载） ---------- */
 const tasks = ref<Task[]>([])
 const reports = ref<Report[]>([])
+const tasksTotal = ref(0)
 const tasksLoading = ref(false)
 const reportsLoading = ref(false)
 let tasksReportsLoaded = false
@@ -58,6 +59,7 @@ async function loadTasksReports() {
   try {
     const data = await listTasks({ page: 1, size: 100, filters: { contract_id: id } })
     tasks.value = data.items ?? []
+    tasksTotal.value = data.total ?? tasks.value.length
   } catch {
     tasks.value = []
   } finally {
@@ -83,6 +85,16 @@ watch(activeTab, (tab) => {
     void loadFinance()
   }
 })
+
+// 任务数徽标：任务与报告页签是懒加载的，打开页面前先用一次轻量 count 查询
+async function loadTaskCount(id: number) {
+  try {
+    const data = await listTasks({ page: 1, size: 1, filters: { contract_id: id } })
+    tasksTotal.value = data.total ?? 0
+  } catch {
+    tasksTotal.value = 0
+  }
+}
 
 function openTask(row: Task) {
   router.push(`/task/tasks/${row.id}`)
@@ -120,6 +132,13 @@ const outstandingValue = computed(() => {
   const fs = financeSummary.value
   if (!fs) return 0
   return toNum(fs.contractAmount) - toNum(fs.paidTotal)
+})
+
+// 财务页签徽标：结算+发票+回款笔数之和，复用已预加载的 finance-summary
+const financeCount = computed(() => {
+  const fs = financeSummary.value
+  if (!fs) return 0
+  return toNum(fs.settlementCount) + toNum(fs.invoiceCount) + toNum(fs.paymentCount)
 })
 
 function outstanding() {
@@ -215,6 +234,7 @@ async function load() {
     detail.value = data
     attachments.value = data.attachments ?? []
     void loadFinanceSummary(id)
+    void loadTaskCount(id)
     customerDetail.value = null
     if (data.customerId) {
       getCustomer(data.customerId)
@@ -338,7 +358,11 @@ async function doVoid() {
         </el-descriptions>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('contract.contract.tabAttachments')" name="attachments">
+      <el-tab-pane name="attachments">
+        <template #label>
+          {{ t('contract.contract.tabAttachments') }}
+          <span v-if="attachments.length" class="bs-tab-count">({{ attachments.length }})</span>
+        </template>
         <div class="file-list">
           <div v-for="f in attachments" :key="String(f.id)" class="file-row">
             <span>{{ f.fileName }}</span>
@@ -350,11 +374,19 @@ async function doVoid() {
         </div>
       </el-tab-pane>
 
-      <el-tab-pane :label="t('contract.contract.tabTimeline')" name="timeline">
+      <el-tab-pane name="timeline">
+        <template #label>
+          {{ t('contract.contract.tabTimeline') }}
+          <span v-if="records.length" class="bs-tab-count">({{ records.length }})</span>
+        </template>
         <ApprovalTimeline :records="records" :loading="timelineLoading" />
       </el-tab-pane>
 
-      <el-tab-pane :label="t('contract.contract.tabTasksReports')" name="tasksReports">
+      <el-tab-pane name="tasksReports">
+        <template #label>
+          {{ t('contract.contract.tabTasksReports') }}
+          <span v-if="tasksTotal" class="bs-tab-count">({{ tasksTotal }})</span>
+        </template>
         <div class="tasks-reports">
           <div class="section-title">{{ t('contract.contract.relatedTasks') }}</div>
           <el-table v-loading="tasksLoading" :data="tasks" border stripe size="small">
@@ -386,7 +418,11 @@ async function doVoid() {
           </el-table>
         </div>
       </el-tab-pane>
-      <el-tab-pane :label="t('contract.contract.tabFinance')" name="finance">
+      <el-tab-pane name="finance">
+        <template #label>
+          {{ t('contract.contract.tabFinance') }}
+          <span v-if="financeCount" class="bs-tab-count">({{ financeCount }})</span>
+        </template>
         <div v-loading="financeLoading" class="finance-tables">
           <div class="section-title">{{ t('contract.finance.settlements') }}</div>
           <el-table :data="settlements" border stripe size="small">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -86,11 +86,28 @@ async function loadRelated(tab: string) {
     } else if (tab === 'settlements') {
       const data = await listSettlements({ page: 1, size: 100, filters: { customer_id: props.customerId } })
       settlements.value = data.items ?? []
+      settlementTotal.value = data.total ?? settlements.value.length
     }
   } catch {
     /* keep empty */
   } finally {
     relatedLoading.value = false
+  }
+}
+
+/* ---------- tab badges ---------- */
+// 合同/任务数取自详情 summary；结算数 summary 未提供，用一次轻量 count 查询
+const contractTotal = computed(() => toNum(detail.value?.summary?.contractCount))
+const taskTotal = computed(() => toNum(detail.value?.summary?.taskCount))
+const settlementTotal = ref(0)
+
+async function loadSettlementCount() {
+  if (!props.customerId) return
+  try {
+    const data = await listSettlements({ page: 1, size: 1, filters: { customer_id: props.customerId } })
+    settlementTotal.value = data.total ?? 0
+  } catch {
+    settlementTotal.value = 0
   }
 }
 
@@ -104,10 +121,12 @@ watch(
       contracts.value = []
       tasks.value = []
       settlements.value = []
+      settlementTotal.value = 0
       loadedTabs.clear()
       activeTab.value = 'contracts'
       void load()
       void loadRelated('contracts')
+      void loadSettlementCount()
     }
   },
 )
@@ -187,7 +206,11 @@ function openSettlement(row: Settlement) {
         </div>
 
         <el-tabs v-model="activeTab">
-          <el-tab-pane :label="t('crm.detail.contracts')" name="contracts">
+          <el-tab-pane name="contracts">
+            <template #label>
+              {{ t('crm.detail.contracts') }}
+              <span v-if="contractTotal" class="bs-tab-count">({{ contractTotal }})</span>
+            </template>
             <el-table v-loading="relatedLoading" :data="contracts" border stripe size="small">
               <el-table-column :label="t('contract.contract.contractNo')" width="150">
                 <template #default="{ row }">
@@ -208,7 +231,11 @@ function openSettlement(row: Settlement) {
             </el-table>
           </el-tab-pane>
 
-          <el-tab-pane :label="t('crm.detail.tasks')" name="tasks">
+          <el-tab-pane name="tasks">
+            <template #label>
+              {{ t('crm.detail.tasks') }}
+              <span v-if="taskTotal" class="bs-tab-count">({{ taskTotal }})</span>
+            </template>
             <el-table v-loading="relatedLoading" :data="tasks" border stripe size="small">
               <el-table-column :label="t('task.task.taskNo')" width="150">
                 <template #default="{ row }">
@@ -226,7 +253,11 @@ function openSettlement(row: Settlement) {
             </el-table>
           </el-tab-pane>
 
-          <el-tab-pane :label="t('crm.detail.settlements')" name="settlements">
+          <el-tab-pane name="settlements">
+            <template #label>
+              {{ t('crm.detail.settlements') }}
+              <span v-if="settlementTotal" class="bs-tab-count">({{ settlementTotal }})</span>
+            </template>
             <el-table v-loading="relatedLoading" :data="settlements" border stripe size="small">
               <el-table-column :label="t('finance.settlement.settlementNo')" width="150">
                 <template #default="{ row }">
