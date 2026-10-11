@@ -11,12 +11,14 @@ export interface WecomSettings {
 export interface SystemSettings {
   siteName: string
   logoUrl: string
+  faviconUrl: string
   wecom: WecomSettings
 }
 
 export interface Branding {
   siteName: string
   logoUrl: string
+  faviconUrl: string
   wecomEnabled: boolean
 }
 
@@ -48,6 +50,21 @@ export function uploadLogo(file: File) {
     data: form,
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+}
+
+export function uploadFavicon(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<{ faviconUrl: string }>({
+    url: '/admin/settings/favicon',
+    method: 'post',
+    data: form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function clearFavicon() {
+  return request<{ faviconUrl: string }>({ url: '/admin/settings/favicon', method: 'delete' })
 }
 
 export function getBranding() {

@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type UploadRequestOptions } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { getSettings, updateSettings, uploadLogo } from '@/api/settings'
+import { getSettings, updateSettings, uploadLogo, uploadFavicon, clearFavicon } from '@/api/settings'
 import { useBrandingStore } from '@/stores/branding'
 
 defineOptions({ name: 'SystemSettings' })
@@ -14,8 +14,9 @@ const loading = ref(false)
 const savingBasic = ref(false)
 const savingWecom = ref(false)
 const logoStamp = ref(Date.now())
+const faviconStamp = ref(Date.now())
 
-const basic = reactive({ siteName: '', logoUrl: '' })
+const basic = reactive({ siteName: '', logoUrl: '', faviconUrl: '' })
 const wecom = reactive({
   enabled: false,
   corpId: '',
@@ -26,10 +27,13 @@ const wecom = reactive({
 })
 
 const logoSrc = computed(() => (basic.logoUrl ? `${basic.logoUrl}?v=${logoStamp.value}` : ''))
+const faviconSrc = computed(() => (basic.faviconUrl ? `${basic.faviconUrl}?v=${faviconStamp.value}` : ''))
 const callbackDisplay = computed(() => wecom.callbackUrl || `${window.location.origin}/login`)
 
 const LOGO_EXTS = ['png', 'jpg', 'jpeg', 'svg', 'webp']
 const LOGO_MAX_BYTES = 2 * 1024 * 1024
+const FAVICON_EXTS = ['ico', 'png']
+const FAVICON_MAX_BYTES = 1024 * 1024
 
 async function load() {
   loading.value = true
@@ -37,6 +41,7 @@ async function load() {
     const data = await getSettings()
     basic.siteName = data.siteName
     basic.logoUrl = data.logoUrl
+    basic.faviconUrl = data.faviconUrl
     Object.assign(wecom, {
       enabled: data.wecom.enabled,
       corpId: data.wecom.corpId,
@@ -121,6 +126,42 @@ async function doUploadLogo(options: UploadRequestOptions) {
   }
 }
 
+function checkFavicon(file: File): boolean {
+  const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : ''
+  if (!FAVICON_EXTS.includes(ext)) {
+    ElMessage.warning(t('settings.basic.faviconTypeError'))
+    return false
+  }
+  if (file.size > FAVICON_MAX_BYTES) {
+    ElMessage.warning(t('settings.basic.faviconSizeError'))
+    return false
+  }
+  return true
+}
+
+async function doUploadFavicon(options: UploadRequestOptions) {
+  try {
+    const data = await uploadFavicon(options.file as File)
+    basic.faviconUrl = data.faviconUrl
+    faviconStamp.value = Date.now()
+    branding.apply({ faviconUrl: data.faviconUrl })
+    ElMessage.success(t('common.message.saveSuccess'))
+  } catch {
+    /* http notifies */
+  }
+}
+
+async function doClearFavicon() {
+  try {
+    await clearFavicon()
+    basic.faviconUrl = ''
+    branding.apply({ faviconUrl: '' })
+    ElMessage.success(t('common.message.saveSuccess'))
+  } catch {
+    /* http notifies */
+  }
+}
+
 async function copyCallback() {
   try {
     await navigator.clipboard.writeText(callbackDisplay.value)
@@ -135,7 +176,8 @@ async function copyCallback() {
   <div v-loading="loading" class="settings-page">
     <h2 class="page-title">{{ t('settings.title') }}</h2>
 
-    <el-card class="settings-card" shadow="never">
+    <div class="settings-grid">
+      <el-card class="settings-card" shadow="never">
       <template #header>
         <span class="card-title">{{ t('settings.basic.title') }}</span>
       </template>
@@ -161,6 +203,23 @@ async function copyCallback() {
             </el-upload>
           </div>
           <div class="form-tip">{{ t('settings.basic.logoTip') }}</div>
+        </el-form-item>
+        <el-form-item :label="t('settings.basic.favicon')">
+          <div class="logo-row">
+            <div class="favicon-preview">
+              <img v-if="faviconSrc" :src="faviconSrc" :alt="t('settings.basic.favicon')" class="favicon-img" />
+              <span v-else class="logo-empty">{{ t('settings.basic.faviconEmpty') }}</span>
+            </div>
+            <el-upload :show-file-list="false" :before-upload="checkFavicon" :http-request="doUploadFavicon" accept=".ico,.png">
+              <el-button v-permission="'admin:setting:edit'" type="primary" plain>
+                {{ basic.faviconUrl ? t('settings.basic.changeFavicon') : t('settings.basic.uploadFavicon') }}
+              </el-button>
+            </el-upload>
+            <el-button v-if="basic.faviconUrl" v-permission="'admin:setting:edit'" @click="doClearFavicon">
+              {{ t('settings.basic.clearFavicon') }}
+            </el-button>
+          </div>
+          <div class="form-tip">{{ t('settings.basic.faviconTip') }}</div>
         </el-form-item>
         <el-form-item>
           <el-button v-permission="'admin:setting:edit'" type="primary" :loading="savingBasic" @click="saveBasic">
@@ -220,6 +279,7 @@ async function copyCallback() {
         </el-collapse-item>
       </el-collapse>
     </el-card>
+    </div>
   </div>
 </template>
 
@@ -233,6 +293,14 @@ async function copyCallback() {
   gap: var(--bs-space-4);
 }
 
+/* full-width responsive grid: 2+ columns on wide screens, wraps on narrow */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr));
+  gap: var(--bs-space-4);
+  align-items: start;
+}
+
 .page-title {
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
@@ -240,7 +308,7 @@ async function copyCallback() {
 }
 
 .settings-card {
-  max-width: 760px;
+  min-width: 0;
 }
 
 .card-title {
@@ -289,6 +357,24 @@ async function copyCallback() {
 .logo-img {
   max-width: 100%;
   max-height: 100%;
+  object-fit: contain;
+}
+
+.favicon-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px dashed var(--bs-color-border-default);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-fill-lighter);
+  overflow: hidden;
+}
+
+.favicon-img {
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 

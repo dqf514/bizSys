@@ -15,6 +15,7 @@ from app.modules.settings.models import SysConfig
 # ---- 配置键 ----
 KEY_SITE_NAME = "site.name"
 KEY_SITE_LOGO = "site.logo"
+KEY_SITE_FAVICON = "site.favicon"
 KEY_WECOM_ENABLED = "wecom.enabled"
 KEY_WECOM_CORP_ID = "wecom.corp_id"
 KEY_WECOM_AGENT_ID = "wecom.agent_id"
@@ -23,6 +24,7 @@ KEY_WECOM_CALLBACK = "wecom.callback_url"
 
 DEFAULT_SITE_NAME = "bizSys"
 LOGO_URL = "/api/v1/public/logo"
+FAVICON_URL = "/api/v1/public/favicon"
 
 LOGO_ALLOWED_EXT = {"png", "jpg", "jpeg", "svg", "webp"}
 LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2MB
@@ -32,6 +34,13 @@ LOGO_CONTENT_TYPES = {
     "jpeg": "image/jpeg",
     "svg": "image/svg+xml",
     "webp": "image/webp",
+}
+
+FAVICON_ALLOWED_EXT = {"ico", "png"}
+FAVICON_MAX_BYTES = 1024 * 1024  # 1MB
+FAVICON_CONTENT_TYPES = {
+    "ico": "image/x-icon",
+    "png": "image/png",
 }
 
 
@@ -68,6 +77,7 @@ def settings_out(db: Session) -> dict:
     return {
         "siteName": get_value(db, KEY_SITE_NAME, DEFAULT_SITE_NAME),
         "logoUrl": LOGO_URL if get_value(db, KEY_SITE_LOGO) else "",
+        "faviconUrl": FAVICON_URL if get_value(db, KEY_SITE_FAVICON) else "",
         "wecom": {
             "enabled": enabled,
             "corpId": corp_id,
@@ -82,6 +92,7 @@ def branding_out(db: Session) -> dict:
     return {
         "siteName": get_value(db, KEY_SITE_NAME, DEFAULT_SITE_NAME),
         "logoUrl": LOGO_URL if get_value(db, KEY_SITE_LOGO) else "",
+        "faviconUrl": FAVICON_URL if get_value(db, KEY_SITE_FAVICON) else "",
         "wecomEnabled": wecom_ready(db),
     }
 
@@ -103,36 +114,94 @@ def update_settings(db: Session, body, user_id: int) -> dict:
     return settings_out(db)
 
 
-def save_logo(db: Session, filename: str, data: bytes, user_id: int) -> str:
+def _save_brand_file(
+    db: Session,
+    *,
+    key: str,
+    url: str,
+    label: str,
+    allowed_ext: set[str],
+    max_bytes: int,
+    filename: str,
+    data: bytes,
+    user_id: int,
+) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in LOGO_ALLOWED_EXT:
-        raise BizException(R.GENERIC_PARAM, f"不支持的 Logo 文件类型：{ext or '无扩展名'}（限 png/jpg/svg/webp）")
+    if ext not in allowed_ext:
+        exts = "/".join(sorted(allowed_ext))
+        raise BizException(R.GENERIC_PARAM, f"不支持的{label}文件类型：{ext or '无扩展名'}（限 {exts}）")
     if not data:
         raise BizException(R.GENERIC_PARAM, "文件为空")
-    if len(data) > LOGO_MAX_BYTES:
-        raise BizException(R.GENERIC_PARAM, "Logo 文件超过大小上限 2MB")
-    rel = Path("branding") / f"logo-{uuid.uuid4().hex}.{ext}"
+    if len(data) > max_bytes:
+        raise BizException(R.GENERIC_PARAM, f"{label}文件超过大小上限 {max_bytes // 1024 // 1024}MB")
+    rel = Path("branding") / f"{key.rsplit('.', 1)[-1]}-{uuid.uuid4().hex}.{ext}"
     dest = Path(settings.upload_dir) / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
-    # 清理旧 Logo 文件（尽力而为）
-    old = get_value(db, KEY_SITE_LOGO)
+    # 清理旧文件（尽力而为）
+    old = get_value(db, key)
     if old and old != str(rel):
         try:
             (Path(settings.upload_dir) / old).unlink(missing_ok=True)
         except OSError:
             pass
-    set_value(db, KEY_SITE_LOGO, str(rel), user_id, "系统 Logo 文件相对路径")
-    return LOGO_URL
+    set_value(db, key, str(rel), user_id, f"系统{label}文件相对路径")
+    return url
+
+
+def _brand_file(db: Session, key: str, content_types: dict[str, str], label: str) -> tuple[Path, str]:
+    """返回 (文件路径, content_type)；未设置抛 404。"""
+    rel = get_value(db, key)
+    if not rel:
+        raise BizException(R.GENERIC_NOT_FOUND, f"尚未上传{label}")
+    dest = Path(settings.upload_dir) / rel
+    if not dest.exists():
+        raise BizException(R.GENERIC_NOT_FOUND, f"{label}文件已丢失")
+    ext = dest.suffix.lstrip(".").lower()
+    return dest, content_types.get(ext, "application/octet-stream")
+
+
+def save_logo(db: Session, filename: str, data: bytes, user_id: int) -> str:
+    return _save_brand_file(
+        db,
+        key=KEY_SITE_LOGO,
+        url=LOGO_URL,
+        label="Logo",
+        allowed_ext=LOGO_ALLOWED_EXT,
+        max_bytes=LOGO_MAX_BYTES,
+        filename=filename,
+        data=data,
+        user_id=user_id,
+    )
 
 
 def logo_file(db: Session) -> tuple[Path, str]:
-    """返回 (文件路径, content_type)；未设置抛 404。"""
-    rel = get_value(db, KEY_SITE_LOGO)
-    if not rel:
-        raise BizException(R.GENERIC_NOT_FOUND, "尚未上传 Logo")
-    dest = Path(settings.upload_dir) / rel
-    if not dest.exists():
-        raise BizException(R.GENERIC_NOT_FOUND, "Logo 文件已丢失")
-    ext = dest.suffix.lstrip(".").lower()
-    return dest, LOGO_CONTENT_TYPES.get(ext, "application/octet-stream")
+    return _brand_file(db, KEY_SITE_LOGO, LOGO_CONTENT_TYPES, "Logo")
+
+
+def save_favicon(db: Session, filename: str, data: bytes, user_id: int) -> str:
+    return _save_brand_file(
+        db,
+        key=KEY_SITE_FAVICON,
+        url=FAVICON_URL,
+        label="Favicon",
+        allowed_ext=FAVICON_ALLOWED_EXT,
+        max_bytes=FAVICON_MAX_BYTES,
+        filename=filename,
+        data=data,
+        user_id=user_id,
+    )
+
+
+def favicon_file(db: Session) -> tuple[Path, str]:
+    return _brand_file(db, KEY_SITE_FAVICON, FAVICON_CONTENT_TYPES, "Favicon")
+
+
+def clear_favicon(db: Session, user_id: int) -> None:
+    old = get_value(db, KEY_SITE_FAVICON)
+    if old:
+        try:
+            (Path(settings.upload_dir) / old).unlink(missing_ok=True)
+        except OSError:
+            pass
+    set_value(db, KEY_SITE_FAVICON, "", user_id, "恢复默认 Favicon")

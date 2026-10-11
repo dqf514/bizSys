@@ -53,6 +53,29 @@ def upload_logo(
     return {"logoUrl": logo_url}
 
 
+@router.post("/settings/favicon")
+def upload_favicon(
+    file: UploadFile,
+    current: User = Depends(require_perm("admin:setting:edit")),
+    db: Session = Depends(get_db),
+):
+    favicon_url = svc.save_favicon(db, file.filename or "", file.file.read(), current.id)
+    audit(db, user_id=current.id, module="admin", action="settings_favicon", detail={"file": file.filename})
+    db.commit()
+    return {"faviconUrl": favicon_url}
+
+
+@router.delete("/settings/favicon")
+def delete_favicon(
+    current: User = Depends(require_perm("admin:setting:edit")),
+    db: Session = Depends(get_db),
+):
+    svc.clear_favicon(db, current.id)
+    audit(db, user_id=current.id, module="admin", action="settings_favicon_clear")
+    db.commit()
+    return {"faviconUrl": ""}
+
+
 @public_router.get("/branding")
 def branding(db: Session = Depends(get_db)):
     """免登录：登录页/外壳品牌信息。"""
@@ -63,4 +86,11 @@ def branding(db: Session = Depends(get_db)):
 def logo(request: Request, db: Session = Depends(get_db)):
     """免登录：Logo 文件流。"""
     dest, content_type = svc.logo_file(db)
+    return Response(dest.read_bytes(), media_type=content_type, headers={"Cache-Control": "no-cache"})
+
+
+@public_router.get("/favicon")
+def favicon(request: Request, db: Session = Depends(get_db)):
+    """免登录：Favicon 文件流。"""
+    dest, content_type = svc.favicon_file(db)
     return Response(dest.read_bytes(), media_type=content_type, headers={"Cache-Control": "no-cache"})

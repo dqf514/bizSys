@@ -10,7 +10,15 @@
     "changeLogo": "Change Logo",
     "logoTip": "Supports png / jpg / svg / webp, up to 2MB",
     "logoTypeError": "Only png / jpg / svg / webp are allowed",
-    "logoSizeError": "Logo must be smaller than 2MB"
+    "logoSizeError": "Logo must be smaller than 2MB",
+    "favicon": "Site Icon (Favicon)",
+    "faviconEmpty": "No icon set",
+    "uploadFavicon": "Upload Icon",
+    "changeFavicon": "Change Icon",
+    "clearFavicon": "Reset to Default",
+    "faviconTip": "Supports ico / png, up to 1MB, 32×32 recommended",
+    "faviconTypeError": "Only ico / png are allowed",
+    "faviconSizeError": "Icon must be smaller than 1MB"
   },
   "wecom": {
     "title": "WeCom Login",

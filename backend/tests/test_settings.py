@@ -1,6 +1,7 @@
-"""系统设置：读写 / Logo 上传校验 / branding 免登录 / 企微未配置错误码。"""
+"""系统设置：读写 / Logo 上传校验 / Favicon 上传清除 / branding 免登录 / 企微未配置错误码。"""
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+ICO_BYTES = b"\x00\x00\x01\x00" + b"\x00" * 60
 
 
 def test_settings_read_write_and_secret_mask(client, admin_headers):
@@ -81,6 +82,45 @@ def test_logo_upload_validation(client, admin_headers):
     assert r.status_code == 200
     assert r.content == PNG_BYTES
     assert r.headers["content-type"] == "image/png"
+
+
+def test_favicon_upload_and_clear(client, admin_headers):
+    # 不支持的扩展名
+    r = client.post(
+        "/api/v1/admin/settings/favicon",
+        headers=admin_headers,
+        files={"file": ("favicon.svg", b"<svg/>", "image/svg+xml")},
+    )
+    assert r.json()["code"] == 10001
+
+    # 正常上传 .ico
+    r = client.post(
+        "/api/v1/admin/settings/favicon",
+        headers=admin_headers,
+        files={"file": ("favicon.ico", ICO_BYTES, "image/x-icon")},
+    )
+    data = r.json()
+    assert data["code"] == 0, data
+    assert data["data"]["faviconUrl"] == "/api/v1/public/favicon"
+
+    # settings / branding 均反映 faviconUrl
+    d = client.get("/api/v1/admin/settings", headers=admin_headers).json()["data"]
+    assert d["faviconUrl"] == "/api/v1/public/favicon"
+    d = client.get("/api/v1/public/branding").json()["data"]
+    assert d["faviconUrl"] == "/api/v1/public/favicon"
+
+    # 免登录可拿 favicon 文件流
+    r = client.get("/api/v1/public/favicon")
+    assert r.status_code == 200
+    assert r.content == ICO_BYTES
+    assert r.headers["content-type"] == "image/x-icon"
+
+    # 清除后恢复默认（faviconUrl 为空，文件流 404）
+    r = client.delete("/api/v1/admin/settings/favicon", headers=admin_headers)
+    assert r.json()["code"] == 0
+    d = client.get("/api/v1/public/branding").json()["data"]
+    assert d["faviconUrl"] == ""
+    assert client.get("/api/v1/public/favicon").json()["code"] == 10002
 
 
 def test_wecom_not_configured_errors(client, admin_headers):

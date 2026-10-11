@@ -10,7 +10,15 @@
     "changeLogo": "更换 Logo",
     "logoTip": "支持 png / jpg / svg / webp，大小不超过 2MB",
     "logoTypeError": "仅支持 png / jpg / svg / webp 格式",
-    "logoSizeError": "Logo 大小不能超过 2MB"
+    "logoSizeError": "Logo 大小不能超过 2MB",
+    "favicon": "网站图标（Favicon）",
+    "faviconEmpty": "未设置图标",
+    "uploadFavicon": "上传图标",
+    "changeFavicon": "更换图标",
+    "clearFavicon": "恢复默认",
+    "faviconTip": "支持 ico / png，大小不超过 1MB，建议 32×32",
+    "faviconTypeError": "仅支持 ico / png 格式",
+    "faviconSizeError": "图标大小不能超过 1MB"
   },
   "wecom": {
     "title": "企业微信登录",
