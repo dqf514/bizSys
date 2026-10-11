@@ -21,6 +21,40 @@ const DEFAULT_COLOR = 'a'
 // sentinel for "user removed every shortcut" — distinguishes from "never customized"
 const EMPTY_CSV = '-'
 
+export function findMenuNodeByPath(nodes: MenuNode[], path: string): MenuNode | null {
+  for (const node of nodes) {
+    if (node.menuType === 'menu' && node.path === path) return node
+    const hit = node.children?.length ? findMenuNodeByPath(node.children, path) : null
+    if (hit) return hit
+  }
+  return null
+}
+
+/**
+ * Shared page-title resolution: menu node first (re-resolves on locale switch
+ * since `t` is reactive), route meta titleKey/title as fallback.
+ * Returns the raw path when nothing matches — callers treat that as "no title".
+ */
+export function usePageTitle() {
+  const router = useRouter()
+  const auth = useAuthStore()
+  const { t } = useI18n()
+
+  return (path: string): string => {
+    const node = findMenuNodeByPath(auth.menus, path)
+    if (node) return node.titleKey ? t(node.titleKey) : node.name
+    const meta = router.resolve(path).meta
+    const titleKey = meta?.titleKey as string | undefined
+    if (titleKey) return t(titleKey)
+    return (meta?.title as string) || path
+  }
+}
+
+/** routes that may be pinned as shortcuts / shown in document.title (login, redirect, NotFound excluded) */
+export function isPageRoute(route: { name: unknown; meta?: { tabless?: unknown }; path: string }) {
+  return route.name !== 'NotFound' && !route.meta?.tabless && !route.path.startsWith('/login')
+}
+
 /**
  * Shared shortcut-bar state. All state derives from `auth.user.prefs.navShortcuts`
  * (the pinia auth store is a singleton), so every caller — ShortcutBar chips,
@@ -28,28 +62,9 @@ const EMPTY_CSV = '-'
  */
 export function useShortcuts() {
   const route = useRoute()
-  const router = useRouter()
   const auth = useAuthStore()
   const { t } = useI18n()
-
-  function findMenuNode(nodes: MenuNode[], path: string): MenuNode | null {
-    for (const node of nodes) {
-      if (node.menuType === 'menu' && node.path === path) return node
-      const hit = node.children?.length ? findMenuNode(node.children, path) : null
-      if (hit) return hit
-    }
-    return null
-  }
-
-  /** resolved per render so locale switches re-translate automatically */
-  function titleFor(path: string): string {
-    const node = findMenuNode(auth.menus, path)
-    if (node) return node.titleKey ? t(node.titleKey) : node.name
-    const meta = router.resolve(path).meta
-    const titleKey = meta?.titleKey as string | undefined
-    if (titleKey) return t(titleKey)
-    return (meta?.title as string) || path
-  }
+  const titleFor = usePageTitle()
 
   function parseCsv(csv: string): Shortcut[] {
     return csv
@@ -75,7 +90,7 @@ export function useShortcuts() {
   function seedDefaults(): Shortcut[] {
     const seeds: Shortcut[] = []
     for (const path of ['/workbench', '/approval']) {
-      if (findMenuNode(auth.menus, path)) seeds.push({ path, color: DEFAULT_COLOR })
+      if (findMenuNodeByPath(auth.menus, path)) seeds.push({ path, color: DEFAULT_COLOR })
     }
     return seeds
   }
@@ -101,10 +116,7 @@ export function useShortcuts() {
   }
 
   /** pages that may be pinned as shortcuts (login / redirect / NotFound excluded) */
-  const isEligible = computed(
-    () =>
-      route.name !== 'NotFound' && !route.meta?.tabless && !route.path.startsWith('/login'),
-  )
+  const isEligible = computed(() => isPageRoute(route))
 
   const isFavorite = computed(() => shortcuts.value.some((s) => s.path === route.path))
 
