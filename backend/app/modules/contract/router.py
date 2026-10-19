@@ -308,7 +308,8 @@ def submit_contract(
     if not c.amount:
         raise BizException(R.GENERIC_PARAM, "合同金额必填，不能提交审批")
     if not c.contract_no:
-        c.contract_no = next_no(db, "contract")  # 提交即发放正式 HT 号；驳回/撤回后重提沿用
+        # 提交即发放正式编号（按合同类型匹配分类规则，未配置走兜底）；驳回/撤回后重提沿用
+        c.contract_no = next_no(db, "contract", category=c.contract_type or None)
         db.flush()
     inst = approval_svc.start(
         db,

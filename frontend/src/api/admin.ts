@@ -145,6 +145,18 @@ export function updateNumberRule(id: number, data: Partial<NumberRule>) {
   return request<NumberRule>({ url: `/admin/number-rules/${id}`, method: 'put', data })
 }
 
+export function previewNumberRule(data: Partial<NumberRule>) {
+  return request<{ preview: string }>({ url: '/admin/number-rules/preview', method: 'post', data })
+}
+
+export function resetNumberRule(id: number, value: number) {
+  return request<{ period: string; value: number }>({
+    url: `/admin/number-rules/${id}/reset`,
+    method: 'post',
+    data: { value },
+  })
+}
+
 // ---- audit logs ----
 export function listAuditLogs(params: ListQuery) {
   return request<PageResult<AuditLog>>({

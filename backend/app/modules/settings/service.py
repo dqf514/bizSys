@@ -56,6 +56,7 @@ def set_value(db: Session, key: str, value: str, user_id: int | None = None, rem
     else:
         row.value = value
         row.update_by = user_id
+    db.flush()  # SessionLocal autoflush=False：新建行需显式 flush 才能被同事务后续 SELECT 命中
 
 
 def wecom_creds(db: Session) -> tuple[bool, str, str, str]:

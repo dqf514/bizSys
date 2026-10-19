@@ -247,7 +247,7 @@ def create_task(
     current: User = Depends(require_perm("task:create")),
     db: Session = Depends(get_db),
 ):
-    t = Task(task_no=next_no(db, "task"), status="draft", create_by=current.id)
+    t = Task(task_no=next_no(db, "task", category=body.task_type or None), status="draft", create_by=current.id)
     _apply(t, body)
     _bind_contract(db, t, body.contract_id)
     if not t.owner_id:

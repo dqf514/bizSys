@@ -1,6 +1,6 @@
 """系统管理接口 Schemas。"""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.schemas import CamelModel
 
@@ -83,12 +83,47 @@ class DictItemIn(CamelModel):
 
 class NumberRuleIn(CamelModel):
     biz_type: str = Field(min_length=2, max_length=32)
+    category_key: str = Field("", max_length=64)
     prefix: str = ""
-    date_format: str = ""
+    date_format: str = Field("", max_length=16)
+    year_digits: int = Field(0)
+    month_digits: int = Field(0)
+    day_digits: int = Field(0)
     seq_len: int = Field(4, ge=1, le=10)
+    seq_start: int = Field(1, ge=0)
+    separator: str = Field("", max_length=4)
     reset_cycle: str = "none"
     enabled: int = 1
     example: str = ""
+
+    @field_validator("year_digits")
+    @classmethod
+    def _year_digits(cls, v: int) -> int:
+        if v not in (0, 2, 4):
+            raise ValueError("year_digits 仅支持 0/2/4")
+        return v
+
+    @field_validator("month_digits", "day_digits")
+    @classmethod
+    def _md_digits(cls, v: int) -> int:
+        if v not in (0, 2):
+            raise ValueError("month_digits/day_digits 仅支持 0/2")
+        return v
+
+    @field_validator("reset_cycle")
+    @classmethod
+    def _reset_cycle(cls, v: str) -> str:
+        if v not in ("none", "daily", "monthly", "yearly"):
+            raise ValueError("reset_cycle 仅支持 none/daily/monthly/yearly")
+        return v
+
+
+class NumberRulePreviewIn(NumberRuleIn):
+    biz_type: str = Field("_preview", min_length=2, max_length=32)
+
+
+class NumberSeqResetIn(CamelModel):
+    value: int = Field(0, ge=0)
 
 
 class PrefIn(CamelModel):

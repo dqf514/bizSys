@@ -29,7 +29,7 @@ from app.modules.admin.models import (
 )
 from app.modules.auth.models import User
 from app.services.excel import export_xlsx_styled, now_filename
-from app.services.numbering import preview_no
+from app.services.numbering import preview_no, reset_seq
 
 router = APIRouter(prefix="/admin", tags=["admin"], route_class=EnvelopeRoute)
 
@@ -503,13 +503,19 @@ def _rule_out(r: NumberRule) -> dict:
     return {
         "id": r.id,
         "bizType": r.biz_type,
+        "categoryKey": r.category_key,
         "prefix": r.prefix,
         "dateFormat": r.date_format,
+        "yearDigits": r.year_digits,
+        "monthDigits": r.month_digits,
+        "dayDigits": r.day_digits,
         "seqLen": r.seq_len,
+        "seqStart": r.seq_start,
+        "separator": r.separator,
         "resetCycle": r.reset_cycle,
         "enabled": r.enabled,
         "example": r.example,
-        "preview": preview_no(r, 1),
+        "preview": preview_no(r),
     }
 
 
@@ -528,7 +534,13 @@ def create_number_rule(
     current: User = Depends(require_perm("admin:numbering:edit")),
     db: Session = Depends(get_db),
 ):
-    if db.scalar(select(NumberRule).where(NumberRule.biz_type == body.biz_type, NumberRule.deleted == 0)):
+    if db.scalar(
+        select(NumberRule).where(
+            NumberRule.biz_type == body.biz_type,
+            NumberRule.category_key == body.category_key,
+            NumberRule.deleted == 0,
+        )
+    ):
         raise BizException(R.ADMIN_NUMBER_CONFLICT)
     r = NumberRule(**body.model_dump(), create_by=current.id)
     db.add(r)
@@ -546,10 +558,53 @@ def update_number_rule(
     r = db.get(NumberRule, rid)
     if not r or r.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
+    dup = db.scalar(
+        select(NumberRule).where(
+            NumberRule.biz_type == body.biz_type,
+            NumberRule.category_key == body.category_key,
+            NumberRule.deleted == 0,
+            NumberRule.id != rid,
+        )
+    )
+    if dup:
+        raise BizException(R.ADMIN_NUMBER_CONFLICT)
     for k, v in body.model_dump().items():
         setattr(r, k, v)
     db.commit()
     return _rule_out(r)
+
+
+@router.post("/number-rules/preview")
+def preview_number_rule(
+    body: S.NumberRulePreviewIn,
+    current: User = Depends(require_perm("admin:numbering:edit")),
+):
+    """实时预览（不落库、不占号）。"""
+    return {"preview": preview_no(NumberRule(**body.model_dump()))}
+
+
+@router.post("/number-rules/{rid}/reset")
+def reset_number_rule(
+    rid: int,
+    body: S.NumberSeqResetIn,
+    current: User = Depends(require_perm("admin:numbering:edit")),
+    db: Session = Depends(get_db),
+):
+    r = db.get(NumberRule, rid)
+    if not r or r.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    period = reset_seq(db, r, body.value)
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="number_rule_reset",
+        biz_type="number_rule",
+        biz_id=rid,
+        detail=f"{r.biz_type}/{r.category_key or '-'} period={period} value={body.value}",
+    )
+    db.commit()
+    return {"period": period, "value": body.value}
 
 
 # ---------------- 审计日志 ----------------

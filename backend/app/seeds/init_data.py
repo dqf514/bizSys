@@ -341,13 +341,15 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
 }
 
 NUMBER_RULES = [
-    # biz_type, prefix, date_format, seq_len, reset_cycle, example
-    ("customer", "CC", "", 5, "none", "CC00001"),
-    ("contract", "HT", "%Y%m%d", 4, "daily", "HT202610090001"),
-    ("task", "RW", "%Y%m%d", 4, "daily", "RW202610090001"),
-    ("report", "BG", "%Y%m%d", 4, "daily", "BG202610090001"),
-    ("settlement", "HK", "%Y%m%d", 4, "daily", "HK202610090001"),
-    ("payment", "DZ", "%Y%m%d", 4, "daily", "DZ202610090001"),
+    # 字段序：biz_type, category_key, prefix, year/month/day_digits, seq_len, seq_start, separator, reset_cycle, example
+    ("customer", "", "CC", 0, 0, 0, 5, 1, "", "none", "CC00001"),
+    ("contract", "", "HT", 4, 2, 2, 4, 1, "", "daily", "HT202610090001"),
+    # 分类映射示例：检测校准类合同单独编号
+    ("contract", "testing", "JC", 4, 2, 2, 4, 1, "", "daily", "JC202610090001"),
+    ("task", "", "RW", 4, 2, 2, 4, 1, "", "daily", "RW202610090001"),
+    ("report", "", "BG", 4, 2, 2, 4, 1, "", "daily", "BG202610090001"),
+    ("settlement", "", "HK", 4, 2, 2, 4, 1, "", "daily", "HK202610090001"),
+    ("payment", "", "DZ", 4, 2, 2, 4, 1, "", "daily", "DZ202610090001"),
 ]
 
 DEPTS = [
@@ -512,15 +514,36 @@ def _seed_dicts(db: Session) -> None:
 
 
 def _seed_number_rules(db: Session) -> None:
-    for biz_type, prefix, date_format, seq_len, reset_cycle, example in NUMBER_RULES:
-        exists = db.scalar(select(NumberRule).where(NumberRule.biz_type == biz_type, NumberRule.deleted == 0))
+    for (
+        biz_type,
+        category_key,
+        prefix,
+        year_digits,
+        month_digits,
+        day_digits,
+        seq_len,
+        seq_start,
+        separator,
+        reset_cycle,
+        example,
+    ) in NUMBER_RULES:
+        exists = db.scalar(
+            select(NumberRule).where(
+                NumberRule.biz_type == biz_type, NumberRule.category_key == category_key, NumberRule.deleted == 0
+            )
+        )
         if not exists:
             db.add(
                 NumberRule(
                     biz_type=biz_type,
+                    category_key=category_key,
                     prefix=prefix,
-                    date_format=date_format,
+                    year_digits=year_digits,
+                    month_digits=month_digits,
+                    day_digits=day_digits,
                     seq_len=seq_len,
+                    seq_start=seq_start,
+                    separator=separator,
                     reset_cycle=reset_cycle,
                     example=example,
                 )

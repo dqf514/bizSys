@@ -121,9 +121,15 @@ export interface DictItemOption {
 export interface NumberRule {
   id: number
   bizType: string
+  categoryKey: string
   prefix: string
   dateFormat: string
+  yearDigits: number
+  monthDigits: number
+  dayDigits: number
   seqLen: number
+  seqStart: number
+  separator: string
   resetCycle: string
   enabled: number | boolean
   example: string

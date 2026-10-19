@@ -81,12 +81,20 @@ class DictItem(BaseModel):
 
 class NumberRule(BaseModel):
     __tablename__ = "sys_number_rule"
+    # deleted 入唯一键：软删行不阻塞同 biz_type+category_key 重建
+    __table_args__ = (UniqueConstraint("biz_type", "category_key", "deleted", name="uq_number_rule_biz_category"),)
 
-    biz_type: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="task/sample/...")
+    biz_type: Mapped[str] = mapped_column(String(32), index=True, comment="task/sample/...")
+    category_key: Mapped[str] = mapped_column(String(64), default="", comment="分类键（字典值），空=兜底规则")
     prefix: Mapped[str] = mapped_column(String(16), default="", comment="前缀")
-    date_format: Mapped[str] = mapped_column(String(16), default="", comment="yyyyMMdd 等，空=不带日期")
-    seq_len: Mapped[int] = mapped_column(Integer, default=4)
-    reset_cycle: Mapped[str] = mapped_column(String(8), default="none", comment="none/daily/monthly")
+    date_format: Mapped[str] = mapped_column(String(16), default="", comment="[兼容] strftime 格式串，结构化位数优先")
+    year_digits: Mapped[int] = mapped_column(Integer, default=0, comment="年位数 0/2/4")
+    month_digits: Mapped[int] = mapped_column(Integer, default=0, comment="月位数 0/2")
+    day_digits: Mapped[int] = mapped_column(Integer, default=0, comment="日位数 0/2")
+    seq_len: Mapped[int] = mapped_column(Integer, default=4, comment="流水号位数")
+    seq_start: Mapped[int] = mapped_column(Integer, default=1, comment="流水起始值")
+    separator: Mapped[str] = mapped_column(String(4), default="", comment="前缀/日期/流水间分隔符")
+    reset_cycle: Mapped[str] = mapped_column(String(8), default="none", comment="none/daily/monthly/yearly")
     enabled: Mapped[int] = mapped_column(Integer, default=1)
     example: Mapped[str] = mapped_column(String(64), default="", comment="预览样例")
 
