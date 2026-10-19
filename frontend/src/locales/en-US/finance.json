@@ -27,11 +27,15 @@
     "invoiceDate": "Invoice Date",
     "invoiceStatus": "Invoice Status",
     "status": {
+      "approving": "Approving",
+      "rejected": "Rejected",
       "pending": "Pending Invoice",
       "invoicing": "Invoicing",
       "invoiced": "Invoiced",
       "paid": "Paid"
-    }
+    },
+    "resubmit": "Resubmit",
+    "resubmitConfirm": "Resubmit this settlement for approval?"
   },
   "invoice": {
     "title": "Invoices",

@@ -58,7 +58,10 @@
     "tabSamples": "Samples",
     "tabLogs": "Logs",
     "tabReports": "Reports",
+    "tabFlow": "Approval Flow",
     "statusDraft": "Draft",
+    "statusApproving": "Approval Pending",
+    "statusRejected": "Rejected",
     "statusAssigning": "Assigning",
     "statusAssigned": "Assigned",
     "statusInProgress": "In Progress",
@@ -107,6 +110,9 @@
     "logRemark": "Remark",
     "logSampleNo": "Sample No.",
     "logActionIn": "Stock In",
-    "logActionOut": "Stock Out"
+    "logActionOut": "Stock Out",
+    "flowStatus": "Flow Status",
+    "flowDefinition": "Flow Definition",
+    "flowGoto": "Go to Flow Center"
   }
 }

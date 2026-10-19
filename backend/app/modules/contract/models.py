@@ -13,7 +13,9 @@ class Contract(BaseModel):
 
     __tablename__ = "ctr_contract"
 
-    contract_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="合同编号 HT...")
+    contract_no: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, nullable=True, comment="合同编号 HT...（提交审批时发放，draft 为空）"
+    )
     name: Mapped[str] = mapped_column(String(255), index=True, comment="合同名称")
     customer_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="crm_customer.id")
     customer_name: Mapped[str] = mapped_column(String(128), default="", comment="客户名冗余")

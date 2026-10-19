@@ -29,6 +29,8 @@ from app.services.numbering import next_no
 router = APIRouter(prefix="/finance", tags=["finance"], route_class=EnvelopeRoute)
 
 STATUS_CN = {
+    "approving": "结算审批中",
+    "rejected": "已驳回",
     "pending": "待开票",
     "invoicing": "开票审批中",
     "invoiced": "已开票",
@@ -257,8 +259,52 @@ def create_settlement(
     )
     db.add(s)
     db.flush()
-    task_svc.mark_settled(db, t)  # closed → settled
+    _submit_settlement_flow(db, s, t, current)
     audit(db, user_id=current.id, module="finance", action="settlement_create", biz_type="settlement", biz_id=s.id)
+    db.commit()
+    return _settlement_out(s, _user_names(db, {s.create_by}))
+
+
+def _submit_settlement_flow(db: Session, s: Settlement, t: Task, current: User) -> None:
+    """结算单创建即发起结算审批；未绑定 settlement 定义时直通（pending + 任务 settled）。"""
+    definition = approval_svc.resolve_definition(db, "settlement")
+    if not definition:
+        s.status = "pending"
+        s.version += 1
+        s.update_time = datetime.now()
+        task_svc.mark_settled(db, t)  # closed → settled
+        return
+    inst = approval_svc.start(
+        db,
+        biz_type="settlement",
+        biz_id=s.id,
+        definition_code=definition.code,
+        title=f"{s.settlement_no} 结算审批（{s.customer_name}）",
+        initiator=current,
+        form_snapshot=svc.form_snapshot(s),
+        variables={"amount": float(s.amount), "customer_name": s.customer_name},
+    )
+    s.status = "approving"
+    s.approval_instance_id = inst.id
+    s.version += 1
+    s.update_time = datetime.now()
+
+
+@router.post("/settlements/{sid}/submit")
+def submit_settlement(
+    sid: int,
+    current: User = Depends(require_perm("finance:settlement:create")),
+    db: Session = Depends(get_db),
+):
+    """结算审批被驳回/撤回后重新提交（开新实例；未绑定定义直通）。"""
+    s = _load_settlement(db, sid, lock=True)
+    if s.status != "rejected":
+        raise BizException(R.FINANCE_INVALID_STATE, f"状态「{s.status}」不允许重新提交")
+    t = db.get(Task, s.task_id)
+    if not t or t.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND, "任务不存在")
+    _submit_settlement_flow(db, s, t, current)
+    audit(db, user_id=current.id, module="finance", action="settlement_submit", biz_type="settlement", biz_id=sid)
     db.commit()
     return _settlement_out(s, _user_names(db, {s.create_by}))
 

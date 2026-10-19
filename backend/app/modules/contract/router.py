@@ -68,7 +68,7 @@ def _d(v) -> str:
 def _out(c: Contract) -> dict:
     return {
         "id": c.id,
-        "contractNo": c.contract_no,
+        "contractNo": c.contract_no or "",
         "name": c.name,
         "customerId": c.customer_id,
         "customerName": c.customer_name,
@@ -240,7 +240,8 @@ def create_contract(
     db: Session = Depends(get_db),
 ):
     customer_name = svc.load_customer_name(db, body.customer_id)
-    c = Contract(contract_no=next_no(db, "contract"), create_by=current.id, status="draft")
+    # draft 不占正式 HT 编号：提交审批时才由编号规则发放（F3 流程驱动）
+    c = Contract(contract_no=None, create_by=current.id, status="draft")
     _apply(c, body, customer_name)
     if not c.handler_id:
         c.handler_id = current.id
@@ -306,6 +307,9 @@ def submit_contract(
         raise BizException(R.CONTRACT_INVALID_STATE, "仅草稿/已驳回合同可提交审批")
     if not c.amount:
         raise BizException(R.GENERIC_PARAM, "合同金额必填，不能提交审批")
+    if not c.contract_no:
+        c.contract_no = next_no(db, "contract")  # 提交即发放正式 HT 号；驳回/撤回后重提沿用
+        db.flush()
     inst = approval_svc.start(
         db,
         biz_type="contract",

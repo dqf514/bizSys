@@ -11,6 +11,8 @@
   "widget": {
     "stats": "Overview",
     "approvalTodo": "My Approval Todos",
+    "myInitiated": "My Initiated",
+    "ccInbox": "CC to Me",
     "notify": "Notifications",
     "myTasks": "My Tasks In Progress",
     "calendar": "Calendar",
@@ -22,6 +24,8 @@
   "viewAll": "View all",
   "markAllRead": "Mark all read",
   "emptyApproval": "No pending approvals",
+  "emptyInitiated": "No initiated flows",
+  "emptyCc": "No CC messages",
   "emptyNotify": "No notifications",
   "emptyTasks": "No tasks in progress",
   "emptyLinks": "No shortcuts available",

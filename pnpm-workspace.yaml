@@ -2,6 +2,7 @@ packages:
   - "frontend"
 
 allowBuilds:
+  '@logicflow/core': false
   "@parcel/watcher": true
   esbuild: true
   vue-demi: true

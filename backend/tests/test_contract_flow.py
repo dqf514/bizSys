@@ -49,11 +49,13 @@ def test_contract_full_flow(client, admin_headers, manager_headers, leader_heade
     ).json()
     assert r["code"] == 0, r
     cid = r["data"]["id"]
-    assert r["data"]["contractNo"].startswith("HT")
+    # F3：draft 不占正式 HT 编号，提交审批时发放
+    assert r["data"]["contractNo"] == ""
 
     # 提交审批
     r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={"comment": "审批"}).json()
     assert r["code"] == 0 and r["data"]["status"] == "approving"
+    assert r["data"]["contractNo"].startswith("HT")
 
     # 审批中禁编辑 50002
     r = client.put(

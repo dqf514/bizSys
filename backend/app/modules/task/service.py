@@ -1,11 +1,19 @@
-"""任务服务：字典标签、状态机、分配通知。"""
+"""任务服务：字典标签、状态机、分配通知、立项流程事件订阅。"""
 
+import json
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.events import TaskAssigned, publish
+from app.common.events import (
+    ApprovalCompleted,
+    ApprovalRejected,
+    ApprovalWithdrawn,
+    TaskAssigned,
+    publish,
+    subscribe,
+)
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.admin.models import DictItem, Notify
@@ -14,11 +22,11 @@ from app.modules.task.models import Task, TaskItem, TaskSample
 
 # action: (允许的前置状态, 目标状态或 None=动态)
 TRANSITIONS: dict[str, tuple[set[str], str | None]] = {
-    "submit": ({"draft"}, "assigning"),
+    "submit": ({"draft", "rejected"}, None),  # 绑定立项定义→approving；未绑定直通 assigning
     "start": ({"assigning", "assigned"}, None),  # assigning→assigned→in_progress 两步
     "finish": ({"in_progress"}, "finished"),
     "close": ({"finished"}, "closed"),
-    "stop": ({"draft", "assigning", "assigned", "in_progress", "finished"}, "stopped"),
+    "stop": ({"draft", "approving", "rejected", "assigning", "assigned", "in_progress", "finished"}, "stopped"),
 }
 
 TERMINAL = {"closed", "stopped", "approved", "settled"}
@@ -69,17 +77,15 @@ def transition(db: Session, task: Task, action: str, user: User) -> Task:
         raise BizException(R.TASK_INVALID_STATE, f"状态「{task.status}」不允许执行「{action}」")
     if action == "start":
         target = "assigned" if task.status == "assigning" else "in_progress"
+    if action == "submit":
+        return _submit(db, task, user)
     if action == "close":
         _check_reports_sealed(db, task)
     old = task.status
     task.status = target
     task.version += 1
     task.update_time = datetime.now()
-    if action == "submit":
-        _notify_assignment(db, task, user)
-        publish(TaskAssigned(task_id=task.id, task_no=task.task_no, dept_id=task.dept_id,
-                             operator_id=user.id, db=db))
-    elif action == "start" and old == "assigning":
+    if action == "start" and old == "assigning":
         # 接单确认也提醒负责人
         if task.owner_id:
             _add_notify(
@@ -89,6 +95,108 @@ def transition(db: Session, task: Task, action: str, user: User) -> Task:
                 task,
             )
     return task
+
+
+def _snapshot(t: Task) -> dict:
+    return json.loads(
+        json.dumps(
+            {
+                "taskNo": t.task_no,
+                "taskName": t.task_name,
+                "taskType": t.task_type,
+                "bizBlock": t.biz_block,
+                "customerName": t.customer_name,
+                "contractNo": t.contract_no,
+                "ownerName": t.owner_name,
+                "planFinishDate": t.plan_finish_date.isoformat() if t.plan_finish_date else "",
+            },
+            ensure_ascii=False,
+            default=str,
+        )
+    )
+
+
+def _enter_assigning(db: Session, task: Task, operator: User) -> None:
+    """立项通过/直通后的共同路径：assigning + 分配通知 + TaskAssigned 事件。"""
+    task.status = "assigning"
+    task.version += 1
+    task.update_time = datetime.now()
+    _notify_assignment(db, task, operator)
+    publish(TaskAssigned(task_id=task.id, task_no=task.task_no, dept_id=task.dept_id,
+                         operator_id=operator.id, db=db))
+
+
+def _submit(db: Session, task: Task, user: User) -> Task:
+    """提交 = 发起任务立项流程；未绑定 task 定义时直通（不产生审批等待）。"""
+    from app.modules.approval import service as approval_svc
+
+    definition = approval_svc.resolve_definition(db, "task")
+    if not definition:
+        _enter_assigning(db, task, user)
+        return task
+    inst = approval_svc.start(
+        db,
+        biz_type="task",
+        biz_id=task.id,
+        definition_code=definition.code,
+        title=f"{task.task_no} {task.task_name}",
+        initiator=user,
+        form_snapshot=_snapshot(task),
+        variables={
+            "task_type": task.task_type,
+            "biz_block": task.biz_block,
+            "customer_name": task.customer_name,
+        },
+    )
+    task.status = "approving"
+    task.flow_instance_id = inst.id
+    task.version += 1
+    task.update_time = datetime.now()
+    return task
+
+
+def _handle_completed(event: ApprovalCompleted) -> None:
+    """立项审批通过 → 任务生效（assigning，走分配通知）。"""
+    if event.biz_type != "task":
+        return
+    db: Session = event.db
+    t = db.get(Task, event.biz_id)
+    if not t or t.deleted or t.status != "approving":
+        return
+    operator = db.get(User, event.operator_id)
+    t.flow_instance_id = event.instance_id
+    _enter_assigning(db, t, operator or User(id=event.operator_id))
+
+
+def _handle_rejected(event: ApprovalRejected) -> None:
+    if event.biz_type != "task":
+        return
+    db: Session = event.db
+    t = db.get(Task, event.biz_id)
+    if not t or t.deleted or t.status != "approving":
+        return
+    t.status = "rejected"  # 可修改后重新提交（开新实例）
+    t.flow_instance_id = event.instance_id
+    t.version += 1
+    t.update_time = datetime.now()
+
+
+def _handle_withdrawn(event: ApprovalWithdrawn) -> None:
+    if event.biz_type != "task":
+        return
+    db: Session = event.db
+    t = db.get(Task, event.biz_id)
+    if not t or t.deleted or t.status != "approving":
+        return
+    t.status = "draft"
+    t.flow_instance_id = event.instance_id
+    t.version += 1
+    t.update_time = datetime.now()
+
+
+subscribe(ApprovalCompleted, _handle_completed)
+subscribe(ApprovalRejected, _handle_rejected)
+subscribe(ApprovalWithdrawn, _handle_withdrawn)
 
 
 def _add_notify(db: Session, user_id: int, title: str, task: Task) -> None:

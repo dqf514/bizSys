@@ -11,6 +11,8 @@
   "widget": {
     "stats": "概览",
     "approvalTodo": "我的审批待办",
+    "myInitiated": "我发起的",
+    "ccInbox": "抄送我的",
     "notify": "通知公告",
     "myTasks": "我的任务进行中",
     "calendar": "本月日历",
@@ -22,6 +24,8 @@
   "viewAll": "查看全部",
   "markAllRead": "全部已读",
   "emptyApproval": "暂无待办审批",
+  "emptyInitiated": "暂无发起的流程",
+  "emptyCc": "暂无抄送消息",
   "emptyNotify": "暂无通知",
   "emptyTasks": "暂无进行中任务",
   "emptyLinks": "暂无可用入口",

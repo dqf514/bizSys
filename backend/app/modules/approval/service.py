@@ -350,6 +350,20 @@ def list_definitions(db: Session) -> list[dict]:
     return [_definition_payload(d) for d in rows]
 
 
+def resolve_definition(db: Session, biz_type: str) -> ApprovalDefinition | None:
+    """按业务类型解析启用的流程定义（多个取最近更新）；无绑定返回 None（调用方直通）。"""
+    return db.scalar(
+        select(ApprovalDefinition)
+        .where(
+            ApprovalDefinition.biz_type == biz_type,
+            ApprovalDefinition.enabled == 1,
+            ApprovalDefinition.deleted == 0,
+        )
+        .order_by(ApprovalDefinition.update_time.desc(), ApprovalDefinition.id.desc())
+        .limit(1)
+    )
+
+
 def _validate_nodes(body: DefinitionIn) -> None:
     if not body.nodes:
         raise BizException(R.GENERIC_PARAM, "至少配置一个节点")

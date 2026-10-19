@@ -17,7 +17,13 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, publish
+from app.common.events import (
+    ApprovalCompleted,
+    ApprovalRejected,
+    ApprovalTodoCreated,
+    ApprovalWithdrawn,
+    publish,
+)
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.admin.models import Role, UserRole
@@ -31,6 +37,23 @@ from app.modules.approval.models import (
     ApprovalTask,
 )
 from app.modules.auth.models import User
+
+
+def _emit_todo(db: Session, instance: ApprovalInstance, assignee: User, node_name: str, operator_id: int = 0) -> None:
+    """每个 pending 待办产生时发布 ApprovalTodoCreated（站内/企微通知钩子，ADR-0001 可插拔）。"""
+    publish(
+        ApprovalTodoCreated(
+            biz_type=instance.biz_type,
+            biz_id=instance.biz_id,
+            instance_id=instance.id,
+            title=instance.title or "",
+            node_name=node_name,
+            assignee_id=assignee.id,
+            assignee_name=assignee.name or assignee.username,
+            operator_id=operator_id,
+            db=db,
+        )
+    )
 
 
 def _resolve_assignees(db: Session, node: ApprovalNode) -> list[User]:
@@ -191,6 +214,7 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
                     ),
                 )
             )
+            _emit_todo(db, instance, first, node_name, operator.id)
         else:  # or / and：全员同时持有待办
             for u in assignees:
                 db.add(
@@ -204,6 +228,7 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
                         status="pending",
                     )
                 )
+                _emit_todo(db, instance, u, node_name, operator.id)
         _touch_current(instance, seq)
         db.flush()  # autoflush=False：同事务内后续查询要能看到新待办
         return
@@ -319,6 +344,9 @@ def _spawn_next_sequential(db: Session, task: ApprovalTask) -> bool:
             action_meta=json.dumps({"sequential_queue": queue, "sequential_index": idx + 1}, ensure_ascii=False),
         )
     )
+    instance = db.get(ApprovalInstance, task.instance_id)
+    if instance:
+        _emit_todo(db, instance, u, task.node_name, task.acted_by_id or 0)
     db.flush()
     return True
 
@@ -442,6 +470,7 @@ def add_sign(db: Session, task_id: int, user: User, approver: User, comment: str
             action_meta=json.dumps({"add_sign": True, "requested_by": user.id}, ensure_ascii=False),
         )
     )
+    _emit_todo(db, instance, approver, task.node_name, user.id)
     _record(
         db,
         instance,
@@ -476,6 +505,7 @@ def transfer(db: Session, task_id: int, user: User, to_user: User, comment: str 
             status="pending",
         )
     )
+    _emit_todo(db, instance, to_user, task.node_name, user.id)
     _record(
         db,
         instance,

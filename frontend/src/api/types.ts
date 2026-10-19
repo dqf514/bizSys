@@ -316,6 +316,8 @@ export interface Contract {
 
 export type TaskStatus =
   | 'draft'
+  | 'approving'
+  | 'rejected'
   | 'assigning'
   | 'assigned'
   | 'in_progress'
@@ -352,6 +354,15 @@ export interface Task {
   items?: TaskItem[]
   samples?: TaskSample[]
   logs?: TaskLog[]
+  flow?: TaskFlowInfo | null
+}
+
+/** 任务详情附带的立项流程实例信息（GET /tasks/{id} 返回的 flow 字段） */
+export interface TaskFlowInfo {
+  instanceId: number
+  status: string
+  definitionCode: string
+  timeline: TimelineRecord[]
 }
 
 export interface TaskItem {
@@ -469,7 +480,7 @@ export interface ApprovalCcItem {
 }
 
 /** Finance module — camelCase per backend convention */
-export type SettlementStatus = 'pending' | 'invoicing' | 'invoiced' | 'paid'
+export type SettlementStatus = 'approving' | 'pending' | 'invoicing' | 'invoiced' | 'paid' | 'rejected'
 
 export interface Settlement {
   id: number

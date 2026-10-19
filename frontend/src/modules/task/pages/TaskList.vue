@@ -31,6 +31,8 @@ const counts = ref<Record<string, number>>({})
 
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'draft', labelKey: 'task.task.statusDraft', count: 0 },
+  { value: 'approving', labelKey: 'task.task.statusApproving', count: 0 },
+  { value: 'rejected', labelKey: 'task.task.statusRejected', count: 0 },
   { value: 'assigning', labelKey: 'task.task.statusAssigning', count: 0 },
   { value: 'assigned', labelKey: 'task.task.statusAssigned', count: 0 },
   { value: 'in_progress', labelKey: 'task.task.statusInProgress', count: 0 },

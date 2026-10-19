@@ -27,11 +27,15 @@
     "invoiceDate": "开票日期",
     "invoiceStatus": "发票状态",
     "status": {
+      "approving": "结算审批中",
+      "rejected": "已驳回",
       "pending": "待开票",
       "invoicing": "开票审批中",
       "invoiced": "已开票",
       "paid": "已到账"
-    }
+    },
+    "resubmit": "重新提交",
+    "resubmitConfirm": "确认重新提交该结算单审批？"
   },
   "invoice": {
     "title": "开票申请",

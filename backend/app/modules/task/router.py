@@ -27,6 +27,8 @@ router = APIRouter(prefix="/task", tags=["task"], route_class=EnvelopeRoute)
 
 STATUS_CN = {
     "draft": "已创建",
+    "approving": "立项审批中",
+    "rejected": "已驳回",
     "assigning": "分配中",
     "assigned": "已分配",
     "in_progress": "执行中",
@@ -283,7 +285,33 @@ def _detail(db: Session, t: Task) -> dict:
         }
         for f, sample_no in flow_rows
     ]
+    data["flow"] = _flow_info(db, t)
     return data
+
+
+def _flow_info(db: Session, t: Task) -> dict | None:
+    """任务立项流程实例（最新一个）+ 时间线；从未发起流程返回 None。"""
+    from app.modules.approval import service as approval_svc
+    from app.modules.approval.models import ApprovalInstance
+
+    inst = db.scalar(
+        select(ApprovalInstance)
+        .where(
+            ApprovalInstance.biz_type == "task",
+            ApprovalInstance.biz_id == t.id,
+            ApprovalInstance.deleted == 0,
+        )
+        .order_by(ApprovalInstance.id.desc())
+        .limit(1)
+    )
+    if not inst:
+        return None
+    return {
+        "instanceId": inst.id,
+        "status": inst.status,
+        "definitionCode": inst.definition_code,
+        "timeline": approval_svc.instance_timeline(db, inst.id)["records"],
+    }
 
 
 @router.get("/tasks/{tid}")
@@ -303,8 +331,8 @@ def update_task(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
-    if t.status != "draft":
-        raise BizException(R.TASK_INVALID_STATE, "仅草稿任务可编辑")
+    if t.status not in ("draft", "rejected"):
+        raise BizException(R.TASK_INVALID_STATE, "仅草稿/已驳回任务可编辑")
     if body.version is not None and body.version != t.version:
         raise BizException(R.GENERIC_OPTIMISTIC_LOCK)
     _apply(t, body)

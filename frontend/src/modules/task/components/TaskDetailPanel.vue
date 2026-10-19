@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
 import { useContextStore, type ContextSection } from '@/stores/context'
@@ -59,6 +60,8 @@ const canMaintainSamples = computed(() =>
   ['draft', 'assigning', 'assigned', 'in_progress'].includes(status.value),
 )
 const isDraft = computed(() => status.value === 'draft')
+// 与后端一致：草稿/已驳回可进入编辑页
+const canEdit = computed(() => ['draft', 'rejected'].includes(status.value))
 
 async function loadReports() {
   if (!props.taskId) return
@@ -152,6 +155,7 @@ const actionLoading = ref(false)
 function availableActions(s: TaskStatus | ''): { action: TaskAction; labelKey: string; type: string }[] {
   const map: Record<string, { action: TaskAction; labelKey: string; type: string }[]> = {
     draft: [{ action: 'submit', labelKey: 'task.task.submit', type: 'warning' }],
+    rejected: [{ action: 'submit', labelKey: 'task.task.submit', type: 'warning' }],
     assigning: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
     assigned: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
     in_progress: [{ action: 'finish', labelKey: 'task.task.finish', type: 'success' }],
@@ -198,6 +202,10 @@ async function doAction(action: TaskAction) {
 function openEdit() {
   if (!detail.value) return
   router.push(`/task/tasks/${detail.value.id}/edit`)
+}
+
+function gotoFlowCenter() {
+  router.push('/approval')
 }
 
 async function removeTask() {
@@ -444,7 +452,7 @@ function logActionLabel(action: string) {
         >
           {{ t(a.labelKey) }}
         </el-button>
-        <el-button v-if="isDraft" v-permission="'task:edit'" size="small" @click="openEdit">
+        <el-button v-if="canEdit" v-permission="'task:edit'" size="small" @click="openEdit">
           {{ t('common.action.edit') }}
         </el-button>
         <el-button v-if="isDraft" v-permission="'task:edit'" size="small" type="danger" plain @click="removeTask">
@@ -638,6 +646,23 @@ function logActionLabel(action: string) {
           <el-table-column :label="t('task.task.logRemark')" prop="remark" min-width="180" />
         </el-table>
       </el-tab-pane>
+
+      <el-tab-pane v-if="detail?.flow" :label="t('task.task.tabFlow')" name="flow">
+        <div class="tab-toolbar">
+          <el-button size="small" type="primary" plain @click="gotoFlowCenter">
+            {{ t('task.task.flowGoto') }}
+          </el-button>
+        </div>
+        <el-descriptions :column="2" border size="small" class="flow-summary">
+          <el-descriptions-item :label="t('task.task.flowDefinition')">
+            {{ detail.flow.definitionCode || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.task.flowStatus')">
+            <StatusTag :status="String(detail.flow.status)" i18n-prefix="approval.approval.status" />
+          </el-descriptions-item>
+        </el-descriptions>
+        <ApprovalTimeline :records="detail.flow.timeline ?? []" />
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 条目维护弹窗 -->
@@ -787,6 +812,10 @@ function logActionLabel(action: string) {
   display: flex;
   justify-content: flex-end;
   margin-bottom: var(--bs-space-2);
+}
+
+.flow-summary {
+  margin-bottom: var(--bs-space-3);
 }
 
 .form-tip {

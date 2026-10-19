@@ -7,6 +7,8 @@ import { updatePrefs } from '@/api/auth'
 import type { DashboardPrefs, DashboardWidgetPref } from '@/api/types'
 import StatCards from '../components/StatCards.vue'
 import ApprovalTodoCard from '../components/ApprovalTodoCard.vue'
+import MyInitiatedCard from '../components/MyInitiatedCard.vue'
+import CcInboxCard from '../components/CcInboxCard.vue'
 import NotifyCard from '../components/NotifyCard.vue'
 import MyTasksCard from '../components/MyTasksCard.vue'
 import MonthCalendar from '../components/MonthCalendar.vue'
@@ -29,6 +31,8 @@ interface WidgetMeta {
 const WIDGET_META: WidgetMeta[] = [
   { key: 'stats', labelKey: 'workbench.widget.stats', component: StatCards, span: 12 },
   { key: 'approvalTodo', labelKey: 'workbench.widget.approvalTodo', component: ApprovalTodoCard, span: 6 },
+  { key: 'myInitiated', labelKey: 'workbench.widget.myInitiated', component: MyInitiatedCard, span: 6 },
+  { key: 'ccInbox', labelKey: 'workbench.widget.ccInbox', component: CcInboxCard, span: 6 },
   { key: 'notify', labelKey: 'workbench.widget.notify', component: NotifyCard, span: 6 },
   { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6 },
   { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6 },

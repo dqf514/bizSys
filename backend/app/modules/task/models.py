@@ -31,7 +31,7 @@ class Task(BaseModel):
     receiver_unit: Mapped[str] = mapped_column(String(128), default="", comment="受检单位")
     plan_finish_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
-
+    flow_instance_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     items = relationship(
         "TaskItem", foreign_keys="TaskItem.task_id", cascade="all, delete-orphan", lazy="selectin"
     )

@@ -64,6 +64,26 @@ class ApprovalWithdrawn:
 
 
 @dataclass
+class ApprovalTodoCreated:
+    """新审批待办产生（引擎每次创建 pending 任务时发布，含加签/转办/依次签后继）。
+
+    订阅方典型用途：站内通知、企微/短信等外部通道推送（可插拔通知器）。
+    处理器必须自行兜底异常，不得阻断审批主事务。
+    """
+
+    biz_type: str
+    biz_id: int
+    instance_id: int
+    title: str
+    node_name: str
+    assignee_id: int
+    assignee_name: str
+    operator_id: int
+    at: datetime = field(default_factory=datetime.now)
+    db: Any = field(default=None, repr=False, compare=False)
+
+
+@dataclass
 class TaskAssigned:
     """任务已分配（触发站内提醒 / 企微占位）。"""
 

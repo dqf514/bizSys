@@ -58,7 +58,10 @@
     "tabSamples": "样品信息",
     "tabLogs": "操作日志",
     "tabReports": "报告信息",
+    "tabFlow": "审批流程",
     "statusDraft": "已创建待提交",
+    "statusApproving": "立项审批中",
+    "statusRejected": "已驳回",
     "statusAssigning": "已提交分配中",
     "statusAssigned": "已分配待完成",
     "statusInProgress": "执行中",
@@ -107,6 +110,9 @@
     "logRemark": "说明",
     "logSampleNo": "样品编号",
     "logActionIn": "入库",
-    "logActionOut": "出库"
+    "logActionOut": "出库",
+    "flowStatus": "流程状态",
+    "flowDefinition": "流程定义",
+    "flowGoto": "前往流程中心"
   }
 }

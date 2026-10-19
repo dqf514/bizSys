@@ -61,6 +61,10 @@ export function applyInvoice(id: number) {
   return request<void>({ url: `/finance/settlements/${id}/apply-invoice`, method: 'post' })
 }
 
+export function submitSettlement(id: number) {
+  return request<void>({ url: `/finance/settlements/${id}/submit`, method: 'post' })
+}
+
 export function updateInvoice(id: number, data: UpdateInvoicePayload) {
   return request<SettlementDetail>({ url: `/finance/invoices/${id}`, method: 'put', data })
 }

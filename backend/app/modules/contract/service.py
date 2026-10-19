@@ -23,7 +23,7 @@ def check_editable(c: Contract) -> None:
 
 def snapshot(c: Contract) -> dict:
     return {
-        "contractNo": c.contract_no,
+        "contractNo": c.contract_no or "",
         "name": c.name,
         "customerId": c.customer_id,
         "customerName": c.customer_name,

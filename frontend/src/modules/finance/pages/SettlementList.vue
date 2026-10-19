@@ -18,6 +18,7 @@ import {
   createSettlement,
   getSettlement,
   applyInvoice,
+  submitSettlement,
   updateInvoice,
   exportSettlements,
 } from '@/api/finance'
@@ -33,10 +34,12 @@ const searchFields: SearchField[] = [
 ]
 
 const statusTabs: StatusTabItem[] = [
+  { value: 'approving', labelKey: 'finance.settlement.status.approving' },
   { value: 'pending', labelKey: 'finance.settlement.status.pending' },
   { value: 'invoicing', labelKey: 'finance.settlement.status.invoicing' },
   { value: 'invoiced', labelKey: 'finance.settlement.status.invoiced' },
   { value: 'paid', labelKey: 'finance.settlement.status.paid' },
+  { value: 'rejected', labelKey: 'finance.settlement.status.rejected' },
   { value: 'all', labelKey: 'common.action.all' },
 ]
 
@@ -151,6 +154,24 @@ async function doApplyInvoice(row: Settlement) {
   }
   try {
     await applyInvoice(row.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
+}
+
+/* ---------- resubmit rejected settlement ---------- */
+async function doResubmit(row: Settlement) {
+  try {
+    await ElMessageBox.confirm(t('finance.settlement.resubmitConfirm'), t('common.action.confirm'), {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  try {
+    await submitSettlement(row.id)
     ElMessage.success(t('common.message.submitSuccess'))
     list.refresh()
   } catch {
@@ -275,6 +296,15 @@ function openPaymentRegister(row: Settlement) {
             <template #default="{ row }">
               <el-button link type="primary" @click="openDetail(row as unknown as Settlement)">
                 {{ t('common.action.detail') }}
+              </el-button>
+              <el-button
+                v-if="row.status === 'rejected'"
+                v-permission="'finance:settlement:create'"
+                link
+                type="warning"
+                @click="doResubmit(row as unknown as Settlement)"
+              >
+                {{ t('finance.settlement.resubmit') }}
               </el-button>
               <el-button
                 v-if="row.status === 'pending'"
