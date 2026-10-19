@@ -248,6 +248,7 @@ def submit_report(
         title=f"{r.report_no} 报告签批",
         initiator=current,
         form_snapshot=svc.form_snapshot(r),
+        variables={"report_no": r.report_no},
     )
     r.status = "approving"
     r.approval_instance_id = inst.id

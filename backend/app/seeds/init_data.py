@@ -18,6 +18,7 @@ from app.modules.admin.models import (
     RoleMenu,
     UserRole,
 )
+from app.modules.approval.graph import build_process_graph, dumps_graph
 from app.modules.approval.models import ApprovalDefinition, ApprovalNode
 from app.modules.auth.models import User
 
@@ -574,6 +575,9 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
                 approver_name=u.name or u.username,
             )
         )
+    db.flush()
+    # 线性定义自动生成等价 LogicFlow 图
+    d.process_graph = dumps_graph(build_process_graph([n for n in d.nodes if n.deleted == 0]))
 
 
 def _seed_depts(db: Session) -> None:

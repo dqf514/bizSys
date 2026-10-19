@@ -12,7 +12,7 @@ from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.approval import service
-from app.modules.approval.schemas import AddSignIn, CommentIn, DefinitionIn, TransferIn, WithdrawIn
+from app.modules.approval.schemas import AddSignIn, CommentIn, DefinitionIn, PreviewIn, TransferIn, WithdrawIn
 from app.modules.auth.models import User
 
 router = APIRouter(prefix="/approval", tags=["approval"], route_class=EnvelopeRoute)
@@ -48,8 +48,19 @@ def instance_detail(
     data = service.instance_snapshot(db, instance_id)
     if not data:
         raise BizException(R.GENERIC_NOT_FOUND)
-    data["timeline"] = service.timeline(db, data["bizType"], data["bizId"])["records"]
+    service.mark_instance_seen(db, instance_id, user)  # 发起人查看 → 未读角标清零
+    db.commit()
+    data["timeline"] = service.instance_timeline(db, instance_id)["records"]
     return data
+
+
+@router.get("/instances/{instance_id}/timeline")
+def timeline_by_instance(
+    instance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return service.instance_timeline(db, instance_id)
 
 
 @router.get("/instances/{biz_type}/{biz_id}/timeline")
@@ -133,6 +144,40 @@ def withdraw(
            detail={"instanceId": instance_id})
     db.commit()
     return {"instanceId": inst.id, "status": inst.status}
+
+
+# --- 抄送我的 / 分支预览 ---
+
+
+@router.get("/cc")
+def list_cc(
+    unread: int = Query(0, ge=0, le=1),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=200),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return service.list_cc(db, user, PageParams(page=page, size=size), unread_only=bool(unread))
+
+
+@router.post("/cc/{cc_id}/read")
+def mark_cc_read(
+    cc_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service.mark_cc_read(db, cc_id, user)
+    db.commit()
+    return {"id": cc_id}
+
+
+@router.post("/preview")
+def preview_route(
+    body: PreviewIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return service.preview(db, body.definition_code, body.variables)
 
 
 # --- 流程定义管理（admin:flow:*） ---

@@ -314,6 +314,11 @@ def submit_contract(
         title=f"{c.contract_no} {c.name}",
         initiator=current,
         form_snapshot=svc.form_snapshot(c),
+        variables={
+            "amount": float(c.amount),
+            "contract_type": c.contract_type,
+            "customer_name": c.customer_name,
+        },
     )
     c.status = "approving"
     c.flow_instance_id = inst.id

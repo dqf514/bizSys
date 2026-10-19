@@ -1,4 +1,4 @@
-"""审批门面：待办三页签、意见时间线、流程定义管理。"""
+"""审批门面：待办页签、我发起的（未读角标）、抄送我的、意见时间线、流程定义管理、分支预览。"""
 
 import json
 from datetime import datetime
@@ -10,12 +10,15 @@ from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.approval import engine
+from app.modules.approval.graph import build_process_graph, dumps_graph, parse_json, preview_route
 from app.modules.approval.models import (
+    ApprovalCc,
     ApprovalDefinition,
     ApprovalInstance,
     ApprovalNode,
     ApprovalRecord,
     ApprovalTask,
+    ApprovalViewState,
 )
 from app.modules.approval.schemas import DefinitionIn
 from app.modules.auth.models import User
@@ -39,6 +42,8 @@ def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
         "status": t.status,
         "statusText": _TASK_STATUS_CN.get(t.status, t.status),
         "nodeName": t.node_name,
+        "nodeType": t.node_type,
+        "taskKind": t.task_kind,
         "comment": t.comment,
         "initiatorName": inst.initiator_name if inst else "",
         "assigneeName": t.assignee_name,
@@ -117,13 +122,61 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo") -
                     .limit(params.size)
             )
         )
+        seen_map = _view_states(db, user.id, [i.id for i in rows])
         items = []
         for inst in rows:
             pending = pending_names(db, inst.id) if inst.status == "running" else ""
-            items.append(_initiated_item(inst, pending))
+            items.append(_initiated_item(inst, pending, unread_count(db, inst, user, seen_map.get(inst.id))))
         return page_result(items, total, params.page, params.size)
 
     raise BizException(R.GENERIC_PARAM, f"未知页签：{tab}")
+
+
+def _view_states(db: Session, user_id: int, instance_ids: list[int]) -> dict[int, ApprovalViewState]:
+    if not instance_ids:
+        return {}
+    rows = db.scalars(
+        select(ApprovalViewState).where(
+            ApprovalViewState.user_id == user_id,
+            ApprovalViewState.instance_id.in_(instance_ids),
+            ApprovalViewState.deleted == 0,
+        )
+    ).all()
+    return {r.instance_id: r for r in rows}
+
+
+def unread_count(
+    db: Session, inst: ApprovalInstance, user: User, seen: ApprovalViewState | None
+) -> int:
+    """未读进度条数：未看过=全部非本人操作条目；看过=水位之后的非本人条目。"""
+    stmt = select(func.count()).select_from(ApprovalRecord).where(
+        ApprovalRecord.instance_id == inst.id,
+        ApprovalRecord.deleted == 0,
+        ApprovalRecord.operator_id != user.id,
+    )
+    if seen:  # DateTime 秒级精度，从未查看时不取 create_time 作水位，避免同秒漏计
+        stmt = stmt.where(ApprovalRecord.at > seen.last_seen_at)
+    return db.scalar(stmt) or 0
+
+
+def mark_instance_seen(db: Session, instance_id: int, user: User) -> None:
+    """发起人查看实例详情时推进未读水位（upsert）。"""
+    inst = db.get(ApprovalInstance, instance_id)
+    if not inst or inst.deleted or inst.initiator_id != user.id:
+        return
+    seen = db.scalar(
+        select(ApprovalViewState).where(
+            ApprovalViewState.user_id == user.id,
+            ApprovalViewState.instance_id == instance_id,
+            ApprovalViewState.deleted == 0,
+        )
+    )
+    now = datetime.now()
+    if seen:
+        seen.last_seen_at = now
+    else:
+        db.add(ApprovalViewState(user_id=user.id, instance_id=instance_id, last_seen_at=now))
+    db.flush()
 
 
 def pending_names(db: Session, instance_id: int) -> str:
@@ -137,7 +190,7 @@ def pending_names(db: Session, instance_id: int) -> str:
     return "/".join(dict.fromkeys(rows))
 
 
-def _initiated_item(inst: ApprovalInstance, pending: str) -> dict:
+def _initiated_item(inst: ApprovalInstance, pending: str, unread: int = 0) -> dict:
     return {
         "id": inst.id,
         "instanceId": inst.id,
@@ -150,6 +203,7 @@ def _initiated_item(inst: ApprovalInstance, pending: str) -> dict:
         "comment": pending and f"待办：{pending}" or "",
         "initiatorName": inst.initiator_name,
         "assigneeName": pending,
+        "unreadCount": unread,
         "createTime": inst.create_time.strftime("%Y-%m-%d %H:%M:%S") if inst.create_time else "",
         "actedAt": inst.finished_at.strftime("%Y-%m-%d %H:%M:%S") if inst.finished_at else "",
     }
@@ -174,6 +228,14 @@ def timeline(db: Session, biz_type: str, biz_id: int) -> dict:
     )
     if not inst:
         return {"instanceId": 0, "status": "", "currentNode": "", "records": []}
+    return instance_timeline(db, inst.id)
+
+
+def instance_timeline(db: Session, instance_id: int) -> dict:
+    """实例时间线（approval_record 只追加流水，含 payload）。"""
+    inst = db.get(ApprovalInstance, instance_id)
+    if not inst or inst.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
     # 显式查询，避免 identity map 中旧的关系集合
     rows = db.scalars(
         select(ApprovalRecord)
@@ -185,7 +247,9 @@ def timeline(db: Session, biz_type: str, biz_id: int) -> dict:
             "action": r.action,
             "operatorName": r.operator_name,
             "nodeName": r.node_name,
+            "seq": r.seq,
             "comment": r.comment,
+            "payload": parse_json(r.payload, None),
             "at": r.at.strftime("%Y-%m-%d %H:%M:%S") if r.at else "",
         }
         for r in rows
@@ -198,48 +262,142 @@ def timeline(db: Session, biz_type: str, biz_id: int) -> dict:
     }
 
 
+# --- 抄送我的 ---
+
+
+def list_cc(db: Session, user: User, params: PageParams, unread_only: bool = False) -> dict:
+    stmt = select(ApprovalCc).where(ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0)
+    if unread_only:
+        stmt = stmt.where(ApprovalCc.read_at.is_(None))
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    rows = list(
+        db.scalars(
+            stmt.order_by(ApprovalCc.create_time.desc())
+                .offset((params.page - 1) * params.size)
+                .limit(params.size)
+        )
+    )
+    inst_map = _instances_by_id(db, [r.instance_id for r in rows])
+    items = []
+    for r in rows:
+        inst = inst_map.get(r.instance_id)
+        items.append(
+            {
+                "id": r.id,
+                "instanceId": r.instance_id,
+                "bizType": inst.biz_type if inst else "",
+                "bizId": inst.biz_id if inst else 0,
+                "title": inst.title if inst else "",
+                "instanceStatus": inst.status if inst else "",
+                "nodeName": r.node_name,
+                "initiatorName": inst.initiator_name if inst else "",
+                "readAt": r.read_at.strftime("%Y-%m-%d %H:%M:%S") if r.read_at else "",
+                "createTime": r.create_time.strftime("%Y-%m-%d %H:%M:%S") if r.create_time else "",
+            }
+        )
+    return page_result(items, total, params.page, params.size)
+
+
+def mark_cc_read(db: Session, cc_id: int, user: User) -> None:
+    cc = db.get(ApprovalCc, cc_id)
+    if not cc or cc.deleted or cc.user_id != user.id:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    if not cc.read_at:
+        cc.read_at = datetime.now()
+        db.flush()
+
+
+# --- 流程定义管理 ---
+
+
 def _nodes_payload(definition: ApprovalDefinition) -> list[dict]:
     return [
         {
             "id": n.id,
             "seq": n.seq,
             "nodeName": n.node_name,
+            "nodeType": n.node_type,
+            "signMode": n.sign_mode,
             "approverType": n.approver_type,
             "approverValue": n.approver_value,
             "approverName": n.approver_name,
+            "branches": parse_json(n.branches, None),
+            "defaultSeq": n.default_seq,
         }
         for n in definition.nodes
         if n.deleted == 0
     ]
 
 
+def _definition_payload(d: ApprovalDefinition) -> dict:
+    return {
+        "id": d.id,
+        "code": d.code,
+        "name": d.name,
+        "bizType": d.biz_type,
+        "enabled": d.enabled,
+        "remark": d.remark,
+        "variablesSchema": parse_json(d.variables_schema, None),
+        "processGraph": parse_json(d.process_graph, None),
+        "nodes": _nodes_payload(d),
+    }
+
+
 def list_definitions(db: Session) -> list[dict]:
     rows = db.scalars(
         select(ApprovalDefinition).where(ApprovalDefinition.deleted == 0).order_by(ApprovalDefinition.id)
     ).all()
-    return [
-        {
-            "id": d.id,
-            "code": d.code,
-            "name": d.name,
-            "bizType": d.biz_type,
-            "enabled": d.enabled,
-            "remark": d.remark,
-            "nodes": _nodes_payload(d),
-        }
-        for d in rows
-    ]
+    return [_definition_payload(d) for d in rows]
 
 
 def _validate_nodes(body: DefinitionIn) -> None:
     if not body.nodes:
-        raise BizException(R.GENERIC_PARAM, "至少配置一个审批节点")
+        raise BizException(R.GENERIC_PARAM, "至少配置一个节点")
     seqs = [n.seq for n in body.nodes]
     if len(seqs) != len(set(seqs)):
         raise BizException(R.GENERIC_PARAM, "节点序号不能重复")
+    if not any(n.node_type == "approval" for n in body.nodes):
+        raise BizException(R.GENERIC_PARAM, "至少配置一个审批节点")
+    seq_set = set(seqs)
     for n in body.nodes:
-        if not n.approver_value.strip():
-            raise BizException(R.GENERIC_PARAM, f"节点「{n.node_name or n.seq}」未选择审批人")
+        label = n.node_name or n.seq
+        if n.node_type in ("approval", "cc") and not n.approver_value.strip():
+            raise BizException(R.GENERIC_PARAM, f"节点「{label}」未选择审批人/抄送人")
+        if n.node_type == "condition":
+            if not n.branches:
+                raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」至少配置一条分支")
+            for b in n.branches:
+                if b.target_seq not in seq_set:
+                    raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」分支目标序号不存在：{b.target_seq}")
+            if n.default_seq is not None and n.default_seq not in seq_set:
+                raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」默认跳转序号不存在：{n.default_seq}")
+
+
+def _persist_nodes(db: Session, definition: ApprovalDefinition, body: DefinitionIn) -> None:
+    for n in sorted(body.nodes, key=lambda x: x.seq):
+        db.add(
+            ApprovalNode(
+                definition_id=definition.id,
+                seq=n.seq,
+                node_name=n.node_name,
+                node_type=n.node_type,
+                sign_mode=n.sign_mode,
+                approver_type=n.approver_type,
+                approver_value=n.approver_value,
+                approver_name=n.approver_name,
+                branches=(
+                    json.dumps(
+                        [{"expr": b.expr, "targetSeq": b.target_seq} for b in n.branches], ensure_ascii=False
+                    )
+                    if n.branches
+                    else None
+                ),
+                default_seq=n.default_seq,
+            )
+        )
+    db.flush()
+    # 线性定义自动生成等价 LogicFlow 图（F2 设计器可直接打开）
+    definition.process_graph = dumps_graph(build_process_graph([n for n in definition.nodes if n.deleted == 0]))
 
 
 def create_definition(db: Session, body: DefinitionIn) -> dict:
@@ -249,21 +407,18 @@ def create_definition(db: Session, body: DefinitionIn) -> dict:
     ):
         raise BizException(R.GENERIC_PARAM, f"流程编码已存在：{body.code}")
     d = ApprovalDefinition(
-        code=body.code, name=body.name, biz_type=body.biz_type, enabled=body.enabled, remark=body.remark
+        code=body.code,
+        name=body.name,
+        biz_type=body.biz_type,
+        enabled=body.enabled,
+        remark=body.remark,
+        variables_schema=(
+            json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
+        ),
     )
     db.add(d)
     db.flush()
-    for n in sorted(body.nodes, key=lambda x: x.seq):
-        db.add(
-            ApprovalNode(
-                definition_id=d.id,
-                seq=n.seq,
-                node_name=n.node_name,
-                approver_type=n.approver_type,
-                approver_value=n.approver_value,
-                approver_name=n.approver_name,
-            )
-        )
+    _persist_nodes(db, d, body)
     db.flush()
     return next(x for x in list_definitions(db) if x["id"] == d.id)
 
@@ -294,21 +449,12 @@ def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
     d.biz_type = body.biz_type
     d.enabled = body.enabled
     d.remark = body.remark
+    d.variables_schema = json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
     # 整组替换节点
     for n in list(d.nodes):
         db.delete(n)
     db.flush()
-    for n in sorted(body.nodes, key=lambda x: x.seq):
-        db.add(
-            ApprovalNode(
-                definition_id=d.id,
-                seq=n.seq,
-                node_name=n.node_name,
-                approver_type=n.approver_type,
-                approver_value=n.approver_value,
-                approver_name=n.approver_name,
-            )
-        )
+    _persist_nodes(db, d, body)
     db.flush()
     db.refresh(d)
     return next(x for x in list_definitions(db) if x["id"] == d.id)
@@ -331,6 +477,24 @@ def delete_definition(db: Session, def_id: int) -> None:
     d.update_time = datetime.now()
 
 
+def preview(db: Session, definition_code: str, variables: dict) -> dict:
+    """按 variables 预演分支走向（不建实例）。"""
+    d = db.scalar(
+        select(ApprovalDefinition).where(
+            ApprovalDefinition.code == definition_code,
+            ApprovalDefinition.deleted == 0,
+        )
+    )
+    if not d:
+        raise BizException(R.GENERIC_NOT_FOUND, f"流程定义不存在：{definition_code}")
+    nodes = [n for n in d.nodes if n.deleted == 0]
+    return {
+        "definitionCode": d.code,
+        "variables": variables,
+        "route": preview_route(nodes, variables or {}),
+    }
+
+
 def instance_snapshot(db: Session, instance_id: int) -> dict | None:
     inst = db.get(ApprovalInstance, instance_id)
     if not inst or inst.deleted:
@@ -349,6 +513,8 @@ def instance_snapshot(db: Session, instance_id: int) -> dict | None:
         "status": inst.status,
         "initiatorName": inst.initiator_name,
         "currentNode": f"第{inst.current_seq}节点" if inst.status == "running" else "",
+        "currentNodeIds": parse_json(inst.current_node_ids, []),
+        "variables": parse_json(inst.variables, None),
         "snapshot": snap,
     }
 

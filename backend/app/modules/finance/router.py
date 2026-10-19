@@ -336,6 +336,7 @@ def apply_invoice(
         title=f"{s.settlement_no} 开票申请（{s.customer_name}）",
         initiator=current,
         form_snapshot=svc.form_snapshot(s),
+        variables={"amount": float(s.amount), "customer_name": s.customer_name},
     )
     s.status = "invoicing"
     s.approval_instance_id = inst.id
