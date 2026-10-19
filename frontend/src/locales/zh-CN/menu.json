@@ -21,5 +21,13 @@
   "audit": "审计日志",
   "depts": "部门管理",
   "flow": "流程配置",
-  "settings": "系统设置"
+  "settings": "系统设置",
+  "oaSystem": "OA系统",
+  "oaApply": "新申请",
+  "oaMy": "我的申请",
+  "oaRelated": "与我相关",
+  "oaStats": "统计看板",
+  "oaAdmin": "OA管理",
+  "oaFlowStats": "流程统计",
+  "oaFlowHandle": "流程处理"
 }

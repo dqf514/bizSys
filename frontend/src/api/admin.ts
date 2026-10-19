@@ -179,6 +179,24 @@ export function updateDept(id: number, data: Partial<Dept>) {
   return request<Dept>({ url: `/admin/depts/${id}`, method: 'put', data })
 }
 
+/** 部门任职成员（负责人 isLeader / 主部门 isPrimary），供部门管理与组织审批解析 */
+export interface DeptMember {
+  userId: number
+  username: string
+  userName: string
+  userStatus: string
+  isPrimary: number
+  isLeader: number
+}
+
+export function listDeptMembers(id: number) {
+  return request<DeptMember[]>({ url: `/admin/depts/${id}/members`, method: 'get' })
+}
+
+export function setDeptMembers(id: number, members: { userId: number; isPrimary: number; isLeader: number }[]) {
+  return request<void>({ url: `/admin/depts/${id}/members`, method: 'put', data: { members } })
+}
+
 // ---- flow definitions ----
 export function listFlowDefs() {
   return request<FlowDef[] | PageResult<FlowDef>>({ url: '/approval/definitions', method: 'get' })

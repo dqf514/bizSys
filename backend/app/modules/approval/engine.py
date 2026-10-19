@@ -26,7 +26,8 @@ from app.common.events import (
 )
 from app.core import response as R
 from app.core.exceptions import BizException
-from app.modules.admin.models import Role, UserRole
+from app.modules.admin import org
+from app.modules.admin.models import Dept, Role, UserRole
 from app.modules.approval.graph import first_seq, parse_json, route_from
 from app.modules.approval.models import (
     ApprovalCc,
@@ -37,6 +38,9 @@ from app.modules.approval.models import (
     ApprovalTask,
 )
 from app.modules.auth.models import User
+
+# 组织审批人类型：按发起人部门任职解析（approver_value 转为兜底角色 code，可空）
+ORG_APPROVER_TYPES = ("DEPT_LEADER", "PARENT_DEPT_LEADER", "SUPERVISOR_CHAIN")
 
 
 def _emit_todo(db: Session, instance: ApprovalInstance, assignee: User, node_name: str, operator_id: int = 0) -> None:
@@ -56,32 +60,110 @@ def _emit_todo(db: Session, instance: ApprovalInstance, assignee: User, node_nam
     )
 
 
-def _resolve_assignees(db: Session, node: ApprovalNode) -> list[User]:
-    """按节点配置解析审批人/抄送人（USER=用户ID，ROLE=角色code，逗号分隔多人）。"""
-    values = [v.strip() for v in node.approver_value.replace("，", ",").split(",") if v.strip()]
+def _resolve_role_users(db: Session, value: str) -> list[User]:
+    """按角色 code（逗号分隔）解析 enabled 用户；空值返回空。"""
+    values = [v.strip() for v in value.replace("，", ",").split(",") if v.strip()]
     if not values:
         return []
+    stmt = (
+        select(User)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            Role.code.in_(values),
+            Role.status == "enabled",
+            User.status == "enabled",
+            User.deleted == 0,
+            UserRole.deleted == 0,
+        )
+    )
+    return list(db.scalars(stmt).unique().all())
+
+
+def _resolve_org_assignees(db: Session, node: ApprovalNode, initiator_id: int) -> tuple[list[User], list[str]]:
+    """组织审批人解析（对齐 TPC assignee_resolver）：
+
+    - DEPT_LEADER：发起人主部门负责人；PARENT_DEPT_LEADER：主部门的上级部门负责人；
+    - SUPERVISOR_CHAIN：从主部门负责人起逐级向上（chain_levels 级，空/0=到根），有序去重；
+    - 发起人被排除（避免自审）；无负责人/无上级的级跳过并返回说明（调用方写时间线兜底）。
+    """
+    if not initiator_id:
+        return [], ["缺少发起人，无法解析组织审批人"]
+    dept_id = org.primary_dept_id(db, initiator_id)
+    if not dept_id:
+        return [], ["发起人未设置主部门任职"]
+    notes: list[str] = []
+    ids: list[int] = []
+    if node.approver_type == "DEPT_LEADER":
+        ids = org.dept_leader_ids(db, dept_id, exclude_user_id=initiator_id)
+        if not ids:
+            notes.append("发起人主部门无可用负责人")
+    elif node.approver_type == "PARENT_DEPT_LEADER":
+        dept = db.get(Dept, dept_id)
+        parent_id = dept.parent_id if dept and not dept.deleted else None
+        if not parent_id:
+            return [], ["发起人主部门无上级部门"]
+        ids = org.dept_leader_ids(db, parent_id, exclude_user_id=initiator_id)
+        if not ids:
+            notes.append("上级部门无可用负责人")
+    else:  # SUPERVISOR_CHAIN
+        ids, notes = org.leader_chain(db, dept_id, levels=node.chain_levels or 0, exclude_user_id=initiator_id)
+    if not ids:
+        return [], notes or ["未解析到组织审批人"]
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(ids))).all()}
+    return [users[i] for i in ids if i in users], notes
+
+
+def _resolve_assignees(db: Session, node: ApprovalNode, initiator_id: int = 0) -> tuple[list[User], list[str]]:
+    """按节点配置解析审批人/抄送人，返回 (用户列表, 解析说明)。
+
+    USER=用户ID，ROLE=角色code（逗号分隔多人）；组织类型按发起人部门任职解析。
+    """
+    if node.approver_type in ORG_APPROVER_TYPES:
+        return _resolve_org_assignees(db, node, initiator_id)
+    values = [v.strip() for v in node.approver_value.replace("，", ",").split(",") if v.strip()]
+    if not values:
+        return [], []
     if node.approver_type == "USER":
         ids = [int(v) for v in values if v.isdigit()]
         if not ids:
-            return []
+            return [], []
         stmt = select(User).where(User.id.in_(ids), User.status == "enabled", User.deleted == 0)
-    elif node.approver_type == "ROLE":
-        stmt = (
-            select(User)
-            .join(UserRole, UserRole.user_id == User.id)
-            .join(Role, Role.id == UserRole.role_id)
-            .where(
-                Role.code.in_(values),
-                Role.status == "enabled",
-                User.status == "enabled",
-                User.deleted == 0,
-                UserRole.deleted == 0,
+        return list(db.scalars(stmt).unique().all()), []
+    if node.approver_type == "ROLE":
+        return _resolve_role_users(db, node.approver_value), []
+    return [], []
+
+
+def _resolve_with_fallback(
+    db: Session, instance: ApprovalInstance, node: ApprovalNode, operator: User
+) -> list[User] | None:
+    """组织类型解析失败时的兜底：approver_value 角色 → 仍无则跳过本节点（auto_pass 写时间线）。
+
+    返回 None 表示节点被跳过（调用方继续路由）；否则返回可用用户列表（可能来自兜底角色）。
+    """
+    assignees, notes = _resolve_assignees(db, node, instance.initiator_id)
+    if node.approver_type not in ORG_APPROVER_TYPES:
+        return assignees
+    if not assignees:
+        fallback = _resolve_role_users(db, node.approver_value)
+        if fallback:
+            notes.append(f"组织审批人解析失败，转兜底角色：{node.approver_value}")
+            assignees = fallback
+        else:
+            _record(
+                db,
+                instance,
+                "auto_pass",
+                operator,
+                comment="；".join(notes) or "未解析到审批人，节点自动通过",
+                node_name=node.node_name,
+                seq=node.seq,
             )
-        )
-    else:
-        return []
-    return list(db.scalars(stmt).unique().all())
+            return None
+    if notes:
+        _record(db, instance, "fallback", operator, comment="；".join(notes), node_name=node.node_name, seq=node.seq)
+    return assignees
 
 
 def _record(
@@ -177,7 +259,10 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
             seq = route_from(nodes, seq, variables)
             continue
         if node.node_type == "cc":
-            recipients = _resolve_assignees(db, node)
+            recipients = _resolve_with_fallback(db, instance, node, operator)
+            if recipients is None:  # 组织类型解析失败且无兜底：跳过抄送节点
+                seq = route_from(nodes, seq, variables)
+                continue
             for u in recipients:
                 db.add(
                     ApprovalCc(
@@ -193,11 +278,15 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
             seq = route_from(nodes, seq, variables)
             continue
         # approval 节点
-        assignees = _resolve_assignees(db, node)
+        assignees = _resolve_with_fallback(db, instance, node, operator)
+        if assignees is None:  # 组织类型解析失败且无兜底角色：节点自动通过，不卡死流程
+            seq = route_from(nodes, seq, variables)
+            continue
         if not assignees:
             raise BizException(R.GENERIC_PARAM, f"节点「{node.node_name or node.seq}」未配置可用审批人")
         node_name = node.node_name or f"第{node.seq}节点"
-        if node.sign_mode == "sequential":
+        if node.sign_mode == "sequential" or node.approver_type == "SUPERVISOR_CHAIN":
+            # SUPERVISOR_CHAIN 复用 sequential 语义：逐级链条每级一个顺序待办
             queue = [u.id for u in assignees]
             first = assignees[0]
             db.add(
@@ -362,6 +451,8 @@ def approve(db: Session, task_id: int, user: User, comment: str = "") -> Approva
 
     node = _node_config(nodes, task.seq)
     sign_mode = node.sign_mode if node else "or"
+    if node and node.approver_type == "SUPERVISOR_CHAIN":
+        sign_mode = "sequential"  # 逐级链条复用 sequential 语义（与 _walk 建待办一致）
     if sign_mode == "sequential" and task.task_kind == "sign":
         _spawn_next_sequential(db, task)
     elif sign_mode == "or":

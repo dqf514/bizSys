@@ -160,6 +160,8 @@ export interface Dept {
 
 export type FlowNodeType = 'approval' | 'condition' | 'cc'
 export type FlowSignMode = 'or' | 'and' | 'sequential'
+/** 审批人类型：固定人/角色 + 组织任职（DEPT_LEADER 本部门负责人 / PARENT_DEPT_LEADER 上级部门负责人 / SUPERVISOR_CHAIN 逐级上级） */
+export type FlowApproverType = 'USER' | 'ROLE' | 'DEPT_LEADER' | 'PARENT_DEPT_LEADER' | 'SUPERVISOR_CHAIN'
 
 export interface FlowBranch {
   expr: { field: string; op: string; value: unknown }
@@ -171,9 +173,10 @@ export interface FlowNode {
   nodeName: string
   nodeType?: FlowNodeType
   signMode?: FlowSignMode
-  approverType: 'USER' | 'ROLE'
+  approverType: FlowApproverType
   approverValue: string | number
   approverName?: string
+  chainLevels?: number | null
   branches?: FlowBranch[] | null
   defaultSeq?: number | null
 }
@@ -644,4 +647,107 @@ export interface ListQuery {
   filters?: Record<string, string | number | boolean | undefined>
   range?: Record<string, string>
   [key: string]: unknown
+}
+
+/* ---------- OA ---------- */
+
+export type OaFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'money'
+  | 'date'
+  | 'daterange'
+  | 'select'
+  | 'radio'
+  | 'checkbox'
+  | 'file'
+  | 'user'
+
+export interface OaField {
+  key: string
+  label: string
+  type: OaFieldType
+  required?: boolean
+  options?: string[]
+  placeholder?: string
+  maxlength?: number | null
+  exposeVariable?: boolean
+}
+
+export type OaFormStatus = 'draft' | 'published' | 'disabled'
+
+export interface OaForm {
+  id: number
+  key: string
+  name: string
+  formVersion: number
+  status: OaFormStatus
+  category: string
+  icon: string
+  sort: number
+  description: string
+  flowDefinitionId: number | null
+  fields: OaField[] | null
+  publishedAt: string
+  createTime: string
+}
+
+export interface OaCatalogGroup {
+  category: string
+  forms: OaForm[]
+}
+
+export interface OaInstanceItem {
+  id: number
+  displayNo: string
+  formId: number
+  formKey: string
+  formName: string
+  formVersion: number
+  category: string
+  applicantId: number
+  applicantName: string
+  status: string
+  pendingNames: string
+  pendingTasks: { id: number; seq: number; nodeName: string; assigneeId: number; assigneeName: string }[]
+  flowInstanceId: number
+  createTime: string
+  finishedAt: string
+}
+
+export interface OaInstanceDetail extends OaInstanceItem {
+  schema: { fields?: OaField[] }
+  formData: Record<string, unknown>
+  timeline: TimelineRecord[]
+}
+
+export interface OaStatsForm {
+  formKey: string
+  formName: string
+  count: number
+}
+
+export interface OaStatsBacklog {
+  formKey: string
+  formName: string
+  instances: number
+  pendingTasks: number
+}
+
+export interface OaStats {
+  total: number
+  inFlight: number
+  byStatus: Record<string, number>
+  byForm: OaStatsForm[]
+  avgDurationHours: number
+  trend: { month: string; count: number }[]
+  backlog?: OaStatsBacklog[]
+}
+
+export interface OaFlowDefOption {
+  id: number
+  code: string
+  name: string
+  bizType: string
 }

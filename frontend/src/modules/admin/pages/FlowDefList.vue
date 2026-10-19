@@ -1,20 +1,32 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import FlowDesigner from '@/components/flow/FlowDesigner.vue'
-import { normalizeNode, validateFlowNodes, type FlowNodeRow } from '@/components/flow/flowModel'
+import OaFormPanel from '@/modules/admin/components/OaFormPanel.vue'
+import { isOrgApproverType, normalizeNode, validateFlowNodes, type FlowNodeRow } from '@/components/flow/flowModel'
 import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, listUsers } from '@/api/admin'
+import { listOaForms } from '@/api/oa'
 import { previewFlow } from '@/api/approval'
-import type { FlowDef, FlowGraphData, FlowNodeType } from '@/api/types'
+import type { FlowApproverType, FlowDef, FlowGraphData, FlowNodeType } from '@/api/types'
 
 defineOptions({ name: 'FlowDefList' })
 
 const { t } = useI18n()
 
+/* ---------- 双页签：流程定义 / OA 表单设计 ---------- */
+const activeTab = ref<'defs' | 'forms'>('defs')
+const pageTabs = computed<StatusTabItem[]>(() => [
+  { value: 'defs', labelKey: 'oa.design.tabDefs' },
+  { value: 'forms', labelKey: 'oa.design.tabForms' },
+])
+
 const items = ref<FlowDef[]>([])
 const loading = ref(false)
+/** flowDefinitionId → 绑定的 OA 表单名（绑定信息反查） */
+const boundForms = ref<Map<number, string[]>>(new Map())
 
 async function load() {
   loading.value = true
@@ -28,7 +40,24 @@ async function load() {
   }
 }
 
-onMounted(() => void load())
+async function loadBoundForms() {
+  try {
+    const forms = await listOaForms()
+    const m = new Map<number, string[]>()
+    for (const f of forms) {
+      if (!f.flowDefinitionId) continue
+      m.set(f.flowDefinitionId, [...(m.get(f.flowDefinitionId) ?? []), `${f.name} v${f.formVersion}`])
+    }
+    boundForms.value = m
+  } catch {
+    /* 无 oa:admin:design 权限时静默，绑定列退化为 bizType 标签 */
+  }
+}
+
+onMounted(() => {
+  void load()
+  void loadBoundForms()
+})
 
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
@@ -46,13 +75,13 @@ const form = reactive({
   processGraph: null as FlowGraphData | null,
 })
 
-const roleOptions = ref<{ id: number; name: string }[]>([])
+const roleOptions = ref<{ id: number; name: string; code?: string }[]>([])
 const userOptions = ref<{ id: number; name: string }[]>([])
 
 async function loadApprovers() {
   try {
     const roles = await listRoles({ page: 1, size: 100 })
-    roleOptions.value = (roles.items ?? []).map((r) => ({ id: r.id, name: r.name }))
+    roleOptions.value = (roles.items ?? []).map((r) => ({ id: r.id, name: r.name, code: r.code }))
   } catch {
     roleOptions.value = []
   }
@@ -186,6 +215,7 @@ async function save() {
         approverType: n.approverType,
         approverValue: String(n.approverValue ?? ''),
         approverName: n.approverName ?? '',
+        chainLevels: n.approverType === 'SUPERVISOR_CHAIN' ? (n.chainLevels ?? 0) : null,
         branches: n.nodeType === 'condition' ? (n.branches ?? []) : null,
         defaultSeq: n.nodeType === 'condition' ? n.defaultSeq : null,
       })),
@@ -207,14 +237,50 @@ async function save() {
 }
 
 function onApproverChange(node: FlowNodeRow, v: unknown) {
+  if (isOrgApproverType(node.approverType)) {
+    // 组织类型：approverValue 存兜底角色 code
+    node.approverName = roleOptions.value.find((x) => (x.code ?? String(x.id)) === String(v))?.name ?? ''
+    return
+  }
   const list = node.approverType === 'ROLE' ? roleOptions.value : userOptions.value
   node.approverName = list.find((x) => String(x.id) === String(v))?.name ?? ''
+}
+
+function onApproverTypeChange(node: FlowNodeRow, v: FlowApproverType) {
+  node.approverType = v
+  node.approverValue = ''
+  node.approverName = ''
+  if (v === 'SUPERVISOR_CHAIN' && node.chainLevels == null) node.chainLevels = 0
 }
 
 function bizLabel(b: string) {
   if (b === 'contract') return t('admin.flow.bizContract')
   if (b === 'task') return t('admin.flow.bizTask')
+  if (b === 'report') return t('admin.flow.bizReport')
+  if (b === 'invoice') return t('admin.flow.bizInvoice')
+  if (b === 'oa') return t('admin.flow.bizOa')
   return b
+}
+
+function approverTypeLabel(at?: string) {
+  const key =
+    at === 'ROLE'
+      ? 'admin.flow.approverRole'
+      : at === 'DEPT_LEADER'
+        ? 'admin.flow.approverDeptLeader'
+        : at === 'PARENT_DEPT_LEADER'
+          ? 'admin.flow.approverParentDeptLeader'
+          : at === 'SUPERVISOR_CHAIN'
+            ? 'admin.flow.approverSupervisorChain'
+            : 'admin.flow.approverUser'
+  return t(key)
+}
+
+/** OA 表单设计页签"去设计"：切回流程定义页签并打开该定义 */
+function gotoDef(flowDefinitionId: number) {
+  activeTab.value = 'defs'
+  const row = items.value.find((x) => x.id === flowDefinitionId)
+  if (row) openEdit(row)
 }
 
 function nodeTypeLabel(nt?: FlowNodeType) {
@@ -238,20 +304,36 @@ async function remove(row: FlowDef) {
 </script>
 
 <template>
-  <ListPage :title="t('admin.flow.title')" :loading="loading">
+  <ListPage :title="t('admin.flow.title')" :loading="activeTab === 'defs' ? loading : false">
     <template #actions>
-      <el-button v-permission="'admin:flow:edit'" type="primary" @click="openCreate">
-        {{ t('admin.flow.create') }}
-      </el-button>
-      <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
+      <template v-if="activeTab === 'defs'">
+        <el-button v-permission="'admin:flow:edit'" type="primary" @click="openCreate">
+          {{ t('admin.flow.create') }}
+        </el-button>
+        <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
+      </template>
+    </template>
+
+    <template #statusTabs>
+      <StatusTabs :tabs="pageTabs" :model-value="activeTab" @update:model-value="activeTab = $event as 'defs' | 'forms'" />
     </template>
 
     <template #table>
-      <el-table :data="items" row-key="id" border stripe height="100%">
+      <el-table v-if="activeTab === 'defs'" :data="items" row-key="id" border stripe height="100%">
         <el-table-column :label="t('admin.flow.code')" prop="code" width="130" />
         <el-table-column :label="t('admin.flow.name')" prop="name" min-width="150" />
         <el-table-column :label="t('admin.flow.bizType')" width="110">
           <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('oa.design.boundTo')" min-width="150">
+          <template #default="{ row }">
+            <template v-if="boundForms.get(row.id)?.length">
+              <el-tag v-for="n in boundForms.get(row.id)" :key="n" size="small" class="node-tag" type="success">
+                {{ t('oa.design.boundForm', { name: n }) }}
+              </el-tag>
+            </template>
+            <span v-else class="muted">-</span>
+          </template>
         </el-table-column>
         <el-table-column :label="t('admin.flow.enabled')" width="90">
           <template #default="{ row }">
@@ -271,7 +353,7 @@ async function remove(row: FlowDef) {
             >
               {{ n.seq }}. {{ n.nodeName }}
               <template v-if="(n.nodeType ?? 'approval') === 'approval'">
-                ({{ n.approverType === 'ROLE' ? t('admin.flow.approverRole') : t('admin.flow.approverUser') }}: {{ n.approverName || n.approverValue }})
+                ({{ approverTypeLabel(n.approverType) }}<template v-if="n.approverName || n.approverValue">: {{ n.approverName || n.approverValue }}</template>)
               </template>
               <template v-else>({{ nodeTypeLabel(n.nodeType) }})</template>
             </el-tag>
@@ -288,6 +370,8 @@ async function remove(row: FlowDef) {
           </template>
         </el-table-column>
       </el-table>
+
+      <OaFormPanel v-else @goto-def="gotoDef" />
     </template>
   </ListPage>
 
@@ -305,6 +389,7 @@ async function remove(row: FlowDef) {
           <el-option :label="t('admin.flow.bizTask')" value="task" />
           <el-option :label="t('admin.flow.bizReport')" value="report" />
           <el-option :label="t('admin.flow.bizInvoice')" value="invoice" />
+          <el-option :label="t('admin.flow.bizOa')" value="oa" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('admin.flow.enabled')">
@@ -326,11 +411,39 @@ async function remove(row: FlowDef) {
           <div v-for="(node, idx) in form.nodes" :key="idx" class="node-row">
             <span class="node-seq">{{ idx + 1 }}</span>
             <el-input v-model="node.nodeName" :placeholder="t('admin.flow.nodeName')" class="node-name" />
-            <el-select v-model="node.approverType" class="node-type" @change="node.approverValue = ''">
+            <el-select v-model="node.approverType" class="node-type" @change="onApproverTypeChange(node, $event as FlowApproverType)">
               <el-option :label="t('admin.flow.approverUser')" value="USER" />
               <el-option :label="t('admin.flow.approverRole')" value="ROLE" />
+              <el-option :label="t('admin.flow.approverDeptLeader')" value="DEPT_LEADER" />
+              <el-option :label="t('admin.flow.approverParentDeptLeader')" value="PARENT_DEPT_LEADER" />
+              <el-option :label="t('admin.flow.approverSupervisorChain')" value="SUPERVISOR_CHAIN" />
+            </el-select>
+            <el-input-number
+              v-if="node.approverType === 'SUPERVISOR_CHAIN'"
+              :model-value="node.chainLevels ?? 0"
+              :min="0"
+              :max="20"
+              class="node-chain"
+              @update:model-value="node.chainLevels = Number($event ?? 0)"
+            />
+            <el-select
+              v-if="isOrgApproverType(node.approverType)"
+              v-model="node.approverValue"
+              class="node-value"
+              filterable
+              clearable
+              :placeholder="t('admin.flow.orgFallbackRole')"
+              @change="onApproverChange(node, $event)"
+            >
+              <el-option
+                v-for="opt in roleOptions"
+                :key="opt.id"
+                :label="opt.name"
+                :value="opt.code ?? String(opt.id)"
+              />
             </el-select>
             <el-select
+              v-else
               v-model="node.approverValue"
               class="node-value"
               filterable
@@ -388,6 +501,14 @@ async function remove(row: FlowDef) {
 </template>
 
 <style scoped>
+.muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.node-chain {
+  width: 90px;
+}
+
 .node-tag {
   margin: 2px 4px 2px 0;
 }

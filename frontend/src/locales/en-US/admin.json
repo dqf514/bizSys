@@ -146,7 +146,15 @@
     "sort": "Sort",
     "create": "New Department",
     "edit": "Edit Department",
-    "root": "Root"
+    "root": "Root",
+    "members": "Members",
+    "membersTitle": "Department Members & Leader",
+    "memberUser": "Member",
+    "memberIsLeader": "Leader",
+    "memberIsPrimary": "Primary dept",
+    "addMember": "Add member",
+    "membersSaved": "Members saved",
+    "leaderHint": "Leader is used by flow approver types: department leader / supervisor chain"
   },
   "flow": {
     "title": "Flow Definitions",
@@ -215,7 +223,15 @@
     "errNodeName": "Node name is required",
     "errApprover": "Approval/CC node requires assignees",
     "errBranch": "Condition node requires at least one branch",
-    "errBranchTarget": "Invalid branch target node"
+    "errBranchTarget": "Invalid branch target node",
+    "approverDeptLeader": "Department Leader",
+    "approverParentDeptLeader": "Parent Department Leader",
+    "approverSupervisorChain": "Supervisor Chain",
+    "chainLevels": "Chain levels",
+    "chainLevelsTip": "0 means up to the root department leader",
+    "orgFallbackRole": "Fallback role",
+    "orgFallbackTip": "Used when org resolution finds no approver; if still none, the node is skipped (logged)",
+    "bizOa": "OA"
   },
   "common": {
     "enabled": "Enabled",

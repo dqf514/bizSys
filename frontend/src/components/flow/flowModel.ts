@@ -6,6 +6,7 @@
  * - derive 时按主链行走重新编 seq，分支 targetSeq 以新序号回写。
  */
 import type {
+  FlowApproverType,
   FlowBranch,
   FlowGraphData,
   FlowGraphEdge,
@@ -17,6 +18,13 @@ import type {
 
 export const GRAPH_NODE_ID = (seq: number) => `n${seq}`
 
+/** 组织审批人类型：approverValue 可空（作为兜底角色 code），审批人按发起人部门任职解析 */
+export const ORG_APPROVER_TYPES: FlowApproverType[] = ['DEPT_LEADER', 'PARENT_DEPT_LEADER', 'SUPERVISOR_CHAIN']
+
+export function isOrgApproverType(t?: string): boolean {
+  return ORG_APPROVER_TYPES.includes(t as FlowApproverType)
+}
+
 export interface FlowNodeRow extends FlowNode {
   nodeType: FlowNodeType
   signMode: FlowSignMode
@@ -27,6 +35,7 @@ export function normalizeNode(n: FlowNode): FlowNodeRow {
     ...n,
     nodeType: n.nodeType ?? 'approval',
     signMode: n.signMode ?? 'or',
+    chainLevels: n.chainLevels ?? null,
     branches: n.branches ?? null,
     defaultSeq: n.defaultSeq ?? null,
   }
@@ -52,6 +61,7 @@ export function toGraphNode(n: FlowNodeRow, x: number, y: number): FlowGraphNode
       approverType: n.approverType,
       approverValue: n.approverValue,
       approverName: n.approverName ?? '',
+      chainLevels: n.chainLevels ?? null,
       subtitle: nodeSubtitle(n),
     },
   }
@@ -152,9 +162,10 @@ export function deriveNodesFromGraph(graph: FlowGraphData): FlowNodeRow[] {
       nodeName: (p.nodeName as string) || (typeof node.text === 'string' ? node.text : '') || '',
       nodeType,
       signMode: (p.signMode as FlowSignMode) || 'or',
-      approverType: (p.approverType as 'USER' | 'ROLE') || 'USER',
+      approverType: (p.approverType as FlowNodeRow['approverType']) || 'USER',
       approverValue: (p.approverValue as string | number) ?? '',
       approverName: (p.approverName as string) || '',
+      chainLevels: (p.chainLevels as number | null) ?? null,
       branches: null,
       defaultSeq: null,
     }
@@ -187,7 +198,12 @@ export function validateFlowNodes(nodes: FlowNodeRow[]): string[] {
   const seqs = new Set(nodes.map((n) => n.seq))
   for (const n of nodes) {
     if (!n.nodeName.trim()) errors.push('admin.flow.errNodeName')
-    if ((n.nodeType === 'approval' || n.nodeType === 'cc') && !String(n.approverValue ?? '').trim()) {
+    // 组织类型审批人按发起人部门任职解析，approverValue 仅作兜底角色，可空
+    if (
+      (n.nodeType === 'approval' || n.nodeType === 'cc') &&
+      !isOrgApproverType(n.approverType) &&
+      !String(n.approverValue ?? '').trim()
+    ) {
       errors.push('admin.flow.errApprover')
     }
     if (n.nodeType === 'condition') {

@@ -62,6 +62,10 @@
     "instanceStatus": "Doc Status",
     "flowGraph": "Flow Graph",
     "timelineCc": "CC",
-    "timelineRoute": "Route"
+    "timelineRoute": "Route",
+    "timelineTerminate": "Terminated",
+    "timelineRestart": "Rolled back",
+    "timelineAutoPass": "Auto passed",
+    "timelineFallback": "Resolution note"
   }
 }

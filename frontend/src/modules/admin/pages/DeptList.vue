@@ -3,8 +3,16 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
-import { listDepts, createDept, updateDept } from '@/api/admin'
-import type { Dept } from '@/api/types'
+import {
+  listDepts,
+  createDept,
+  updateDept,
+  listDeptMembers,
+  setDeptMembers,
+  listUsers,
+  type DeptMember,
+} from '@/api/admin'
+import type { AdminUser, Dept } from '@/api/types'
 
 defineOptions({ name: 'DeptList' })
 
@@ -66,6 +74,64 @@ async function save() {
   }
 }
 
+/* ---------- 成员与负责人 ---------- */
+interface MemberRow {
+  userId: number | null
+  isLeader: boolean
+  isPrimary: boolean
+}
+
+const membersVisible = ref(false)
+const membersDept = ref<Dept | null>(null)
+const members = ref<MemberRow[]>([])
+const membersSaving = ref(false)
+const allUsers = ref<AdminUser[]>([])
+
+async function openMembers(row: Dept) {
+  membersDept.value = row
+  membersVisible.value = true
+  members.value = []
+  try {
+    const [ms, us] = await Promise.all([
+      listDeptMembers(row.id),
+      allUsers.value.length ? Promise.resolve({ items: allUsers.value }) : listUsers({ page: 1, size: 200 }),
+    ])
+    allUsers.value = us.items
+    members.value = ms.map((m: DeptMember) => ({
+      userId: m.userId,
+      isLeader: Boolean(m.isLeader),
+      isPrimary: Boolean(m.isPrimary),
+    }))
+  } catch {
+    /* http notifies */
+  }
+}
+
+function addMemberRow() {
+  members.value.push({ userId: null, isLeader: false, isPrimary: false })
+}
+
+function removeMemberRow(idx: number) {
+  members.value.splice(idx, 1)
+}
+
+async function saveMembers() {
+  if (!membersDept.value) return
+  const rows = members.value.filter((m) => m.userId)
+  membersSaving.value = true
+  try {
+    await setDeptMembers(
+      membersDept.value.id,
+      rows.map((m) => ({ userId: m.userId!, isPrimary: m.isPrimary ? 1 : 0, isLeader: m.isLeader ? 1 : 0 })),
+    )
+    ElMessage.success(t('admin.dept.membersSaved'))
+    membersVisible.value = false
+  } catch {
+    /* http notifies */
+  } finally {
+    membersSaving.value = false
+  }
+}
 </script>
 
 <template>
@@ -84,13 +150,16 @@ async function save() {
         </el-table-column>
         <el-table-column :label="t('admin.dept.code')" prop="code" min-width="120" />
         <el-table-column :label="t('admin.dept.sort')" prop="sort" width="80" />
-        <el-table-column :label="t('common.action.operate')" width="180" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
           <template #default="{ row }">
             <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openCreate(row as Dept)">
               {{ t('common.action.create') }}
             </el-button>
             <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openEdit(row as Dept)">
               {{ t('common.action.edit') }}
+            </el-button>
+            <el-button v-permission="'admin:dept:edit'" link type="warning" @click="openMembers(row as Dept)">
+              {{ t('admin.dept.members') }}
             </el-button>
           </template>
         </el-table-column>
@@ -125,4 +194,60 @@ async function save() {
       <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
     </template>
   </el-dialog>
+
+  <el-dialog
+    v-model="membersVisible"
+    :title="`${t('admin.dept.membersTitle')} - ${membersDept?.name ?? ''}`"
+    width="640px"
+    append-to-body
+  >
+    <el-alert type="info" :closable="false" :title="t('admin.dept.leaderHint')" class="members-hint" />
+    <el-table :data="members" border>
+      <el-table-column :label="t('admin.dept.memberUser')" min-width="200">
+        <template #default="{ row }">
+          <el-select v-model="row.userId" filterable style="width: 100%">
+            <el-option
+              v-for="u in allUsers"
+              :key="u.id"
+              :value="u.id"
+              :label="`${u.name || u.username} (${u.username})`"
+              :disabled="members.some((m) => m !== row && m.userId === u.id)"
+            />
+          </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('admin.dept.memberIsLeader')" width="90" align="center">
+        <template #default="{ row }">
+          <el-switch v-model="row.isLeader" />
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('admin.dept.memberIsPrimary')" width="90" align="center">
+        <template #default="{ row }">
+          <el-switch v-model="row.isPrimary" />
+        </template>
+      </el-table-column>
+      <el-table-column :label="t('common.action.operate')" width="70" align="center">
+        <template #default="{ $index }">
+          <el-button link type="danger" @click="removeMemberRow($index)">{{ t('common.action.delete') }}</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-button class="members-add" plain type="primary" size="small" @click="addMemberRow">
+      {{ t('admin.dept.addMember') }}
+    </el-button>
+    <template #footer>
+      <el-button @click="membersVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="primary" :loading="membersSaving" @click="saveMembers">{{ t('common.action.save') }}</el-button>
+    </template>
+  </el-dialog>
 </template>
+
+<style scoped>
+.members-hint {
+  margin-bottom: var(--bs-space-2);
+}
+
+.members-add {
+  margin-top: var(--bs-space-2);
+}
+</style>

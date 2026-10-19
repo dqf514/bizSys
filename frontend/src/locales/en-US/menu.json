@@ -21,5 +21,13 @@
   "audit": "Audit Logs",
   "depts": "Departments",
   "flow": "Flow Definitions",
-  "settings": "Settings"
+  "settings": "Settings",
+  "oaSystem": "OA",
+  "oaApply": "New Application",
+  "oaMy": "My Applications",
+  "oaRelated": "Related to Me",
+  "oaStats": "Statistics",
+  "oaAdmin": "OA Admin",
+  "oaFlowStats": "Flow Statistics",
+  "oaFlowHandle": "Flow Handling"
 }

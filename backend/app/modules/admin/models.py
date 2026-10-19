@@ -158,6 +158,21 @@ class Dept(BaseModel):
     status: Mapped[str] = mapped_column(String(16), default="enabled")
 
 
+class UserDept(BaseModel):
+    """用户-部门任职（对齐 TPC UserOrgMembership）：支持多部门任职，主部门唯一，负责人 is_leader=1。
+
+    user.dept_id/dept_name 保留为主部门冗余（兼容旧调用），任职表为准。
+    """
+
+    __tablename__ = "sys_user_dept"
+    __table_args__ = (UniqueConstraint("user_id", "dept_id"),)
+
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    dept_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    is_primary: Mapped[int] = mapped_column(Integer, default=0, comment="主部门标记（每用户至多 1）")
+    is_leader: Mapped[int] = mapped_column(Integer, default=0, comment="部门负责人标记")
+
+
 class Notify(BaseModel):
     """站内通知/待办提醒。"""
 

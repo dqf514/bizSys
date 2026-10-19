@@ -18,6 +18,10 @@ const actionKey: Record<string, string> = {
   transfer: 'approval.approval.timelineTransfer',
   cc: 'approval.approval.timelineCc',
   route: 'approval.approval.timelineRoute',
+  terminate: 'approval.approval.timelineTerminate',
+  restart: 'approval.approval.timelineRestart',
+  auto_pass: 'approval.approval.timelineAutoPass',
+  fallback: 'approval.approval.timelineFallback',
 }
 
 function actionLabel(action: string) {

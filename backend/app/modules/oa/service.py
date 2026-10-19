@@ -246,8 +246,26 @@ def _fmt(v: datetime | None) -> str:
 
 def instance_item(db: Session, inst: OaInstance) -> dict:
     pending = ""
+    pending_tasks: list[dict] = []
     if inst.status == "running" and inst.flow_instance_id:
         pending = approval_svc.pending_names(db, inst.flow_instance_id)
+        task_rows = db.scalars(
+            select(ApprovalTask).where(
+                ApprovalTask.instance_id == inst.flow_instance_id,
+                ApprovalTask.status == "pending",
+                ApprovalTask.deleted == 0,
+            )
+        ).all()
+        pending_tasks = [
+            {
+                "id": t.id,
+                "seq": t.seq,
+                "nodeName": t.node_name,
+                "assigneeId": t.assignee_id,
+                "assigneeName": t.assignee_name,
+            }
+            for t in task_rows
+        ]
     return {
         "id": inst.id,
         "displayNo": inst.display_no,
@@ -260,6 +278,7 @@ def instance_item(db: Session, inst: OaInstance) -> dict:
         "applicantName": inst.applicant_name,
         "status": inst.status,
         "pendingNames": pending,
+        "pendingTasks": pending_tasks,
         "flowInstanceId": inst.flow_instance_id or 0,
         "createTime": _fmt(inst.create_time),
         "finishedAt": _fmt(inst.finished_at),

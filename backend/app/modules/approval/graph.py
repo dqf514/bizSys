@@ -55,6 +55,7 @@ def build_process_graph(nodes: list[ApprovalNode]) -> dict:
                     "approverType": n.approver_type,
                     "approverValue": n.approver_value,
                     "approverName": n.approver_name,
+                    "chainLevels": n.chain_levels,
                     "subtitle": (
                         str(len(parse_branches(n)))
                         if n.node_type == "condition"

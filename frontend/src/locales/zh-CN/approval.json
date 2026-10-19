@@ -62,6 +62,10 @@
     "instanceStatus": "单据状态",
     "flowGraph": "流程图",
     "timelineCc": "抄送",
-    "timelineRoute": "条件路由"
+    "timelineRoute": "条件路由",
+    "timelineTerminate": "强制结束",
+    "timelineRestart": "拉回节点",
+    "timelineAutoPass": "自动通过",
+    "timelineFallback": "解析说明"
   }
 }

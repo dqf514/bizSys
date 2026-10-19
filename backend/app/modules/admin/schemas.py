@@ -144,3 +144,15 @@ class DeptIn(CamelModel):
     code: str = ""
     sort: int = 0
     status: str = "enabled"
+
+
+class DeptMemberIn(CamelModel):
+    """部门任职成员：is_primary=1 时同步为该用户主部门（user.dept_id 冗余同步）。"""
+
+    user_id: int
+    is_primary: int = 0
+    is_leader: int = 0
+
+
+class DeptMembersIn(CamelModel):
+    members: list[DeptMemberIn] = []

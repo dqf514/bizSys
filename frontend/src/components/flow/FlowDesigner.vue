@@ -14,19 +14,20 @@ import {
   GRAPH_NODE_ID,
   buildGraphFromNodes,
   capturePositions,
+  isOrgApproverType,
   normalizeNode,
   validateFlowNodes,
   type FlowNodeRow,
 } from './flowModel'
 import { highlightSeqs, registerFlowNodes, resolveToken } from './flowNodes'
-import type { FlowGraphData, FlowGraphEdge, FlowNodeType, FlowSignMode } from '@/api/types'
+import type { FlowApproverType, FlowGraphData, FlowGraphEdge, FlowNodeType, FlowSignMode } from '@/api/types'
 
 LogicFlow.use(Control)
 
 const props = defineProps<{
   nodes: FlowNodeRow[]
   userOptions: { id: number; name: string }[]
-  roleOptions: { id: number; name: string }[]
+  roleOptions: { id: number; name: string; code?: string }[]
   /** 已保存的 LogicFlow 图：仅取节点坐标用于初始布局 */
   initialGraph?: FlowGraphData | null
 }>()
@@ -151,6 +152,24 @@ function onApproverValueChange(n: FlowNodeRow, ids: (number | string)[]) {
   n.approverValue = ids.join(',')
   n.approverName = ids
     .map((id) => list.find((x) => String(x.id) === String(id))?.name ?? '')
+    .filter(Boolean)
+    .join(',')
+  onNodeChanged(n)
+}
+
+function onApproverTypeChange(n: FlowNodeRow, v: FlowApproverType) {
+  n.approverType = v
+  n.approverValue = ''
+  n.approverName = ''
+  if (v === 'SUPERVISOR_CHAIN' && n.chainLevels == null) n.chainLevels = 0
+  onNodeChanged(n)
+}
+
+/** 组织类型兜底角色：存角色 code（后端按 code 解析，见 engine._resolve_role_users） */
+function onFallbackRoleChange(n: FlowNodeRow, codes: string[]) {
+  n.approverValue = codes.join(',')
+  n.approverName = codes
+    .map((c) => props.roleOptions.find((x) => (x.code ?? String(x.id)) === c)?.name ?? '')
     .filter(Boolean)
     .join(',')
   onNodeChanged(n)
@@ -337,13 +356,49 @@ onBeforeUnmount(() => {
               <el-select
                 :model-value="selectedNode.approverType"
                 style="width: 100%"
-                @update:model-value="selectedNode.approverType = $event as 'USER' | 'ROLE'; selectedNode.approverValue = ''; selectedNode.approverName = ''; onNodeChanged(selectedNode)"
+                @update:model-value="onApproverTypeChange(selectedNode, $event as FlowApproverType)"
               >
                 <el-option :label="t('admin.flow.approverUser')" value="USER" />
                 <el-option :label="t('admin.flow.approverRole')" value="ROLE" />
+                <el-option :label="t('admin.flow.approverDeptLeader')" value="DEPT_LEADER" />
+                <el-option :label="t('admin.flow.approverParentDeptLeader')" value="PARENT_DEPT_LEADER" />
+                <el-option :label="t('admin.flow.approverSupervisorChain')" value="SUPERVISOR_CHAIN" />
               </el-select>
             </el-form-item>
+            <el-form-item v-if="selectedNode.approverType === 'SUPERVISOR_CHAIN'" :label="t('admin.flow.chainLevels')">
+              <el-input-number
+                :model-value="selectedNode.chainLevels ?? 0"
+                :min="0"
+                :max="20"
+                @update:model-value="selectedNode.chainLevels = Number($event ?? 0); onNodeChanged(selectedNode)"
+              />
+              <div class="field-tip">{{ t('admin.flow.chainLevelsTip') }}</div>
+            </el-form-item>
             <el-form-item
+              v-if="isOrgApproverType(selectedNode.approverType)"
+              :label="t('admin.flow.orgFallbackRole')"
+            >
+              <el-select
+                :model-value="approverIds(selectedNode)"
+                multiple
+                filterable
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                style="width: 100%"
+                @update:model-value="onFallbackRoleChange(selectedNode, $event as string[])"
+              >
+                <el-option
+                  v-for="opt in props.roleOptions"
+                  :key="opt.id"
+                  :label="opt.name"
+                  :value="opt.code ?? String(opt.id)"
+                />
+              </el-select>
+              <div class="field-tip">{{ t('admin.flow.orgFallbackTip') }}</div>
+            </el-form-item>
+            <el-form-item
+              v-else
               :label="selectedNode.nodeType === 'cc' ? t('admin.flow.selectCc') : t('admin.flow.selectApprover')"
             >
               <el-select
@@ -438,6 +493,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.field-tip {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  line-height: 1.4;
+}
+
 .flow-designer {
   display: flex;
   flex-direction: column;

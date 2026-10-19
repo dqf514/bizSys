@@ -37,9 +37,12 @@ class NodeIn(CamelModel):
     node_name: str = Field("", max_length=64)
     node_type: str = Field("approval", pattern="^(approval|condition|cc)$")
     sign_mode: str = Field("or", pattern="^(or|and|sequential)$")
-    approver_type: str = Field("USER", pattern="^(USER|ROLE)$")
+    approver_type: str = Field(
+        "USER", pattern="^(USER|ROLE|DEPT_LEADER|PARENT_DEPT_LEADER|SUPERVISOR_CHAIN)$"
+    )
     approver_value: str = Field("", max_length=64)
     approver_name: str = Field("", max_length=128)
+    chain_levels: int | None = Field(None, ge=0, le=20, description="SUPERVISOR_CHAIN 级数（空/0=到根）")
     branches: list[BranchIn] | None = None
     default_seq: int | None = Field(None, ge=1)
 

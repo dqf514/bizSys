@@ -58,8 +58,15 @@ class ApprovalNode(BaseModel):
     node_name: Mapped[str] = mapped_column(String(64), default="", comment="节点名（如 部门审批）")
     node_type: Mapped[str] = mapped_column(String(16), default="approval", comment="approval/condition/cc")
     sign_mode: Mapped[str] = mapped_column(String(16), default="or", comment="or/and/sequential（仅审批节点）")
-    approver_type: Mapped[str] = mapped_column(String(16), default="USER", comment="USER/ROLE")
-    approver_value: Mapped[str] = mapped_column(String(64), default="", comment="用户ID/角色code，逗号分隔")
+    approver_type: Mapped[str] = mapped_column(
+        String(32), default="USER", comment="USER/ROLE/DEPT_LEADER/PARENT_DEPT_LEADER/SUPERVISOR_CHAIN"
+    )
+    approver_value: Mapped[str] = mapped_column(
+        String(64), default="", comment="用户ID/角色code 逗号分隔；组织类型时为兜底角色code（可空）"
+    )
+    chain_levels: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="SUPERVISOR_CHAIN 逐级级数（空/0=一直到根部门）"
+    )
     approver_name: Mapped[str] = mapped_column(String(128), default="", comment="展示名（冗余）")
     branches: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="条件分支 JSON：[{expr:{field,op,value},targetSeq}]"

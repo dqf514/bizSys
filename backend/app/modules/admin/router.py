@@ -15,6 +15,7 @@ from app.core.deps import SUPER_ROLE, get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.core.security import hash_password
+from app.modules.admin import org
 from app.modules.admin import schemas as S
 from app.modules.admin import service as svc
 from app.modules.admin.models import (
@@ -26,6 +27,7 @@ from app.modules.admin.models import (
     Notify,
     NumberRule,
     Role,
+    UserDept,
 )
 from app.modules.auth.models import User
 from app.services.excel import export_xlsx_styled, now_filename
@@ -104,6 +106,7 @@ def create_user(
     )
     db.add(u)
     db.flush()
+    org.sync_primary_membership(db, u)
     svc.set_user_roles(db, u.id, body.role_ids)
     audit(db, user_id=current.id, module="admin", action="user_create", biz_type="user", biz_id=u.id)
     db.commit()
@@ -132,6 +135,7 @@ def update_user(
     u.update_by = current.id
     if body.password:
         u.password_hash = hash_password(body.password)
+    org.sync_primary_membership(db, u)
     svc.set_user_roles(db, u.id, body.role_ids)
     audit(db, user_id=current.id, module="admin", action="user_update", biz_type="user", biz_id=u.id)
     db.commit()
@@ -698,6 +702,84 @@ def update_dept(
         raise BizException(R.GENERIC_NOT_FOUND)
     for k, v in body.model_dump().items():
         setattr(d, k, v)
+    db.commit()
+    return None
+
+
+@router.get("/depts/{did}/members")
+def list_dept_members(
+    did: int,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """部门任职成员（登录即可读，供流程设计/部门管理展示）。"""
+    rows = db.scalars(
+        select(UserDept).where(UserDept.dept_id == did, UserDept.deleted == 0)
+    ).all()
+    users = (
+        {u.id: u for u in db.scalars(select(User).where(User.id.in_([r.user_id for r in rows]))).all()}
+        if rows
+        else {}
+    )
+    return [
+        {
+            "userId": r.user_id,
+            "username": users[r.user_id].username if r.user_id in users else "",
+            "userName": (users[r.user_id].name or users[r.user_id].username) if r.user_id in users else "",
+            "userStatus": users[r.user_id].status if r.user_id in users else "",
+            "isPrimary": r.is_primary,
+            "isLeader": r.is_leader,
+        }
+        for r in rows
+        if r.user_id in users
+    ]
+
+
+@router.put("/depts/{did}/members")
+def set_dept_members(
+    did: int,
+    body: S.DeptMembersIn,
+    current: User = Depends(require_perm("admin:dept:edit")),
+    db: Session = Depends(get_db),
+):
+    """整组替换部门任职成员；is_primary=1 的成员同步为该用户主部门。"""
+    d = db.get(Dept, did)
+    if not d or d.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    seen: set[int] = set()
+    for m in body.members:
+        if m.user_id in seen:
+            raise BizException(R.GENERIC_PARAM, f"成员重复：user_id={m.user_id}")
+        seen.add(m.user_id)
+    users = (
+        {u.id: u for u in db.scalars(select(User).where(User.id.in_(seen), User.deleted == 0)).all()}
+        if seen
+        else {}
+    )
+    missing = seen - set(users)
+    if missing:
+        raise BizException(R.GENERIC_NOT_FOUND, f"用户不存在：{sorted(missing)}")
+    db.query(UserDept).filter(UserDept.dept_id == did).delete()
+    db.flush()
+    for m in body.members:
+        db.add(
+            UserDept(
+                user_id=m.user_id,
+                dept_id=did,
+                is_primary=1 if m.is_primary else 0,
+                is_leader=1 if m.is_leader else 0,
+            )
+        )
+    db.flush()
+    # 主部门同步：is_primary=1 的成员，user.dept_id 指向本部门并清掉其它任职的主标记
+    for m in body.members:
+        if not m.is_primary:
+            continue
+        u = users[m.user_id]
+        u.dept_id = did
+        u.dept_name = d.name
+        org.sync_primary_membership(db, u)
+    audit(db, user_id=current.id, module="admin", action="dept_members", biz_type="dept", biz_id=did)
     db.commit()
     return None
 

@@ -10,6 +10,7 @@ from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.approval import engine
+from app.modules.approval.engine import ORG_APPROVER_TYPES
 from app.modules.approval.graph import build_process_graph, dumps_graph, parse_json, preview_route
 from app.modules.approval.models import (
     ApprovalCc,
@@ -337,6 +338,7 @@ def _nodes_payload(definition: ApprovalDefinition) -> list[dict]:
             "approverType": n.approver_type,
             "approverValue": n.approver_value,
             "approverName": n.approver_name,
+            "chainLevels": n.chain_levels,
             "branches": parse_json(n.branches, None),
             "defaultSeq": n.default_seq,
         }
@@ -391,7 +393,11 @@ def _validate_nodes(body: DefinitionIn) -> None:
     seq_set = set(seqs)
     for n in body.nodes:
         label = n.node_name or n.seq
-        if n.node_type in ("approval", "cc") and not n.approver_value.strip():
+        if (
+            n.node_type in ("approval", "cc")
+            and n.approver_type not in ORG_APPROVER_TYPES
+            and not n.approver_value.strip()
+        ):
             raise BizException(R.GENERIC_PARAM, f"节点「{label}」未选择审批人/抄送人")
         if n.node_type == "condition":
             if not n.branches:
@@ -415,6 +421,7 @@ def _persist_nodes(db: Session, definition: ApprovalDefinition, body: Definition
                 approver_type=n.approver_type,
                 approver_value=n.approver_value,
                 approver_name=n.approver_name,
+                chain_levels=n.chain_levels,
                 branches=(
                     json.dumps(
                         [{"expr": b.expr, "targetSeq": b.target_seq} for b in n.branches], ensure_ascii=False
@@ -522,6 +529,7 @@ def preview(db: Session, definition_code: str, variables: dict, draft_nodes: lis
                 approver_type=n.approver_type,
                 approver_value=n.approver_value,
                 approver_name=n.approver_name,
+                chain_levels=n.chain_levels,
                 branches=(
                     json.dumps(
                         [{"expr": b.expr, "targetSeq": b.target_seq} for b in n.branches], ensure_ascii=False

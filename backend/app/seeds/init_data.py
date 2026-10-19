@@ -224,6 +224,8 @@ MENU_TREE = [
                         "admin:flow:list",
                         [
                             (None, "flow-edit", "", "", "", "admin:flow:edit", []),
+                            # OA 表单设计并入统一流程设计页（页签），权限点挂这里供角色分配
+                            (None, "oa-design", "", "", "", "oa:admin:design", []),
                         ],
                     ),
                     (
@@ -258,15 +260,6 @@ MENU_TREE = [
                 "Stamp",
                 "",
                 [
-                    (
-                        "menu.oaFormDesign",
-                        "OaFormDesign",
-                        "/admin/oa/forms",
-                        "oa/AdminForms",
-                        "EditPen",
-                        "oa:admin:design",
-                        [],
-                    ),
                     (
                         "menu.oaFlowStats",
                         "OaFlowStats",
@@ -416,11 +409,13 @@ NUMBER_RULES = [
     ("oa", "", "OA", 4, 2, 2, 4, 1, "", "daily", "OA202610090001"),
 ]
 
+# (name, code, parent_code)：总经办为根，演示上下级多级审批
 DEPTS = [
-    ("工程咨询部", "D01"),
-    ("模型加工中心", "D02"),
-    ("风洞试验部", "D03"),
-    ("综合管理部", "D04"),
+    ("总经办", "D00", None),
+    ("工程咨询部", "D01", "D00"),
+    ("模型加工中心", "D02", "D00"),
+    ("风洞试验部", "D03", "D00"),
+    ("综合管理部", "D04", "D00"),
 ]
 
 
@@ -643,9 +638,16 @@ def _seed_flows(db: Session) -> None:
         remark="报告签批默认一级审批",
         nodes=((1, "部门负责人审批", "manager1"),),
     )
-    # OA 示例流程：请假/报销/用章各一条两级审批
+    # OA 示例流程：请假=组织多级（本部门负责人 → 上级部门负责人）；报销/用章=固定人两级
+    _seed_flow(
+        db,
+        code="oa_leave_approve",
+        name="OA 请假审批",
+        biz_type="oa",
+        remark="组织多级审批：发起人主部门负责人 → 上级部门负责人（解析失败自动跳过）",
+        nodes=((1, "部门负责人审批", "DEPT_LEADER", ""), (2, "分管领导审批", "PARENT_DEPT_LEADER", "")),
+    )
     for code, name in (
-        ("oa_leave_approve", "OA 请假审批"),
         ("oa_expense_approve", "OA 报销审批"),
         ("oa_seal_approve", "OA 用章审批"),
     ):
@@ -660,23 +662,40 @@ def _seed_flows(db: Session) -> None:
 
 
 def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
+    """节点条目两种形态：
+    - (seq, 节点名, 用户名)：固定人 USER 节点；
+    - (seq, 节点名, approver_type, approver_value[, chain_levels])：角色/组织类型节点。
+    """
     if db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)):
         return
     d = ApprovalDefinition(code=code, name=name, biz_type=biz_type, remark=remark)
     db.add(d)
     db.flush()
-    for seq, node_name, username in nodes:
-        u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
-        if not u:
-            continue
+    for entry in nodes:
+        seq, node_name = entry[0], entry[1]
+        if len(entry) == 3:
+            u = db.scalar(select(User).where(User.username == entry[2], User.deleted == 0))
+            if not u:
+                continue
+            approver_type, approver_value, approver_name, chain_levels = (
+                "USER",
+                str(u.id),
+                u.name or u.username,
+                None,
+            )
+        else:
+            approver_type, approver_value = entry[2], entry[3]
+            approver_name = node_name
+            chain_levels = entry[4] if len(entry) > 4 else None
         db.add(
             ApprovalNode(
                 definition_id=d.id,
                 seq=seq,
                 node_name=node_name,
-                approver_type="USER",
-                approver_value=str(u.id),
-                approver_name=u.name or u.username,
+                approver_type=approver_type,
+                approver_value=approver_value,
+                approver_name=approver_name,
+                chain_levels=chain_levels,
             )
         )
     db.flush()
@@ -685,9 +704,52 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
 
 
 def _seed_depts(db: Session) -> None:
-    for name, code in DEPTS:
-        if not db.scalar(select(Dept).where(Dept.code == code, Dept.deleted == 0)):
-            db.add(Dept(name=name, code=code))
+    """部门树幂等种子：缺失补建，已有行同步 parent_id（上下级关系由代码维护）。"""
+    by_code: dict[str, Dept] = {}
+    for name, code, _parent_code in DEPTS:
+        d = db.scalar(select(Dept).where(Dept.code == code, Dept.deleted == 0))
+        if not d:
+            d = Dept(name=name, code=code)
+            db.add(d)
+            db.flush()
+        by_code[code] = d
+    for _name, code, parent_code in DEPTS:
+        by_code[code].parent_id = by_code[parent_code].id if parent_code else None
+    db.flush()
+
+
+def _seed_org_memberships(db: Session) -> None:
+    """任职种子（幂等）：admin 主部门=综合管理部；manager1=综合管理部负责人；leader1=总经办负责人。
+
+    配合 OA 请假演示流程（DEPT_LEADER → PARENT_DEPT_LEADER）：admin 发起请假
+    → manager1（本部门负责人）→ leader1（上级总经办负责人）。
+    """
+    from app.modules.admin import org  # noqa: PLC0415 避免种子与模块加载循环
+    from app.modules.admin.models import UserDept  # noqa: PLC0415
+
+    def _ud(username: str, dept_code: str, is_leader: bool) -> None:
+        u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+        d = db.scalar(select(Dept).where(Dept.code == dept_code, Dept.deleted == 0))
+        if not u or not d:
+            return
+        row = db.scalar(
+            select(UserDept).where(
+                UserDept.user_id == u.id, UserDept.dept_id == d.id, UserDept.deleted == 0
+            )
+        )
+        if not row:
+            row = UserDept(user_id=u.id, dept_id=d.id)
+            db.add(row)
+            db.flush()
+        row.is_primary = 1
+        row.is_leader = 1 if is_leader else 0
+        u.dept_id = d.id
+        u.dept_name = d.name
+        org.sync_primary_membership(db, u)
+
+    _ud("admin", "D04", False)
+    _ud("manager1", "D04", True)
+    _ud("leader1", "D00", True)
 
 
 # (key, name, category, icon, sort, flow_code, description, fields)
@@ -796,6 +858,7 @@ def main() -> None:
         _seed_dicts(db)
         _seed_number_rules(db)
         _seed_depts(db)
+        _seed_org_memberships(db)
         _seed_flows(db)
         _seed_oa_forms(db)
         db.commit()

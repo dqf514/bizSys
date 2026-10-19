@@ -146,7 +146,15 @@
     "sort": "排序",
     "create": "新增部门",
     "edit": "编辑部门",
-    "root": "根节点"
+    "root": "根节点",
+    "members": "成员管理",
+    "membersTitle": "部门成员与负责人",
+    "memberUser": "成员",
+    "memberIsLeader": "负责人",
+    "memberIsPrimary": "主部门",
+    "addMember": "添加成员",
+    "membersSaved": "成员已保存",
+    "leaderHint": "负责人用于流程「部门负责人/逐级上级」审批人解析"
   },
   "flow": {
     "title": "审批流程配置",
@@ -215,7 +223,15 @@
     "errNodeName": "节点名称必填",
     "errApprover": "审批/抄送节点需选择人员",
     "errBranch": "条件节点至少配置一条分支",
-    "errBranchTarget": "分支目标节点无效"
+    "errBranchTarget": "分支目标节点无效",
+    "approverDeptLeader": "部门负责人",
+    "approverParentDeptLeader": "上级部门负责人",
+    "approverSupervisorChain": "逐级上级审批",
+    "chainLevels": "审批级数",
+    "chainLevelsTip": "0 表示一直向上到根部门负责人",
+    "orgFallbackRole": "兜底角色",
+    "orgFallbackTip": "按组织解析不到审批人时落到该角色；仍无则跳过本节点（记时间线）",
+    "bizOa": "OA 审批"
   },
   "common": {
     "enabled": "启用",
