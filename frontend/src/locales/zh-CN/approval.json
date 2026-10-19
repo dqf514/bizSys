@@ -54,6 +54,14 @@
     "operator": "操作人",
     "node": "节点",
     "at": "时间",
-    "action": "动作"
+    "action": "动作",
+    "tabCc": "抄送我的",
+    "unreadOnly": "仅看未读",
+    "ccUnread": "未读",
+    "readAt": "已读时间",
+    "instanceStatus": "单据状态",
+    "flowGraph": "流程图",
+    "timelineCc": "抄送",
+    "timelineRoute": "条件路由"
   }
 }

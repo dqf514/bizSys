@@ -51,11 +51,15 @@ class DefinitionIn(CamelModel):
     enabled: int = 1
     remark: str = Field("", max_length=255)
     variables_schema: dict[str, Any] | None = None
+    process_graph: dict[str, Any] | None = Field(
+        None, description="LogicFlow 图（设计器提交时原样存储，保留布局；缺省由节点行自动生成）"
+    )
     nodes: list[NodeIn] = Field(default_factory=list)
 
 
 class PreviewIn(CamelModel):
-    """按 variables 预览分支走向。"""
+    """按 variables 预览分支走向；nodes 缺省时按已保存定义预览，传入则预览画布草稿。"""
 
-    definition_code: str = Field(..., min_length=2, max_length=64)
+    definition_code: str = Field("", max_length=64)
     variables: dict[str, Any] = Field(default_factory=dict)
+    nodes: list[NodeIn] | None = None

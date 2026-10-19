@@ -148,7 +148,52 @@
     "deleteConfirm": "确认删除该流程定义？存在运行中的审批实例时将被拒绝。",
     "bizContract": "合同",
     "bizTask": "任务",
-    "nodeRequired": "至少配置一个节点"
+    "nodeRequired": "至少配置一个节点",
+    "bizReport": "报告",
+    "bizInvoice": "开票",
+    "editMode": "编辑模式",
+    "modeSimple": "简易模式",
+    "modeGraph": "图形模式",
+    "addApproval": "审批节点",
+    "addCondition": "条件节点",
+    "addCc": "抄送节点",
+    "nodeType": {
+      "approval": "审批节点",
+      "condition": "条件分支",
+      "cc": "抄送节点"
+    },
+    "defaultName": {
+      "approval": "审批",
+      "condition": "条件分支",
+      "cc": "抄送"
+    },
+    "signMode": {
+      "label": "签署模式",
+      "or": "或签",
+      "and": "会签",
+      "sequential": "依次"
+    },
+    "selectApprover": "选择审批人",
+    "selectCc": "选择抄送人",
+    "branches": "条件分支",
+    "addBranch": "添加分支",
+    "branchField": "字段",
+    "branchValue": "值",
+    "branchTarget": "跳转节点",
+    "defaultSeq": "默认跳转",
+    "defaultNone": "顺序下一节点",
+    "panelHint": "点击画布节点配置属性",
+    "preview": "分支预演",
+    "previewRun": "预演",
+    "previewVariables": "流程变量 (JSON)",
+    "previewBadJson": "变量 JSON 格式错误",
+    "advancedOnlyGraph": "含条件/抄送节点的流程请使用图形模式保存",
+    "errNoNode": "至少配置一个节点",
+    "errNeedApproval": "至少配置一个审批节点",
+    "errNodeName": "节点名称必填",
+    "errApprover": "审批/抄送节点需选择人员",
+    "errBranch": "条件节点至少配置一条分支",
+    "errBranchTarget": "分支目标节点无效"
   },
   "common": {
     "enabled": "启用",

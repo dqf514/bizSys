@@ -3,8 +3,11 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import FlowDesigner from '@/components/flow/FlowDesigner.vue'
+import { normalizeNode, validateFlowNodes, type FlowNodeRow } from '@/components/flow/flowModel'
 import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, listUsers } from '@/api/admin'
-import type { FlowDef, FlowNode } from '@/api/types'
+import { previewFlow } from '@/api/approval'
+import type { FlowDef, FlowGraphData, FlowNodeType } from '@/api/types'
 
 defineOptions({ name: 'FlowDefList' })
 
@@ -32,12 +35,15 @@ const dialogTitle = ref('')
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<number | null>(null)
+const mode = ref<'simple' | 'graph'>('simple')
+const designerRef = ref<InstanceType<typeof FlowDesigner> | null>(null)
 const form = reactive({
   code: '',
   name: '',
   bizType: 'contract',
   enabled: true,
-  nodes: [] as FlowNode[],
+  nodes: [] as FlowNodeRow[],
+  processGraph: null as FlowGraphData | null,
 })
 
 const roleOptions = ref<{ id: number; name: string }[]>([])
@@ -58,14 +64,12 @@ async function loadApprovers() {
   }
 }
 
+function blankNode(seq: number): FlowNodeRow {
+  return normalizeNode({ seq, nodeName: '', nodeType: 'approval', approverType: 'USER', approverValue: '' })
+}
+
 function addNode() {
-  form.nodes.push({
-    seq: form.nodes.length + 1,
-    nodeName: '',
-    approverType: 'USER',
-    approverValue: '',
-    approverName: '',
-  })
+  form.nodes.push(blankNode(form.nodes.length + 1))
   reseq()
 }
 
@@ -90,6 +94,10 @@ function reseq() {
   })
 }
 
+function hasAdvancedNodes() {
+  return form.nodes.some((n) => n.nodeType !== 'approval')
+}
+
 function openCreate() {
   editingId.value = null
   dialogTitle.value = t('admin.flow.create')
@@ -98,8 +106,10 @@ function openCreate() {
     name: '',
     bizType: 'contract',
     enabled: true,
-    nodes: [{ seq: 1, nodeName: '', approverType: 'USER', approverValue: '', approverName: '' }],
+    nodes: [blankNode(1)],
+    processGraph: null,
   })
+  mode.value = 'simple'
   dialogVisible.value = true
   void loadApprovers()
 }
@@ -112,24 +122,58 @@ function openEdit(row: FlowDef) {
     name: row.name,
     bizType: row.bizType,
     enabled: Boolean(row.enabled),
-    nodes: (row.nodes ?? []).map((n) => ({ ...n })),
+    nodes: (row.nodes ?? []).map((n) => normalizeNode({ ...n })),
+    processGraph: row.processGraph ?? null,
   })
-  if (!form.nodes.length) addNode()
+  if (!form.nodes.length) form.nodes.push(blankNode(1))
+  // 含条件/抄送节点的定义只能图形模式编辑（简易表格无法表达分支）
+  mode.value = hasAdvancedNodes() ? 'graph' : 'simple'
   dialogVisible.value = true
   void loadApprovers()
+}
+
+// --- 分支预演 ---
+
+const previewVisible = ref(false)
+const previewVariables = ref('{}')
+const previewLoading = ref(false)
+const previewRoute = ref<string>('')
+
+async function runPreview() {
+  let variables: Record<string, unknown>
+  try {
+    variables = JSON.parse(previewVariables.value || '{}') as Record<string, unknown>
+  } catch {
+    ElMessage.warning(t('admin.flow.previewBadJson'))
+    return
+  }
+  previewLoading.value = true
+  try {
+    const data = await previewFlow(form.code || 'draft', variables, form.nodes)
+    previewRoute.value = (data.route ?? []).map((n) => `${n.seq}. ${n.nodeName}`).join(' → ')
+  } catch {
+    previewRoute.value = ''
+  } finally {
+    previewLoading.value = false
+  }
 }
 
 async function save() {
   if (!formRef.value) return
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
-  if (!form.nodes.length || form.nodes.some((n) => !n.nodeName)) {
-    ElMessage.warning(t('admin.flow.nodeRequired'))
+  if (mode.value === 'simple' && hasAdvancedNodes()) {
+    ElMessage.warning(t('admin.flow.advancedOnlyGraph'))
+    return
+  }
+  const errors = mode.value === 'graph' ? (designerRef.value?.validate() ?? []) : validateFlowNodes(form.nodes)
+  if (errors.length) {
+    ElMessage.warning(errors.map((k) => t(k)).join('；'))
     return
   }
   saving.value = true
   try {
-    const payload = {
+    const payload: Record<string, unknown> = {
       code: form.code,
       name: form.name,
       bizType: form.bizType,
@@ -137,10 +181,18 @@ async function save() {
       nodes: form.nodes.map((n, i) => ({
         seq: i + 1,
         nodeName: n.nodeName,
+        nodeType: n.nodeType,
+        signMode: n.signMode,
         approverType: n.approverType,
-        approverValue: n.approverValue,
-        approverName: n.approverName,
+        approverValue: String(n.approverValue ?? ''),
+        approverName: n.approverName ?? '',
+        branches: n.nodeType === 'condition' ? (n.branches ?? []) : null,
+        defaultSeq: n.nodeType === 'condition' ? n.defaultSeq : null,
       })),
+    }
+    // 图形模式：画布图（含布局）随节点行一并提交，后端原样存储
+    if (mode.value === 'graph' && designerRef.value) {
+      payload.processGraph = designerRef.value.exportGraph()
     }
     if (editingId.value) await updateFlowDef(editingId.value, payload)
     else await createFlowDef(payload)
@@ -154,7 +206,7 @@ async function save() {
   }
 }
 
-function onApproverChange(node: FlowNode, v: unknown) {
+function onApproverChange(node: FlowNodeRow, v: unknown) {
   const list = node.approverType === 'ROLE' ? roleOptions.value : userOptions.value
   node.approverName = list.find((x) => String(x.id) === String(v))?.name ?? ''
 }
@@ -163,6 +215,10 @@ function bizLabel(b: string) {
   if (b === 'contract') return t('admin.flow.bizContract')
   if (b === 'task') return t('admin.flow.bizTask')
   return b
+}
+
+function nodeTypeLabel(nt?: FlowNodeType) {
+  return t(`admin.flow.nodeType.${nt ?? 'approval'}`)
 }
 
 async function remove(row: FlowDef) {
@@ -206,8 +262,18 @@ async function remove(row: FlowDef) {
         </el-table-column>
         <el-table-column :label="t('admin.flow.nodes')" min-width="260">
           <template #default="{ row }">
-            <el-tag v-for="n in (row.nodes || [])" :key="n.seq" size="small" class="node-tag">
-              {{ n.seq }}. {{ n.nodeName }} ({{ n.approverType === 'ROLE' ? t('admin.flow.approverRole') : t('admin.flow.approverUser') }}: {{ n.approverName || n.approverValue }})
+            <el-tag
+              v-for="n in (row.nodes || [])"
+              :key="n.seq"
+              size="small"
+              class="node-tag"
+              :type="n.nodeType === 'condition' ? 'warning' : n.nodeType === 'cc' ? 'info' : 'primary'"
+            >
+              {{ n.seq }}. {{ n.nodeName }}
+              <template v-if="(n.nodeType ?? 'approval') === 'approval'">
+                ({{ n.approverType === 'ROLE' ? t('admin.flow.approverRole') : t('admin.flow.approverUser') }}: {{ n.approverName || n.approverValue }})
+              </template>
+              <template v-else>({{ nodeTypeLabel(n.nodeType) }})</template>
             </el-tag>
           </template>
         </el-table-column>
@@ -225,10 +291,10 @@ async function remove(row: FlowDef) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" :width="mode === 'graph' ? '1080px' : '720px'" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.flow.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
-        <el-input v-model="form.code" />
+        <el-input v-model="form.code" :disabled="Boolean(editingId)" />
       </el-form-item>
       <el-form-item :label="t('admin.flow.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.name" />
@@ -237,13 +303,25 @@ async function remove(row: FlowDef) {
         <el-select v-model="form.bizType" style="width: 100%">
           <el-option :label="t('admin.flow.bizContract')" value="contract" />
           <el-option :label="t('admin.flow.bizTask')" value="task" />
+          <el-option :label="t('admin.flow.bizReport')" value="report" />
+          <el-option :label="t('admin.flow.bizInvoice')" value="invoice" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('admin.flow.enabled')">
         <el-switch v-model="form.enabled" />
       </el-form-item>
 
-      <el-form-item :label="t('admin.flow.nodes')">
+      <el-form-item :label="t('admin.flow.editMode')">
+        <el-radio-group v-model="mode">
+          <el-radio-button value="simple">{{ t('admin.flow.modeSimple') }}</el-radio-button>
+          <el-radio-button value="graph">{{ t('admin.flow.modeGraph') }}</el-radio-button>
+        </el-radio-group>
+        <el-button class="preview-btn" size="small" @click="previewVisible = true">
+          {{ t('admin.flow.preview') }}
+        </el-button>
+      </el-form-item>
+
+      <el-form-item v-if="mode === 'simple'" :label="t('admin.flow.nodes')">
         <div class="node-editor">
           <div v-for="(node, idx) in form.nodes" :key="idx" class="node-row">
             <span class="node-seq">{{ idx + 1 }}</span>
@@ -273,10 +351,38 @@ async function remove(row: FlowDef) {
           <el-button type="primary" plain @click="addNode">{{ t('admin.flow.addNode') }}</el-button>
         </div>
       </el-form-item>
+
+      <el-form-item v-else :label="t('admin.flow.nodes')">
+        <FlowDesigner
+          v-if="dialogVisible"
+          ref="designerRef"
+          v-model:nodes="form.nodes"
+          :initial-graph="form.processGraph"
+          :user-options="userOptions"
+          :role-options="roleOptions"
+        />
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
       <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="previewVisible" :title="t('admin.flow.preview')" width="480px" append-to-body>
+    <el-form label-position="top" size="small">
+      <el-form-item :label="t('admin.flow.previewVariables')">
+        <el-input v-model="previewVariables" type="textarea" :rows="4" placeholder='{"amount": 200000}' />
+      </el-form-item>
+    </el-form>
+    <el-alert v-if="previewRoute" type="success" :closable="false" class="preview-route">
+      {{ previewRoute }}
+    </el-alert>
+    <template #footer>
+      <el-button @click="previewVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="primary" :loading="previewLoading" @click="runPreview">
+        {{ t('admin.flow.previewRun') }}
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -321,5 +427,14 @@ async function remove(row: FlowDef) {
 
 .node-value {
   width: 150px;
+}
+
+.preview-btn {
+  margin-left: var(--bs-space-3);
+}
+
+.preview-route {
+  margin-top: var(--bs-space-2);
+  word-break: break-all;
 }
 </style>

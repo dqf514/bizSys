@@ -16,6 +16,8 @@ const actionKey: Record<string, string> = {
   withdraw: 'approval.approval.timelineWithdraw',
   add_sign: 'approval.approval.timelineAddSign',
   transfer: 'approval.approval.timelineTransfer',
+  cc: 'approval.approval.timelineCc',
+  route: 'approval.approval.timelineRoute',
 }
 
 function actionLabel(action: string) {

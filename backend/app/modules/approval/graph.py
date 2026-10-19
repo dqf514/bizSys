@@ -34,35 +34,45 @@ def parse_branches(node: ApprovalNode) -> list[dict]:
 def build_process_graph(nodes: list[ApprovalNode]) -> dict:
     """由顺序节点行生成 LogicFlow 图（condition 的分支/默认边展开为带 expr 的边）。"""
     graph_nodes: list[dict] = [
-        {"id": "start", "type": "start", "x": 120, "y": 200, "text": "开始", "properties": {}}
+        {"id": "start", "type": "start", "x": 320, "y": 60, "text": "开始", "properties": {}}
     ]
     edges: list[dict] = []
     ordered = sorted(nodes, key=lambda n: n.seq)
     for i, n in enumerate(ordered):
         nid = f"n{n.seq}"
+        # 不写 text：前端自定义 view 从 properties 自绘名称/副标题，默认 text 会叠影
         graph_nodes.append(
             {
                 "id": nid,
                 "type": n.node_type,
-                "x": 320 + i * 200,
-                "y": 200,
-                "text": n.node_name or _NODE_TYPE_LABELS.get(n.node_type, f"第{n.seq}节点"),
+                "x": 320,
+                "y": 170 + i * 120,
                 "properties": {
                     "seq": n.seq,
+                    "nodeName": n.node_name or _NODE_TYPE_LABELS.get(n.node_type, f"第{n.seq}节点"),
+                    "nodeType": n.node_type,
                     "signMode": n.sign_mode,
                     "approverType": n.approver_type,
                     "approverValue": n.approver_value,
                     "approverName": n.approver_name,
+                    "subtitle": (
+                        str(len(parse_branches(n)))
+                        if n.node_type == "condition"
+                        else (n.approver_name or str(n.approver_value or ""))
+                    ),
                 },
             }
         )
-    end_x = 320 + len(ordered) * 200
-    graph_nodes.append({"id": "end", "type": "end", "x": end_x, "y": 200, "text": "结束", "properties": {}})
+    end_y = 170 + len(ordered) * 120
+    graph_nodes.append({"id": "end", "type": "end", "x": 320, "y": end_y, "text": "结束", "properties": {}})
 
     # 线性主链：start → n1 → n2 → … → end；条件节点额外展开分支/默认边
+    # 必须带 type：LogicFlow 按 model.type 查视图，缺省边不会渲染
     chain = ["start"] + [f"n{n.seq}" for n in ordered] + ["end"]
     for i in range(len(chain) - 1):
-        edges.append({"sourceNodeId": chain[i], "targetNodeId": chain[i + 1], "properties": {}})
+        edges.append(
+            {"type": "polyline", "sourceNodeId": chain[i], "targetNodeId": chain[i + 1], "properties": {}}
+        )
     for n in ordered:
         if n.node_type != "condition":
             continue
@@ -72,11 +82,21 @@ def build_process_graph(nodes: list[ApprovalNode]) -> dict:
             target = b.get("targetSeq") or b.get("target_seq")
             if target:
                 edges.append(
-                    {"sourceNodeId": nid, "targetNodeId": f"n{target}", "properties": {"expr": b.get("expr")}}
+                    {
+                        "type": "polyline",
+                        "sourceNodeId": nid,
+                        "targetNodeId": f"n{target}",
+                        "properties": {"expr": b.get("expr")},
+                    }
                 )
         if n.default_seq:
             edges.append(
-                {"sourceNodeId": nid, "targetNodeId": f"n{n.default_seq}", "properties": {"default": True}}
+                {
+                    "type": "polyline",
+                    "sourceNodeId": nid,
+                    "targetNodeId": f"n{n.default_seq}",
+                    "properties": {"default": True},
+                }
             )
     return {"nodes": graph_nodes, "edges": edges}
 

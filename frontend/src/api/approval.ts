@@ -1,8 +1,11 @@
 import { request, toQuery } from './http'
 import type {
+  ApprovalCcItem,
   ApprovalInstanceDetail,
   ApprovalTask,
   ApprovalTimeline,
+  FlowNode,
+  FlowPreviewResult,
   ListQuery,
   PageResult,
   UserProfile,
@@ -68,6 +71,37 @@ export function withdrawInstance(instanceId: number) {
   return request<void>({
     url: `/approval/instances/${instanceId}/withdraw`,
     method: 'post',
+  })
+}
+
+export function getInstanceTimeline(instanceId: number) {
+  return request<ApprovalTimeline>({
+    url: `/approval/instances/${instanceId}/timeline`,
+    method: 'get',
+  })
+}
+
+export function listCcItems(params: ListQuery & { unread?: number }) {
+  return request<PageResult<ApprovalCcItem>>({
+    url: '/approval/cc',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function markCcRead(ccId: number) {
+  return request<{ id: number }>({ url: `/approval/cc/${ccId}/read`, method: 'post' })
+}
+
+export function previewFlow(
+  definitionCode: string,
+  variables: Record<string, unknown>,
+  nodes?: Partial<FlowNode>[],
+) {
+  return request<FlowPreviewResult>({
+    url: '/approval/preview',
+    method: 'post',
+    data: { definitionCode, variables, nodes },
   })
 }
 

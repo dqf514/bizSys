@@ -20,7 +20,7 @@ from app.modules.approval.models import (
     ApprovalTask,
     ApprovalViewState,
 )
-from app.modules.approval.schemas import DefinitionIn
+from app.modules.approval.schemas import DefinitionIn, NodeIn
 from app.modules.auth.models import User
 
 _TASK_STATUS_CN = {
@@ -396,8 +396,11 @@ def _persist_nodes(db: Session, definition: ApprovalDefinition, body: Definition
             )
         )
     db.flush()
-    # 线性定义自动生成等价 LogicFlow 图（F2 设计器可直接打开）
-    definition.process_graph = dumps_graph(build_process_graph([n for n in definition.nodes if n.deleted == 0]))
+    # 设计器提交的图原样存储（保留布局）；未提交则由节点行自动生成等价 LogicFlow 图
+    if body.process_graph and isinstance(body.process_graph.get("nodes"), list):
+        definition.process_graph = json.dumps(body.process_graph, ensure_ascii=False)
+    else:
+        definition.process_graph = dumps_graph(build_process_graph([n for n in definition.nodes if n.deleted == 0]))
 
 
 def create_definition(db: Session, body: DefinitionIn) -> dict:
@@ -477,8 +480,34 @@ def delete_definition(db: Session, def_id: int) -> None:
     d.update_time = datetime.now()
 
 
-def preview(db: Session, definition_code: str, variables: dict) -> dict:
-    """按 variables 预演分支走向（不建实例）。"""
+def preview(db: Session, definition_code: str, variables: dict, draft_nodes: list[NodeIn] | None = None) -> dict:
+    """按 variables 预演分支走向（不建实例）；draft_nodes 传入时预览画布草稿节点。"""
+    if draft_nodes is not None:
+        nodes = [
+            ApprovalNode(
+                seq=n.seq,
+                node_name=n.node_name,
+                node_type=n.node_type,
+                sign_mode=n.sign_mode,
+                approver_type=n.approver_type,
+                approver_value=n.approver_value,
+                approver_name=n.approver_name,
+                branches=(
+                    json.dumps(
+                        [{"expr": b.expr, "targetSeq": b.target_seq} for b in n.branches], ensure_ascii=False
+                    )
+                    if n.branches
+                    else None
+                ),
+                default_seq=n.default_seq,
+            )
+            for n in draft_nodes
+        ]
+        return {
+            "definitionCode": definition_code or "(draft)",
+            "variables": variables,
+            "route": preview_route(nodes, variables or {}),
+        }
     d = db.scalar(
         select(ApprovalDefinition).where(
             ApprovalDefinition.code == definition_code,
@@ -505,6 +534,7 @@ def instance_snapshot(db: Session, instance_id: int) -> dict | None:
             snap = json.loads(inst.form_snapshot)
         except ValueError:
             snap = None
+    definition = db.get(ApprovalDefinition, inst.definition_id) if inst.definition_id else None
     return {
         "instanceId": inst.id,
         "bizType": inst.biz_type,
@@ -515,6 +545,8 @@ def instance_snapshot(db: Session, instance_id: int) -> dict | None:
         "currentNode": f"第{inst.current_seq}节点" if inst.status == "running" else "",
         "currentNodeIds": parse_json(inst.current_node_ids, []),
         "variables": parse_json(inst.variables, None),
+        "definitionCode": inst.definition_code,
+        "processGraph": parse_json(definition.process_graph, None) if definition else None,
         "snapshot": snap,
     }
 

@@ -54,6 +54,14 @@
     "operator": "Operator",
     "node": "Node",
     "at": "Time",
-    "action": "Action"
+    "action": "Action",
+    "tabCc": "CC'd to Me",
+    "unreadOnly": "Unread only",
+    "ccUnread": "Unread",
+    "readAt": "Read at",
+    "instanceStatus": "Doc Status",
+    "flowGraph": "Flow Graph",
+    "timelineCc": "CC",
+    "timelineRoute": "Route"
   }
 }

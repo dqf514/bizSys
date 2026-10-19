@@ -152,12 +152,48 @@ export interface Dept {
   children?: Dept[]
 }
 
+export type FlowNodeType = 'approval' | 'condition' | 'cc'
+export type FlowSignMode = 'or' | 'and' | 'sequential'
+
+export interface FlowBranch {
+  expr: { field: string; op: string; value: unknown }
+  targetSeq: number
+}
+
 export interface FlowNode {
   seq: number
   nodeName: string
+  nodeType?: FlowNodeType
+  signMode?: FlowSignMode
   approverType: 'USER' | 'ROLE'
   approverValue: string | number
   approverName?: string
+  branches?: FlowBranch[] | null
+  defaultSeq?: number | null
+}
+
+/** LogicFlow getGraphData 兼容结构（后端 process_graph 原样存储） */
+export interface FlowGraphNode {
+  id: string
+  type: string
+  x: number
+  y: number
+  text?: string
+  properties?: Record<string, unknown>
+}
+
+export interface FlowGraphEdge {
+  id?: string
+  /** 缺省时 LogicFlow 无法按 model.type 找到边视图，导致边不渲染 */
+  type?: string
+  sourceNodeId: string
+  targetNodeId: string
+  properties?: Record<string, unknown>
+}
+
+export interface FlowGraphData {
+  nodes: FlowGraphNode[]
+  edges: FlowGraphEdge[]
 }
 
 export interface FlowDef {
@@ -166,7 +202,24 @@ export interface FlowDef {
   name: string
   bizType: string
   enabled: boolean | number
+  remark?: string
+  variablesSchema?: Record<string, unknown> | null
+  processGraph?: FlowGraphData | null
   nodes: FlowNode[]
+}
+
+/** POST /approval/preview 的分支预演结果 */
+export interface FlowPreviewNode {
+  seq: number
+  nodeName: string
+  nodeType: FlowNodeType
+  signMode: FlowSignMode
+}
+
+export interface FlowPreviewResult {
+  definitionCode: string
+  variables: Record<string, unknown>
+  route: FlowPreviewNode[]
 }
 
 export interface Customer {
@@ -339,7 +392,15 @@ export interface TaskCounts {
   [status: string]: number
 }
 
-export type ApprovalAction = 'start' | 'agree' | 'reject' | 'withdraw' | 'add_sign' | 'transfer'
+export type ApprovalAction =
+  | 'start'
+  | 'agree'
+  | 'reject'
+  | 'withdraw'
+  | 'add_sign'
+  | 'transfer'
+  | 'cc'
+  | 'route'
 
 export interface ApprovalTask {
   id: number
@@ -349,9 +410,13 @@ export interface ApprovalTask {
   title: string
   status: string
   nodeName: string
+  nodeType?: string
+  taskKind?: string
   comment: string
   initiatorName: string
   assigneeName: string
+  unreadCount?: number
+  instanceStatus?: string
   createTime: string
   actedAt: string | null
 }
@@ -360,7 +425,9 @@ export interface TimelineRecord {
   action: ApprovalAction
   operatorName: string
   nodeName: string
+  seq?: number
   comment: string
+  payload?: Record<string, unknown> | null
   at: string
 }
 
@@ -379,8 +446,26 @@ export interface ApprovalInstanceDetail {
   status: string
   initiatorName: string
   currentNode: string
+  currentNodeIds?: number[]
+  variables?: Record<string, unknown> | null
+  definitionCode?: string
+  processGraph?: FlowGraphData | null
   snapshot: Record<string, unknown> | null
   timeline?: TimelineRecord[]
+}
+
+/** GET /approval/cc 抄送条目 */
+export interface ApprovalCcItem {
+  id: number
+  instanceId: number
+  bizType: string
+  bizId: number
+  title: string
+  instanceStatus: string
+  nodeName: string
+  initiatorName: string
+  readAt: string
+  createTime: string
 }
 
 /** Finance module — camelCase per backend convention */

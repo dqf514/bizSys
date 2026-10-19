@@ -148,7 +148,52 @@
     "deleteConfirm": "Delete this flow definition? It will be rejected if there are running approval instances.",
     "bizContract": "Contract",
     "bizTask": "Task",
-    "nodeRequired": "At least one node is required"
+    "nodeRequired": "At least one node is required",
+    "bizReport": "Report",
+    "bizInvoice": "Invoice",
+    "editMode": "Edit Mode",
+    "modeSimple": "Simple",
+    "modeGraph": "Designer",
+    "addApproval": "Approval Node",
+    "addCondition": "Condition Node",
+    "addCc": "CC Node",
+    "nodeType": {
+      "approval": "Approval",
+      "condition": "Condition",
+      "cc": "CC"
+    },
+    "defaultName": {
+      "approval": "Approval",
+      "condition": "Condition",
+      "cc": "CC"
+    },
+    "signMode": {
+      "label": "Sign Mode",
+      "or": "Any",
+      "and": "All",
+      "sequential": "Sequential"
+    },
+    "selectApprover": "Select approvers",
+    "selectCc": "Select CC recipients",
+    "branches": "Branches",
+    "addBranch": "Add Branch",
+    "branchField": "Field",
+    "branchValue": "Value",
+    "branchTarget": "Target node",
+    "defaultSeq": "Default jump",
+    "defaultNone": "Next in order",
+    "panelHint": "Click a node on the canvas to configure it",
+    "preview": "Preview Route",
+    "previewRun": "Run",
+    "previewVariables": "Variables (JSON)",
+    "previewBadJson": "Invalid variables JSON",
+    "advancedOnlyGraph": "Flows with condition/CC nodes must be saved in designer mode",
+    "errNoNode": "At least one node is required",
+    "errNeedApproval": "At least one approval node is required",
+    "errNodeName": "Node name is required",
+    "errApprover": "Approval/CC node requires assignees",
+    "errBranch": "Condition node requires at least one branch",
+    "errBranchTarget": "Invalid branch target node"
   },
   "common": {
     "enabled": "Enabled",

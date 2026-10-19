@@ -177,7 +177,7 @@ def preview_route(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.preview(db, body.definition_code, body.variables)
+    return service.preview(db, body.definition_code, body.variables, draft_nodes=body.nodes)
 
 
 # --- 流程定义管理（admin:flow:*） ---
