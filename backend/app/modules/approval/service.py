@@ -52,7 +52,7 @@ def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
     }
 
 
-def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo") -> dict:
+def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo", biz_type: str | None = None) -> dict:
     tab = tab or "todo"
     if tab == "todo":
         stmt = select(ApprovalTask).where(
@@ -60,6 +60,10 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo") -
             ApprovalTask.status == "pending",
             ApprovalTask.deleted == 0,
         )
+        if biz_type:
+            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalTask.instance_id).where(
+                ApprovalInstance.biz_type == biz_type
+            )
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = list(
             db.scalars(
@@ -77,6 +81,10 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo") -
             ApprovalRecord.action.in_(("agree", "reject", "transfer", "add_sign")),
             ApprovalRecord.deleted == 0,
         )
+        if biz_type:
+            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalRecord.instance_id).where(
+                ApprovalInstance.biz_type == biz_type
+            )
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = list(
             db.scalars(
@@ -114,6 +122,8 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo") -
             ApprovalInstance.initiator_id == user.id,
             ApprovalInstance.deleted == 0,
         )
+        if biz_type:
+            stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = list(
             db.scalars(
@@ -265,10 +275,16 @@ def instance_timeline(db: Session, instance_id: int) -> dict:
 # --- 抄送我的 ---
 
 
-def list_cc(db: Session, user: User, params: PageParams, unread_only: bool = False) -> dict:
+def list_cc(
+    db: Session, user: User, params: PageParams, unread_only: bool = False, biz_type: str | None = None
+) -> dict:
     stmt = select(ApprovalCc).where(ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0)
     if unread_only:
         stmt = stmt.where(ApprovalCc.read_at.is_(None))
+    if biz_type:
+        stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalCc.instance_id).where(
+            ApprovalInstance.biz_type == biz_type
+        )
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = list(
         db.scalars(

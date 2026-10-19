@@ -3,6 +3,9 @@
 用法：uv run python -m app.seeds.init_data
 """
 
+import json
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -135,6 +138,20 @@ MENU_TREE = [
     ),
     ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
     (
+        "menu.oaSystem",
+        "OaSystem",
+        "",
+        "",
+        "Suitcase",
+        "",
+        [
+            ("menu.oaApply", "OaApply", "/oa/apply", "oa/ApplyForm", "Promotion", "oa:apply", []),
+            ("menu.oaMy", "OaMy", "/oa/my", "oa/MyInstances", "Document", "oa:my", []),
+            ("menu.oaRelated", "OaRelated", "/oa/related", "oa/Related", "Bell", "oa:related", []),
+            ("menu.oaStats", "OaStats", "/oa/stats", "oa/StatsBoard", "DataAnalysis", "oa:stats:view", []),
+        ],
+    ),
+    (
         "menu.system",
         "System",
         "",
@@ -230,6 +247,43 @@ MENU_TREE = [
                         [
                             (None, "numbering-edit", "", "", "", "admin:numbering:edit", []),
                         ],
+                    ),
+                ],
+            ),
+            (
+                "menu.oaAdmin",
+                "OaAdmin",
+                "",
+                "",
+                "Stamp",
+                "",
+                [
+                    (
+                        "menu.oaFormDesign",
+                        "OaFormDesign",
+                        "/admin/oa/forms",
+                        "oa/AdminForms",
+                        "EditPen",
+                        "oa:admin:design",
+                        [],
+                    ),
+                    (
+                        "menu.oaFlowStats",
+                        "OaFlowStats",
+                        "/admin/oa/stats",
+                        "oa/AdminStats",
+                        "DataLine",
+                        "oa:admin:stats",
+                        [],
+                    ),
+                    (
+                        "menu.oaFlowHandle",
+                        "OaFlowHandle",
+                        "/admin/oa/instances",
+                        "oa/AdminInstances",
+                        "Warning",
+                        "oa:admin:handle",
+                        [],
                     ),
                 ],
             ),
@@ -338,6 +392,15 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POS", "POS", "pos"),
         ],
     ),
+    "oa_category": (
+        "OA 表单分类",
+        [
+            ("请假", "Leave", "leave"),
+            ("报销", "Expense", "expense"),
+            ("行政", "Administration", "admin"),
+            ("其他", "Other", "other"),
+        ],
+    ),
 }
 
 NUMBER_RULES = [
@@ -350,6 +413,7 @@ NUMBER_RULES = [
     ("report", "", "BG", 4, 2, 2, 4, 1, "", "daily", "BG202610090001"),
     ("settlement", "", "HK", 4, 2, 2, 4, 1, "", "daily", "HK202610090001"),
     ("payment", "", "DZ", 4, 2, 2, 4, 1, "", "daily", "DZ202610090001"),
+    ("oa", "", "OA", 4, 2, 2, 4, 1, "", "daily", "OA202610090001"),
 ]
 
 DEPTS = [
@@ -459,6 +523,9 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "report:seal",
         "report:export",
         "approval:view",
+        "oa:apply",
+        "oa:my",
+        "oa:related",
     ]
     for p in biz_perms:
         if p in perm_to_id:
@@ -576,6 +643,20 @@ def _seed_flows(db: Session) -> None:
         remark="报告签批默认一级审批",
         nodes=((1, "部门负责人审批", "manager1"),),
     )
+    # OA 示例流程：请假/报销/用章各一条两级审批
+    for code, name in (
+        ("oa_leave_approve", "OA 请假审批"),
+        ("oa_expense_approve", "OA 报销审批"),
+        ("oa_seal_approve", "OA 用章审批"),
+    ):
+        _seed_flow(
+            db,
+            code=code,
+            name=name,
+            biz_type="oa",
+            remark="OA 默认两级顺序审批",
+            nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
+        )
 
 
 def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
@@ -609,6 +690,103 @@ def _seed_depts(db: Session) -> None:
             db.add(Dept(name=name, code=code))
 
 
+# (key, name, category, icon, sort, flow_code, description, fields)
+OA_FORMS = [
+    (
+        "leave_application",
+        "请假申请",
+        "leave",
+        "Calendar",
+        1,
+        "oa_leave_approve",
+        "员工请假申请（事假/病假/年假/调休）",
+        [
+            {
+                "key": "leave_type",
+                "label": "请假类型",
+                "type": "select",
+                "required": True,
+                "options": ["事假", "病假", "年假", "调休"],
+                "expose_variable": True,
+            },
+            {"key": "date_range", "label": "起止日期", "type": "daterange", "required": True},
+            {"key": "reason", "label": "请假事由", "type": "textarea", "required": True, "maxlength": 500},
+        ],
+    ),
+    (
+        "expense_application",
+        "报销申请",
+        "expense",
+        "Money",
+        2,
+        "oa_expense_approve",
+        "费用报销申请（差旅/办公/招待等）",
+        [
+            {"key": "amount", "label": "报销金额", "type": "money", "required": True, "expose_variable": True},
+            {
+                "key": "expense_type",
+                "label": "费用类别",
+                "type": "select",
+                "required": True,
+                "options": ["差旅", "办公", "招待", "其他"],
+            },
+            {"key": "reason", "label": "报销事由", "type": "textarea", "required": True, "maxlength": 500},
+            {"key": "attachments", "label": "票据附件", "type": "file", "required": False},
+        ],
+    ),
+    (
+        "seal_application",
+        "用章申请",
+        "admin",
+        "Stamp",
+        3,
+        "oa_seal_approve",
+        "印章使用申请",
+        [
+            {
+                "key": "seal_type",
+                "label": "印章类型",
+                "type": "select",
+                "required": True,
+                "options": ["公章", "合同专用章", "财务专用章", "法人章"],
+                "expose_variable": True,
+            },
+            {"key": "purpose", "label": "用途说明", "type": "textarea", "required": True, "maxlength": 500},
+            {"key": "copies", "label": "文件份数", "type": "number", "required": True},
+        ],
+    ),
+]
+
+
+def _seed_oa_forms(db: Session) -> None:
+    """OA 示例表单：published，绑定对应两级审批定义。"""
+    from app.modules.oa.models import OaForm  # noqa: PLC0415 避免种子与模块加载循环
+
+    for key, name, category, icon, sort, flow_code, description, fields in OA_FORMS:
+        if db.scalar(select(OaForm).where(OaForm.key == key, OaForm.form_version == 1, OaForm.deleted == 0)):
+            continue
+        flow_id = db.scalar(
+            select(ApprovalDefinition.id).where(
+                ApprovalDefinition.code == flow_code, ApprovalDefinition.deleted == 0
+            )
+        )
+        db.add(
+            OaForm(
+                key=key,
+                name=name,
+                form_version=1,
+                status="published",
+                category=category,
+                icon=icon,
+                sort=sort,
+                description=description,
+                schema_json=json.dumps({"fields": fields}, ensure_ascii=False),
+                flow_definition_id=flow_id,
+                published_at=datetime.now(),
+            )
+        )
+
+
 def main() -> None:
     db: Session = SessionLocal()
     try:
@@ -619,6 +797,7 @@ def main() -> None:
         _seed_number_rules(db)
         _seed_depts(db)
         _seed_flows(db)
+        _seed_oa_forms(db)
         db.commit()
         print(f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}")
     except Exception:
