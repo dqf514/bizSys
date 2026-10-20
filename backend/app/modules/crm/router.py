@@ -38,7 +38,7 @@ EXPORT_COLS = [
     {"key": "country", "label": "国家", "width": 10},
     {"key": "province", "label": "省份", "width": 10},
     {"key": "city", "label": "城市", "width": 10},
-    {"key": "address", "label": "地址", "width": 30},
+    {"key": "address", "label": "注册地址", "width": 30},
     {"key": "bankName", "label": "开户行", "width": 20},
     {"key": "bankAccount", "label": "银行账号", "width": 22},
     {"key": "payOrg", "label": "付款单位", "width": 24},

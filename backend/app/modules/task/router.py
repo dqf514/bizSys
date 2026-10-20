@@ -96,7 +96,7 @@ def _out(c: Task, labels: tuple[dict, dict], counts: tuple[int, int] = (0, 0)) -
     type_labels, block_labels = labels
     return {
         "id": c.id,
-        "taskNo": c.task_no,
+        "taskNo": c.task_no or "",
         "taskName": c.task_name,
         "taskType": c.task_type,
         "taskTypeLabel": type_labels.get(c.task_type, c.task_type),
@@ -144,7 +144,7 @@ def _item_out(i: TaskItem) -> dict:
 def _sample_out(s: TaskSample) -> dict:
     return {
         "id": s.id,
-        "sampleNo": s.sample_no,
+        "sampleNo": s.sample_no or "",
         "name": s.name,
         "model": s.model,
         "vin": s.vin,
@@ -247,7 +247,8 @@ def create_task(
     current: User = Depends(require_perm("task:create")),
     db: Session = Depends(get_db),
 ):
-    t = Task(task_no=next_no(db, "task", category=body.task_type or None), status="draft", create_by=current.id)
+    # draft 不占正式 RW 编号：提交审批时才由编号规则发放（与合同一致，F3 流程驱动）
+    t = Task(task_no=None, status="draft", create_by=current.id)
     _apply(t, body)
     _bind_contract(db, t, body.contract_id)
     if not t.owner_id:
@@ -426,7 +427,8 @@ def add_item(
         settle_type=body.settle_type,
         need_report=body.need_report,
     )
-    if row.need_report:
+    if row.need_report and t.task_no:
+        # 草稿不占报告编号：任务提交时统一发放
         row.report_no = next_no(db, "report")
         row.report_status = "pending"
     db.add(row)
@@ -456,7 +458,7 @@ def update_item(
     row.settle_type = body.settle_type
     if body.need_report and not row.need_report:
         row.need_report = 1
-        if not row.report_no:
+        if not row.report_no and t.task_no:
             row.report_no = next_no(db, "report")
         row.report_status = row.report_status or "pending"
     elif not body.need_report:
@@ -501,7 +503,8 @@ def add_sample(
         raise BizException(R.TASK_INVALID_STATE)
     row = TaskSample(
         task_id=t.id,
-        sample_no=svc.next_sample_no(db, t),
+        # 草稿任务无编号 → 样品同步无编号，提交时统一发放
+        sample_no=svc.next_sample_no(db, t) if t.task_no else None,
         name=body.name,
         model=body.model,
         vin=body.vin,

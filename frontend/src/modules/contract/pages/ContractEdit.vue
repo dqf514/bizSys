@@ -12,6 +12,7 @@ import {
   getContract,
   createContract,
   updateContract,
+  submitContract,
   uploadContractAttachment,
   downloadAttachment,
   deleteAttachment,
@@ -25,7 +26,8 @@ const route = useRoute()
 const router = useRouter()
 
 const formRef = ref<FormInstance>()
-const saving = ref(false)
+const savingDraft = ref(false)
+const savingSubmit = ref(false)
 const loading = ref(false)
 const isEdit = ref(false)
 const contractId = ref<number | null>(null)
@@ -99,11 +101,8 @@ async function load() {
 
 onMounted(() => void load())
 
-async function save() {
-  if (!formRef.value) return
-  const ok = await formRef.value.validate().catch(() => false)
-  if (!ok) return
-  saving.value = true
+/** 落库（新建/更新 + 暂存附件上传 + 智能输入历史），返回合同 id；失败返回 null */
+async function persist(): Promise<number | null> {
   try {
     const payload = {
       ...form,
@@ -125,12 +124,47 @@ async function save() {
     recordSmartHistory('contract.handlerName', form.handlerName)
     recordSmartHistory('contract.frameworkNo', form.frameworkNo)
     recordSmartHistory('contract.paymentOrg', form.paymentOrg)
+    return contractId.value
+  } catch {
+    /* http notifies */
+    return null
+  }
+}
+
+/** 保存草稿：仅校验名称+客户（草稿宽容），不发编号、不进流程 */
+async function saveDraft() {
+  if (!formRef.value) return
+  const ok = await formRef.value
+    .validateField(['name', 'customerId'])
+    .then(() => true)
+    .catch(() => false)
+  if (!ok) return
+  savingDraft.value = true
+  try {
+    if ((await persist()) === null) return
     ElMessage.success(t('common.message.saveSuccess'))
+    router.push('/contract/contracts')
+  } finally {
+    savingDraft.value = false
+  }
+}
+
+/** 提交审批：完整校验 → 落库 → 发起审批流（发编号、进入审批中） */
+async function saveAndSubmit() {
+  if (!formRef.value) return
+  const ok = await formRef.value.validate().catch(() => false)
+  if (!ok) return
+  savingSubmit.value = true
+  try {
+    const id = await persist()
+    if (id === null) return
+    await submitContract(id)
+    ElMessage.success(t('common.message.submitSuccess'))
     router.push('/contract/contracts')
   } catch {
     /* http notifies */
   } finally {
-    saving.value = false
+    savingSubmit.value = false
   }
 }
 
@@ -190,7 +224,8 @@ function cancel() {
       <h2 class="edit-title">{{ isEdit ? t('contract.contract.edit') : t('contract.contract.create') }}</h2>
       <div>
         <el-button @click="cancel">{{ t('common.action.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+        <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
+        <el-button type="primary" :loading="savingSubmit" @click="saveAndSubmit">{{ t('common.action.submitApproval') }}</el-button>
       </div>
     </div>
 

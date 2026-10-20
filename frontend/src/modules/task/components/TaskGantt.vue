@@ -125,7 +125,7 @@ function buildOption() {
         const statusKey = STATUS_KEYS.find((s) => s.value === row.task.status)
         const statusLabel = statusKey ? t(statusKey.labelKey) : row.task.status
         return [
-          `<b>${row.task.taskNo}</b> ${row.task.taskName}`,
+          `<b>${row.task.taskNo || '-'}</b> ${row.task.taskName}`,
           `${t('task.task.status')}: ${statusLabel}`,
           `${t('task.task.createTime')}: ${fmtDate(row.start)}`,
           `${t('task.task.ganttEnd')}: ${fmtDate(row.end)}`,
@@ -137,7 +137,7 @@ function buildOption() {
     yAxis: {
       type: 'category',
       inverse: true,
-      data: data.map((r) => r.task.taskNo),
+      data: data.map((r) => r.task.taskNo || r.task.taskName),
       axisLabel: { width: 110, overflow: 'truncate' },
     },
     dataZoom: [

@@ -8,7 +8,7 @@
     "taxNo": "Tax ID",
     "grade": "Grade",
     "status": "Status",
-    "address": "Address",
+    "address": "Registered Address",
     "country": "Country",
     "province": "Province",
     "city": "City",

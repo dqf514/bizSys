@@ -5,7 +5,7 @@ import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ContractSelect from '@/components/form/ContractSelect.vue'
 import { useDictOptions } from '@/composables/useDict'
-import { getTask, createTask, updateTask } from '@/api/task'
+import { getTask, createTask, updateTask, taskAction } from '@/api/task'
 import { listDepts } from '@/api/admin'
 import type { Dept, TaskItem, TaskSample } from '@/api/types'
 
@@ -16,7 +16,8 @@ const route = useRoute()
 const router = useRouter()
 
 const step = ref(0)
-const saving = ref(false)
+const savingDraft = ref(false)
+const savingSubmit = ref(false)
 const loading = ref(false)
 const isEdit = ref(false)
 const taskId = ref<number | null>(null)
@@ -142,22 +143,71 @@ function prev() {
   if (step.value > 0) step.value -= 1
 }
 
-async function save() {
-  saving.value = true
+/** 落库（新建/更新），返回任务 id；失败返回 null */
+async function persist(): Promise<number | null> {
   try {
     const payload = {
       ...form,
+      planFinishDate: form.planFinishDate || null,
       items: items.value.filter((x) => x.name || x.itemCode),
-      samples: samples.value.filter((x) => x.name || x.sampleNo),
+      samples: samples.value
+        .filter((x) => x.name || x.sampleNo)
+        .map((x) => ({ ...x, sampleDate: x.sampleDate || null })),
     }
-    if (isEdit.value && taskId.value) await updateTask(taskId.value, payload as never)
-    else await createTask(payload as never)
+    if (isEdit.value && taskId.value) {
+      await updateTask(taskId.value, payload as never)
+    } else {
+      const created = await createTask(payload as never)
+      taskId.value = created?.id ?? null
+      isEdit.value = true
+    }
+    return taskId.value
+  } catch {
+    /* http notifies */
+    return null
+  }
+}
+
+/** 保存草稿：仅校验任务名称（草稿宽容），不发编号、不进流程 */
+async function saveDraft() {
+  if (!basicFormRef.value) return
+  const ok = await basicFormRef.value
+    .validateField(['taskName'])
+    .then(() => true)
+    .catch(() => false)
+  if (!ok) {
+    step.value = 0
+    return
+  }
+  savingDraft.value = true
+  try {
+    if ((await persist()) === null) return
     ElMessage.success(t('common.message.saveSuccess'))
+    router.push('/task/tasks')
+  } finally {
+    savingDraft.value = false
+  }
+}
+
+/** 提交审批：完整校验 → 落库 → 提交（发编号、进入流程） */
+async function saveAndSubmit() {
+  if (!basicFormRef.value) return
+  const ok = await basicFormRef.value.validate().catch(() => false)
+  if (!ok) {
+    step.value = 0
+    return
+  }
+  savingSubmit.value = true
+  try {
+    const id = await persist()
+    if (id === null) return
+    await taskAction(id, 'submit')
+    ElMessage.success(t('common.message.submitSuccess'))
     router.push('/task/tasks')
   } catch {
     /* http notifies */
   } finally {
-    saving.value = false
+    savingSubmit.value = false
   }
 }
 </script>
@@ -168,7 +218,6 @@ async function save() {
       <h2 class="edit-title">{{ isEdit ? t('task.task.edit') : t('task.task.create') }}</h2>
       <div>
         <el-button @click="router.push('/task/tasks')">{{ t('common.action.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
       </div>
     </div>
 
@@ -346,8 +395,9 @@ async function save() {
 
     <div class="step-footer">
       <el-button :disabled="step === 0" @click="prev">{{ t('task.task.stepPrev') }}</el-button>
-      <el-button v-if="step < 4" type="primary" @click="next">{{ t('task.task.stepNext') }}</el-button>
-      <el-button v-else type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button v-if="step < 4" type="primary" plain @click="next">{{ t('task.task.stepNext') }}</el-button>
+      <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button type="primary" :loading="savingSubmit" @click="saveAndSubmit">{{ t('common.action.submitApproval') }}</el-button>
     </div>
   </div>
 </template>

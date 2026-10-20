@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import Field
 
-from app.core.schemas import CamelModel
+from app.core.schemas import CamelModel, OptionalDate
 
 
 class SettlementIn(CamelModel):
@@ -22,7 +22,7 @@ class ApplyInvoiceIn(CamelModel):
 class InvoiceIn(CamelModel):
     invoice_no: str = Field(..., min_length=1, max_length=64)
     amount: Decimal = Field(..., gt=0, le=9999999999999999.99)
-    invoice_date: date | None = None
+    invoice_date: OptionalDate = None
 
 
 class PaymentIn(CamelModel):

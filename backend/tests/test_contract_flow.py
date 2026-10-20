@@ -193,3 +193,22 @@ def test_attachment_delete_state_guard(client, admin_headers):
     assert client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()["code"] == 0
     r = client.delete(f"/api/v1/contract/attachments/{fid2}", headers=admin_headers).json()
     assert r["code"] == 50002
+
+
+def test_contract_draft_minimal_fields(client, admin_headers):
+    """保存草稿只需名称+客户：日期/金额不强制；空串日期宽容解析为 None（不再 422）。"""
+    cust = _create_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": f"草稿合同_{UUID}", "customer_id": cust["id"], "start_date": "", "end_date": ""},
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["status"] == "draft"
+    assert r["data"]["contractNo"] == ""
+    assert r["data"]["startDate"] == "" and r["data"]["endDate"] == ""
+
+    # 提交审批才做完整校验：无金额 → 10001
+    cid = r["data"]["id"]
+    r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()
+    assert r["code"] == 10001, r

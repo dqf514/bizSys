@@ -8,7 +8,7 @@
     "taxNo": "纳税识别码",
     "grade": "等级",
     "status": "状态",
-    "address": "地址",
+    "address": "注册地址",
     "country": "国家",
     "province": "省份",
     "city": "城市",

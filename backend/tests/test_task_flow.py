@@ -112,10 +112,10 @@ def test_task_state_machine_and_errors(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
     tid = r["data"]["id"]
-    tno = r["data"]["taskNo"]
-    assert tno.startswith("RW")
-    assert r["data"]["items"][0]["reportNo"].startswith("BG")
-    assert r["data"]["samples"][0]["sampleNo"] == f"{tno}-01"
+    # 草稿不占正式编号：任务号/报告号/样品号均待提交时发放
+    assert r["data"]["taskNo"] == ""
+    assert r["data"]["items"][0]["reportNo"] == ""
+    assert r["data"]["samples"][0]["sampleNo"] == ""
     assert r["data"]["customerName"]
 
     # 非法流转 60001
@@ -134,9 +134,14 @@ def test_task_state_machine_and_errors(client, admin_headers):
     r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
     assert r["code"] == 60003, r
 
-    # 补齐报告链路（上传 → 签批 → 批准 → 签章）后 close 放行
+    # 提交时已发放正式编号
     detail = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]
+    tno = detail["taskNo"]
+    assert tno.startswith("RW")
+    assert detail["items"][0]["reportNo"].startswith("BG")
+    assert detail["samples"][0]["sampleNo"] == f"{tno}-01"
     item_id = detail["items"][0]["id"]
+    # 补齐报告链路（上传 → 签批 → 批准 → 签章）后 close 放行
     r = client.post(
         "/api/v1/report/reports",
         headers=headers,
@@ -178,24 +183,56 @@ def test_sample_no_unique_after_delete(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
     tid = r["data"]["id"]
-    tno = r["data"]["taskNo"]
     sid = r["data"]["samples"][0]["id"]
-    assert r["data"]["samples"][0]["sampleNo"] == f"{tno}-01"
+    # 草稿无编号；提交后才发放
+    assert r["data"]["samples"][0]["sampleNo"] == ""
+    assert client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()["code"] == 0
+    detail = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]
+    tno = detail["taskNo"]
+    assert tno.startswith("RW")
+    assert detail["samples"][0]["sampleNo"] == f"{tno}-01"
 
     assert client.delete(f"/api/v1/task/samples/{sid}", headers=headers).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/samples", headers=headers, json={"name": "样车B"}).json()
     assert r["code"] == 0, r
     assert r["data"]["sampleNo"] == f"{tno}-02"
 
-    # 草稿整体同步（sync_samples）：逻辑删除行留底占位，新样品位次接续不撞号
+
+def test_sample_no_assigned_on_submit_batch(client, admin_headers):
+    """草稿同步（sync_samples）不编号；提交时按当前样品顺序统一发放且不撞号。"""
+    headers = admin_headers
+    approved_id = _approved_contract(client, headers)
+    r = client.post(
+        "/api/v1/task/tasks",
+        headers=headers,
+        json={
+            "task_name": f"批量_{UUID}",
+            "contract_id": approved_id,
+            "samples": [{"name": "样车A"}, {"name": "样车B"}],
+        },
+    ).json()
+    assert r["code"] == 0, r
+    tid = r["data"]["id"]
+    sid_a = r["data"]["samples"][0]["id"]
+    assert all(s["sampleNo"] == "" for s in r["data"]["samples"])
+
+    # 草稿期删除 A 并同步新增 C：仍全部无编号
+    assert client.delete(f"/api/v1/task/samples/{sid_a}", headers=headers).json()["code"] == 0
+    keep = r["data"]["samples"][1]
     r = client.put(
         f"/api/v1/task/tasks/{tid}",
         headers=headers,
-        json={"task_name": f"样品_{UUID}", "samples": [{"name": "样车C"}, {"name": "样车D"}]},
+        json={"task_name": f"批量_{UUID}", "samples": [keep, {"name": "样车C"}]},
     ).json()
     assert r["code"] == 0, r
-    nos = [s["sampleNo"] for s in r["data"]["samples"]]
-    assert nos == [f"{tno}-02", f"{tno}-03"], nos
+    assert all(s["sampleNo"] == "" for s in r["data"]["samples"])
+
+    # 提交 → 统一编号（A 从未占号，B/C 依次 -01/-02）
+    assert client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()["code"] == 0
+    detail = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]
+    tno = detail["taskNo"]
+    nos = [s["sampleNo"] for s in detail["samples"]]
+    assert nos == [f"{tno}-01", f"{tno}-02"], nos
 
 
 def test_task_detail_logs(client, admin_headers):
@@ -210,7 +247,8 @@ def test_task_detail_logs(client, admin_headers):
     assert r["code"] == 0, r
     tid = r["data"]["id"]
 
-    # 详情页补登样品（写「初始登记」流水）
+    # 提交发号后再补登样品（写「初始登记」流水），样品即带编号
+    assert client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/samples", headers=headers, json={"name": "样车X"}).json()
     assert r["code"] == 0, r
     sid = r["data"]["id"]
@@ -240,3 +278,26 @@ def test_invalid_date_filter_is_biz_error(client, admin_headers):
     data = r.json()
     assert data["code"] == 10001
     assert r.status_code == 200
+
+
+def test_task_draft_empty_date_tolerant(client, admin_headers):
+    """日期控件清空回传空串：草稿保存宽容解析为 None（planFinishDate 空串 422 修复）。"""
+    r = client.post(
+        "/api/v1/task/tasks",
+        headers=admin_headers,
+        json={
+            "task_name": f"空日期_{UUID}",
+            "plan_finish_date": "",
+            "samples": [{"name": "样车", "sample_date": ""}],
+        },
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["planFinishDate"] == ""
+    assert r["data"]["samples"][0]["sampleDate"] == ""
+    # 合同空串日期同样宽容（走同一 OptionalDate）
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": f"空日期合同_{UUID}", "customer_id": 1, "start_date": "", "end_date": ""},
+    ).json()
+    assert r["code"] == 0, r

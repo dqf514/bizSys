@@ -225,7 +225,7 @@ function onDetailChanged() {
           <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
         </template>
         <template #taskNo="{ row }">
-          <el-button link type="primary" @click="openDetail(row as unknown as Task)">{{ row.taskNo }}</el-button>
+          <el-button link type="primary" @click="openDetail(row as unknown as Task)">{{ row.taskNo || '-' }}</el-button>
         </template>
         <template #extraColumns>
           <el-table-column :label="t('common.action.operate')" width="90" fixed="right">

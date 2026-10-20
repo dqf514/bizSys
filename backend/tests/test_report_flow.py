@@ -65,7 +65,12 @@ def _make_task(client, headers, suf: str, need_report: int = 1):
         },
     ).json()
     assert r["code"] == 0, r
-    return r["data"]["id"], r["data"]["items"][0]
+    tid = r["data"]["id"]
+    # 提交审批时才发放报告编号（草稿不占号）
+    r2 = client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()
+    assert r2["code"] == 0, r2
+    detail = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]
+    return tid, detail["items"][0]
 
 
 def _upload(client, headers, item_id: int, name="报告.docx", data=DOCX,
@@ -140,7 +145,7 @@ def test_report_full_flow(client, admin_headers):
     assert all(o["value"] != item_id for o in opts)
 
     # 任务跑到 finished，close 被门禁拦住（60003，消息含报告编号）
-    for action in ("submit", "start", "start", "finish"):
+    for action in ("start", "start", "finish"):
         assert client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
     assert r["code"] == 60003 and item["reportNo"] in r["message"], r
@@ -239,7 +244,7 @@ def test_close_guard_without_report(client, admin_headers):
     headers = admin_headers
     suf = uuid.uuid4().hex[:8]
     tid, item = _make_task(client, headers, suf)
-    for action in ("submit", "start", "start", "finish"):
+    for action in ("start", "start", "finish"):
         assert client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
     assert r["code"] == 60003 and item["name"] in r["message"], r
@@ -261,7 +266,9 @@ def test_report_list_contract_filter(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
     tid = r["data"]["id"]
-    item = r["data"]["items"][0]
+    # 提交审批时才发放报告编号（草稿不占号）
+    assert client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()["code"] == 0
+    item = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()["data"]["items"][0]
 
     # item-options：task_id 限定到本任务 / 其他任务为空
     opts = client.get(

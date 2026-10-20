@@ -13,7 +13,9 @@ class Task(BaseModel):
 
     __tablename__ = "task_task"
 
-    task_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="任务编号 RW...")
+    task_no: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, nullable=True, comment="任务编号 RW...（提交审批时发放，草稿不占号）"
+    )
     task_name: Mapped[str] = mapped_column(String(255), index=True)
     task_type: Mapped[str] = mapped_column(String(32), default="", index=True, comment="字典 task_type")
     contract_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
@@ -64,7 +66,9 @@ class TaskSample(BaseModel):
     __tablename__ = "task_sample"
 
     task_id: Mapped[int] = mapped_column(ForeignKey("task_task.id"), index=True)
-    sample_no: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    sample_no: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True, comment="编号=任务号-01（随任务提交发放）"
+    )
     name: Mapped[str] = mapped_column(String(128), default="")
     model: Mapped[str] = mapped_column(String(64), default="", comment="型号")
     vin: Mapped[str] = mapped_column(String(64), default="")

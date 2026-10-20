@@ -127,8 +127,23 @@ def _enter_assigning(db: Session, task: Task, operator: User) -> None:
 
 
 def _submit(db: Session, task: Task, user: User) -> Task:
-    """提交 = 发起任务立项流程；未绑定 task 定义时直通（不产生审批等待）。"""
+    """提交 = 发放正式编号（任务/样品/报告）+ 发起任务立项流程；未绑定 task 定义时直通（不产生审批等待）。"""
     from app.modules.approval import service as approval_svc
+    from app.services.numbering import next_no
+
+    if not task.task_no:
+        # 首次提交才发号；驳回/撤回后重提沿用（同合同 contract_no）
+        task.task_no = next_no(db, "task", category=task.task_type or None)
+        db.flush()
+    for s in task.samples:
+        if not s.deleted and not s.sample_no:
+            s.sample_no = next_sample_no(db, task)
+            db.flush()
+    for i in task.items:
+        if not i.deleted and i.need_report and not i.report_no:
+            i.report_no = next_no(db, "report")
+            i.report_status = i.report_status or "pending"
+    db.flush()
 
     definition = approval_svc.resolve_definition(db, "task")
     if not definition:
@@ -251,7 +266,8 @@ def sync_items(db: Session, task: Task, items) -> None:
         row.qty = body.qty
         row.settle_type = body.settle_type
         row.need_report = body.need_report
-        if body.need_report and not row.report_no:
+        if body.need_report and not row.report_no and task.task_no:
+            # 草稿不占报告编号：任务提交时统一发放（见 _submit）
             from app.services.numbering import next_no
 
             row.report_no = next_no(db, "report")
@@ -277,7 +293,8 @@ def sync_samples(db: Session, task: Task, samples) -> None:
         row = existing.get(body.id) if body.id else None
         if row is None:
             db.flush()  # autoflush=False：让 next_sample_no 看到本批已新增行
-            row = TaskSample(task_id=task.id, sample_no=next_sample_no(db, task))
+            # 草稿任务无编号 → 样品同步无编号，提交时统一发放
+            row = TaskSample(task_id=task.id, sample_no=next_sample_no(db, task) if task.task_no else None)
             db.add(row)
             task.samples.append(row)
         row.name = body.name
@@ -293,5 +310,5 @@ def next_sample_no(db: Session, task: Task) -> str:
     """取同任务历史最大位次（含逻辑删除行）+1：sample_no 有唯一索引，删样品后再加不能撞号。"""
     prefix = f"{task.task_no}-"
     nos = db.scalars(select(TaskSample.sample_no).where(TaskSample.task_id == task.id)).all()
-    seqs = [int(no[len(prefix):]) for no in nos if no.startswith(prefix) and no[len(prefix):].isdigit()]
+    seqs = [int(no[len(prefix):]) for no in nos if no and no.startswith(prefix) and no[len(prefix):].isdigit()]
     return f"{prefix}{max(seqs, default=0) + 1:02d}"

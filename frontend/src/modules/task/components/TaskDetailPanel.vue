@@ -464,7 +464,7 @@ function logActionLabel(action: string) {
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('task.task.tabBasic')" name="basic">
         <el-descriptions v-if="detail" :column="2" border>
-          <el-descriptions-item :label="t('task.task.taskNo')">{{ detail.taskNo }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.task.taskNo')">{{ detail.taskNo || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.taskName')">{{ detail.taskName }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.taskType')">{{ detail.taskTypeLabel || detail.taskType }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.customerName')">{{ detail.customerName || '-' }}</el-descriptions-item>

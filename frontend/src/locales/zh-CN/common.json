@@ -26,6 +26,8 @@
     "edit": "编辑",
     "delete": "删除",
     "save": "保存",
+    "saveDraft": "保存草稿",
+    "submitApproval": "提交审批",
     "cancel": "取消",
     "confirm": "确定",
     "close": "关闭",

@@ -1,10 +1,8 @@
 """合同入参模型。"""
 
-from datetime import date
-
 from pydantic import Field
 
-from app.core.schemas import CamelModel
+from app.core.schemas import CamelModel, OptionalDate
 
 
 class ContractIn(CamelModel):
@@ -13,8 +11,8 @@ class ContractIn(CamelModel):
     contract_type: str = Field("", max_length=32)
     subject_type: str = Field("", max_length=32)
     amount: float | None = None
-    start_date: date | None = None
-    end_date: date | None = None
+    start_date: OptionalDate = None
+    end_date: OptionalDate = None
     pay_cycle: str = Field("", max_length=32)
     delivery: str = Field("", max_length=32)
     seal_type: str = Field("", max_length=32)

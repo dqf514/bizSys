@@ -1,10 +1,8 @@
 """任务入参模型。"""
 
-from datetime import date
-
 from pydantic import Field
 
-from app.core.schemas import CamelModel
+from app.core.schemas import CamelModel, OptionalDate
 
 
 class ItemIn(CamelModel):
@@ -27,7 +25,7 @@ class SampleIn(CamelModel):
     model: str = Field("", max_length=64)
     vin: str = Field("", max_length=64)
     vehicle_type: str = Field("", max_length=64)
-    sample_date: date | None = None
+    sample_date: OptionalDate = None
     in_stock: str = Field("in", pattern="^(in|out)$")
 
 
@@ -44,7 +42,7 @@ class TaskIn(CamelModel):
     owner_id: int | None = None
     owner_name: str = Field("", max_length=64)
     party_system: str = Field("", max_length=64)
-    plan_finish_date: date | None = None
+    plan_finish_date: OptionalDate = None
     version: int | None = None
     items: list[ItemIn] = Field(default_factory=list)
     samples: list[SampleIn] = Field(default_factory=list)
