@@ -148,7 +148,11 @@
     "deleteField": "删除字段",
     "optionAdd": "添加选项",
     "optionN": "选项 {n}",
-    "dragSortTip": "拖拽排序"
+    "dragSortTip": "拖拽排序",
+    "flowStale": "最新 v{version}",
+    "bindLatest": "绑定最新版",
+    "bindLatestConfirm": "将该表单绑定的流程切换到最新启用版本 v{version}？新发起的申请将按新版本流转。",
+    "bindLatestDone": "已绑定到最新版本 v{version}"
   },
   "formStatus": {
     "draft": "草稿",

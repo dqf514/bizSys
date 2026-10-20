@@ -11,6 +11,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import FormDesigner from '@/modules/oa/components/FormDesigner.vue'
 import { useDict } from '@/composables/useDict'
 import {
+  bindLatestFlow,
   createOaForm,
   deleteOaForm,
   disableOaForm,
@@ -218,6 +219,26 @@ async function doDelete(row: OaForm) {
 
 const editable = (row: OaForm) => row.status === 'draft' || row.status === 'disabled'
 
+/** 绑定流程落后最新启用版本（可一键绑定最新版） */
+const flowStale = (row: OaForm) =>
+  Boolean(row.flowDefinitionId && row.flowVersion != null && row.flowLatestVersion != null
+    && row.flowLatestVersion > row.flowVersion)
+
+async function doBindLatest(row: OaForm) {
+  try {
+    await ElMessageBox.confirm(
+      t('oa.design.bindLatestConfirm', { version: row.flowLatestVersion }),
+      t('oa.design.bindLatest'),
+      { type: 'info' },
+    )
+    await bindLatestFlow(row.id)
+    ElMessage.success(t('oa.design.bindLatestDone', { version: row.flowLatestVersion }))
+    void load()
+  } catch {
+    /* cancel or http notifies */
+  }
+}
+
 function gotoDesign() {
   if (form.flowDefinitionId) emit('goto-def', form.flowDefinitionId)
 }
@@ -238,12 +259,17 @@ function gotoDesign() {
         <StatusTag :status="String(row.status)" i18n-prefix="oa.formStatus" />
       </template>
       <template #flowDefinitionId="{ row }">
-        <span v-if="row.flowDefinitionId">{{ flowNameOf(Number(row.flowDefinitionId)) }}</span>
+        <template v-if="row.flowDefinitionId">
+          <span>{{ row.flowName || flowNameOf(Number(row.flowDefinitionId)) }} v{{ row.flowVersion ?? 1 }}</span>
+          <el-tag v-if="flowStale(row as OaForm)" type="warning" size="small" effect="plain" class="stale-tag">
+            {{ t('oa.design.flowStale', { version: row.flowLatestVersion }) }}
+          </el-tag>
+        </template>
         <span v-else class="muted">{{ t('oa.design.noFlow') }}</span>
       </template>
       <template #publishedAt="{ row }">{{ row.publishedAt || '-' }}</template>
       <template #extraColumns>
-        <el-table-column :label="t('common.action.operate')" width="280" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="360" fixed="right">
           <template #default="{ row }">
             <el-button v-if="editable(row as OaForm)" v-permission="'oa:admin:design'" link type="primary" @click="openEdit(row as OaForm)">
               {{ t('common.action.edit') }}
@@ -256,6 +282,9 @@ function gotoDesign() {
             </el-button>
             <el-button v-if="row.status === 'published'" v-permission="'oa:admin:design'" link type="primary" @click="doNewVersion(row as OaForm)">
               {{ t('oa.design.newVersion') }}
+            </el-button>
+            <el-button v-if="flowStale(row as OaForm)" v-permission="'oa:admin:design'" link type="warning" @click="doBindLatest(row as OaForm)">
+              {{ t('oa.design.bindLatest') }}
             </el-button>
             <el-button v-if="row.status === 'draft'" v-permission="'oa:admin:design'" link type="danger" @click="doDelete(row as OaForm)">
               {{ t('common.action.delete') }}
@@ -352,5 +381,9 @@ function gotoDesign() {
 
 .muted {
   color: var(--bs-color-fg-muted);
+}
+
+.stale-tag {
+  margin-left: var(--bs-space-1);
 }
 </style>

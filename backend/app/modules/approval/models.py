@@ -17,14 +17,20 @@ from app.common.models import BaseModel
 
 
 class ApprovalDefinition(BaseModel):
-    """流程定义（按业务注册，如 contract_approve）。"""
+    """流程定义（按业务注册，如 contract_approve）。
+
+    版本化：同 code 多版本（flow_version 递增）；编辑有进行中实例的定义自动另存新版本，
+    老版本保留供存量实例按 definition_id 流转，新发起解析最新启用版本。
+    enabled 承担发布状态语义：1=启用 / 0=停用（删除有实例的定义时改为停用）。
+    """
 
     __tablename__ = "approval_definition"
-    __table_args__ = (UniqueConstraint("code"),)
+    __table_args__ = (UniqueConstraint("code", "flow_version", "deleted", name="uq_approval_definition_code_version"),)
 
     code: Mapped[str] = mapped_column(String(64), index=True, comment="流程 Key")
     name: Mapped[str] = mapped_column(String(64), comment="流程名称")
     biz_type: Mapped[str] = mapped_column(String(32), index=True, comment="contract/report/...")
+    flow_version: Mapped[int] = mapped_column(Integer, default=1, comment="定义版本号（同 code 递增，从 1 起）")
     enabled: Mapped[int] = mapped_column(Integer, default=1)
     remark: Mapped[str] = mapped_column(String(255), default="")
     process_graph: Mapped[str | None] = mapped_column(

@@ -7,6 +7,7 @@ import type {
   DictItemOption,
   DictType,
   FlowDef,
+  FlowDefSaveResult,
   ListQuery,
   MenuNode,
   NumberRule,
@@ -203,13 +204,13 @@ export function listFlowDefs() {
 }
 
 export function createFlowDef(data: Partial<FlowDef>) {
-  return request<FlowDef>({ url: '/approval/definitions', method: 'post', data })
+  return request<FlowDefSaveResult>({ url: '/approval/definitions', method: 'post', data })
 }
 
 export function updateFlowDef(id: number, data: Partial<FlowDef>) {
-  return request<FlowDef>({ url: `/approval/definitions/${id}`, method: 'put', data })
+  return request<FlowDefSaveResult>({ url: `/approval/definitions/${id}`, method: 'put', data })
 }
 
 export function deleteFlowDef(id: number) {
-  return request<void>({ url: `/approval/definitions/${id}`, method: 'delete' })
+  return request<{ disabled?: boolean }>({ url: `/approval/definitions/${id}`, method: 'delete' })
 }

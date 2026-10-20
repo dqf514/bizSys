@@ -93,6 +93,10 @@ export function deleteOaForm(id: number) {
   return request<void>({ url: `/oa/admin/forms/${id}`, method: 'delete' })
 }
 
+export function bindLatestFlow(id: number) {
+  return request<OaForm>({ url: `/oa/admin/forms/${id}/bind-latest-flow`, method: 'post' })
+}
+
 export function listOaFlowDefs() {
   return request<OaFlowDefOption[]>({ url: '/oa/admin/flow-defs', method: 'get' })
 }

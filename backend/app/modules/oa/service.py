@@ -173,7 +173,7 @@ def apply(db: Session, form_id: int, user: User, data: dict) -> OaInstance:
         db,
         biz_type="oa",
         biz_id=inst.id,
-        definition_code=definition.code,
+        definition_id=definition.id,
         title=f"{inst.display_no} {form.name}",
         initiator=user,
         form_snapshot={
@@ -403,11 +403,67 @@ def stats(db: Session, with_backlog: bool = False) -> dict:
 # ---------------- 管理端：表单 CRUD / 发布 ----------------
 
 
+def _flow_version_info(db: Session, def_ids: set[int]) -> dict[int, tuple[int, int, str]]:
+    """definition_id → (绑定版本, 同 code 最新启用版本, 流程名)。"""
+    if not def_ids:
+        return {}
+    bound = db.scalars(select(ApprovalDefinition).where(ApprovalDefinition.id.in_(def_ids))).all()
+    latest_by_code: dict[str, int] = {}
+    for d in db.scalars(
+        select(ApprovalDefinition).where(ApprovalDefinition.enabled == 1, ApprovalDefinition.deleted == 0)
+    ).all():
+        latest_by_code[d.code] = max(latest_by_code.get(d.code, 0), d.flow_version)
+    return {
+        d.id: (d.flow_version, latest_by_code.get(d.code, d.flow_version), d.name) for d in bound
+    }
+
+
 def list_forms(db: Session) -> list[dict]:
     rows = db.scalars(
         select(OaForm).where(OaForm.deleted == 0).order_by(OaForm.key, OaForm.form_version.desc())
     ).all()
-    return [_form_payload(f) for f in rows]
+    ver = _flow_version_info(db, {f.flow_definition_id for f in rows if f.flow_definition_id})
+    out = []
+    for f in rows:
+        p = _form_payload(f)
+        fv = ver.get(f.flow_definition_id or 0)
+        p["flowName"] = fv[2] if fv else None
+        p["flowVersion"] = fv[0] if fv else None
+        p["flowLatestVersion"] = fv[1] if fv else None
+        out.append(p)
+    return out
+
+
+def bind_latest_flow(db: Session, form_id: int, user: User) -> dict:
+    """把表单绑定的流程定义切换到同 code 最新启用版本（绑定本身钉版本，不随定义升级自动漂移）。"""
+    form = db.get(OaForm, form_id)
+    if not form or form.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    if not form.flow_definition_id:
+        raise BizException(R.OA_INVALID_STATE, "表单未绑定流程")
+    d = db.get(ApprovalDefinition, form.flow_definition_id)
+    if not d or d.deleted:
+        raise BizException(R.OA_INVALID_STATE, "绑定的流程定义不存在")
+    latest = db.scalar(
+        select(ApprovalDefinition)
+        .where(
+            ApprovalDefinition.code == d.code,
+            ApprovalDefinition.enabled == 1,
+            ApprovalDefinition.deleted == 0,
+        )
+        .order_by(ApprovalDefinition.flow_version.desc(), ApprovalDefinition.id.desc())
+        .limit(1)
+    )
+    if not latest:
+        raise BizException(R.OA_INVALID_STATE, "该流程没有启用的版本")
+    form.flow_definition_id = latest.id
+    form.update_by = user.id
+    db.flush()
+    p = _form_payload(form)
+    p["flowName"] = latest.name
+    p["flowVersion"] = latest.flow_version
+    p["flowLatestVersion"] = latest.flow_version
+    return p
 
 
 def create_form(db: Session, body, user: User) -> dict:

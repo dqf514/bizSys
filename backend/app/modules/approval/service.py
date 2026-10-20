@@ -347,12 +347,15 @@ def _nodes_payload(definition: ApprovalDefinition) -> list[dict]:
     ]
 
 
-def _definition_payload(d: ApprovalDefinition) -> dict:
+def _definition_payload(d: ApprovalDefinition, latest_versions: dict[str, int] | None = None) -> dict:
+    latest = (latest_versions or {}).get(d.code, d.flow_version)
     return {
         "id": d.id,
         "code": d.code,
         "name": d.name,
         "bizType": d.biz_type,
+        "version": d.flow_version,
+        "latestVersion": latest,
         "enabled": d.enabled,
         "remark": d.remark,
         "variablesSchema": parse_json(d.variables_schema, None),
@@ -365,11 +368,14 @@ def list_definitions(db: Session) -> list[dict]:
     rows = db.scalars(
         select(ApprovalDefinition).where(ApprovalDefinition.deleted == 0).order_by(ApprovalDefinition.id)
     ).all()
-    return [_definition_payload(d) for d in rows]
+    latest: dict[str, int] = {}
+    for d in rows:
+        latest[d.code] = max(latest.get(d.code, 0), d.flow_version)
+    return [_definition_payload(d, latest) for d in rows]
 
 
 def resolve_definition(db: Session, biz_type: str) -> ApprovalDefinition | None:
-    """按业务类型解析启用的流程定义（多个取最近更新）；无绑定返回 None（调用方直通）。"""
+    """按业务类型解析启用的流程定义（同 code 取最新版本）；无绑定返回 None（调用方直通）。"""
     return db.scalar(
         select(ApprovalDefinition)
         .where(
@@ -377,7 +383,21 @@ def resolve_definition(db: Session, biz_type: str) -> ApprovalDefinition | None:
             ApprovalDefinition.enabled == 1,
             ApprovalDefinition.deleted == 0,
         )
-        .order_by(ApprovalDefinition.update_time.desc(), ApprovalDefinition.id.desc())
+        .order_by(ApprovalDefinition.flow_version.desc(), ApprovalDefinition.id.desc())
+        .limit(1)
+    )
+
+
+def latest_enabled_definition(db: Session, code: str) -> ApprovalDefinition | None:
+    """同 code 最新版本的启用定义（发起流程入口）。"""
+    return db.scalar(
+        select(ApprovalDefinition)
+        .where(
+            ApprovalDefinition.code == code,
+            ApprovalDefinition.enabled == 1,
+            ApprovalDefinition.deleted == 0,
+        )
+        .order_by(ApprovalDefinition.flow_version.desc(), ApprovalDefinition.id.desc())
         .limit(1)
     )
 
@@ -443,13 +463,16 @@ def _persist_nodes(db: Session, definition: ApprovalDefinition, body: Definition
 def create_definition(db: Session, body: DefinitionIn) -> dict:
     _validate_nodes(body)
     if db.scalar(
-        select(ApprovalDefinition).where(ApprovalDefinition.code == body.code, ApprovalDefinition.deleted == 0)
+        select(ApprovalDefinition.id).where(
+            ApprovalDefinition.code == body.code, ApprovalDefinition.deleted == 0
+        )
     ):
         raise BizException(R.GENERIC_PARAM, f"流程编码已存在：{body.code}")
     d = ApprovalDefinition(
         code=body.code,
         name=body.name,
         biz_type=body.biz_type,
+        flow_version=1,
         enabled=body.enabled,
         remark=body.remark,
         variables_schema=(
@@ -460,30 +483,62 @@ def create_definition(db: Session, body: DefinitionIn) -> dict:
     db.flush()
     _persist_nodes(db, d, body)
     db.flush()
-    return next(x for x in list_definitions(db) if x["id"] == d.id)
+    out = next(x for x in list_definitions(db) if x["id"] == d.id)
+    return {**out, "newVersion": False, "version": d.flow_version, "runningCount": 0}
+
+
+def _running_count(db: Session, definition_id: int) -> int:
+    return db.scalar(
+        select(func.count())
+        .select_from(ApprovalInstance)
+        .where(
+            ApprovalInstance.definition_id == definition_id,
+            ApprovalInstance.status == "running",
+            ApprovalInstance.deleted == 0,
+        )
+    ) or 0
 
 
 def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
+    """编辑定义：无进行中实例原地修改；有进行中实例自动另存为新版本（老版本老实例继续流转）。"""
     _validate_nodes(body)
     d = db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.id == def_id, ApprovalDefinition.deleted == 0))
     if not d:
         raise BizException(R.GENERIC_NOT_FOUND)
-    dup = db.scalar(
-        select(ApprovalDefinition).where(
-            ApprovalDefinition.code == body.code, ApprovalDefinition.id != def_id, ApprovalDefinition.deleted == 0
+    if body.code != d.code:
+        dup = db.scalar(
+            select(ApprovalDefinition.id).where(
+                ApprovalDefinition.code == body.code, ApprovalDefinition.deleted == 0
+            )
         )
-    )
-    if dup:
-        raise BizException(R.GENERIC_PARAM, f"流程编码已存在：{body.code}")
-    running = db.scalar(
-        select(ApprovalInstance.id).where(
-            ApprovalInstance.definition_id == d.id,
-            ApprovalInstance.status == "running",
-            ApprovalInstance.deleted == 0,
-        )
-    )
+        if dup:
+            raise BizException(R.GENERIC_PARAM, f"流程编码已存在：{body.code}")
+    running = _running_count(db, d.id)
     if running:
-        raise BizException(R.APPROVAL_INVALID_STATE, "存在进行中的审批实例，暂不能修改流程定义")
+        # 另存为新版本：原行不动（存量实例按 definition_id 锁定继续流转），新发起解析最新启用版
+        next_version = (
+            db.scalar(
+                select(func.max(ApprovalDefinition.flow_version)).where(ApprovalDefinition.code == body.code)
+            ) or d.flow_version
+        ) + 1
+        nd = ApprovalDefinition(
+            code=body.code,
+            name=body.name,
+            biz_type=body.biz_type,
+            flow_version=next_version,
+            enabled=body.enabled,
+            remark=body.remark,
+            variables_schema=(
+                json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
+            ),
+        )
+        db.add(nd)
+        db.flush()
+        _persist_nodes(db, nd, body)
+        db.flush()
+        out = next(x for x in list_definitions(db) if x["id"] == nd.id)
+        return {**out, "newVersion": True, "version": next_version, "runningCount": running}
+    # 原地修改（保持版本号）
     d.code = body.code
     d.name = body.name
     d.biz_type = body.biz_type
@@ -497,24 +552,22 @@ def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
     _persist_nodes(db, d, body)
     db.flush()
     db.refresh(d)
-    return next(x for x in list_definitions(db) if x["id"] == d.id)
+    out = next(x for x in list_definitions(db) if x["id"] == d.id)
+    return {**out, "newVersion": False, "version": d.flow_version, "runningCount": 0}
 
 
-def delete_definition(db: Session, def_id: int) -> None:
+def delete_definition(db: Session, def_id: int) -> bool:
+    """删除定义；有进行中实例时改为停用（返回 True），保证存量实例可流转完。"""
     d = db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.id == def_id, ApprovalDefinition.deleted == 0))
     if not d:
         raise BizException(R.GENERIC_NOT_FOUND)
-    running = db.scalar(
-        select(ApprovalInstance.id).where(
-            ApprovalInstance.definition_id == d.id,
-            ApprovalInstance.status == "running",
-            ApprovalInstance.deleted == 0,
-        )
-    )
-    if running:
-        raise BizException(R.APPROVAL_INVALID_STATE, "存在进行中的审批实例，暂不能删除流程定义")
+    if _running_count(db, d.id):
+        d.enabled = 0
+        d.update_time = datetime.now()
+        return True
     d.deleted = 1
     d.update_time = datetime.now()
+    return False
 
 
 def preview(db: Session, definition_code: str, variables: dict, draft_nodes: list[NodeIn] | None = None) -> dict:
@@ -546,12 +599,7 @@ def preview(db: Session, definition_code: str, variables: dict, draft_nodes: lis
             "variables": variables,
             "route": preview_route(nodes, variables or {}),
         }
-    d = db.scalar(
-        select(ApprovalDefinition).where(
-            ApprovalDefinition.code == definition_code,
-            ApprovalDefinition.deleted == 0,
-        )
-    )
+    d = latest_enabled_definition(db, definition_code)
     if not d:
         raise BizException(R.GENERIC_NOT_FOUND, f"流程定义不存在：{definition_code}")
     nodes = [n for n in d.nodes if n.deleted == 0]

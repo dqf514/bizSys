@@ -148,7 +148,11 @@
     "deleteField": "Delete field",
     "optionAdd": "Add option",
     "optionN": "Option {n}",
-    "dragSortTip": "Drag to reorder"
+    "dragSortTip": "Drag to reorder",
+    "flowStale": "Latest v{version}",
+    "bindLatest": "Bind latest",
+    "bindLatestConfirm": "Rebind this form to the latest enabled flow version v{version}? New submissions will follow the new version.",
+    "bindLatestDone": "Bound to latest version v{version}"
   },
   "formStatus": {
     "draft": "Draft",

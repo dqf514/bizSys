@@ -330,13 +330,18 @@ def start(
     *,
     biz_type: str,
     biz_id: int,
-    definition_code: str,
+    definition_code: str = "",
+    definition_id: int | None = None,
     title: str,
     initiator: User,
     form_snapshot: dict | None = None,
     variables: dict | None = None,
 ) -> ApprovalInstance:
-    """发起审批（业务模块唯一入口之一）。已存在 running 实例 → 70004。"""
+    """发起审批（业务模块唯一入口之一）。已存在 running 实例 → 70004。
+
+    定义解析：definition_id 优先（OA 表单绑定具体版本行，钉住版本）；
+    否则按 code 取最新版本的启用定义（老版本老实例流转，新版本新实例）。
+    """
     # 行锁兜底：调用方应先锁定业务行（如合同提交已 with_for_update），此处锁已有 running 行防并发双实例
     running = db.scalar(
         select(ApprovalInstance)
@@ -351,15 +356,23 @@ def start(
     if running:
         raise BizException(R.APPROVAL_INSTANCE_RUNNING)
 
-    definition = db.scalar(
-        select(ApprovalDefinition).where(
-            ApprovalDefinition.code == definition_code,
-            ApprovalDefinition.enabled == 1,
-            ApprovalDefinition.deleted == 0,
+    if definition_id:
+        definition = db.get(ApprovalDefinition, definition_id)
+        if not definition or definition.deleted:
+            definition = None
+    else:
+        definition = db.scalar(
+            select(ApprovalDefinition)
+            .where(
+                ApprovalDefinition.code == definition_code,
+                ApprovalDefinition.enabled == 1,
+                ApprovalDefinition.deleted == 0,
+            )
+            .order_by(ApprovalDefinition.flow_version.desc(), ApprovalDefinition.id.desc())
+            .limit(1)
         )
-    )
     if not definition:
-        raise BizException(R.GENERIC_NOT_FOUND, f"流程定义不存在或未启用：{definition_code}")
+        raise BizException(R.GENERIC_NOT_FOUND, f"流程定义不存在或未启用：{definition_code or definition_id}")
     nodes = [n for n in definition.nodes if n.deleted == 0]
     if not nodes:
         raise BizException(R.GENERIC_PARAM, f"流程定义未配置节点：{definition_code}")

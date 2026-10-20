@@ -177,15 +177,33 @@ def admin_delete_form(
     return None
 
 
+@router.post("/admin/forms/{form_id}/bind-latest-flow")
+def admin_bind_latest_flow(
+    form_id: int, current: User = Depends(require_perm("oa:admin:design")), db: Session = Depends(get_db)
+):
+    data = svc.bind_latest_flow(db, form_id, current)
+    record(db, user_id=current.id, module="oa", action="oa_form_bind_latest_flow", biz_type="oa_form", biz_id=form_id,
+           detail={"flowDefinitionId": data["flowDefinitionId"]})
+    db.commit()
+    return data
+
+
 @router.get("/admin/flow-defs")
 def admin_flow_defs(current: User = Depends(require_perm("oa:admin:design")), db: Session = Depends(get_db)):
-    """可绑定的流程定义下拉（enabled，含 bizType 供提示；发布校验要求 biz_type=oa）。"""
+    """可绑定的流程定义下拉（enabled 且同 code 仅最新版本；发布校验要求 biz_type=oa）。"""
     rows = db.scalars(
         select(ApprovalDefinition)
         .where(ApprovalDefinition.enabled == 1, ApprovalDefinition.deleted == 0)
         .order_by(ApprovalDefinition.id)
     ).all()
-    return [{"id": d.id, "code": d.code, "name": d.name, "bizType": d.biz_type} for d in rows]
+    latest: dict[str, int] = {}
+    for d in rows:
+        latest[d.code] = max(latest.get(d.code, 0), d.flow_version)
+    return [
+        {"id": d.id, "code": d.code, "name": d.name, "bizType": d.biz_type, "version": d.flow_version}
+        for d in rows
+        if d.flow_version == latest[d.code]
+    ]
 
 
 # ---------------- 管理侧：统计 / 异常干预 ----------------

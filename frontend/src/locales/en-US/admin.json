@@ -250,7 +250,11 @@
       "DEPT_LEADER": "Dept leader",
       "PARENT_DEPT_LEADER": "Parent dept leader",
       "SUPERVISOR_CHAIN": "Supervisor chain"
-    }
+    },
+    "version": "Version",
+    "historyVersion": "History",
+    "savedAsNewVersion": "Saved as new version v{version} ({count} running instance(s) still follow the old version)",
+    "deleteDisabledInstead": "Running instances exist; the version was disabled instead of deleted"
   },
   "common": {
     "enabled": "Enabled",

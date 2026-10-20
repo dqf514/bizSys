@@ -210,11 +210,21 @@ export interface FlowDef {
   code: string
   name: string
   bizType: string
+  /** 定义版本号（同 code 递增，从 1 起） */
+  version?: number
+  /** 同 code 最新版本号（列表接口给出，用于标记历史版本） */
+  latestVersion?: number
   enabled: boolean | number
   remark?: string
   variablesSchema?: Record<string, unknown> | null
   processGraph?: FlowGraphData | null
   nodes: FlowNode[]
+}
+
+/** 保存流程定义的返回：有进行中实例时自动另存新版本 */
+export interface FlowDefSaveResult extends FlowDef {
+  newVersion?: boolean
+  runningCount?: number
 }
 
 /** POST /approval/preview 的分支预演结果 */
@@ -689,6 +699,12 @@ export interface OaForm {
   sort: number
   description: string
   flowDefinitionId: number | null
+  /** 绑定流程名（列表接口给出） */
+  flowName?: string | null
+  /** 绑定流程定义的版本（列表接口给出） */
+  flowVersion?: number | null
+  /** 绑定流程同 code 最新启用版本（flowVersion < flowLatestVersion 时可一键绑定最新版） */
+  flowLatestVersion?: number | null
   fields: OaField[] | null
   publishedAt: string
   createTime: string
@@ -751,4 +767,5 @@ export interface OaFlowDefOption {
   code: string
   name: string
   bizType: string
+  version?: number
 }

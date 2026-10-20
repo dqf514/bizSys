@@ -250,7 +250,11 @@
       "DEPT_LEADER": "部门负责人",
       "PARENT_DEPT_LEADER": "上级部门负责人",
       "SUPERVISOR_CHAIN": "逐级上级"
-    }
+    },
+    "version": "版本",
+    "historyVersion": "历史版本",
+    "savedAsNewVersion": "存在进行中的实例，已存为新版本 v{version}（{count} 个进行中实例仍按旧版本流转）",
+    "deleteDisabledInstead": "存在进行中的实例，已改为停用该版本（实例流转完后可再次删除）"
   },
   "common": {
     "enabled": "启用",

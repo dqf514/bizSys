@@ -224,9 +224,19 @@ async function save() {
     if (mode.value === 'chain' && designerRef.value) {
       payload.processGraph = designerRef.value.exportGraph()
     }
-    if (editingId.value) await updateFlowDef(editingId.value, payload)
-    else await createFlowDef(payload)
-    ElMessage.success(t('common.message.saveSuccess'))
+    if (editingId.value) {
+      const res = await updateFlowDef(editingId.value, payload)
+      if (res?.newVersion) {
+        ElMessage.success(
+          t('admin.flow.savedAsNewVersion', { version: res.version, count: res.runningCount }),
+        )
+      } else {
+        ElMessage.success(t('common.message.saveSuccess'))
+      }
+    } else {
+      await createFlowDef(payload)
+      ElMessage.success(t('common.message.saveSuccess'))
+    }
     dialogVisible.value = false
     void load()
   } catch {
@@ -287,6 +297,11 @@ function nodeTypeLabel(nt?: FlowNodeType) {
   return t(`admin.flow.nodeType.${nt ?? 'approval'}`)
 }
 
+/** 历史版本：同 code 存在更高版本（旧版只读查看，仍供存量实例流转） */
+function isHistory(row: FlowDef) {
+  return (row.latestVersion ?? row.version ?? 1) > (row.version ?? 1)
+}
+
 async function remove(row: FlowDef) {
   try {
     await ElMessageBox.confirm(t('admin.flow.deleteConfirm'), t('common.action.confirm'), { type: 'warning' })
@@ -294,8 +309,9 @@ async function remove(row: FlowDef) {
     return
   }
   try {
-    await deleteFlowDef(row.id)
-    ElMessage.success(t('common.message.deleteSuccess'))
+    const res = await deleteFlowDef(row.id)
+    if (res?.disabled) ElMessage.warning(t('admin.flow.deleteDisabledInstead'))
+    else ElMessage.success(t('common.message.deleteSuccess'))
     void load()
   } catch {
     /* http notifies */
@@ -321,6 +337,14 @@ async function remove(row: FlowDef) {
     <template #table>
       <el-table v-if="activeTab === 'defs'" :data="items" row-key="id" border stripe height="100%">
         <el-table-column :label="t('admin.flow.code')" prop="code" width="130" />
+        <el-table-column :label="t('admin.flow.version')" width="120">
+          <template #default="{ row }">
+            <span :class="{ muted: isHistory(row as FlowDef) }">v{{ (row as FlowDef).version ?? 1 }}</span>
+            <el-tag v-if="isHistory(row as FlowDef)" type="info" size="small" effect="plain" class="node-tag">
+              {{ t('admin.flow.historyVersion') }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column :label="t('admin.flow.name')" prop="name" min-width="150" />
         <el-table-column :label="t('admin.flow.bizType')" width="110">
           <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
