@@ -57,6 +57,7 @@ services:
       - "${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
     volumes:
       - uploads:/app/uploads
+      - backups:/app/backups
     depends_on:
       mysql:
         condition: service_healthy
@@ -78,3 +79,4 @@ services:
 volumes:
   mysql-data:
   uploads:
+  backups:
