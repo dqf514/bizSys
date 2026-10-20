@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -54,7 +54,16 @@ const form = reactive({
 
 const attachments = ref<Attachment[]>([])
 // files chosen before the contract is saved — uploaded for real after create
-const pendingFiles = ref<{ localId: string; file: File }[]>([])
+const pendingFiles = ref<{ localId: string; file: File; category: string }[]>([])
+
+type AttachmentCategory = 'econtract' | 'other'
+
+function attCategory(a: Attachment): AttachmentCategory {
+  return a.category === 'econtract' ? 'econtract' : 'other'
+}
+
+const econtractFiles = computed(() => attachments.value.filter((a) => attCategory(a) === 'econtract'))
+const otherFiles = computed(() => attachments.value.filter((a) => attCategory(a) === 'other'))
 
 const typeOpts = useDictOptions('contract_type')
 const payCycleOpts = useDictOptions('pay_cycle')
@@ -168,25 +177,28 @@ async function saveAndSubmit() {
   }
 }
 
-function onFilesUpdate(files: Attachment[]) {
-  attachments.value = files
+function onFilesUpdate(files: Attachment[], category: AttachmentCategory) {
+  // UploadFiles 只携带本分类的列表，合并回全量 attachments
+  attachments.value = [...attachments.value.filter((a) => attCategory(a) !== category), ...files]
   // dropping a staged file in the list must also drop it from the upload queue
-  pendingFiles.value = pendingFiles.value.filter((p) => files.some((f) => f.id === p.localId))
+  pendingFiles.value = pendingFiles.value.filter(
+    (p) => p.category !== category || files.some((f) => f.id === p.localId),
+  )
 }
 
-async function upload(file: File) {
+async function upload(file: File, category: AttachmentCategory) {
   if (!contractId.value) {
     // stage locally; uploaded for real once the contract exists
     const localId = `local-${Date.now()}-${pendingFiles.value.length}`
-    pendingFiles.value.push({ localId, file })
-    return { id: localId, fileName: file.name, size: file.size }
+    pendingFiles.value.push({ localId, file, category })
+    return { id: localId, fileName: file.name, size: file.size, category }
   }
-  return uploadContractAttachment(contractId.value, file)
+  return uploadContractAttachment(contractId.value, file, category)
 }
 
 async function flushPending(id: number) {
   for (const p of [...pendingFiles.value]) {
-    const real = await uploadContractAttachment(id, p.file)
+    const real = await uploadContractAttachment(id, p.file, p.category as AttachmentCategory)
     attachments.value = attachments.value.map((a) => (a.id === p.localId ? real : a))
     pendingFiles.value = pendingFiles.value.filter((x) => x.localId !== p.localId)
   }
@@ -346,13 +358,28 @@ function cancel() {
         </el-col>
         <el-col :span="24">
           <el-form-item :label="t('contract.contract.attachments')">
-            <UploadFiles
-              :files="attachments"
-              :upload="upload"
-              :download="download"
-              :remove-fn="removeAttachment"
-              @update:files="onFilesUpdate"
-            />
+            <div class="att-groups">
+              <div class="att-group">
+                <div class="att-group-title">{{ t('contract.contract.attCatEcontract') }}</div>
+                <UploadFiles
+                  :files="econtractFiles"
+                  :upload="(f: File) => upload(f, 'econtract')"
+                  :download="download"
+                  :remove-fn="removeAttachment"
+                  @update:files="(v: Attachment[]) => onFilesUpdate(v, 'econtract')"
+                />
+              </div>
+              <div class="att-group">
+                <div class="att-group-title">{{ t('contract.contract.attCatOther') }}</div>
+                <UploadFiles
+                  :files="otherFiles"
+                  :upload="(f: File) => upload(f, 'other')"
+                  :download="download"
+                  :remove-fn="removeAttachment"
+                  @update:files="(v: Attachment[]) => onFilesUpdate(v, 'other')"
+                />
+              </div>
+            </div>
           </el-form-item>
         </el-col>
       </el-row>
@@ -384,5 +411,19 @@ function cancel() {
 
 .edit-form {
   max-width: 960px;
+}
+
+.att-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-3);
+  width: 100%;
+}
+
+.att-group-title {
+  font-size: var(--bs-typography-font-size-sm);
+  font-weight: 600;
+  color: var(--bs-color-fg-muted);
+  margin-bottom: var(--bs-space-1);
 }
 </style>

@@ -155,6 +155,30 @@ def test_attachment_upload_validation(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
     assert r["data"]["fileName"] == "a.pdf"
+    assert r["data"]["category"] == "other"  # 未传分类默认 other
+
+    # 指定分类 + 非法分类
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("b.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"category": "econtract"},
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["category"] == "econtract"
+
+    r = client.post(
+        f"/api/v1/contract/contracts/{cid}/attachments",
+        headers=admin_headers,
+        files={"file": ("c.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"category": "bogus"},
+    ).json()
+    assert r["code"] == 10001
+
+    # 详情附件携带分类
+    detail = client.get(f"/api/v1/contract/contracts/{cid}", headers=admin_headers).json()["data"]
+    cats = {(a["fileName"], a["category"]) for a in detail["attachments"]}
+    assert ("a.pdf", "other") in cats and ("b.pdf", "econtract") in cats
 
 
 def test_attachment_delete_state_guard(client, admin_headers):

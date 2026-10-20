@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -36,6 +36,8 @@ STATUS_CN = {
     "rejected": "已驳回",
     "voided": "已作废",
 }
+
+ATTACHMENT_CATEGORIES = ("econtract", "other")
 
 EXPORT_COLS = [
     {"key": "contractNo", "label": "合同编号", "width": 20},
@@ -91,7 +93,7 @@ def _out(c: Contract) -> dict:
         "statusText": STATUS_CN.get(c.status, c.status),
         "flowInstanceId": c.flow_instance_id,
         "attachments": [
-            {"id": a.id, "fileName": a.file_name, "size": a.size}
+            {"id": a.id, "fileName": a.file_name, "size": a.size, "category": a.category or "other"}
             for a in (c.attachments or [])
             if not a.deleted
         ],
@@ -370,6 +372,7 @@ def void_contract(
 def upload_attachment(
     cid: int,
     file: UploadFile,
+    category: str = Form("other"),
     current: User = Depends(require_perm("contract:edit")),
     db: Session = Depends(get_db),
 ):
@@ -377,6 +380,8 @@ def upload_attachment(
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(c)
+    if category not in ATTACHMENT_CATEGORIES:
+        raise BizException(R.GENERIC_PARAM, f"不支持的附件分类：{category}")
     filename = file.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in settings.upload_ext_set:
@@ -393,6 +398,7 @@ def upload_attachment(
     a = ContractAttachment(
         contract_id=cid,
         file_name=file.filename or "file",
+        category=category,
         size=len(data),
         content_type=file.content_type or "",
         path=str(rel),
@@ -402,9 +408,9 @@ def upload_attachment(
     db.flush()
     c.update_time = datetime.now()
     audit(db, user_id=current.id, module="contract", action="attachment_upload", biz_type="contract", biz_id=cid,
-          detail={"file": file.filename})
+          detail={"file": file.filename, "category": category})
     db.commit()
-    return {"id": a.id, "fileName": a.file_name, "size": a.size}
+    return {"id": a.id, "fileName": a.file_name, "size": a.size, "category": a.category}
 
 
 @router.get("/attachments/{file_id}")

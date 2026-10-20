@@ -291,6 +291,7 @@ export interface Attachment {
   id: number | string
   fileName: string
   size: number
+  category?: string
 }
 
 export type ContractStatus = 'draft' | 'approving' | 'approved' | 'rejected' | 'voided'

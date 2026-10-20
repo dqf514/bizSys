@@ -38,6 +38,16 @@ const context = useContextStore()
 const detail = ref<Contract | null>(null)
 const customerDetail = ref<CustomerDetail | null>(null)
 const attachments = ref<Attachment[]>([])
+// 附件分组：合同电子版在上，其他附件在下
+const attachmentGroups = computed(() =>
+  (['econtract', 'other'] as const)
+    .map((cat) => ({
+      category: cat,
+      label: t(cat === 'econtract' ? 'contract.contract.attCatEcontract' : 'contract.contract.attCatOther'),
+      files: attachments.value.filter((a) => (a.category === 'econtract' ? 'econtract' : 'other') === cat),
+    }))
+    .filter((g) => g.files.length > 0),
+)
 const records = ref<TimelineRecord[]>([])
 const loading = ref(false)
 const timelineLoading = ref(false)
@@ -373,11 +383,17 @@ async function doVoid() {
           <span v-if="attachments.length" class="bs-tab-count">({{ attachments.length }})</span>
         </template>
         <div class="file-list">
-          <div v-for="f in attachments" :key="String(f.id)" class="file-row">
-            <span>{{ f.fileName }}</span>
-            <el-button link type="primary" @click="downloadAttachment(f.id, f.fileName)">
-              {{ t('common.action.download') }}
-            </el-button>
+          <div v-for="g in attachmentGroups" :key="g.category" class="att-group">
+            <div class="att-group-title">{{ g.label }}</div>
+            <div v-for="f in g.files" :key="String(f.id)" class="file-row">
+              <el-tag size="small" :type="g.category === 'econtract' ? 'primary' : 'info'" effect="plain">
+                {{ g.label }}
+              </el-tag>
+              <span>{{ f.fileName }}</span>
+              <el-button link type="primary" @click="downloadAttachment(f.id, f.fileName)">
+                {{ t('common.action.download') }}
+              </el-button>
+            </div>
           </div>
           <el-empty v-if="!attachments.length" :description="t('common.table.empty')" :image-size="60" />
         </div>
@@ -532,13 +548,29 @@ async function doVoid() {
   gap: var(--bs-space-2);
 }
 
+.att-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+}
+
+.att-group-title {
+  font-size: var(--bs-typography-font-size-sm);
+  font-weight: 600;
+  color: var(--bs-color-fg-muted);
+}
+
 .file-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--bs-space-2);
   padding: 8px 12px;
   border: 1px solid var(--bs-color-border-subtle);
   border-radius: var(--bs-radius-sm);
+}
+
+.file-row .el-button {
+  margin-left: auto;
 }
 
 .tasks-reports {

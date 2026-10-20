@@ -50,6 +50,9 @@ class ContractAttachment(BaseModel):
 
     contract_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("ctr_contract.id"), index=True)
     file_name: Mapped[str] = mapped_column(String(255))
+    category: Mapped[str] = mapped_column(
+        String(32), default="other", comment="附件分类：econtract 合同电子版 / other 其他附件"
+    )
     size: Mapped[int] = mapped_column(BigInteger, default=0)
     content_type: Mapped[str] = mapped_column(String(128), default="")
     path: Mapped[str] = mapped_column(String(255), comment="相对 upload_dir 的路径")

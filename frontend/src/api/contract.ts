@@ -63,9 +63,10 @@ export function getContractFinanceSummary(id: number) {
   })
 }
 
-export function uploadContractAttachment(contractId: number, file: File) {
+export function uploadContractAttachment(contractId: number, file: File, category = 'other') {
   const form = new FormData()
   form.append('file', file)
+  form.append('category', category)
   return request<Attachment>({
     url: `/contract/contracts/${contractId}/attachments`,
     method: 'post',

@@ -23,6 +23,8 @@
     "remark": "备注",
     "status": "状态",
     "attachments": "附件",
+    "attCatEcontract": "合同电子版",
+    "attCatOther": "其他附件",
     "createTime": "创建时间",
     "updateTime": "更新时间",
     "create": "新建合同",

@@ -23,6 +23,8 @@
     "remark": "Remark",
     "status": "Status",
     "attachments": "Attachments",
+    "attCatEcontract": "E-contract",
+    "attCatOther": "Other attachments",
     "createTime": "Created at",
     "updateTime": "Updated at",
     "create": "New Contract",
