@@ -20,7 +20,11 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时可做探活/预热；迁移与种子走 alembic / scripts
+    from app.modules.maintenance import scheduler as backup_scheduler
+
+    backup_scheduler.start()
     yield
+    backup_scheduler.shutdown()
 
 
 app = FastAPI(
@@ -91,6 +95,7 @@ from app.modules.crm.router import router as crm_router  # noqa: E402
 from app.modules.finance.router import router as finance_router  # noqa: E402
 from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 订阅 ApprovalTodoCreated
 from app.modules.integration.router import router as integration_router  # noqa: E402
+from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
 from app.modules.oa.router import router as oa_router  # noqa: E402  导入即订阅 OA 流程事件回写
 from app.modules.report.router import router as report_router  # noqa: E402
 from app.modules.settings.router import public_router  # noqa: E402
@@ -110,6 +115,7 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
+app.include_router(maintenance_router, prefix="/api/v1")
 
 
 def include(module_router, prefix: str = "/api/v1") -> None:

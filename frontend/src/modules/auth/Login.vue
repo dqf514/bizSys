@@ -138,7 +138,7 @@ function switchLang() {
         </el-tab-pane>
       </el-tabs>
 
-      <div class="demo-box">
+      <div v-if="branding.showDemoAccounts" class="demo-box">
         <div class="demo-title">{{ t('auth.login.demoTitle') }}</div>
         <div class="demo-line">{{ t('auth.login.demoAdmin') }}</div>
         <div class="demo-line">{{ t('auth.login.demoManager') }}</div>

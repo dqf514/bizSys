@@ -29,6 +29,7 @@ pre/_scratch/
 
 # --- 运行数据 ---
 backend/uploads/
+backend/backups/
 backend/*.db
 deploy/mysql/data/
 deploy/.env

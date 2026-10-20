@@ -32,6 +32,7 @@ export const useBrandingStore = defineStore('branding', () => {
   const logoUrl = ref('')
   const faviconUrl = ref('')
   const wecomEnabled = ref(false)
+  const showDemoAccounts = ref(false)
   const loaded = ref(false)
 
   async function load(force = false) {
@@ -42,6 +43,7 @@ export const useBrandingStore = defineStore('branding', () => {
       logoUrl.value = b.logoUrl || ''
       faviconUrl.value = b.faviconUrl || ''
       wecomEnabled.value = Boolean(b.wecomEnabled)
+      showDemoAccounts.value = Boolean(b.showDemoAccounts)
       loaded.value = true
       applyFaviconToDocument(faviconUrl.value)
     } catch {
@@ -49,7 +51,13 @@ export const useBrandingStore = defineStore('branding', () => {
     }
   }
 
-  function apply(settings: { siteName?: string; logoUrl?: string; faviconUrl?: string; wecomEnabled?: boolean }) {
+  function apply(settings: {
+    siteName?: string
+    logoUrl?: string
+    faviconUrl?: string
+    wecomEnabled?: boolean
+    showDemoAccounts?: boolean
+  }) {
     if (settings.siteName !== undefined) siteName.value = settings.siteName
     if (settings.logoUrl !== undefined) logoUrl.value = settings.logoUrl
     if (settings.faviconUrl !== undefined) {
@@ -57,7 +65,8 @@ export const useBrandingStore = defineStore('branding', () => {
       applyFaviconToDocument(faviconUrl.value)
     }
     if (settings.wecomEnabled !== undefined) wecomEnabled.value = settings.wecomEnabled
+    if (settings.showDemoAccounts !== undefined) showDemoAccounts.value = settings.showDemoAccounts
   }
 
-  return { siteName, logoUrl, faviconUrl, wecomEnabled, loaded, load, apply }
+  return { siteName, logoUrl, faviconUrl, wecomEnabled, showDemoAccounts, loaded, load, apply }
 })

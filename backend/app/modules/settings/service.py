@@ -90,11 +90,14 @@ def settings_out(db: Session) -> dict:
 
 
 def branding_out(db: Session) -> dict:
+    from app.modules.maintenance.service import KEY_SHOW_DEMO
+
     return {
         "siteName": get_value(db, KEY_SITE_NAME, DEFAULT_SITE_NAME),
         "logoUrl": LOGO_URL if get_value(db, KEY_SITE_LOGO) else "",
         "faviconUrl": FAVICON_URL if get_value(db, KEY_SITE_FAVICON) else "",
         "wecomEnabled": wecom_ready(db),
+        "showDemoAccounts": get_value(db, KEY_SHOW_DEMO) == "1",
     }
 
 

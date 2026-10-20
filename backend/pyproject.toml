@@ -20,6 +20,7 @@ dependencies = [
     "httpx>=0.28",
     "tenacity>=9.0",
     "email-validator>=2.2",
+    "apscheduler>=3.11,<4",
 ]
 
 [dependency-groups]

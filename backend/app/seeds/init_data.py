@@ -303,6 +303,18 @@ MENU_TREE = [
                     ),
                     ("menu.audit", "AuditLogs", "/admin/audit", "admin/AuditLogList", "Memo", "admin:audit:list", []),
                     (
+                        "menu.maintenance",
+                        "Maintenance",
+                        "/admin/maintenance",
+                        "admin/Maintenance",
+                        "FirstAidKit",
+                        "admin:backup:view",
+                        [
+                            (None, "backup-manage", "", "", "", "admin:backup:manage", []),
+                            (None, "maintenance-purge", "", "", "", "admin:maintenance:purge", []),
+                        ],
+                    ),
+                    (
                         "menu.settings",
                         "Settings",
                         "/admin/settings",

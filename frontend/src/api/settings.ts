@@ -20,6 +20,7 @@ export interface Branding {
   logoUrl: string
   faviconUrl: string
   wecomEnabled: boolean
+  showDemoAccounts: boolean
 }
 
 export interface SystemSettingsUpdate {

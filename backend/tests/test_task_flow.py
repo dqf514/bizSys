@@ -88,9 +88,18 @@ def test_task_state_machine_and_errors(client, admin_headers):
     headers = admin_headers
     approved_id = _approved_contract(client, headers)
 
-    # 未通过合同 60002
+    # 未通过合同 60002（客户自建，避免依赖种子数据 id）
+    suf = uuid.uuid4().hex[:8]
+    cust = client.post(
+        "/api/v1/crm/customers",
+        headers=headers,
+        json={"name": f"草稿客户_{suf}", "tax_no": f"913401TSK{suf}", "status": "enabled"},
+    ).json()
+    assert cust["code"] == 0, cust
     draft = client.post(
-        "/api/v1/contract/contracts", headers=headers, json={"name": f"草稿_{UUID}", "customer_id": 1, "amount": 1}
+        "/api/v1/contract/contracts",
+        headers=headers,
+        json={"name": f"草稿_{UUID}", "customer_id": cust["data"]["id"], "amount": 1},
     ).json()
     r = client.post(
         "/api/v1/task/tasks", headers=headers, json={"task_name": "x", "contract_id": draft["data"]["id"]}
@@ -295,9 +304,16 @@ def test_task_draft_empty_date_tolerant(client, admin_headers):
     assert r["data"]["planFinishDate"] == ""
     assert r["data"]["samples"][0]["sampleDate"] == ""
     # 合同空串日期同样宽容（走同一 OptionalDate）
+    suf = uuid.uuid4().hex[:8]
+    cust = client.post(
+        "/api/v1/crm/customers",
+        headers=admin_headers,
+        json={"name": f"空日期客户_{suf}", "tax_no": f"913401TSK{suf}", "status": "enabled"},
+    ).json()
+    assert cust["code"] == 0, cust
     r = client.post(
         "/api/v1/contract/contracts",
         headers=admin_headers,
-        json={"name": f"空日期合同_{UUID}", "customer_id": 1, "start_date": "", "end_date": ""},
+        json={"name": f"空日期合同_{UUID}", "customer_id": cust["data"]["id"], "start_date": "", "end_date": ""},
     ).json()
     assert r["code"] == 0, r
