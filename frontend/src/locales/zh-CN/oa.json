@@ -134,7 +134,21 @@
     "newVersionConfirm": "将基于当前版本复制出新草稿版本，确认？",
     "newVersionDone": "已创建新版本草稿",
     "deleteConfirm": "仅无单据的草稿可删除，确认删除？",
-    "publishedReadonly": "已发布表单不可编辑，请新建版本"
+    "publishedReadonly": "已发布表单不可编辑，请新建版本",
+    "palette": "字段面板",
+    "paletteHint": "点击或拖拽添加字段",
+    "paletteGroup": {
+      "input": "基础控件",
+      "choice": "选择控件",
+      "advanced": "高级控件"
+    },
+    "canvasEmpty": "从左侧字段面板点击或拖入字段",
+    "props": "字段属性",
+    "propsEmpty": "点击画布中的字段进行编辑",
+    "deleteField": "删除字段",
+    "optionAdd": "添加选项",
+    "optionN": "选项 {n}",
+    "dragSortTip": "拖拽排序"
   },
   "formStatus": {
     "draft": "草稿",

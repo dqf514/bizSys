@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
-import FlowDesigner from '@/components/flow/FlowDesigner.vue'
+import FlowChainDesigner from '@/components/flow/FlowChainDesigner.vue'
 import OaFormPanel from '@/modules/admin/components/OaFormPanel.vue'
 import { isOrgApproverType, normalizeNode, validateFlowNodes, type FlowNodeRow } from '@/components/flow/flowModel'
 import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, listUsers } from '@/api/admin'
@@ -64,8 +64,8 @@ const dialogTitle = ref('')
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 const editingId = ref<number | null>(null)
-const mode = ref<'simple' | 'graph'>('simple')
-const designerRef = ref<InstanceType<typeof FlowDesigner> | null>(null)
+const mode = ref<'simple' | 'chain'>('simple')
+const designerRef = ref<InstanceType<typeof FlowChainDesigner> | null>(null)
 const form = reactive({
   code: '',
   name: '',
@@ -155,8 +155,8 @@ function openEdit(row: FlowDef) {
     processGraph: row.processGraph ?? null,
   })
   if (!form.nodes.length) form.nodes.push(blankNode(1))
-  // 含条件/抄送节点的定义只能图形模式编辑（简易表格无法表达分支）
-  mode.value = hasAdvancedNodes() ? 'graph' : 'simple'
+  // 含条件/抄送节点的定义只能竖链模式编辑（简易表格无法表达分支）
+  mode.value = hasAdvancedNodes() ? 'chain' : 'simple'
   dialogVisible.value = true
   void loadApprovers()
 }
@@ -192,10 +192,10 @@ async function save() {
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
   if (mode.value === 'simple' && hasAdvancedNodes()) {
-    ElMessage.warning(t('admin.flow.advancedOnlyGraph'))
+    ElMessage.warning(t('admin.flow.advancedOnlyChain'))
     return
   }
-  const errors = mode.value === 'graph' ? (designerRef.value?.validate() ?? []) : validateFlowNodes(form.nodes)
+  const errors = mode.value === 'chain' ? (designerRef.value?.validate() ?? []) : validateFlowNodes(form.nodes)
   if (errors.length) {
     ElMessage.warning(errors.map((k) => t(k)).join('；'))
     return
@@ -220,8 +220,8 @@ async function save() {
         defaultSeq: n.nodeType === 'condition' ? n.defaultSeq : null,
       })),
     }
-    // 图形模式：画布图（含布局）随节点行一并提交，后端原样存储
-    if (mode.value === 'graph' && designerRef.value) {
+    // 竖链模式：由节点行自动生成 LogicFlow 兼容图（自动纵向布局）随节点行一并提交
+    if (mode.value === 'chain' && designerRef.value) {
       payload.processGraph = designerRef.value.exportGraph()
     }
     if (editingId.value) await updateFlowDef(editingId.value, payload)
@@ -375,7 +375,7 @@ async function remove(row: FlowDef) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" :width="mode === 'graph' ? '1080px' : '720px'" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" :width="mode === 'chain' ? '1080px' : '720px'" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.flow.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.code" :disabled="Boolean(editingId)" />
@@ -399,7 +399,7 @@ async function remove(row: FlowDef) {
       <el-form-item :label="t('admin.flow.editMode')">
         <el-radio-group v-model="mode">
           <el-radio-button value="simple">{{ t('admin.flow.modeSimple') }}</el-radio-button>
-          <el-radio-button value="graph">{{ t('admin.flow.modeGraph') }}</el-radio-button>
+          <el-radio-button value="chain">{{ t('admin.flow.modeChain') }}</el-radio-button>
         </el-radio-group>
         <el-button class="preview-btn" size="small" @click="previewVisible = true">
           {{ t('admin.flow.preview') }}
@@ -466,11 +466,10 @@ async function remove(row: FlowDef) {
       </el-form-item>
 
       <el-form-item v-else :label="t('admin.flow.nodes')">
-        <FlowDesigner
+        <FlowChainDesigner
           v-if="dialogVisible"
           ref="designerRef"
           v-model:nodes="form.nodes"
-          :initial-graph="form.processGraph"
           :user-options="userOptions"
           :role-options="roleOptions"
         />

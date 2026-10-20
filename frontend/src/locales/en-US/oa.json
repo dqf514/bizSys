@@ -134,7 +134,21 @@
     "newVersionConfirm": "Copy current version into a new draft version?",
     "newVersionDone": "New draft version created",
     "deleteConfirm": "Only drafts without instances can be deleted. Continue?",
-    "publishedReadonly": "Published forms are read-only; create a new version instead"
+    "publishedReadonly": "Published forms are read-only; create a new version instead",
+    "palette": "Field palette",
+    "paletteHint": "Click or drag to add a field",
+    "paletteGroup": {
+      "input": "Basic",
+      "choice": "Choice",
+      "advanced": "Advanced"
+    },
+    "canvasEmpty": "Click or drag fields from the left palette",
+    "props": "Field properties",
+    "propsEmpty": "Click a field on the canvas to edit it",
+    "deleteField": "Delete field",
+    "optionAdd": "Add option",
+    "optionN": "Option {n}",
+    "dragSortTip": "Drag to reorder"
   },
   "formStatus": {
     "draft": "Draft",

@@ -187,6 +187,25 @@ export function deriveNodesFromGraph(graph: FlowGraphData): FlowNodeRow[] {
   return rows
 }
 
+/** 增删/移动后重编 seq，并把分支/默认跳转目标回写为新序号 */
+export function reseqNodes(nodes: FlowNodeRow[]) {
+  const byOldSeq = new Map(nodes.map((n) => [n.seq, n]))
+  nodes.forEach((n, i) => {
+    n.seq = i + 1
+  })
+  const newSeqOf = new Map(nodes.map((n) => [n, n.seq]))
+  for (const n of nodes) {
+    for (const b of n.branches ?? []) {
+      const target = byOldSeq.get(b.targetSeq)
+      if (target) b.targetSeq = newSeqOf.get(target) ?? b.targetSeq
+    }
+    if (n.defaultSeq) {
+      const target = byOldSeq.get(n.defaultSeq)
+      n.defaultSeq = target ? (newSeqOf.get(target) ?? null) : null
+    }
+  }
+}
+
 /** 保存前校验，返回 i18n key 列表（空 = 通过） */
 export function validateFlowNodes(nodes: FlowNodeRow[]): string[] {
   const errors: string[] = []
