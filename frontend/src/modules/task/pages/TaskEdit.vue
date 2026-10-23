@@ -110,8 +110,8 @@ async function load() {
     samples.value = (data.samples ?? []).map((x) => ({ ...x }))
     if (!items.value.length) items.value = [newItem()]
     if (!samples.value.length) samples.value = [newSample()]
-    if (data.status !== 'draft') {
-      ElMessage.warning(t('task.task.statusAssigning'))
+    if (!['draft', 'rejected'].includes(data.status)) {
+      ElMessage.warning(t('task.task.editOnlyDraft'))
       router.replace(`/task/tasks/${taskId.value}`)
     }
   } catch {
@@ -125,18 +125,25 @@ onMounted(() => void load())
 
 const stepTitles = [
   'task.task.stepBasic',
-  'task.task.stepContract',
   'task.task.stepAssign',
   'task.task.stepItems',
   'task.task.stepSubmit',
 ]
+
+/** 选中合同后自动带出关联信息：客户名、付款/接收单位（仍可手改） */
+function onContractChange(v: number | string | null, opt?: { label?: string; customerName?: string; paymentOrg?: string }) {
+  form.contractId = (v as number) ?? null
+  form.contractNo = opt?.label ?? ''
+  customerName.value = opt?.customerName ?? ''
+  if (!form.receiverUnit) form.receiverUnit = opt?.paymentOrg || opt?.customerName || ''
+}
 
 async function next() {
   if (step.value === 0 && basicFormRef.value) {
     const ok = await basicFormRef.value.validate().catch(() => false)
     if (!ok) return
   }
-  if (step.value < 4) step.value += 1
+  if (step.value < 3) step.value += 1
 }
 
 function prev() {
@@ -226,7 +233,7 @@ async function saveAndSubmit() {
     </el-steps>
 
     <div class="step-body">
-      <!-- step 0: basic -->
+      <!-- step 0: basic + contract（合并页：选合同自动带出客户/接收单位） -->
       <el-form v-show="step === 0" ref="basicFormRef" :model="form" label-width="130px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -239,6 +246,20 @@ async function saveAndSubmit() {
               <el-select v-model="form.taskType" style="width: 100%">
                 <el-option v-for="o in typeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.contractId')">
+              <ContractSelect
+                :model-value="form.contractId"
+                :placeholder="t('contract.contract.onlyApproved')"
+                @change="onContractChange"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('task.task.customerName')">
+              <el-input :model-value="customerName" disabled :placeholder="t('task.task.customerFromContract')" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -259,28 +280,8 @@ async function saveAndSubmit() {
         </el-row>
       </el-form>
 
-      <!-- step 1: contract -->
+      <!-- step 1: assignment -->
       <el-form v-show="step === 1" label-width="130px">
-        <el-form-item :label="t('task.task.contractId')">
-          <ContractSelect
-            :model-value="form.contractId"
-            :placeholder="t('contract.contract.onlyApproved')"
-            @change="
-              (v, opt) => {
-                form.contractId = v as number
-                form.contractNo = opt?.label ?? ''
-                customerName = opt?.customerName ?? ''
-              }
-            "
-          />
-        </el-form-item>
-        <el-form-item :label="t('task.task.customerName')">
-          <el-input :model-value="customerName" disabled :placeholder="t('task.task.customerFromContract')" />
-        </el-form-item>
-      </el-form>
-
-      <!-- step 2: assignment -->
-      <el-form v-show="step === 2" label-width="130px">
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item :label="t('task.task.bizBlock')">
@@ -314,8 +315,8 @@ async function saveAndSubmit() {
         </el-row>
       </el-form>
 
-      <!-- step 3: items & samples -->
-      <div v-show="step === 3" class="dyn-section">
+      <!-- step 2: items & samples -->
+      <div v-show="step === 2" class="dyn-section">
         <div class="dyn-title">
           {{ t('task.task.items') }}
           <el-button size="small" type="primary" plain @click="items.push(newItem())">
@@ -331,6 +332,13 @@ async function saveAndSubmit() {
           </el-table-column>
           <el-table-column :label="t('task.task.itemStd')" min-width="110">
             <template #default="{ row }"><el-input v-model="row.std" size="small" /></template>
+          </el-table-column>
+          <el-table-column :label="t('task.task.itemDept')" min-width="130">
+            <template #default="{ row }">
+              <el-select v-model="row.dept" size="small" clearable filterable style="width: 100%">
+                <el-option v-for="o in blockOpts.opts.value" :key="o.value" :label="o.label" :value="o.label" />
+              </el-select>
+            </template>
           </el-table-column>
           <el-table-column :label="t('task.task.itemInspector')" min-width="100">
             <template #default="{ row }"><el-input v-model="row.inspector" size="small" /></template>
@@ -361,8 +369,15 @@ async function saveAndSubmit() {
           <el-table-column :label="t('task.task.sampleModel')" min-width="110">
             <template #default="{ row }"><el-input v-model="row.model" size="small" /></template>
           </el-table-column>
-          <el-table-column :label="t('task.task.sampleVin')" min-width="130">
-            <template #default="{ row }"><el-input v-model="row.vin" size="small" /></template>
+          <el-table-column min-width="130">
+            <template #header>
+              <el-tooltip :content="t('task.task.sampleVinTip')" placement="top">
+                <span>{{ t('task.task.sampleVin') }}</span>
+              </el-tooltip>
+            </template>
+            <template #default="{ row }">
+              <el-input v-model="row.vin" size="small" :placeholder="t('task.task.sampleVinPlaceholder')" />
+            </template>
           </el-table-column>
           <el-table-column :label="t('task.task.sampleVehicleType')" min-width="110">
             <template #default="{ row }"><el-input v-model="row.vehicleType" size="small" /></template>
@@ -380,8 +395,8 @@ async function saveAndSubmit() {
         </el-table>
       </div>
 
-      <!-- step 4: submit -->
-      <div v-show="step === 4" class="submit-summary">
+      <!-- step 3: submit -->
+      <div v-show="step === 3" class="submit-summary">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('task.task.taskName')">{{ form.taskName }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.taskType')">{{ form.taskType }}</el-descriptions-item>
@@ -395,7 +410,7 @@ async function saveAndSubmit() {
 
     <div class="step-footer">
       <el-button :disabled="step === 0" @click="prev">{{ t('task.task.stepPrev') }}</el-button>
-      <el-button v-if="step < 4" type="primary" plain @click="next">{{ t('task.task.stepNext') }}</el-button>
+      <el-button v-if="step < 3" type="primary" plain @click="next">{{ t('task.task.stepNext') }}</el-button>
       <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
       <el-button type="primary" :loading="savingSubmit" @click="saveAndSubmit">{{ t('common.action.submitApproval') }}</el-button>
     </div>

@@ -21,15 +21,12 @@ from app.modules.auth.models import User
 from app.modules.task.models import Task, TaskItem, TaskSample
 
 # action: (允许的前置状态, 目标状态或 None=动态)
+# 精简状态机（2026-10-21 评审）：assigning/assigned 并入 in_progress，closed 并入 finished
 TRANSITIONS: dict[str, tuple[set[str], str | None]] = {
-    "submit": ({"draft", "rejected"}, None),  # 绑定立项定义→approving；未绑定直通 assigning
-    "start": ({"assigning", "assigned"}, None),  # assigning→assigned→in_progress 两步
-    "finish": ({"in_progress"}, "finished"),
-    "close": ({"finished"}, "closed"),
-    "stop": ({"draft", "approving", "rejected", "assigning", "assigned", "in_progress", "finished"}, "stopped"),
+    "submit": ({"draft", "rejected"}, None),  # 绑定立项定义→approving；未绑定直通 in_progress
+    "finish": ({"in_progress"}, "finished"),  # 完成门禁：需报告条目全部签章
+    "stop": ({"draft", "approving", "rejected", "in_progress", "finished"}, "stopped"),
 }
-
-TERMINAL = {"closed", "stopped", "approved", "settled"}
 
 
 def _check_reports_sealed(db: Session, task: Task) -> None:
@@ -48,8 +45,8 @@ def _check_reports_sealed(db: Session, task: Task) -> None:
 
 
 def mark_settled(db: Session, task: Task) -> Task:
-    """closed → settled：由财务模块创建结算单时触发（终态之一）。"""
-    if task.status != "closed":
+    """finished → settled：由财务模块创建结算单时触发（终态之一）。"""
+    if task.status != "finished":
         raise BizException(R.TASK_INVALID_STATE, f"状态「{task.status}」不允许结算")
     task.status = "settled"
     task.version += 1
@@ -75,25 +72,13 @@ def transition(db: Session, task: Task, action: str, user: User) -> Task:
     allowed, target = spec
     if task.status not in allowed:
         raise BizException(R.TASK_INVALID_STATE, f"状态「{task.status}」不允许执行「{action}」")
-    if action == "start":
-        target = "assigned" if task.status == "assigning" else "in_progress"
     if action == "submit":
         return _submit(db, task, user)
-    if action == "close":
+    if action == "finish":
         _check_reports_sealed(db, task)
-    old = task.status
     task.status = target
     task.version += 1
     task.update_time = datetime.now()
-    if action == "start" and old == "assigning":
-        # 接单确认也提醒负责人
-        if task.owner_id:
-            _add_notify(
-                db,
-                task.owner_id,
-                f"任务已接单：{task.task_no}",
-                task,
-            )
     return task
 
 
@@ -116,9 +101,9 @@ def _snapshot(t: Task) -> dict:
     )
 
 
-def _enter_assigning(db: Session, task: Task, operator: User) -> None:
-    """立项通过/直通后的共同路径：assigning + 分配通知 + TaskAssigned 事件。"""
-    task.status = "assigning"
+def _enter_in_progress(db: Session, task: Task, operator: User) -> None:
+    """立项通过/直通后的共同路径：in_progress（分配执行中）+ 分配通知 + TaskAssigned 事件。"""
+    task.status = "in_progress"
     task.version += 1
     task.update_time = datetime.now()
     _notify_assignment(db, task, operator)
@@ -147,7 +132,7 @@ def _submit(db: Session, task: Task, user: User) -> Task:
 
     definition = approval_svc.resolve_definition(db, "task")
     if not definition:
-        _enter_assigning(db, task, user)
+        _enter_in_progress(db, task, user)
         return task
     inst = approval_svc.start(
         db,
@@ -171,7 +156,7 @@ def _submit(db: Session, task: Task, user: User) -> Task:
 
 
 def _handle_completed(event: ApprovalCompleted) -> None:
-    """立项审批通过 → 任务生效（assigning，走分配通知）。"""
+    """立项审批通过 → 任务生效（in_progress，走分配通知）。"""
     if event.biz_type != "task":
         return
     db: Session = event.db
@@ -180,7 +165,7 @@ def _handle_completed(event: ApprovalCompleted) -> None:
         return
     operator = db.get(User, event.operator_id)
     t.flow_instance_id = event.instance_id
-    _enter_assigning(db, t, operator or User(id=event.operator_id))
+    _enter_in_progress(db, t, operator or User(id=event.operator_id))
 
 
 def _handle_rejected(event: ApprovalRejected) -> None:

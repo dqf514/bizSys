@@ -80,25 +80,27 @@
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
 
 ## 任务 /task
-- 状态机（本期）：`draft 已创建待提交 → assigning 已提交分配中 → assigned 已分配待完成
-  → in_progress 执行中 → finished 已完成 → closed 已结束`，终态 `stopped 停止`、`settled 已结算`
-  （closed → settled 由财务模块创建结算单触发，见「财务」章节）
+- 状态机（2026-10 精简）：`draft 创建待提交 → in_progress 分配执行中 → finished 已完成 → settled 已结算`，
+  流程态 `approving 立项审批中` / `rejected 已驳回`，终态 `stopped 已停止`
+  （原 assigning/assigned 并入 in_progress、closed 并入 finished，迁移 e5f6a7b8c9d0 改写存量；
+  finished → settled 由财务模块创建结算单触发，见「财务」章节；
+  财务进度 `settleStatus`（invoiced/paid）以徽标形式随列表/详情返回，不占主状态）
 - `GET /task/tasks` 分页（宽表冗余）：
   `{id,taskNo,taskName,taskType,taskTypeLabel,contractId,contractNo,customerId,customerName,
     bizBlock,bizBlockLabel,deptId,deptName,ownerId,ownerName,content,partySystem,receiver,receiverUnit,
-    planFinishDate,status,reportCount,sampleCount,createTime,updateTime}`
+    planFinishDate,status,settleStatus,reportCount,sampleCount,createTime,updateTime}`
   检索：`q`（taskNo/taskName/customerName）、`status` 页签
-- `GET /task/tasks/counts` → `{draft:1,assigning:0,...}`（状态页签计数）
+- `GET /task/tasks/counts` → `{draft:1,in_progress:0,...}`（状态页签计数）
 - `POST /task/tasks` `{taskName,taskType,contractId,content,receiver,receiverUnit,bizBlock,deptId,planFinishDate,partySystem,items:[],samples:[]}`
   → 自动 `taskNo`；仅允许选择 `approved` 合同（否则 60002）
-- `PUT /task/tasks/{id}`（仅 draft）· `DELETE`（仅 draft）
-- 状态动作：`POST /task/tasks/{id}/submit|start|finish|close|stop`（非法流转 60001；submit 触发站内通知；
-  close 时存在 needReport=1 且未签章（reportStatus≠sealed）的条目 → 60003，消息列出未完成条目）
-  - 合法流转表：`draft --submit--> assigning`；`assigning --start--> assigned`（接单确认）；
-    `assigned --start--> in_progress`（开始执行）；`in_progress --finish--> finished`；
-    `finished --close--> closed`；任意非终态 `--stop--> stopped`（终态）
-  - 前端按钮：draft 显示「提交分配」(submit)；assigning/assigned 显示「开始」(start)；
-    in_progress 显示「完成」(finish)；finished 显示「结束」(close)；非终态显示「停止」(stop)
+- `PUT /task/tasks/{id}`（仅 draft/rejected）· `DELETE`（仅 draft）
+- 状态动作：`POST /task/tasks/{id}/submit|finish|stop`（非法流转 60001；submit 触发站内通知；
+  finish 时存在 needReport=1 且未签章（reportStatus≠sealed）的条目 → 60003，消息列出未完成条目）
+  - 合法流转表：`draft/rejected --submit--> approving`（绑定立项定义）或 `in_progress`（直通）；
+    `approving` 审批通过 `--> in_progress`；`in_progress --finish--> finished`；
+    `draft/approving/rejected/in_progress/finished --stop--> stopped`（终态）
+  - 前端按钮：draft/rejected 显示「提交分配」(submit)；in_progress 显示「完成」(finish)；
+    非终态显示「停止」(stop)
 - `GET /task/tasks/{id}` → 详情含 `items[]` `samples[]` `logs[]`
   （`logs` 为该任务全部样品的 `task_sample_flow` 流水，按时间倒序：
   `[{id,sampleNo,action:"in"|"out",operatorName,createTime,remark}]`）
@@ -114,16 +116,16 @@
 ## 财务 /finance
 - 结算单状态机：`pending 待开票 → invoicing 开票审批中 → invoiced 已开票 → paid 已到账`；
   审批驳回/撤回 → 回 `pending`。
-- 主链路：任务 closed → 建任务人创建结算单（任务 → settled，一任务一单）→ 申请开票（审批流 invoice_apply）
+- 主链路：任务 finished → 建任务人创建结算单（任务 → settled，一任务一单）→ 申请开票（审批流 invoice_apply）
   → 审批通过生成发票行 → 财务登记发票信息 → 到账登记（累计到账 ≥ 结算金额 → paid）。
 - `GET /finance/settlements` 分页：
   `{id,settlementNo,taskId,taskNo,customerName,contractNo,amount,invoiceableAmount,status,statusText,remark,
     approvalInstanceId,createBy,createTime}`
   检索：`q`（settlementNo/taskNo/customerName/contractNo）、`status` 页签
 - `GET /finance/settlements/task-options?q=` → `[{value,label,sub}]`
-  （仅 `closed` 且无结算单的任务；value=taskId，label=任务编号，sub=客户名称/合同号）
+  （仅 `finished` 且无结算单的任务；value=taskId，label=任务编号，sub=客户名称/合同号）
 - `POST /finance/settlements` `{taskId,amount,invoiceableAmount?,remark?}` → 201；
-  仅任务创建人（或超管）可对 closed 任务创建；`settlementNo` 走 HK 编号规则；成功后任务 closed → settled。
+  仅任务创建人（或超管）可对 finished 任务创建；`settlementNo` 走 HK 编号规则；成功后任务 finished → settled。
   错误：80001 任务状态不允许结算 / 80002 该任务已有结算单 / 80003 非任务创建人
 - `GET /finance/settlements/{id}` → 详情 + `invoices[]` + `payments[]` + `paidAmount` + 开票审批 `timeline`
 - `POST /finance/settlements/{id}/apply-invoice` `{comment?}` → 启动开票审批
@@ -148,7 +150,7 @@
 - 状态机：`uploaded 已上传待审 → approving 审批中 → approved 批准通过 → sealed 签章完成`；
   审批驳回 → `rejected 已驳回`（可重新提交），撤回 → 回 `uploaded`。
 - 主链路：条目 needReport=1 自动分配 reportNo（BG 规则）→ 上传报告 → 签批（审批流 report_sign）
-  → 批准自动转 PDF → 签章（seal_by/seal_time 留痕）→ sealed；**存在未签章报告条目的任务 close 拒绝（60003）**。
+  → 批准自动转 PDF → 签章（seal_by/seal_time 留痕）→ sealed；**存在未签章报告条目的任务 finish 拒绝（60003）**。
 - `GET /report/reports` 分页：
   `{id,reportNo,taskId,taskNo,taskItemId,itemName,customerName,fileName,status,statusText,pdfReady,
     sealBy,sealTime,remark,approvalInstanceId,createBy,createTime}`

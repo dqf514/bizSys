@@ -26,14 +26,11 @@ from app.services.numbering import next_no
 router = APIRouter(prefix="/task", tags=["task"], route_class=EnvelopeRoute)
 
 STATUS_CN = {
-    "draft": "已创建",
+    "draft": "创建待提交",
     "approving": "立项审批中",
     "rejected": "已驳回",
-    "assigning": "分配中",
-    "assigned": "已分配",
-    "in_progress": "执行中",
+    "in_progress": "分配执行中",
     "finished": "已完成",
-    "closed": "已结束",
     "settled": "已结算",
     "stopped": "已停止",
 }
@@ -92,7 +89,17 @@ def _counts_for(db: Session, ids: list[int]) -> dict[int, tuple[int, int]]:
     return {i: (items.get(i, 0), samples.get(i, 0)) for i in ids}
 
 
-def _out(c: Task, labels: tuple[dict, dict], counts: tuple[int, int] = (0, 0)) -> dict:
+def _settle_map(db: Session, ids: list[int]) -> dict[int, str]:
+    """task_id -> 结算单状态（财务进度徽标：invoiced=已开票 paid=已到账）。"""
+    if not ids:
+        return {}
+    from app.modules.finance.models import Settlement
+
+    rows = db.scalars(select(Settlement).where(Settlement.task_id.in_(ids), Settlement.deleted == 0)).all()
+    return {s.task_id: s.status for s in rows}
+
+
+def _out(c: Task, labels: tuple[dict, dict], counts: tuple[int, int] = (0, 0), settle_status: str = "") -> dict:
     type_labels, block_labels = labels
     return {
         "id": c.id,
@@ -117,6 +124,7 @@ def _out(c: Task, labels: tuple[dict, dict], counts: tuple[int, int] = (0, 0)) -
         "planFinishDate": _d(c.plan_finish_date),
         "status": c.status,
         "statusText": STATUS_CN.get(c.status, c.status),
+        "settleStatus": settle_status,
         "reportCount": counts[0],
         "sampleCount": counts[1],
         "version": c.version,
@@ -181,8 +189,9 @@ def list_tasks(
     rows = db.scalars(stmt).all()
     labels = _labels(db)
     cnts = _counts_for(db, [r.id for r in rows])
+    settles = _settle_map(db, [r.id for r in rows])
     return {
-        "items": [_out(r, labels, cnts.get(r.id, (0, 0))) for r in rows],
+        "items": [_out(r, labels, cnts.get(r.id, (0, 0)), settles.get(r.id, "")) for r in rows],
         "total": total,
         "page": page,
         "size": size,
@@ -266,7 +275,7 @@ def create_task(
 def _detail(db: Session, t: Task) -> dict:
     labels = _labels(db)
     cnts = _counts_for(db, [t.id])
-    data = _out(t, labels, cnts.get(t.id, (0, 0)))
+    data = _out(t, labels, cnts.get(t.id, (0, 0)), _settle_map(db, [t.id]).get(t.id, ""))
     data["items"] = [_item_out(i) for i in t.items if not i.deleted]
     data["samples"] = [_sample_out(s) for s in t.samples if not s.deleted]
     flow_rows = db.execute(
@@ -366,11 +375,9 @@ def delete_task(
 # ---------------- 状态动作 ----------------
 
 _ACTION_PERM = {
-    # 分配类动作（提交分配/接单）除主权限外还需 task:assign（种子已发该权限码）
+    # 提交分配除主权限外还需 task:assign（种子已发该权限码）
     "submit": ("task:submit", "task:assign"),
-    "start": ("task:edit", "task:assign"),
     "finish": ("task:edit",),
-    "close": ("task:edit",),
     "stop": ("task:edit",),
 }
 
@@ -398,7 +405,7 @@ def _action_endpoint(action: str):
     return _run
 
 
-for _a in ("submit", "start", "finish", "close", "stop"):
+for _a in ("submit", "finish", "stop"):
     router.post(f"/tasks/{{tid}}/{_a}")(_action_endpoint(_a))
 del _a
 
@@ -414,7 +421,7 @@ def add_item(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
-    if t.status not in ("draft", "assigning", "assigned", "in_progress"):
+    if t.status not in ("draft", "in_progress"):
         raise BizException(R.TASK_INVALID_STATE)
     row = TaskItem(
         task_id=t.id,
@@ -448,7 +455,7 @@ def update_item(
     if not row or row.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     t = _load(db, row.task_id)
-    if t.status not in ("draft", "assigning", "assigned", "in_progress"):
+    if t.status not in ("draft", "in_progress"):
         raise BizException(R.TASK_INVALID_STATE)
     row.name = body.name
     row.std = body.std
@@ -499,7 +506,7 @@ def add_sample(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
-    if t.status in ("closed", "stopped", "finished"):
+    if t.status in ("finished", "settled", "stopped"):
         raise BizException(R.TASK_INVALID_STATE)
     row = TaskSample(
         task_id=t.id,

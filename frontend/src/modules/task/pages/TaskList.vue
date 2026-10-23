@@ -33,11 +33,8 @@ const statusTabs = ref<StatusTabItem[]>([
   { value: 'draft', labelKey: 'task.task.statusDraft', count: 0 },
   { value: 'approving', labelKey: 'task.task.statusApproving', count: 0 },
   { value: 'rejected', labelKey: 'task.task.statusRejected', count: 0 },
-  { value: 'assigning', labelKey: 'task.task.statusAssigning', count: 0 },
-  { value: 'assigned', labelKey: 'task.task.statusAssigned', count: 0 },
   { value: 'in_progress', labelKey: 'task.task.statusInProgress', count: 0 },
   { value: 'finished', labelKey: 'task.task.statusFinished', count: 0 },
-  { value: 'closed', labelKey: 'task.task.statusClosed', count: 0 },
   { value: 'settled', labelKey: 'task.task.statusSettled', count: 0 },
   { value: 'stopped', labelKey: 'task.task.statusStopped', count: 0 },
   { value: 'all', labelKey: 'common.action.all', count: 0 },
@@ -223,6 +220,12 @@ function onDetailChanged() {
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
+          <StatusTag
+            v-if="row.settleStatus === 'invoiced' || row.settleStatus === 'paid'"
+            :status="String(row.settleStatus)"
+            i18n-prefix="finance.settlement.status"
+            class="settle-badge"
+          />
         </template>
         <template #taskNo="{ row }">
           <el-button link type="primary" @click="openDetail(row as unknown as Task)">{{ row.taskNo || '-' }}</el-button>
@@ -266,5 +269,9 @@ function onDetailChanged() {
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
   color: var(--bs-color-fg-default);
+}
+
+.settle-badge {
+  margin-left: var(--bs-space-1);
 }
 </style>

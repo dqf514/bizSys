@@ -694,8 +694,7 @@ class Gen:
                     "model": ("model_center", "模型加工中心"),
                     "windtunnel": ("windtunnel_dept", "风洞试验部")}
 
-        plan = (["closed"] * 65 + ["finished"] * 25 + ["in_progress"] * 45 + ["assigned"] * 25
-                + ["assigning"] * 15 + ["draft"] * 15 + ["stopped"] * 10)
+        plan = (["finished"] * 90 + ["in_progress"] * 85 + ["draft"] * 15 + ["stopped"] * 10)
         R.shuffle(plan)
         if len(plan) < self.n_task:
             plan += ["in_progress"] * (self.n_task - len(plan))
@@ -705,9 +704,9 @@ class Gen:
         mid = [c for c in approved if c["start"] <= TODAY - timedelta(days=15)]
 
         for want in plan:
-            if want in ("closed", "stopped"):
+            if want in ("finished", "stopped"):
                 pool = early or mid or approved
-            elif want in ("finished", "in_progress", "assigned"):
+            elif want == "in_progress":
                 pool = mid or approved
             else:
                 pool = approved
@@ -723,9 +722,9 @@ class Gen:
             else:
                 subject = R.choice(PROJECTS)
 
-            if want in ("closed", "stopped"):
+            if want in ("finished", "stopped"):
                 base_day = rdate(TODAY - timedelta(days=320), TODAY - timedelta(days=60))
-            elif want in ("finished", "in_progress", "assigned"):
+            elif want == "in_progress":
                 base_day = rdate(TODAY - timedelta(days=45), TODAY - timedelta(days=8))
             else:
                 base_day = rdate(TODAY - timedelta(days=8), TODAY - timedelta(days=1))
@@ -734,7 +733,7 @@ class Gen:
                 created_day = TODAY - timedelta(days=1)
 
             plan_finish = created_day + timedelta(days=R.randint(7, 45))
-            if want in ("closed", "stopped") and plan_finish > TODAY - timedelta(days=5):
+            if want in ("finished", "stopped") and plan_finish > TODAY - timedelta(days=5):
                 plan_finish = TODAY - timedelta(days=R.randint(5, 30))
                 if plan_finish <= created_day + timedelta(days=3):
                     plan_finish = created_day + timedelta(days=4)
@@ -797,7 +796,7 @@ class Gen:
                     "vin": vin() if ttype != "model" or R.random() < 0.5 else "",
                     "vehicleType": R.choice(VEHICLE_TYPES),
                     "sampleDate": (created_day - timedelta(days=R.randint(0, 6))).isoformat(),
-                    "inStock": "out" if want in ("closed", "finished", "stopped") else "in",
+                    "inStock": "out" if want in ("finished", "stopped") else "in",
                 })
 
             try:
@@ -837,35 +836,26 @@ class Gen:
         need_report_ids = [it["id"] for it in detail.get("items", []) if it.get("needReport")]
 
         step = created_day
-        if want in ("assigning", "assigned", "in_progress", "finished", "closed", "stopped"):
+        if want in ("in_progress", "finished", "stopped"):
             C.req("POST", f"/task/tasks/{tid}/submit", admin)
             step += timedelta(days=R.randint(0, 2))
-        if want in ("assigned", "in_progress", "finished", "closed", "stopped"):
-            C.req("POST", f"/task/tasks/{tid}/start", admin)   # assigning → assigned
-            step += timedelta(days=R.randint(0, 2))
-        if want in ("in_progress", "finished", "closed", "stopped"):
-            C.req("POST", f"/task/tasks/{tid}/start", admin)   # assigned → in_progress
-            step += timedelta(days=R.randint(1, 5))
-        if want in ("finished", "closed"):
-            C.req("POST", f"/task/tasks/{tid}/finish", admin)
-            step += timedelta(days=R.randint(1, 5))
 
-        if want == "closed":
+        if want == "finished":
             ok = True
             for iid in need_report_ids:
                 if not self._make_report(admin, mgr, iid, "sealed"):
                     ok = False
             if not ok:
-                self.errors.append(f"task {t['taskNo']}: 报告未签章，无法 close")
-                want = "finished"
+                self.errors.append(f"task {t['taskNo']}: 报告未签章，无法 finish")
+                want = "in_progress"
             else:
                 try:
-                    C.req("POST", f"/task/tasks/{tid}/close", admin)
+                    C.req("POST", f"/task/tasks/{tid}/finish", admin)
                     step += timedelta(days=R.randint(1, 4))
                 except ApiError as e:
-                    self.errors.append(f"task {t['taskNo']} close: {e}")
-                    want = "finished"
-        elif want == "finished" and need_report_ids and R.random() < 0.7:
+                    self.errors.append(f"task {t['taskNo']} finish: {e}")
+                    want = "in_progress"
+        elif want == "in_progress" and need_report_ids and R.random() < 0.7:
             for iid in need_report_ids:
                 st = R.choice(["uploaded", "approving", "approved"])
                 self._make_report(admin, mgr, iid, st)
@@ -926,9 +916,9 @@ class Gen:
     # ---------- 5. 财务 ----------
     def gen_finance(self) -> None:
         admin, mgr = C.tok("admin"), C.tok("manager1")
-        closed = [t for t in self.tasks if t["want"] == "closed"]
-        R.shuffle(closed)
-        targets = closed[: max(1, int(len(closed) * 0.7))]
+        finished = [t for t in self.tasks if t["want"] == "finished"]
+        R.shuffle(finished)
+        targets = finished[: max(1, int(len(finished) * 0.7))]
 
         stat = {"pending": 0, "invoicing": 0, "invoiced": 0, "paid": 0, "fail": 0}
         for t in targets:

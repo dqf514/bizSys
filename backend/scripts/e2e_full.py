@@ -394,9 +394,8 @@ def _task_action(admin: str, tid: int, action: str):
     return api("POST", f"/task/tasks/{tid}/{action}", admin)
 
 
-def _run_task_to_closed(admin: str, tid: int) -> str:
-    for action, want in (("submit", "assigning"), ("start", "assigned"),
-                         ("start", "in_progress"), ("finish", "finished"), ("close", "closed")):
+def _run_task_to_finished(admin: str, tid: int) -> str:
+    for action, want in (("submit", "in_progress"), ("finish", "finished")):
         st, code, _ = _task_action(admin, tid, action)
         if code != 0:
             return f"action {action} failed code={code}"
@@ -441,23 +440,19 @@ def test_task(admin: str, manager: str, contract_ids: dict) -> dict:
     rec("task.create voided contract -> 60002", code == 60002, f"code={code}")
 
     # 非法流转
-    expect_biz_error("task.start on draft -> 60001", "POST", f"/task/tasks/{t1}/start", admin, want_code=60001)
     expect_biz_error("task.finish on draft -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
 
-    # 提交分配 → finished；needReport 条目未签章 → close 门禁 60003
+    # 提交分配 → in_progress；needReport 条目未签章 → finish 门禁 60003
     err = ""
-    for action, want in (("submit", "assigning"), ("start", "assigned"),
-                         ("start", "in_progress"), ("finish", "finished")):
-        st, code, _ = _task_action(admin, t1, action)
-        if code != 0:
-            err = f"action {action} failed code={code}"
-            break
-    if not err:
+    st, code, _ = _task_action(admin, t1, "submit")
+    if code != 0:
+        err = f"action submit failed code={code}"
+    else:
         st, code, t = api("GET", f"/task/tasks/{t1}", admin)
-        if t["status"] != "finished":
-            err = f"status={t['status']} want=finished"
-    rec("task.flow to finished", err == "", err)
-    expect_biz_error("task.close unsealed report -> 60003", "POST", f"/task/tasks/{t1}/close", admin,
+        if t["status"] != "in_progress":
+            err = f"status={t['status']} want=in_progress"
+    rec("task.flow to in_progress", err == "", err)
+    expect_biz_error("task.finish unsealed report -> 60003", "POST", f"/task/tasks/{t1}/finish", admin,
                      want_code=60003)
 
     # 报告链路：上传 → 签批 → 批准（自动转 PDF，无 soffice 降级）→ 签章 → close 放行
@@ -503,14 +498,14 @@ def test_task(admin: str, manager: str, contract_ids: dict) -> dict:
         r = api("GET", "/report/reports/export", admin, raw=True)
         rec("report.export", r.status_code == 200 and r.content[:2] == b"PK", f"http={r.status_code}")
         err = ""
-        st, code, res = _task_action(admin, t1, "close")
+        st, code, res = _task_action(admin, t1, "finish")
         if code != 0:
-            err = f"close failed code={code}"
-        rec("task.close after report sealed", err == "", err)
-        expect_biz_error("task.finish on closed -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
+            err = f"finish failed code={code}"
+        rec("task.finish after report sealed", err == "", err)
+        expect_biz_error("task.finish on finished -> 60001", "POST", f"/task/tasks/{t1}/finish", admin, want_code=60001)
 
     st, code, counts = api("GET", "/task/tasks/counts", admin)
-    rec("task.counts", code == 0 and isinstance(counts, dict) and counts.get("closed", 0) >= 1, f"counts={counts}")
+    rec("task.counts", code == 0 and isinstance(counts, dict) and counts.get("finished", 0) >= 1, f"counts={counts}")
 
     # 样品出入库
     sid = samples[0]["id"] if samples else None
@@ -532,13 +527,13 @@ def test_task(admin: str, manager: str, contract_ids: dict) -> dict:
     r = api("POST", "/task/tasks/export", admin, params={"q": "E2E-"}, raw=True)
     rec("task.export", r.status_code == 200 and r.content[:2] == b"PK", f"http={r.status_code}")
 
-    # t2：跑完 closed，用于财务“非创建人被拒”
+    # t2：跑完 finished，用于财务“非创建人被拒”
     st, code, t2 = api("POST", "/task/tasks", admin,
                        json={"taskName": "E2E-任务2", "contractId": contract_ids["c2"], "deptId": dept_id})
     if code == 0:
         out["t2"] = t2["id"]
-        err = _run_task_to_closed(admin, t2["id"])
-        rec("task.t2 to closed", err == "", err)
+        err = _run_task_to_finished(admin, t2["id"])
+        rec("task.t2 to finished", err == "", err)
     else:
         rec("task.t2 create", False, f"code={code}")
     return out
@@ -549,7 +544,7 @@ def test_finance(admin: str, manager: str, task_ids: dict) -> None:
     t1, t2 = task_ids["t1"], task_ids.get("t2")
 
     st, code, opts = api("GET", "/finance/settlements/task-options", admin, params={"q": "E2E-任务"})
-    rec("finance.task-options closed only", code == 0 and any(o["value"] == t1 for o in opts),
+    rec("finance.task-options finished only", code == 0 and any(o["value"] == t1 for o in opts),
         f"opts={opts}")
 
     # 非创建人被拒（manager 对 admin 创建的 t2 建结算单 → 80003）

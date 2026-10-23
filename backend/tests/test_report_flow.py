@@ -144,10 +144,8 @@ def test_report_full_flow(client, admin_headers):
     opts = client.get("/api/v1/report/reports/item-options", headers=headers).json()["data"]
     assert all(o["value"] != item_id for o in opts)
 
-    # 任务跑到 finished，close 被门禁拦住（60003，消息含报告编号）
-    for action in ("start", "start", "finish"):
-        assert client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()["code"] == 0
-    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
+    # 任务 finish 被门禁拦住（60003，消息含报告编号）
+    r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 60003 and item["reportNo"] in r["message"], r
 
     # 提交审批 → approving；重复提交 → 61002
@@ -170,9 +168,9 @@ def test_report_full_flow(client, admin_headers):
     assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 61002
     assert _report_status(client, headers, tid, item_id) == "sealed"
 
-    # 签章完成后任务可结束
-    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
-    assert r["code"] == 0 and r["data"]["status"] == "closed", r
+    # 签章完成后任务可完成
+    r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "finished", r
 
     # 下载原件 / 下载PDF（降级=原件）/ 导出
     resp = client.get(f"/api/v1/report/reports/{rid}/download", headers=headers)
@@ -240,13 +238,11 @@ def test_report_reject_resubmit_flow(client, admin_headers):
 
 
 def test_close_guard_without_report(client, admin_headers):
-    """need_report=1 但从未上传报告：close 直接 60003。"""
+    """need_report=1 但从未上传报告：finish 直接 60003。"""
     headers = admin_headers
     suf = uuid.uuid4().hex[:8]
     tid, item = _make_task(client, headers, suf)
-    for action in ("start", "start", "finish"):
-        assert client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()["code"] == 0
-    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
+    r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 60003 and item["name"] in r["message"], r
 
 

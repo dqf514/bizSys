@@ -210,12 +210,12 @@ def settlement_task_options(
     user: User = Depends(require_perm("finance:settlement:create")),
     db: Session = Depends(get_db),
 ):
-    """可发起结算的任务：status=closed 且尚无结算单。"""
+    """可发起结算的任务：status=finished 且尚无结算单。"""
     stmt = (
         select(Task)
         .where(
             Task.deleted == 0,
-            Task.status == "closed",
+            Task.status == "finished",
             ~select(Settlement.id).where(Settlement.task_id == Task.id, Settlement.deleted == 0).exists(),
         )
     )
@@ -241,8 +241,8 @@ def create_settlement(
         raise BizException(R.FINANCE_NOT_TASK_CREATOR, "仅任务创建人可发起结算")
     if db.scalar(select(Settlement.id).where(Settlement.task_id == t.id, Settlement.deleted == 0)):
         raise BizException(R.FINANCE_SETTLEMENT_EXISTS, "该任务已存在结算单")
-    if t.status != "closed":
-        raise BizException(R.FINANCE_INVALID_STATE, f"任务状态「{t.status}」不允许发起结算（需已结束）")
+    if t.status != "finished":
+        raise BizException(R.FINANCE_INVALID_STATE, f"任务状态「{t.status}」不允许发起结算（需已完成）")
     s = Settlement(
         settlement_no=next_no(db, "settlement"),
         task_id=t.id,
@@ -272,7 +272,7 @@ def _submit_settlement_flow(db: Session, s: Settlement, t: Task, current: User) 
         s.status = "pending"
         s.version += 1
         s.update_time = datetime.now()
-        task_svc.mark_settled(db, t)  # closed → settled
+        task_svc.mark_settled(db, t)  # finished → settled
         return
     inst = approval_svc.start(
         db,

@@ -283,6 +283,7 @@ export interface CustomerOption extends OptionItem {
 export interface ContractOption extends OptionItem {
   customerId?: number | null
   customerName?: string
+  paymentOrg?: string
 }
 
 export interface CustomerSummary {
@@ -338,11 +339,9 @@ export type TaskStatus =
   | 'draft'
   | 'approving'
   | 'rejected'
-  | 'assigning'
-  | 'assigned'
   | 'in_progress'
   | 'finished'
-  | 'closed'
+  | 'settled'
   | 'stopped'
 
 export interface Task {
@@ -367,6 +366,8 @@ export interface Task {
   receiverUnit: string
   planFinishDate: string
   status: TaskStatus
+  /** 财务进度（结算单状态）：invoiced=已开票 / paid=已到账，用于列表徽标 */
+  settleStatus?: string
   reportCount: number
   sampleCount: number
   createTime: string

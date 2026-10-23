@@ -9,7 +9,7 @@ from app.common.models import BaseModel
 
 
 class Task(BaseModel):
-    """状态机：draft → assigning → assigned → in_progress → finished → closed；终态 stopped。"""
+    """状态机：draft → in_progress → finished → settled；流程态 approving/rejected；终态 stopped。"""
 
     __tablename__ = "task_task"
 

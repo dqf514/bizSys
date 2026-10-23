@@ -135,9 +135,6 @@ def main():
     })
     tid = task["id"]
     req("POST", f"/task/tasks/{tid}/submit", a)
-    req("POST", f"/task/tasks/{tid}/start", a)
-    req("POST", f"/task/tasks/{tid}/start", a)
-    req("POST", f"/task/tasks/{tid}/finish", a)
     item = req("GET", f"/task/tasks/{tid}", a)["items"][0]
     check("task.report_no", bool(item.get("reportNo")), str(item.get("reportNo")))
 
@@ -174,9 +171,9 @@ def main():
     r = req("GET", f"/report/reports/{rep['id']}", a)
     check("report.sealed", r.get("status") == "sealed", f"status={r.get('status')}")
 
-    req("POST", f"/task/tasks/{tid}/close", a)
+    req("POST", f"/task/tasks/{tid}/finish", a)
     st = req("GET", f"/task/tasks/{tid}", a)["status"]
-    check("task.closed", st == "closed", f"status={st}")
+    check("task.finished", st == "finished", f"status={st}")
 
     s = req("POST", "/finance/settlements", a, body={"taskId": tid, "amount": 50000,
                                                      "invoiceableAmount": 50000, "remark": "冒烟结算"})

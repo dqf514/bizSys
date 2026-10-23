@@ -131,16 +131,10 @@ def test_task_state_machine_and_errors(client, admin_headers):
     r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 60001
 
-    # 全链路流转到 finished；条目 need_report=1 未签章 → close 门禁 60003
-    for action, expect in [
-        ("submit", "assigning"),
-        ("start", "assigned"),
-        ("start", "in_progress"),
-        ("finish", "finished"),
-    ]:
-        r = client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()
-        assert r["code"] == 0 and r["data"]["status"] == expect, (action, r)
-    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
+    # 全链路流转到 in_progress；条目 need_report=1 未签章 → finish 门禁 60003
+    r = client.post(f"/api/v1/task/tasks/{tid}/submit", headers=headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "in_progress", r
+    r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 60003, r
 
     # 提交时已发放正式编号
@@ -150,7 +144,7 @@ def test_task_state_machine_and_errors(client, admin_headers):
     assert detail["items"][0]["reportNo"].startswith("BG")
     assert detail["samples"][0]["sampleNo"] == f"{tno}-01"
     item_id = detail["items"][0]["id"]
-    # 补齐报告链路（上传 → 签批 → 批准 → 签章）后 close 放行
+    # 补齐报告链路（上传 → 签批 → 批准 → 签章）后 finish 放行
     r = client.post(
         "/api/v1/report/reports",
         headers=headers,
@@ -162,8 +156,8 @@ def test_task_state_machine_and_errors(client, admin_headers):
     assert client.post(f"/api/v1/report/reports/{rid}/submit", headers=headers, json={}).json()["code"] == 0
     _approve_report(rid)
     assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 0
-    r = client.post(f"/api/v1/task/tasks/{tid}/close", headers=headers).json()
-    assert r["code"] == 0 and r["data"]["status"] == "closed", r
+    r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "finished", r
 
     # 终态禁改
     r = client.put(f"/api/v1/task/tasks/{tid}", headers=headers, json={"task_name": "y", "version": 1}).json()
@@ -171,7 +165,7 @@ def test_task_state_machine_and_errors(client, admin_headers):
 
     # 计数 + 检索 + 导出
     counts = client.get("/api/v1/task/tasks/counts", headers=headers).json()["data"]
-    assert counts["closed"] >= 1 and counts["all"] >= 1
+    assert counts["finished"] >= 1 and counts["all"] >= 1
     lst = client.get("/api/v1/task/tasks", headers=headers, params={"q": f"任务_{UUID}"}).json()["data"]
     assert lst["total"] == 1
     assert lst["items"][0]["taskTypeLabel"]

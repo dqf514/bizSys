@@ -29,26 +29,24 @@ interface GanttRow {
 }
 
 const DAY = 24 * 3600 * 1000
-const TERMINAL: TaskStatus[] = ['finished', 'closed', 'stopped']
+const TERMINAL: TaskStatus[] = ['finished', 'settled', 'stopped']
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#909399',
-  assigning: '#e6a23c',
-  assigned: '#409eff',
+  approving: '#e6a23c',
+  rejected: '#f56c6c',
   in_progress: '#626aef',
   finished: '#67c23a',
-  closed: '#303133',
-  stopped: '#f56c6c',
   settled: '#13c2c2',
+  stopped: '#f56c6c',
 }
 
 const STATUS_KEYS: { value: string; labelKey: string }[] = [
   { value: 'draft', labelKey: 'task.task.statusDraft' },
-  { value: 'assigning', labelKey: 'task.task.statusAssigning' },
-  { value: 'assigned', labelKey: 'task.task.statusAssigned' },
+  { value: 'approving', labelKey: 'task.task.statusApproving' },
+  { value: 'rejected', labelKey: 'task.task.statusRejected' },
   { value: 'in_progress', labelKey: 'task.task.statusInProgress' },
   { value: 'finished', labelKey: 'task.task.statusFinished' },
-  { value: 'closed', labelKey: 'task.task.statusClosed' },
   { value: 'settled', labelKey: 'task.task.statusSettled' },
   { value: 'stopped', labelKey: 'task.task.statusStopped' },
 ]

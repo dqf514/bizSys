@@ -28,7 +28,7 @@ def form_snapshot(s: Settlement) -> dict:
 
 def _handle_completed(event: ApprovalCompleted) -> None:
     """开票审批通过 → 结算单 invoiced，并生成发票行（invoice_no 待财务登记）。
-    结算审批通过 → 结算单 pending（可开票），任务 closed → settled。"""
+    结算审批通过 → 结算单 pending（可开票），任务 finished → settled。"""
     db: Session = event.db
     if event.biz_type == "settlement":
         s = db.get(Settlement, event.biz_id)
@@ -40,7 +40,7 @@ def _handle_completed(event: ApprovalCompleted) -> None:
         from app.modules.task.models import Task
 
         t = db.get(Task, s.task_id)
-        if t and not t.deleted and t.status == "closed":
+        if t and not t.deleted and t.status == "finished":
             t.status = "settled"
             t.version += 1
             t.update_time = datetime.now()
@@ -75,7 +75,7 @@ def _rollback_pending(db: Session, biz_id: int, instance_id: int) -> None:
 
 
 def _rollback_settlement(db: Session, biz_id: int, instance_id: int) -> None:
-    """结算审批驳回/撤回 → rejected（可重新提交）；任务保持 closed。"""
+    """结算审批驳回/撤回 → rejected（可重新提交）；任务保持 finished。"""
     s = db.get(Settlement, biz_id)
     if not s or s.deleted or s.status != "approving":
         return

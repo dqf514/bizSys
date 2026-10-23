@@ -1,4 +1,4 @@
-"""财务主链路（HTTP）：任务 closed → 结算单(HK) → 开票审批 → 发票登记 → 到账(DZ) → paid → 导出。"""
+"""财务主链路（HTTP）：任务 finished → 结算单(HK) → 开票审批 → 发票登记 → 到账(DZ) → paid → 导出。"""
 
 import io
 import uuid
@@ -57,7 +57,7 @@ def _approved_contract(client, headers, amount=10000):
     return cid
 
 
-def _closed_task(client, headers):
+def _finished_task(client, headers):
     cid = _approved_contract(client, headers)
     suf = uuid.uuid4().hex[:8]
     r = client.post(
@@ -68,11 +68,8 @@ def _closed_task(client, headers):
     assert r["code"] == 0, r
     tid = r["data"]["id"]
     for action, expect in [
-        ("submit", "assigning"),
-        ("start", "assigned"),
-        ("start", "in_progress"),
+        ("submit", "in_progress"),
         ("finish", "finished"),
-        ("close", "closed"),
     ]:
         r = client.post(f"/api/v1/task/tasks/{tid}/{action}", headers=headers).json()
         assert r["code"] == 0 and r["data"]["status"] == expect, (action, r)
@@ -88,9 +85,9 @@ def _todo_id(client, headers, biz_type: str, biz_id: int) -> int:
 
 def test_finance_full_flow(client, admin_headers, manager_headers, leader_headers):
     headers = admin_headers
-    tid, task = _closed_task(client, headers)
+    tid, task = _finished_task(client, headers)
 
-    # task-options 可见（closed 且无结算单），格式 {value,label,sub}
+    # task-options 可见（finished 且无结算单），格式 {value,label,sub}
     opts = client.get("/api/v1/finance/settlements/task-options", headers=headers).json()["data"]
     opt = [o for o in opts if o["value"] == tid]
     assert opt and opt[0]["label"] == task["taskNo"] and task["customerName"] in opt[0]["sub"]
@@ -101,7 +98,7 @@ def test_finance_full_flow(client, admin_headers, manager_headers, leader_header
     ).json()
     assert r["code"] == 80003, r
 
-    # 创建结算单：HK 编号、invoiceableAmount 默认=amount、任务 closed → settled
+    # 创建结算单：HK 编号、invoiceableAmount 默认=amount、任务 finished → settled
     r = client.post(
         "/api/v1/finance/settlements",
         headers=headers,
@@ -234,7 +231,7 @@ def test_finance_perm_forbidden(client, admin_headers):
 def test_invoice_list_and_export(client, admin_headers, manager_headers):
     """发票列表：审批通过生成 issued 行（带出结算单号/任务号/客户），q 搜索，导出 xlsx。"""
     headers = admin_headers
-    tid, _task = _closed_task(client, headers)
+    tid, _task = _finished_task(client, headers)
     r = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": tid, "amount": 5000}).json()
     assert r["code"] == 0, r
     sid = r["data"]["id"]
@@ -303,7 +300,7 @@ def test_finance_invalid_state_and_not_found(client, admin_headers):
 def test_settlement_links_and_finance_summary(client, admin_headers, manager_headers):
     """结算单持久化 contract_id/customer_id；三表按合同/客户过滤；合同财务汇总；任务按客户过滤。"""
     headers = admin_headers
-    tid, task = _closed_task(client, headers)
+    tid, task = _finished_task(client, headers)
     cid, cust_id = task["contractId"], task["customerId"]
 
     # 合同下拉带 customerId/customerName（建任务自动填充用）

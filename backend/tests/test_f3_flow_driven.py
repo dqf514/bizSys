@@ -71,10 +71,10 @@ def _act_on_instance(biz_type: str, biz_id: int, action: str, comment: str = "ok
         db.close()
 
 
-def _make_closed_task(admin_id: int) -> int:
+def _make_finished_task(admin_id: int) -> int:
     db = SessionLocal()
     try:
-        t = Task(task_no=f"RW-F3-{uuid.uuid4().hex[:8]}", task_name="F3结算任务", status="closed", create_by=admin_id)
+        t = Task(task_no=f"RW-F3-{uuid.uuid4().hex[:8]}", task_name="F3结算任务", status="finished", create_by=admin_id)
         db.add(t)
         db.commit()
         return t.id
@@ -83,7 +83,7 @@ def _make_closed_task(admin_id: int) -> int:
 
 
 def test_task_initiation_flow(client, admin_headers):
-    """绑定 task 定义：提交→approving→通过→assigning；驳回→rejected→可编辑重提；通知已写。"""
+    """绑定 task 定义：提交→approving→通过→in_progress；驳回→rejected→可编辑重提；通知已写。"""
     manager_id = _user_id("manager1")
     def_id = _create_definition(client, admin_headers, f"task_f3_{UUID}", "task", manager_id)
     try:
@@ -108,10 +108,10 @@ def test_task_initiation_flow(client, admin_headers):
         finally:
             db.close()
 
-        # 审批通过 → assigning（生效可执行）
+        # 审批通过 → in_progress（生效可执行）
         _act_on_instance("task", tid, "approve")
         r = client.get(f"/api/v1/task/tasks/{tid}", headers=admin_headers).json()
-        assert r["data"]["status"] == "assigning"
+        assert r["data"]["status"] == "in_progress"
         assert r["data"]["flow"]["instanceId"]
         assert [x["action"] for x in r["data"]["flow"]["timeline"]] == ["start", "agree"]
 
@@ -135,19 +135,19 @@ def test_task_initiation_flow(client, admin_headers):
         assert r["code"] == 0 and r["data"]["status"] == "approving"
         _act_on_instance("task", tid2, "approve")
         r = client.get(f"/api/v1/task/tasks/{tid2}", headers=admin_headers).json()
-        assert r["data"]["status"] == "assigning"
+        assert r["data"]["status"] == "in_progress"
     finally:
         _delete_definition(client, admin_headers, def_id)
 
 
 def test_task_submit_direct_without_definition(client, admin_headers):
-    """未绑定 task 定义：直通 assigning（演示环境开箱即用）。"""
+    """未绑定 task 定义：直通 in_progress（演示环境开箱即用）。"""
     r = client.post(
         "/api/v1/task/tasks", headers=admin_headers, json={"task_name": f"直通_{UUID}", "items": [], "samples": []}
     ).json()
     tid = r["data"]["id"]
     r = client.post(f"/api/v1/task/tasks/{tid}/submit", headers=admin_headers).json()
-    assert r["code"] == 0 and r["data"]["status"] == "assigning"
+    assert r["code"] == 0 and r["data"]["status"] == "in_progress"
     r = client.get(f"/api/v1/task/tasks/{tid}", headers=admin_headers).json()
     assert r["data"]["flow"] is None
 
@@ -158,7 +158,7 @@ def test_settlement_flow(client, admin_headers):
     manager_id = _user_id("manager1")
 
     # 直通（无 settlement 定义）
-    t1 = _make_closed_task(admin_id)
+    t1 = _make_finished_task(admin_id)
     r = client.post(
         "/api/v1/finance/settlements", headers=admin_headers, json={"taskId": t1, "amount": 8000}
     ).json()
@@ -173,7 +173,7 @@ def test_settlement_flow(client, admin_headers):
     def_id = _create_definition(client, admin_headers, f"settle_f3_{UUID}", "settlement", manager_id)
     try:
         # 绑定后：创建即发起审批
-        t2 = _make_closed_task(admin_id)
+        t2 = _make_finished_task(admin_id)
         r = client.post(
             "/api/v1/finance/settlements", headers=admin_headers, json={"taskId": t2, "amount": 9000}
         ).json()
@@ -190,7 +190,7 @@ def test_settlement_flow(client, admin_headers):
             db.close()
 
         # 驳回 → rejected → 重新提交 → 通过
-        t3 = _make_closed_task(admin_id)
+        t3 = _make_finished_task(admin_id)
         r = client.post(
             "/api/v1/finance/settlements", headers=admin_headers, json={"taskId": t3, "amount": 6000}
         ).json()

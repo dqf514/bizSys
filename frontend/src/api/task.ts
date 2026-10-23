@@ -36,7 +36,7 @@ export function deleteTask(id: number) {
   return request<void>({ url: `/task/tasks/${id}`, method: 'delete' })
 }
 
-export type TaskAction = 'submit' | 'start' | 'finish' | 'close' | 'stop'
+export type TaskAction = 'submit' | 'finish' | 'stop'
 
 export function taskAction(id: number, action: TaskAction) {
   return request<void>({ url: `/task/tasks/${id}/${action}`, method: 'post' })

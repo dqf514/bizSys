@@ -8,6 +8,7 @@ import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
 import { useContextStore, type ContextSection } from '@/stores/context'
+import { useDictOptions } from '@/composables/useDict'
 import {
   getTask,
   deleteTask,
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const router = useRouter()
 const context = useContextStore()
+const blockOpts = useDictOptions('biz_block')
 
 const detail = ref<Task | null>(null)
 const items = ref<TaskItem[]>([])
@@ -54,11 +56,9 @@ const loading = ref(false)
 const activeTab = ref('basic')
 
 const status = computed(() => detail.value?.status ?? '')
-// 与后端一致：条目增改允许 assigning/assigned/in_progress（draft 走编辑页）；删除仅 draft
-const canMaintainItems = computed(() => ['assigning', 'assigned', 'in_progress'].includes(status.value))
-const canMaintainSamples = computed(() =>
-  ['draft', 'assigning', 'assigned', 'in_progress'].includes(status.value),
-)
+// 与后端一致：条目增改允许 in_progress（draft 走编辑页）；删除仅 draft
+const canMaintainItems = computed(() => status.value === 'in_progress')
+const canMaintainSamples = computed(() => ['draft', 'in_progress'].includes(status.value))
 const isDraft = computed(() => status.value === 'draft')
 // 与后端一致：草稿/已驳回可进入编辑页
 const canEdit = computed(() => ['draft', 'rejected'].includes(status.value))
@@ -156,14 +156,11 @@ function availableActions(s: TaskStatus | ''): { action: TaskAction; labelKey: s
   const map: Record<string, { action: TaskAction; labelKey: string; type: string }[]> = {
     draft: [{ action: 'submit', labelKey: 'task.task.submit', type: 'warning' }],
     rejected: [{ action: 'submit', labelKey: 'task.task.submit', type: 'warning' }],
-    assigning: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
-    assigned: [{ action: 'start', labelKey: 'task.task.start', type: 'primary' }],
     in_progress: [{ action: 'finish', labelKey: 'task.task.finish', type: 'success' }],
-    finished: [{ action: 'close', labelKey: 'task.task.close', type: 'info' }],
   }
   const actions = [...(map[s] ?? [])]
-  // any non-terminal status can be stopped
-  if (s && s !== 'closed' && s !== 'stopped') {
+  // 非终态均可停止（settled/stopped 除外）
+  if (s && s !== 'settled' && s !== 'stopped') {
     actions.push({ action: 'stop', labelKey: 'task.task.stop', type: 'danger' })
   }
   return actions
@@ -174,9 +171,7 @@ async function doAction(action: TaskAction) {
   const confirmMap: Record<string, string> = {
     submit: t('task.task.submitConfirm'),
     stop: t('task.task.stopConfirm'),
-    close: t('task.task.closeConfirm'),
     finish: t('task.task.finishConfirm'),
-    start: '',
   }
   const msg = confirmMap[action]
   if (msg) {
@@ -439,7 +434,14 @@ function logActionLabel(action: string) {
 <template>
   <div class="task-detail-panel" v-loading="loading">
     <div v-if="detail" class="panel-toolbar">
-      <StatusTag :status="detail.status" i18n-prefix="task.task.status" />
+      <div class="panel-status">
+        <StatusTag :status="detail.status" i18n-prefix="task.task.status" />
+        <StatusTag
+          v-if="detail.settleStatus === 'invoiced' || detail.settleStatus === 'paid'"
+          :status="String(detail.settleStatus)"
+          i18n-prefix="finance.settlement.status"
+        />
+      </div>
       <div class="panel-actions">
         <el-button
           v-for="a in availableActions(detail.status)"
@@ -695,7 +697,9 @@ function logActionLabel(action: string) {
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('task.task.itemDept')" prop="dept">
-              <el-input v-model="itemForm.dept" />
+              <el-select v-model="itemForm.dept" clearable filterable style="width: 100%">
+                <el-option v-for="o in blockOpts.opts.value" :key="o.value" :label="o.label" :value="o.label" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -753,6 +757,7 @@ function logActionLabel(action: string) {
           <el-col :span="12">
             <el-form-item :label="t('task.task.sampleVin')" prop="vin">
               <el-input v-model="sampleForm.vin" />
+              <div class="form-tip">{{ t('task.task.sampleVinTip') }}</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -799,6 +804,12 @@ function logActionLabel(action: string) {
   align-items: center;
   justify-content: space-between;
   gap: var(--bs-space-2);
+}
+
+.panel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bs-space-1);
 }
 
 .panel-actions {

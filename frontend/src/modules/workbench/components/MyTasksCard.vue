@@ -19,22 +19,21 @@ const loading = ref(false)
 
 const statusLabelKey: Record<string, string> = {
   draft: 'task.task.statusDraft',
-  assigning: 'task.task.statusAssigning',
-  assigned: 'task.task.statusAssigned',
+  approving: 'task.task.statusApproving',
+  rejected: 'task.task.statusRejected',
   in_progress: 'task.task.statusInProgress',
   finished: 'task.task.statusFinished',
-  closed: 'task.task.statusClosed',
   stopped: 'task.task.statusStopped',
   settled: 'task.task.statusSettled',
 }
 
 const tagType: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-  assigning: 'warning',
-  assigned: 'primary',
+  approving: 'warning',
+  rejected: 'danger',
   in_progress: 'primary',
   finished: 'success',
-  closed: 'info',
   stopped: 'danger',
+  settled: 'success',
 }
 
 function statusLabel(status: string) {

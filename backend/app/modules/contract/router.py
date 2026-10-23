@@ -179,6 +179,7 @@ def contract_options(
             "sub": c.contract_no,
             "customerId": c.customer_id,
             "customerName": c.customer_name,
+            "paymentOrg": c.payment_org,
         }
         for c in rows
     ]
