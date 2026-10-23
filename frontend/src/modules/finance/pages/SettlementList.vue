@@ -72,6 +72,7 @@ const columns: ListColumn[] = [
   { prop: 'amount', labelKey: 'finance.settlement.amount', width: 120 },
   { prop: 'invoiceableAmount', labelKey: 'finance.settlement.invoiceableAmount', width: 120 },
   { prop: 'status', labelKey: 'common.form.status', width: 110 },
+  { prop: 'confirmStatus', labelKey: 'finance.settlement.confirmStatusLabel', width: 100 },
   { prop: 'createBy', labelKey: 'finance.settlement.createBy', width: 100 },
   { prop: 'createTime', labelKey: 'finance.settlement.createTime', width: 160 },
 ]
@@ -291,6 +292,14 @@ function openPaymentRegister(row: Settlement) {
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="finance.settlement.status" />
         </template>
+        <template #confirmStatus="{ row }">
+          <StatusTag
+            v-if="row.confirmStatus"
+            :status="String(row.confirmStatus)"
+            i18n-prefix="finance.settlement.confirmStatus"
+          />
+          <span v-else>-</span>
+        </template>
         <template #extraColumns>
           <el-table-column :label="t('common.action.operate')" width="300" fixed="right">
             <template #default="{ row }">
@@ -307,7 +316,16 @@ function openPaymentRegister(row: Settlement) {
                 {{ t('finance.settlement.resubmit') }}
               </el-button>
               <el-button
-                v-if="row.status === 'pending'"
+                v-if="row.status === 'pending' && row.confirmStatus !== 'confirmed'"
+                v-permission="'finance:settlement:confirm'"
+                link
+                type="primary"
+                @click="openDetail(row as unknown as Settlement)"
+              >
+                {{ t('finance.settlement.sendConfirm') }}
+              </el-button>
+              <el-button
+                v-if="row.status === 'pending' && row.confirmStatus === 'confirmed'"
                 v-permission="'finance:invoice:apply'"
                 link
                 type="warning"
@@ -403,5 +421,5 @@ function openPaymentRegister(row: Settlement) {
 
   <PaymentCreateDialog v-model="paymentVisible" :preset="paymentPreset" @saved="list.refresh()" />
 
-  <SettlementDetailDrawer ref="drawerRef" v-model="detailVisible" :settlement-id="detailId" />
+  <SettlementDetailDrawer ref="drawerRef" v-model="detailVisible" :settlement-id="detailId" @changed="list.refresh()" />
 </template>

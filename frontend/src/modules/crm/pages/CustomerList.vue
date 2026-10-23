@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type UploadFile } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -106,6 +107,21 @@ function openDetail(row: Customer) {
   detailId.value = row.id
   detailVisible.value = true
 }
+
+// 从任务/合同等详情的"关联客户"链接跳入：/crm/customers?detail=<id> 直接打开详情抽屉
+const route = useRoute()
+const router = useRouter()
+watch(
+  () => route.query.detail,
+  (v) => {
+    const id = Number(v)
+    if (!id) return
+    detailId.value = id
+    detailVisible.value = true
+    router.replace({ query: { ...route.query, detail: undefined } })
+  },
+  { immediate: true },
+)
 
 const importVisible = ref(false)
 const importFile = ref<File | null>(null)

@@ -16,6 +16,20 @@ import type {
 } from './types'
 
 // ---- users ----
+export interface UserOption {
+  id: number
+  label: string
+  sub?: string
+}
+
+export function userOptions(q?: string) {
+  return request<UserOption[]>({
+    url: '/admin/users/options',
+    method: 'get',
+    params: q ? { q } : {},
+  })
+}
+
 export function listUsers(params: ListQuery) {
   return request<PageResult<AdminUser>>({
     url: '/admin/users',

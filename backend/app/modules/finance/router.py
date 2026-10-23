@@ -16,11 +16,12 @@ from app.core.db import get_db
 from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.admin.models import Notify
 from app.modules.approval import service as approval_svc
 from app.modules.auth.models import User
 from app.modules.finance import schemas as S
 from app.modules.finance import service as svc
-from app.modules.finance.models import Invoice, Payment, Settlement
+from app.modules.finance.models import Invoice, Payment, Settlement, SettlementConfirmRecord
 from app.modules.task import service as task_svc
 from app.modules.task.models import Task
 from app.services.excel import export_xlsx_styled, now_filename
@@ -120,8 +121,23 @@ def _settlement_out(s: Settlement, users: dict[int, str]) -> dict:
         "statusText": STATUS_CN.get(s.status, s.status),
         "remark": s.remark or "",
         "approvalInstanceId": s.approval_instance_id,
+        "confirmStatus": s.confirm_status or "",
+        "confirmBy": users.get(s.confirm_by, "") if s.confirm_by else "",
+        "confirmTime": _t(s.confirm_time),
+        "confirmNote": s.confirm_note or "",
         "createBy": users.get(s.create_by, "") if s.create_by else "",
         "createTime": _t(s.create_time),
+    }
+
+
+def _confirm_record_out(r: SettlementConfirmRecord) -> dict:
+    return {
+        "id": r.id,
+        "action": r.action,
+        "operatorName": r.operator_name,
+        "receiverName": r.receiver_name,
+        "note": r.note,
+        "createTime": _t(r.create_time),
     }
 
 
@@ -183,7 +199,7 @@ def _settlement_filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["settlement_no", "task_no", "customer_name", "contract_no"],
-        filter_cols={"status", "task_id", "contract_id", "customer_id"},
+        filter_cols={"status", "task_id", "contract_id", "customer_id", "confirm_status"},
         range_cols={"create_time"},
         sort_cols={"update_time", "create_time", "id", "settlement_no", "amount"},
     )
@@ -199,7 +215,7 @@ def list_settlements(
 ):
     stmt, total = _settlement_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
-    users = _user_names(db, {s.create_by for s in rows})
+    users = _user_names(db, {x for s in rows for x in (s.create_by, s.confirm_by)})
     return {"items": [_settlement_out(s, users) for s in rows], "total": total, "page": page, "size": size}
 
 
@@ -262,7 +278,7 @@ def create_settlement(
     _submit_settlement_flow(db, s, t, current)
     audit(db, user_id=current.id, module="finance", action="settlement_create", biz_type="settlement", biz_id=s.id)
     db.commit()
-    return _settlement_out(s, _user_names(db, {s.create_by}))
+    return _settlement_out(s, _user_names(db, {s.create_by, s.confirm_by}))
 
 
 def _submit_settlement_flow(db: Session, s: Settlement, t: Task, current: User) -> None:
@@ -306,7 +322,7 @@ def submit_settlement(
     _submit_settlement_flow(db, s, t, current)
     audit(db, user_id=current.id, module="finance", action="settlement_submit", biz_type="settlement", biz_id=sid)
     db.commit()
-    return _settlement_out(s, _user_names(db, {s.create_by}))
+    return _settlement_out(s, _user_names(db, {s.create_by, s.confirm_by}))
 
 
 @router.get("/settlements/export")
@@ -317,7 +333,7 @@ def export_settlements(
 ):
     stmt, _ = _settlement_filtered(db, request, SimpleNamespace(page=1, size=100_000))
     settlements = db.scalars(stmt).all()
-    users = _user_names(db, {s.create_by for s in settlements})
+    users = _user_names(db, {x for s in settlements for x in (s.create_by, s.confirm_by)})
     rows = []
     for s in settlements:
         item = _settlement_out(s, users)
@@ -354,14 +370,115 @@ def get_settlement(
         select(Payment).where(Payment.settlement_id == sid, Payment.deleted == 0).order_by(Payment.id)
     ).all()
     users = _user_names(
-        db, {s.create_by} | {i.create_by for i in invoices} | {p.create_by for p in payments}
+        db, {s.create_by, s.confirm_by} | {i.create_by for i in invoices} | {p.create_by for p in payments}
     )
     data = _settlement_out(s, users)
     data["invoices"] = [_invoice_out(i, s, users) for i in invoices]
     data["payments"] = [_payment_out(p, s, users) for p in payments]
     data["paidAmount"] = _money(sum((p.amount for p in payments), Decimal(0)))
     data["timeline"] = approval_svc.timeline(db, "invoice", sid)["records"]
+    records = db.scalars(
+        select(SettlementConfirmRecord)
+        .where(SettlementConfirmRecord.settlement_id == sid, SettlementConfirmRecord.deleted == 0)
+        .order_by(SettlementConfirmRecord.id)
+    ).all()
+    data["confirmRecords"] = [_confirm_record_out(r) for r in records]
     return data
+
+
+@router.post("/settlements/{sid}/send-confirm")
+def send_settlement_confirm(
+    sid: int,
+    body: S.SendConfirmIn,
+    current: User = Depends(require_perm("finance:settlement:confirm")),
+    db: Session = Depends(get_db),
+):
+    """发送客户确认：站内通知收件人 + 留痕；确认状态 → pending（可重复发送/有异议后重发）。"""
+    s = _load_settlement(db, sid, lock=True)
+    if s.status != "pending":
+        raise BizException(R.FINANCE_INVALID_STATE, f"状态「{s.status}」不允许发送客户确认（需结算审批通过/待开票）")
+    receiver = db.get(User, body.receiver_id)
+    if not receiver or receiver.deleted or receiver.status != "enabled":
+        raise BizException(R.GENERIC_NOT_FOUND, "收件人不存在或已停用")
+    db.add(
+        SettlementConfirmRecord(
+            settlement_id=s.id,
+            action="send",
+            operator_id=current.id,
+            operator_name=current.name or current.username,
+            receiver_id=receiver.id,
+            receiver_name=receiver.name or receiver.username,
+            note=body.note,
+            create_by=current.id,
+        )
+    )
+    db.add(
+        Notify(
+            user_id=receiver.id,
+            title=f"结算单待客户确认 {s.settlement_no}",
+            content=(
+                f"请与客户核对结算单 {s.settlement_no}（{s.customer_name}，金额 {s.amount} 元），"
+                f"并在结算单详情回填确认结果。{f'备注：{body.note}' if body.note else ''}"
+            ),
+            biz_type="settlement",
+            biz_id=s.id,
+            link="/finance/settlements",
+        )
+    )
+    s.confirm_status = "pending"
+    s.update_time = datetime.now()
+    audit(
+        db,
+        user_id=current.id,
+        module="finance",
+        action="settlement_confirm_send",
+        biz_type="settlement",
+        biz_id=sid,
+        detail={"receiverId": receiver.id, "receiverName": receiver.name or receiver.username, "note": body.note},
+    )
+    db.commit()
+    return _settlement_out(s, _user_names(db, {s.create_by, s.confirm_by}))
+
+
+@router.post("/settlements/{sid}/confirm")
+def confirm_settlement(
+    sid: int,
+    body: S.ConfirmIn,
+    current: User = Depends(require_perm("finance:settlement:confirm")),
+    db: Session = Depends(get_db),
+):
+    """代客标记确认结果（一期由内部人员操作）：confirm 已确认 / object 有异议，说明留痕。"""
+    s = _load_settlement(db, sid, lock=True)
+    if s.status != "pending":
+        raise BizException(R.FINANCE_INVALID_STATE, f"状态「{s.status}」不允许标记客户确认（需待开票）")
+    if s.confirm_status not in ("pending", "objected"):
+        raise BizException(R.FINANCE_INVALID_STATE, "请先发送客户确认")
+    s.confirm_status = "confirmed" if body.action == "confirm" else "objected"
+    s.confirm_by = current.id
+    s.confirm_time = datetime.now()
+    s.confirm_note = body.note
+    s.update_time = datetime.now()
+    db.add(
+        SettlementConfirmRecord(
+            settlement_id=s.id,
+            action=body.action,
+            operator_id=current.id,
+            operator_name=current.name or current.username,
+            note=body.note,
+            create_by=current.id,
+        )
+    )
+    audit(
+        db,
+        user_id=current.id,
+        module="finance",
+        action=f"settlement_confirm_{body.action}",
+        biz_type="settlement",
+        biz_id=sid,
+        detail={"note": body.note},
+    )
+    db.commit()
+    return _settlement_out(s, _user_names(db, {s.create_by, s.confirm_by}))
 
 
 @router.post("/settlements/{sid}/apply-invoice")
@@ -374,6 +491,8 @@ def apply_invoice(
     s = _load_settlement(db, sid, lock=True)
     if s.status != "pending":
         raise BizException(R.FINANCE_INVALID_STATE, f"状态「{s.status}」不允许申请开票")
+    if s.confirm_status != "confirmed":
+        raise BizException(R.FINANCE_INVALID_STATE, "结算单未经客户确认，不能申请开票")
     inst = approval_svc.start(
         db,
         biz_type="invoice",
@@ -398,7 +517,7 @@ def apply_invoice(
         detail={"instanceId": inst.id, "comment": body.comment if body else ""},
     )
     db.commit()
-    return _settlement_out(s, _user_names(db, {s.create_by}))
+    return _settlement_out(s, _user_names(db, {s.create_by, s.confirm_by}))
 
 
 # ---------------- 发票登记 ----------------

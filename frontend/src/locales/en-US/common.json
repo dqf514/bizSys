@@ -16,7 +16,9 @@
     "settlements": "Settlements",
     "needReport": "Report Required",
     "sealed": "Sealed",
-    "pendingSeal": "Pending Seal"
+    "pendingSeal": "Pending Seal",
+    "relatedCustomer": "Related Customer",
+    "relatedTask": "Related Task"
   },
   "action": {
     "search": "Search",

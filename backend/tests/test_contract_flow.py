@@ -236,3 +236,59 @@ def test_contract_draft_minimal_fields(client, admin_headers):
     cid = r["data"]["id"]
     r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()
     assert r["code"] == 10001, r
+
+
+def _approve_contract(client, admin_headers, manager_headers, leader_headers, cust_id, name, ctype):
+    r = client.post(
+        "/api/v1/contract/contracts",
+        headers=admin_headers,
+        json={"name": name, "customer_id": cust_id, "contract_type": ctype, "amount": 1000},
+    ).json()
+    assert r["code"] == 0, r
+    cid = r["data"]["id"]
+    assert client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=admin_headers, json={}).json()["code"] == 0
+    for headers in (manager_headers, leader_headers):
+        page = client.get("/api/v1/approval/tasks", headers=headers, params={"tab": "todo", "size": 100}).json()
+        todo = [i for i in page["data"]["items"] if i["bizId"] == cid]
+        assert todo, f"no todo for contract {cid}"
+        r = client.post(
+            f"/api/v1/approval/tasks/{todo[0]['id']}/approve", headers=headers, json={"comment": "ok"}
+        ).json()
+        assert r["code"] == 0, r
+    return cid
+
+
+def test_framework_options(client, admin_headers, manager_headers, leader_headers):
+    """框架合同下拉：仅已通过+框架类；customer_id 限定客户；q 搜合同号/名称；id=合同号。"""
+    suf = uuid.uuid4().hex[:8]
+    cust_a = _create_customer(client, admin_headers)
+    cust_b = _create_customer(client, admin_headers)
+    fid = _approve_contract(client, admin_headers, manager_headers, leader_headers,
+                            cust_a["id"], f"框架合同A_{suf}", "framework")
+    _approve_contract(client, admin_headers, manager_headers, leader_headers,
+                      cust_a["id"], f"服务合同A_{suf}", "service")
+    _approve_contract(client, admin_headers, manager_headers, leader_headers,
+                      cust_b["id"], f"框架合同B_{suf}", "framework")
+
+    # 不限客户：只含框架类
+    opts = client.get("/api/v1/contract/contracts/framework-options", headers=admin_headers).json()["data"]
+    names = [o["label"] for o in opts]
+    assert f"框架合同A_{suf}" in names
+    assert f"框架合同B_{suf}" in names
+    assert f"服务合同A_{suf}" not in names
+
+    # 按客户过滤
+    opts = client.get(
+        "/api/v1/contract/contracts/framework-options",
+        headers=admin_headers,
+        params={"customer_id": cust_a["id"]},
+    ).json()["data"]
+    assert [o["label"] for o in opts] == [f"框架合同A_{suf}"]
+    assert all(o["customerId"] == cust_a["id"] for o in opts)
+
+    # q 搜合同号；选项 id=合同号
+    con = client.get(f"/api/v1/contract/contracts/{fid}", headers=admin_headers).json()["data"]
+    opts = client.get(
+        "/api/v1/contract/contracts/framework-options", headers=admin_headers, params={"q": con["contractNo"]}
+    ).json()["data"]
+    assert len(opts) == 1 and opts[0]["id"] == con["contractNo"] and opts[0]["sub"] == con["contractNo"]

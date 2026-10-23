@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import CustomerSelect from '@/components/form/CustomerSelect.vue'
+import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
 import SmartInput from '@/components/form/SmartInput.vue'
 import UploadFiles from '@/components/form/UploadFiles.vue'
 import { useDictOptions } from '@/composables/useDict'
@@ -16,8 +17,9 @@ import {
   uploadContractAttachment,
   downloadAttachment,
   deleteAttachment,
+  frameworkContractOptions,
 } from '@/api/contract'
-import type { Attachment, Contract } from '@/api/types'
+import type { Attachment, Contract, CustomerOption } from '@/api/types'
 
 defineOptions({ name: 'ContractEdit' })
 
@@ -68,6 +70,30 @@ const otherFiles = computed(() => attachments.value.filter((a) => attCategory(a)
 const typeOpts = useDictOptions('contract_type')
 const payCycleOpts = useDictOptions('pay_cycle')
 const deliveryOpts = useDictOptions('delivery_way')
+
+/** 框架合同下拉：仅当前客户已通过的框架合同；未选客户时为空 */
+async function fetchFrameworkOptions(q: string): Promise<RemoteOption[]> {
+  if (!form.customerId) return []
+  try {
+    const opts = await frameworkContractOptions(form.customerId, q || undefined)
+    return (opts ?? []).map((o) => ({ id: o.id, label: o.label, sub: o.sub }))
+  } catch {
+    return []
+  }
+}
+
+function onCustomerChange(v: number | string | null, opt?: CustomerOption) {
+  form.customerId = v as number
+  form.customerName = opt?.label ?? ''
+  if (opt) {
+    // customer change overwrites with the customer's own values; user can still edit afterwards
+    form.paymentOrg = opt.payOrg ?? ''
+    form.contactPerson = opt.contactPerson ?? ''
+    form.contactPhone = opt.contactPhone ?? ''
+  }
+  // 换客户后原框架合同号不再有效
+  form.frameworkNo = ''
+}
 
 async function load() {
   const idParam = route.params.id
@@ -131,7 +157,6 @@ async function persist(): Promise<number | null> {
     }
     recordSmartHistory('contract.sealType', form.sealType)
     recordSmartHistory('contract.handlerName', form.handlerName)
-    recordSmartHistory('contract.frameworkNo', form.frameworkNo)
     recordSmartHistory('contract.paymentOrg', form.paymentOrg)
     return contractId.value
   } catch {
@@ -250,21 +275,7 @@ function cancel() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.customer')" prop="customerId" :rules="[{ required: true, message: t('common.form.required') }]">
-            <CustomerSelect
-              :model-value="form.customerId"
-              @change="
-                (v, opt) => {
-                  form.customerId = v as number
-                  form.customerName = opt?.label ?? ''
-                  if (opt) {
-                    // customer change overwrites with the customer's own values; user can still edit afterwards
-                    form.paymentOrg = opt.payOrg ?? ''
-                    form.contactPerson = opt.contactPerson ?? ''
-                    form.contactPhone = opt.contactPhone ?? ''
-                  }
-                }
-              "
-            />
+            <CustomerSelect :model-value="form.customerId" @change="onCustomerChange" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -333,7 +344,11 @@ function cancel() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.frameworkNo')">
-            <SmartInput v-model="form.frameworkNo" field="contract.frameworkNo" :maxlength="64" />
+            <RemoteSelect
+              v-model="form.frameworkNo"
+              :fetch="fetchFrameworkOptions"
+              :placeholder="t('contract.contract.frameworkNoPlaceholder')"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">

@@ -35,7 +35,28 @@
       "paid": "Paid"
     },
     "resubmit": "Resubmit",
-    "resubmitConfirm": "Resubmit this settlement for approval?"
+    "resubmitConfirm": "Resubmit this settlement for approval?",
+    "confirmStatusLabel": "Customer Confirmation",
+    "confirmStatus": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "objected": "Objected"
+    },
+    "sendConfirm": "Send for Customer Confirmation",
+    "confirmReceiver": "Receiver",
+    "confirmNote": "Note",
+    "confirmNotePlaceholder": "For proxy confirmation, state how the customer confirmed (e.g. by phone)",
+    "markConfirmed": "Mark Confirmed",
+    "markObjected": "Mark Objected",
+    "confirmRecords": "Confirmation Records",
+    "confirmAction": {
+      "send": "Sent",
+      "confirm": "Confirmed",
+      "object": "Objected"
+    },
+    "confirmHint": "After settlement approval, send it for customer confirmation; invoicing requires confirmation",
+    "notConfirmed": "Not Confirmed",
+    "confirmOperator": "Operator"
   },
   "invoice": {
     "title": "Invoices",
@@ -52,7 +73,7 @@
     "register": "Register Invoice",
     "apply": "Apply Invoice",
     "selectSettlement": "Select Settlement",
-    "applyHint": "Only settlements in \"Pending Invoice\" status can be selected. Submitting starts the invoice approval.",
+    "applyHint": "Only settlements in \"Pending Invoice\" status with customer confirmation can be selected. Submitting starts the invoice approval.",
     "status": {
       "approving": "Approving",
       "issued": "Issued"

@@ -201,6 +201,9 @@ function publishContext() {
     title: 'common.context.quickLinks',
     type: 'links',
     items: [
+      ...(d.customerId
+        ? [{ label: cust?.name || d.customerName, to: `/crm/customers?detail=${d.customerId}` }]
+        : []),
       { label: 'common.context.newTask', to: '/task/tasks/new' },
       { label: 'common.context.settlements', to: '/finance/settlements' },
     ],

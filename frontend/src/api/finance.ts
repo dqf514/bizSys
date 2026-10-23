@@ -61,6 +61,14 @@ export function applyInvoice(id: number) {
   return request<void>({ url: `/finance/settlements/${id}/apply-invoice`, method: 'post' })
 }
 
+export function sendSettlementConfirm(id: number, data: { receiverId: number; note?: string }) {
+  return request<Settlement>({ url: `/finance/settlements/${id}/send-confirm`, method: 'post', data })
+}
+
+export function confirmSettlement(id: number, data: { action: 'confirm' | 'object'; note?: string }) {
+  return request<Settlement>({ url: `/finance/settlements/${id}/confirm`, method: 'post', data })
+}
+
 export function submitSettlement(id: number) {
   return request<void>({ url: `/finance/settlements/${id}/submit`, method: 'post' })
 }

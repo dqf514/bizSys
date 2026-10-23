@@ -113,10 +113,14 @@ function openApply() {
   applyVisible.value = true
 }
 
-/** 只允许「待开票」结算单：与结算列表的行内入口同一规则 */
+/** 只允许「待开票」且客户已确认的结算单：与结算列表的行内入口同一规则 */
 async function fetchPendingSettlements(q: string): Promise<RemoteOption[]> {
   try {
-    const data = await listSettlements({ q: q || undefined, filters: { status: 'pending' }, size: 50 })
+    const data = await listSettlements({
+      q: q || undefined,
+      filters: { status: 'pending', confirm_status: 'confirmed' },
+      size: 50,
+    })
     return (data.items ?? []).map((s) => ({
       id: s.id,
       label: `${s.settlementNo} · ${s.customerName ?? ''}`,

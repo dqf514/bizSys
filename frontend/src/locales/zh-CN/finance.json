@@ -35,7 +35,28 @@
       "paid": "已到账"
     },
     "resubmit": "重新提交",
-    "resubmitConfirm": "确认重新提交该结算单审批？"
+    "resubmitConfirm": "确认重新提交该结算单审批？",
+    "confirmStatusLabel": "客户确认",
+    "confirmStatus": {
+      "pending": "待确认",
+      "confirmed": "已确认",
+      "objected": "有异议"
+    },
+    "sendConfirm": "发送客户确认",
+    "confirmReceiver": "收件人",
+    "confirmNote": "说明",
+    "confirmNotePlaceholder": "代客确认请填写说明（如电话确认）",
+    "markConfirmed": "标记已确认",
+    "markObjected": "标记有异议",
+    "confirmRecords": "确认记录",
+    "confirmAction": {
+      "send": "发送确认",
+      "confirm": "已确认",
+      "object": "有异议"
+    },
+    "confirmHint": "结算审批通过后需发送客户确认，客户确认后方可申请开票",
+    "notConfirmed": "未确认",
+    "confirmOperator": "操作人"
   },
   "invoice": {
     "title": "开票申请",
@@ -52,7 +73,7 @@
     "register": "登记发票",
     "apply": "申请开票",
     "selectSettlement": "选择结算单",
-    "applyHint": "仅可选择「待开票」状态的结算单，提交后进入开票审批",
+    "applyHint": "仅可选择「待开票」且客户已确认的结算单，提交后进入开票审批",
     "status": {
       "approving": "审批中",
       "issued": "已开票"

@@ -120,7 +120,8 @@ def test_apply_data_validation(client, admin_headers, manager_headers):
 def test_apply_flow_variables_and_approve(client, admin_headers, manager_headers, leader_headers):
     flow_id = _seeded_flow_id(client, admin_headers, "oa_leave_approve")
     fid = _create_form(client, admin_headers, _uniq("ut_flow_"), flow_id=flow_id)
-    r = _apply(client, manager_headers, fid, GOOD_DATA)
+    # 申请人 admin（D04 普通成员）：DEPT_LEADER → manager1（D04 负责人），PARENT_DEPT_LEADER → leader1（D00）
+    r = _apply(client, admin_headers, fid, GOOD_DATA)
     assert r["code"] == 0, r
     inst = r["data"]
     assert inst["displayNo"].startswith("OA") and inst["status"] == "running"
@@ -206,7 +207,8 @@ def test_stats_and_permission(client, admin_headers, manager_headers):
 def _apply_running(client, admin_headers, manager_headers, prefix):
     flow_id = _seeded_flow_id(client, admin_headers, "oa_leave_approve")
     fid = _create_form(client, admin_headers, _uniq(prefix), flow_id=flow_id)
-    return _apply(client, manager_headers, fid, GOOD_DATA)["data"]
+    # 申请人 admin：组织节点解析 DEPT_LEADER=manager1 → PARENT_DEPT_LEADER=leader1
+    return _apply(client, admin_headers, fid, GOOD_DATA)["data"]
 
 
 def test_admin_terminate(client, admin_headers, manager_headers):

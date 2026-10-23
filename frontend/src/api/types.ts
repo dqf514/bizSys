@@ -518,7 +518,21 @@ export interface Settlement {
   statusText?: string
   remark: string
   approvalInstanceId?: number | null
+  /** 客户确认状态：''=未发送 pending=待确认 confirmed=已确认 objected=有异议 */
+  confirmStatus?: '' | 'pending' | 'confirmed' | 'objected'
+  confirmBy?: string
+  confirmTime?: string
+  confirmNote?: string
   createBy: string | number
+  createTime: string
+}
+
+export interface SettlementConfirmRecord {
+  id: number
+  action: 'send' | 'confirm' | 'object'
+  operatorName: string
+  receiverName: string
+  note: string
   createTime: string
 }
 
@@ -573,6 +587,7 @@ export interface SettlementDetail extends Settlement {
   payments: Payment[]
   paidAmount?: number | null
   timeline?: TimelineRecord[]
+  confirmRecords?: SettlementConfirmRecord[]
 }
 
 export interface SettlementTaskOption {
@@ -604,6 +619,7 @@ export interface Report {
   itemName: string
   contractId?: number | null
   contractNo?: string
+  customerId?: number | null
   customerName: string
   fileName: string
   status: ReportStatus

@@ -59,6 +59,24 @@ def _user_out(db: Session, u: User, with_roles: bool = True) -> dict:
 
 
 # ---------------- 用户 ----------------
+@router.get("/users/options")
+def user_options(
+    q: str = Query("", max_length=64),
+    limit: int = Query(20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """启用用户下拉（登录即可读：流程/通知选人用）。"""
+    stmt = select(User).where(User.deleted == 0, User.status == "enabled")
+    if q.strip():
+        like = f"%{q.strip()}%"
+        from sqlalchemy import or_
+
+        stmt = stmt.where(or_(User.username.like(like), User.name.like(like)))
+    rows = db.scalars(stmt.order_by(User.id).limit(limit)).all()
+    return [{"id": u.id, "label": u.name or u.username, "sub": u.username} for u in rows]
+
+
 @router.get("/users")
 def list_users(
     request: Request,

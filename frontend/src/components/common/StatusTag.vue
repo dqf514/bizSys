@@ -24,6 +24,8 @@ const typeMap: Record<string, string> = {
   invoiced: 'success',
   paid: 'success',
   settled: 'success',
+  confirmed: 'success',
+  objected: 'danger',
   done: 'success',
   in_progress: 'primary',
   finished: 'success',

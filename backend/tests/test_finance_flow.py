@@ -83,6 +83,23 @@ def _todo_id(client, headers, biz_type: str, biz_id: int) -> int:
     return todo[0]["id"]
 
 
+def _confirm_settlement(client, headers, sid: int) -> None:
+    """发送客户确认 + 代客标记已确认（开票前置）。"""
+    opts = client.get("/api/v1/admin/users/options", headers=headers).json()["data"]
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/send-confirm",
+        headers=headers,
+        json={"receiver_id": opts[0]["id"], "note": "请与客户核对"},
+    ).json()
+    assert r["code"] == 0 and r["data"]["confirmStatus"] == "pending", r
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/confirm",
+        headers=headers,
+        json={"action": "confirm", "note": "客户已确认"},
+    ).json()
+    assert r["code"] == 0 and r["data"]["confirmStatus"] == "confirmed", r
+
+
 def test_finance_full_flow(client, admin_headers, manager_headers, leader_headers):
     headers = admin_headers
     tid, task = _finished_task(client, headers)
@@ -128,6 +145,17 @@ def test_finance_full_flow(client, admin_headers, manager_headers, leader_header
               "paid_at": "2026-10-09"},
     ).json()
     assert r["code"] == 80001
+
+    # 未发送客户确认：直接标记确认 → 80001；申请开票（未确认）→ 80001
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/confirm", headers=headers, json={"action": "confirm", "note": "x"}
+    ).json()
+    assert r["code"] == 80001
+    r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
+    assert r["code"] == 80001
+
+    # 发送客户确认 + 代客确认后可申请开票
+    _confirm_settlement(client, headers, sid)
 
     # 申请开票 → invoicing；审批驳回 → 回 pending；再申请 → 通过 → invoiced + 发票行
     r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
@@ -226,6 +254,83 @@ def test_finance_perm_forbidden(client, admin_headers):
     assert resp.status_code == 403 and resp.json()["code"] == 20002
     resp = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": 1, "amount": 1})
     assert resp.status_code == 403 and resp.json()["code"] == 20002
+    resp = client.post(
+        "/api/v1/finance/settlements/1/send-confirm", headers=headers, json={"receiver_id": 1}
+    )
+    assert resp.status_code == 403 and resp.json()["code"] == 20002
+    resp = client.post(
+        "/api/v1/finance/settlements/1/confirm", headers=headers, json={"action": "confirm", "note": ""}
+    )
+    assert resp.status_code == 403 and resp.json()["code"] == 20002
+
+
+def test_settlement_confirm_flow(client, admin_headers, manager_headers):
+    """客户确认：发送（站内通知+留痕）→ 异议 → 重发 → 确认；开票被确认状态门控。"""
+    headers = admin_headers
+    tid, _task = _finished_task(client, headers)
+    r = client.post("/api/v1/finance/settlements", headers=headers, json={"task_id": tid, "amount": 5000}).json()
+    assert r["code"] == 0, r
+    sid = r["data"]["id"]
+    assert r["data"]["confirmStatus"] == ""
+
+    # 收件人 = manager1；不存在用户 → 10002
+    users = client.get("/api/v1/admin/users/options", headers=headers, params={"q": "manager1"}).json()["data"]
+    assert users and users[0]["label"] == "部门负责人"
+    mid = users[0]["id"]
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/send-confirm", headers=headers, json={"receiver_id": 99999999}
+    ).json()
+    assert r["code"] == 10002
+
+    # 发送 → pending + 收件人站内通知
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/send-confirm",
+        headers=headers,
+        json={"receiver_id": mid, "note": "请与客户核对"},
+    ).json()
+    assert r["code"] == 0 and r["data"]["confirmStatus"] == "pending", r
+    notifies = client.get(
+        "/api/v1/admin/notifies", headers=manager_headers, params={"status": "unread", "size": 100}
+    ).json()["data"]["items"]
+    hit = [n for n in notifies if n["bizType"] == "settlement" and n["bizId"] == sid]
+    assert hit and sid and hit[0]["link"] == "/finance/settlements"
+
+    # 待确认时申请开票 → 80001
+    r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
+    assert r["code"] == 80001
+
+    # 异议 → objected（仍可重发）
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/confirm",
+        headers=headers,
+        json={"action": "object", "note": "客户对金额有异议"},
+    ).json()
+    assert r["code"] == 0 and r["data"]["confirmStatus"] == "objected", r
+    assert r["data"]["confirmBy"] == "系统管理员" and r["data"]["confirmNote"] == "客户对金额有异议"
+
+    # 重发 → pending；确认 → confirmed + confirmTime
+    _confirm_settlement(client, headers, sid)
+    s = client.get(f"/api/v1/finance/settlements/{sid}", headers=headers).json()["data"]
+    assert s["confirmStatus"] == "confirmed" and s["confirmTime"]
+    actions = [r["action"] for r in s["confirmRecords"]]
+    assert actions == ["send", "object", "send", "confirm"]
+    assert s["confirmRecords"][0]["receiverName"] == "部门负责人"
+
+    # 确认后申请开票放行
+    r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "invoicing", r
+
+    # 已进入开票流程：不允许再发送确认/标记确认
+    r = client.post(
+        f"/api/v1/finance/settlements/{sid}/send-confirm", headers=headers, json={"receiver_id": mid}
+    ).json()
+    assert r["code"] == 80001
+
+    # 列表可按 confirm_status 过滤
+    lst = client.get(
+        "/api/v1/finance/settlements", headers=headers, params={"filters[confirm_status]": "confirmed"}
+    ).json()["data"]
+    assert any(i["id"] == sid for i in lst["items"])
 
 
 def test_invoice_list_and_export(client, admin_headers, manager_headers):
@@ -236,6 +341,7 @@ def test_invoice_list_and_export(client, admin_headers, manager_headers):
     assert r["code"] == 0, r
     sid = r["data"]["id"]
     sno = r["data"]["settlementNo"]
+    _confirm_settlement(client, headers, sid)
 
     # 审批中：发票行尚未生成（审批通过才落行）
     r = client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()
@@ -332,6 +438,7 @@ def test_settlement_links_and_finance_summary(client, admin_headers, manager_hea
     assert all(i["customerId"] == cust_id for i in lst["items"])
 
     # 开票通过 + 到账 → 发票/到账行
+    _confirm_settlement(client, headers, sid)
     assert client.post(f"/api/v1/finance/settlements/{sid}/apply-invoice", headers=headers, json={}).json()["code"] == 0
     todo = _todo_id(client, manager_headers, "invoice", sid)
     assert client.post(

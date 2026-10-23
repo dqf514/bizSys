@@ -55,7 +55,8 @@
     "statusVoided": "Voided",
     "amountInvalid": "Invalid amount",
     "dateRangeRequired": "Please select date range",
-    "uploadTip": "Drag & drop or click to upload"
+    "uploadTip": "Drag & drop or click to upload",
+    "frameworkNoPlaceholder": "Pick an approved framework contract of this customer (searchable)"
   },
   "finance": {
     "contractAmount": "Contract Amount",

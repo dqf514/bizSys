@@ -55,7 +55,8 @@
     "statusVoided": "已作废",
     "amountInvalid": "请输入有效金额",
     "dateRangeRequired": "请选择起止日期",
-    "uploadTip": "拖拽或点击上传附件"
+    "uploadTip": "拖拽或点击上传附件",
+    "frameworkNoPlaceholder": "选择该客户已通过的框架合同（可搜索合同号/名称）"
   },
   "finance": {
     "contractAmount": "合同金额",

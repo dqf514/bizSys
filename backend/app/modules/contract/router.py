@@ -185,6 +185,44 @@ def contract_options(
     ]
 
 
+@router.get("/contracts/framework-options")
+def framework_contract_options(
+    customer_id: int | None = Query(None),
+    q: str = Query("", max_length=64),
+    limit: int = Query(20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """已通过的框架合同下拉（编辑合同关联框架号用）；customer_id 限定到该客户。
+
+    选项 id 直接取合同号（framework_no 存的就是框架合同号，兼容存量数据）。
+    """
+    stmt = select(Contract).where(
+        Contract.deleted == 0,
+        Contract.status == "approved",
+        Contract.contract_type == "framework",
+        Contract.contract_no.is_not(None),
+    )
+    if customer_id:
+        stmt = stmt.where(Contract.customer_id == customer_id)
+    if q.strip():
+        like = f"%{q.strip()}%"
+        from sqlalchemy import or_
+
+        stmt = stmt.where(or_(Contract.name.like(like), Contract.contract_no.like(like)))
+    rows = db.scalars(stmt.order_by(Contract.update_time.desc()).limit(limit)).all()
+    return [
+        {
+            "id": c.contract_no,
+            "label": c.name,
+            "sub": c.contract_no,
+            "customerId": c.customer_id,
+            "customerName": c.customer_name,
+        }
+        for c in rows
+    ]
+
+
 @router.get("/contracts/{cid}")
 def get_contract(
     cid: int,

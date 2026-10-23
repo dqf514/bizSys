@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
@@ -18,6 +19,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
+
+function go(path: string) {
+  visible.value = false
+  router.push(path)
+}
 
 const visible = computed({
   get: () => props.modelValue,
@@ -54,10 +61,25 @@ watch(
       <template v-if="detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('report.report.reportNo')">{{ detail.reportNo }}</el-descriptions-item>
-          <el-descriptions-item :label="t('report.report.taskNo')">{{ detail.taskNo }}</el-descriptions-item>
-          <el-descriptions-item :label="t('report.report.contractNo')">{{ detail.contractNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.taskNo')">
+            <el-link v-if="detail.taskId" type="primary" @click="go(`/task/tasks/${detail.taskId}`)">
+              {{ detail.taskNo }}
+            </el-link>
+            <span v-else>{{ detail.taskNo || '-' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.contractNo')">
+            <el-link v-if="detail.contractId" type="primary" @click="go(`/contract/contracts/${detail.contractId}`)">
+              {{ detail.contractNo }}
+            </el-link>
+            <span v-else>{{ detail.contractNo || '-' }}</span>
+          </el-descriptions-item>
           <el-descriptions-item :label="t('report.report.itemName')">{{ detail.itemName }}</el-descriptions-item>
-          <el-descriptions-item :label="t('report.report.customerName')">{{ detail.customerName }}</el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.customerName')">
+            <el-link v-if="detail.customerId" type="primary" @click="go(`/crm/customers?detail=${detail.customerId}`)">
+              {{ detail.customerName }}
+            </el-link>
+            <span v-else>{{ detail.customerName || '-' }}</span>
+          </el-descriptions-item>
           <el-descriptions-item :label="t('report.report.fileName')">{{ detail.fileName }}</el-descriptions-item>
           <el-descriptions-item :label="t('common.form.status')">
             <StatusTag :status="detail.status" i18n-prefix="report.report.status" />

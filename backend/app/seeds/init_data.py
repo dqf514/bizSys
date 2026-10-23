@@ -104,6 +104,7 @@ MENU_TREE = [
                 [
                     (None, "settlement-create", "", "", "", "finance:settlement:create", []),
                     (None, "settlement-export", "", "", "", "finance:settlement:export", []),
+                    (None, "settlement-confirm", "", "", "", "finance:settlement:confirm", []),
                     (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
                     (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
                 ],
@@ -517,6 +518,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "finance:settlement:list",
         "finance:settlement:create",
         "finance:settlement:export",
+        "finance:settlement:confirm",
         "finance:invoice:apply",
         "finance:invoice:edit",
         "finance:invoice:list",

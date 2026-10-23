@@ -16,7 +16,9 @@
     "settlements": "结算信息",
     "needReport": "需出报告",
     "sealed": "已签章",
-    "pendingSeal": "待签章"
+    "pendingSeal": "待签章",
+    "relatedCustomer": "关联客户",
+    "relatedTask": "关联任务"
   },
   "action": {
     "search": "查询",

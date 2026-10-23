@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import Field
 
@@ -17,6 +18,16 @@ class SettlementIn(CamelModel):
 
 class ApplyInvoiceIn(CamelModel):
     comment: str = Field("", max_length=255)
+
+
+class SendConfirmIn(CamelModel):
+    receiver_id: int
+    note: str = Field("", max_length=500)
+
+
+class ConfirmIn(CamelModel):
+    action: Literal["confirm", "object"]
+    note: str = Field("", max_length=500)
 
 
 class InvoiceIn(CamelModel):

@@ -26,6 +26,7 @@
 - `GET /admin/users`（分页检索）· `POST /admin/users` `{username,password,name,deptId,deptName,mobile,email,status,roleIds[]}`
   `PUT /admin/users/{id}` · `DELETE /admin/users/{id}` · `POST /admin/users/{id}/reset-password` `{password}`
   `POST /admin/users/export`（同检索参数，返回 xlsx 流）
+- `GET /admin/users/options?q=&limit=20` → `[{id,label,sub}]`（登录即可读：流程/通知选人用，仅 enabled 用户）
 - `GET /admin/roles` · `POST/PUT/DELETE /admin/roles[/{id}]` · `PUT /admin/roles/{id}/menus` `{menuIds[]}`
 - `GET /admin/menus/tree?include_buttons=` · `POST/PUT/DELETE /admin/menus[/{id}]`
 - `GET /admin/dict/types`（含 items）· `GET /admin/dict/items?type=code` → `[{label,labelEn,value,extra}]`
@@ -62,6 +63,8 @@
 - `POST /contract/contracts/{id}/attachments`（multipart file）· `GET /contract/attachments/{fileId}`（下载流）
 - `DELETE /contract/attachments/{fileId}`（contract:edit；仅 draft/rejected 合同可删，审批中 50002；逻辑删 + 审计）
 - `POST /contract/contracts/export` · `GET /contract/contracts/options`（仅 approved，建任务时用）
+- `GET /contract/contracts/framework-options?customer_id=&q=&limit=` → `[{id,label,sub,customerId,customerName}]`
+  （仅 approved 且 contract_type=framework 的合同；id=框架合同号，编辑合同"框架合同号"下拉用，可按客户过滤）
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
 ## 审批中心 /approval（自研引擎）
@@ -116,20 +119,29 @@
 ## 财务 /finance
 - 结算单状态机：`pending 待开票 → invoicing 开票审批中 → invoiced 已开票 → paid 已到账`；
   审批驳回/撤回 → 回 `pending`。
-- 主链路：任务 finished → 建任务人创建结算单（任务 → settled，一任务一单）→ 申请开票（审批流 invoice_apply）
-  → 审批通过生成发票行 → 财务登记发票信息 → 到账登记（累计到账 ≥ 结算金额 → paid）。
+- 客户确认（开票前置）：结算审批通过（pending）后需"发送客户确认"（站内通知 + 留痕，confirmStatus→pending），
+  由内部人员代客标记"已确认/有异议"（confirmStatus→confirmed/objected，confirmBy/confirmTime/confirmNote 留痕）；
+  confirmStatus 仅 confirmed 才允许申请开票（否则 80001）。
+- 主链路：任务 finished → 建任务人创建结算单（任务 → settled，一任务一单）→ 发送客户确认 → 客户确认
+  → 申请开票（审批流 invoice_apply）→ 审批通过生成发票行 → 财务登记发票信息 → 到账登记（累计到账 ≥ 结算金额 → paid）。
 - `GET /finance/settlements` 分页：
   `{id,settlementNo,taskId,taskNo,customerName,contractNo,amount,invoiceableAmount,status,statusText,remark,
-    approvalInstanceId,createBy,createTime}`
-  检索：`q`（settlementNo/taskNo/customerName/contractNo）、`status` 页签
+    approvalInstanceId,confirmStatus,confirmBy,confirmTime,confirmNote,createBy,createTime}`
+  检索：`q`（settlementNo/taskNo/customerName/contractNo）、`status` 页签、`filters[confirm_status]`
 - `GET /finance/settlements/task-options?q=` → `[{value,label,sub}]`
   （仅 `finished` 且无结算单的任务；value=taskId，label=任务编号，sub=客户名称/合同号）
 - `POST /finance/settlements` `{taskId,amount,invoiceableAmount?,remark?}` → 201；
   仅任务创建人（或超管）可对 finished 任务创建；`settlementNo` 走 HK 编号规则；成功后任务 finished → settled。
   错误：80001 任务状态不允许结算 / 80002 该任务已有结算单 / 80003 非任务创建人
 - `GET /finance/settlements/{id}` → 详情 + `invoices[]` + `payments[]` + `paidAmount` + 开票审批 `timeline`
+  + `confirmRecords[]`（确认留痕：`{id,action:send|confirm|object,operatorName,receiverName,note,createTime}`）
+- `POST /finance/settlements/{id}/send-confirm` `{receiverId,note?}`（finance:settlement:confirm）→
+  站内通知收件人 + 留痕 + confirmStatus→pending；仅 status=pending 可发送
+- `POST /finance/settlements/{id}/confirm` `{action:confirm|object,note?}`（finance:settlement:confirm）→
+  代客标记 confirmed/objected（confirmBy/confirmTime/confirmNote + 留痕）；需已发送（pending/objected）
 - `POST /finance/settlements/{id}/apply-invoice` `{comment?}` → 启动开票审批
-  （bizType=invoice，definition=invoice_apply），结算单 → invoicing；审批通过 → invoiced 并生成发票行
+  （bizType=invoice，definition=invoice_apply），结算单 → invoicing；审批通过 → invoiced 并生成发票行；
+  **前置：confirmStatus=confirmed，否则 80001**
 - `PUT /finance/invoices/{id}` `{invoiceNo,amount,invoiceDate?}` → 财务登记发票信息
 - `GET /finance/invoices` 分页：
   `{id,invoiceNo,settlementId,settlementNo,taskNo,customerName,amount,invoiceDate,status,statusText,createBy,createTime}`
@@ -141,7 +153,7 @@
   仅 invoiced 状态结算单可登记；`paymentNo` 走 DZ 编号规则；累计到账 ≥ 结算金额 → 结算单 paid
 - `GET /finance/settlements/export` · `GET /finance/invoices/export` · `GET /finance/payments/export`
   （同检索参数，返回 xlsx 流）
-- 权限码：`finance:settlement:list/create/export`、`finance:invoice:apply/edit/list/export`、
+- 权限码：`finance:settlement:list/create/export/confirm`、`finance:invoice:apply/edit/list/export`、
   `finance:payment:list/create/export`
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
@@ -152,7 +164,7 @@
 - 主链路：条目 needReport=1 自动分配 reportNo（BG 规则）→ 上传报告 → 签批（审批流 report_sign）
   → 批准自动转 PDF → 签章（seal_by/seal_time 留痕）→ sealed；**存在未签章报告条目的任务 finish 拒绝（60003）**。
 - `GET /report/reports` 分页：
-  `{id,reportNo,taskId,taskNo,taskItemId,itemName,customerName,fileName,status,statusText,pdfReady,
+  `{id,reportNo,taskId,taskNo,taskItemId,itemName,contractId,contractNo,customerId,customerName,fileName,status,statusText,pdfReady,
     sealBy,sealTime,remark,approvalInstanceId,createBy,createTime}`
   检索：`q`（reportNo/fileName/任务号/任务名/条目名/客户名）、`status` 页签
 - `GET /report/reports/item-options?q=` → `[{value,label,sub}]`

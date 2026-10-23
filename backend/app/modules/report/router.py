@@ -86,6 +86,7 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
         "itemName": item.name if item else "",
         "contractId": task.contract_id if task else None,
         "contractNo": task.contract_no if task else "",
+        "customerId": task.customer_id if task else None,
         "customerName": task.customer_name if task else "",
         "fileName": r.file_name,
         "status": r.status,

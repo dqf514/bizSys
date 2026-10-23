@@ -1,9 +1,9 @@
-"""财务 3 表：fin_settlement / fin_invoice / fin_payment。"""
+"""财务 4 表：fin_settlement / fin_invoice / fin_payment / fin_settlement_confirm。"""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Date, Index, Numeric, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.models import BaseModel
@@ -29,6 +29,25 @@ class Settlement(BaseModel):
     approval_instance_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, index=True, comment="最近一次开票审批实例"
     )
+    # 客户确认（开票前置）：空=未发送，pending=待确认，confirmed=已确认，objected=有异议
+    confirm_status: Mapped[str] = mapped_column(String(16), default="", index=True, comment="客户确认状态")
+    confirm_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="代客确认操作人")
+    confirm_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="确认时间")
+    confirm_note: Mapped[str] = mapped_column(String(255), default="", comment="确认说明")
+
+
+class SettlementConfirmRecord(BaseModel):
+    """结算客户确认留痕：send 发送确认 / confirm 已确认 / object 有异议。"""
+
+    __tablename__ = "fin_settlement_confirm"
+
+    settlement_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="fin_settlement.id")
+    action: Mapped[str] = mapped_column(String(16), comment="send/confirm/object")
+    operator_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="操作人")
+    operator_name: Mapped[str] = mapped_column(String(64), default="", comment="操作人姓名冗余")
+    receiver_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="站内通知收件人（send 时）")
+    receiver_name: Mapped[str] = mapped_column(String(64), default="", comment="收件人姓名冗余")
+    note: Mapped[str] = mapped_column(String(500), default="", comment="说明")
 
 
 class Invoice(BaseModel):

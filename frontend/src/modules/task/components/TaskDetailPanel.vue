@@ -110,12 +110,26 @@ function publishContext() {
       items: [{ label: d.contractNo || String(d.contractId), to: `/contract/contracts/${d.contractId}` }],
     })
   }
-  sections.push({
-    key: 'customer',
-    title: 'common.context.customer',
-    type: 'fields',
-    items: [{ label: 'task.task.customerName', value: d.customerName || '-' }],
-  })
+  if (d.customerId) {
+    sections.push({
+      key: 'customer',
+      title: 'common.context.customer',
+      type: 'links',
+      items: [
+        {
+          label: d.customerName || String(d.customerId),
+          to: `/crm/customers?detail=${d.customerId}`,
+        },
+      ],
+    })
+  } else {
+    sections.push({
+      key: 'customer',
+      title: 'common.context.customer',
+      type: 'fields',
+      items: [{ label: 'task.task.customerName', value: d.customerName || '-' }],
+    })
+  }
   const needReport = items.value.filter((i) => i.needReport).length
   const sealed = items.value.filter((i) => i.reportStatus === 'sealed').length
   const uploadedNotSealed = items.value.filter((i) => i.reportStatus && i.reportStatus !== 'sealed').length

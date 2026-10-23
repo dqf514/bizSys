@@ -56,6 +56,23 @@ export function contractOptions(q?: string) {
   })
 }
 
+export interface FrameworkContractOption {
+  /** 框架合同号（与 frameworkNo 同值，兼容存量） */
+  id: string
+  label: string
+  sub?: string
+  customerId?: number | null
+  customerName?: string
+}
+
+export function frameworkContractOptions(customerId?: number, q?: string) {
+  return request<FrameworkContractOption[]>({
+    url: '/contract/contracts/framework-options',
+    method: 'get',
+    params: { ...(customerId ? { customer_id: customerId } : {}), ...(q ? { q } : {}) },
+  })
+}
+
 export function getContractFinanceSummary(id: number) {
   return request<ContractFinanceSummary>({
     url: `/contract/contracts/${id}/finance-summary`,
