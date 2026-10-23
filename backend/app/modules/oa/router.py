@@ -1,6 +1,8 @@
 """OA 路由 /api/v1/oa：用户侧（目录/发起/我的/相关/统计）+ 管理侧（设计/统计/干预）。"""
 
-from fastapi import APIRouter, Depends, Query
+from types import SimpleNamespace
+
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,14 +13,35 @@ from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.admin.models import DictItem
 from app.modules.approval import service as approval_svc
 from app.modules.approval.models import ApprovalDefinition
 from app.modules.auth.models import User
 from app.modules.oa import schemas as S
 from app.modules.oa import service as svc
 from app.modules.oa.models import OaInstance
+from app.services.excel import export_xlsx_styled, now_filename
 
 router = APIRouter(prefix="/oa", tags=["oa"], route_class=EnvelopeRoute)
+
+OA_STATUS_CN = {
+    "running": "处理中",
+    "approved": "已通过",
+    "rejected": "已驳回",
+    "withdrawn": "已撤回",
+    "terminated": "已终止",
+}
+
+OA_MY_EXPORT_COLS = [
+    {"key": "displayNo", "label": "申请编号", "width": 20},
+    {"key": "formName", "label": "表单", "width": 18},
+    {"key": "category", "label": "分类", "width": 12},
+    {"key": "status", "label": "状态", "width": 10},
+    {"key": "pendingNames", "label": "当前待办人", "width": 16},
+    {"key": "applicantName", "label": "申请人", "width": 12},
+    {"key": "createTime", "label": "申请时间", "width": 19},
+    {"key": "finishedAt", "label": "完成时间", "width": 19},
+]
 
 
 def _user_or_404(db: Session, user_id: int) -> User:
@@ -61,6 +84,38 @@ def my_instances(
     db: Session = Depends(get_db),
 ):
     return svc.my_instances(db, current, PageParams(page=page, size=size), status=status)
+
+
+@router.get("/instances/my/export")
+def export_my_instances(
+    status: str = Query(""),
+    current: User = Depends(require_perm("oa:my")),
+    db: Session = Depends(get_db),
+):
+    """我的申请导出（沿用列表查看权限，复用 my_instances 过滤）。"""
+    data = svc.my_instances(db, current, SimpleNamespace(page=1, size=100_000), status=status)
+    cat_map = dict(
+        db.execute(
+            select(DictItem.value, DictItem.label).where(
+                DictItem.dict_type_code == "oa_category", DictItem.deleted == 0
+            )
+        ).all()
+    )
+    rows = []
+    for item in data["items"]:
+        item = dict(item)
+        item["status"] = OA_STATUS_CN.get(item["status"], item["status"])
+        item["category"] = cat_map.get(item["category"], item["category"])
+        item["pendingNames"] = item["pendingNames"] or "-"
+        rows.append(item)
+    payload = export_xlsx_styled(rows, OA_MY_EXPORT_COLS, "oa_my_instances")
+    record(db, user_id=current.id, module="oa", action="oa_my_export", detail={"count": len(rows)})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('oa_my_instances')}"},
+    )
 
 
 @router.get("/related")

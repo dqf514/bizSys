@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -9,9 +9,12 @@ import {
   getMaintenanceSettings,
   listBackups,
   purgeData,
+  retimeLookup,
+  retimeRecord,
   runBackup,
   updateMaintenanceSettings,
   type BackupFile,
+  type RetimeLookupResult,
 } from '@/api/maintenance'
 import { useAuthStore } from '@/stores/auth'
 import { useBrandingStore } from '@/stores/branding'
@@ -37,6 +40,79 @@ const showDemoAccounts = ref(false)
 const purgeVisible = ref(false)
 const purging = ref(false)
 const purgeForm = reactive({ password: '', confirm: '', forceBackupSkip: false })
+
+/* ---------- 记录时间修正 ---------- */
+const retimeForm = reactive({ bizType: 'report', key: '' })
+const retimeResult = ref<RetimeLookupResult | null>(null)
+const retimeField = ref('')
+const retimeNewValue = ref('')
+const retimeReason = ref('')
+const retimeSearching = ref(false)
+const retimeSaving = ref(false)
+
+const retimeBizOptions = computed(() => [
+  { value: 'approval_record', label: t('admin.maintenance.retimeBizApproval') },
+  { value: 'report', label: t('admin.maintenance.retimeBizReport') },
+  { value: 'settlement', label: t('admin.maintenance.retimeBizSettlement') },
+  { value: 'invoice', label: t('admin.maintenance.retimeBizInvoice') },
+  { value: 'payment', label: t('admin.maintenance.retimeBizPayment') },
+])
+
+function resetRetimeResult() {
+  retimeResult.value = null
+  retimeField.value = ''
+  retimeNewValue.value = ''
+}
+
+async function doRetimeLookup() {
+  if (!retimeForm.key.trim()) {
+    ElMessage.warning(t('admin.maintenance.retimeKeyRequired'))
+    return
+  }
+  retimeSearching.value = true
+  resetRetimeResult()
+  try {
+    const data = await retimeLookup(retimeForm.bizType, retimeForm.key.trim())
+    retimeResult.value = data
+    retimeField.value = data.fields[0]?.field ?? ''
+  } catch {
+    /* http notifies */
+  } finally {
+    retimeSearching.value = false
+  }
+}
+
+async function doRetimeSave() {
+  if (!retimeResult.value || !retimeField.value) {
+    ElMessage.warning(t('admin.maintenance.retimePickFirst'))
+    return
+  }
+  if (!retimeNewValue.value) {
+    ElMessage.warning(t('admin.maintenance.retimeNewRequired'))
+    return
+  }
+  if (!retimeReason.value.trim()) {
+    ElMessage.warning(t('admin.maintenance.retimeReasonRequired'))
+    return
+  }
+  retimeSaving.value = true
+  try {
+    await retimeRecord({
+      bizType: retimeForm.bizType,
+      id: retimeResult.value.id,
+      field: retimeField.value,
+      value: retimeNewValue.value,
+      reason: retimeReason.value.trim(),
+    })
+    ElMessage.success(t('common.message.saveSuccess'))
+    retimeReason.value = ''
+    await doRetimeLookup()
+  } catch {
+    /* http notifies */
+  } finally {
+    retimeSaving.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -291,6 +367,56 @@ async function doPurge() {
         </el-form>
       </el-card>
 
+      <el-card v-permission="'admin:maintenance:retime'" class="maintenance-card" shadow="never">
+        <template #header>
+          <span class="card-title">{{ t('admin.maintenance.retimeTitle') }}</span>
+        </template>
+        <p class="retime-tip">{{ t('admin.maintenance.retimeTip') }}</p>
+        <el-form label-width="140px" class="maintenance-form">
+          <el-form-item :label="t('admin.maintenance.retimeBizType')">
+            <el-select v-model="retimeForm.bizType" class="retime-biz-select" @change="resetRetimeResult">
+              <el-option v-for="o in retimeBizOptions" :key="o.value" :value="o.value" :label="o.label" />
+            </el-select>
+          </el-form-item>
+          <el-form-item :label="t('admin.maintenance.retimeKey')">
+            <el-input
+              v-model="retimeForm.key"
+              class="form-input"
+              :placeholder="t('admin.maintenance.retimeKeyPlaceholder')"
+              @keyup.enter="doRetimeLookup"
+            />
+            <el-button class="retime-search-btn" :loading="retimeSearching" @click="doRetimeLookup">
+              {{ t('common.action.search') }}
+            </el-button>
+          </el-form-item>
+          <template v-if="retimeResult">
+            <el-form-item :label="t('admin.maintenance.retimeField')">
+              <el-radio-group v-model="retimeField">
+                <el-radio v-for="f in retimeResult.fields" :key="f.field" :value="f.field">
+                  {{ f.fieldLabel }}（{{ f.value || '-' }}）
+                </el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item :label="t('admin.maintenance.retimeNewValue')">
+              <el-date-picker
+                v-model="retimeNewValue"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                :placeholder="t('admin.maintenance.retimeNewPlaceholder')"
+              />
+            </el-form-item>
+            <el-form-item :label="t('admin.maintenance.retimeReason')" required>
+              <el-input v-model="retimeReason" class="form-input" maxlength="255" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="retimeSaving" @click="doRetimeSave">
+                {{ t('common.action.save') }}
+              </el-button>
+            </el-form-item>
+          </template>
+        </el-form>
+      </el-card>
+
       <el-card class="maintenance-card danger-card" shadow="never">
         <template #header>
           <span class="card-title danger-title">{{ t('admin.maintenance.danger') }}</span>
@@ -423,5 +549,20 @@ async function doPurge() {
 
 .purge-form {
   margin-top: var(--bs-space-2);
+}
+
+.retime-tip {
+  margin: 0 0 var(--bs-space-3);
+  color: var(--bs-color-fg-secondary);
+  font-size: var(--bs-typography-font-size-sm);
+  line-height: 1.8;
+}
+
+.retime-biz-select {
+  max-width: 240px;
+}
+
+.retime-search-btn {
+  margin-left: var(--bs-space-2);
 }
 </style>

@@ -69,15 +69,16 @@
   },
   "density": {
     "comfortable": {
-      "controlHeight": "32px",
-      "controlHeightSm": "24px",
-      "controlHeightLg": "40px",
-      "tableRowHeight": "40px",
-      "tableHeaderHeight": "40px",
-      "paddingY": "8px",
-      "paddingX": "12px",
+      "controlHeight": "30px",
+      "controlHeightSm": "22px",
+      "controlHeightLg": "36px",
+      "tableRowHeight": "36px",
+      "tableHeaderHeight": "36px",
+      "paddingY": "6px",
+      "paddingX": "10px",
       "fontSize": "14px",
-      "navItemHeight": "40px"
+      "navItemHeight": "36px",
+      "cardPadding": "14px"
     },
     "compact": {
       "controlHeight": "28px",
@@ -88,7 +89,8 @@
       "paddingY": "4px",
       "paddingX": "8px",
       "fontSize": "13px",
-      "navItemHeight": "32px"
+      "navItemHeight": "32px",
+      "cardPadding": "10px"
     }
   },
   "layout": {

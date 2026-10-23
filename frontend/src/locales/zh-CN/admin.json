@@ -306,6 +306,24 @@
     "purgeConfirmMismatch": "确认词不正确，请输入 CLEAR",
     "forceBackupSkip": "跳过执行前备份（不推荐）",
     "purgeConfirmBtn": "确认清空",
-    "purgeDone": "清空完成，即将返回登录页"
+    "purgeDone": "清空完成，即将返回登录页",
+    "retimeTitle": "记录时间修正",
+    "retimeTip": "修正审批记录、报告、结算/开票/到账单据的时间字段。按服务器本地时区保存；每次修正都会记录原值、新值、修改人与原因到审计日志。",
+    "retimeBizType": "业务类型",
+    "retimeBizApproval": "审批记录",
+    "retimeBizReport": "报告",
+    "retimeBizSettlement": "结算单",
+    "retimeBizInvoice": "发票",
+    "retimeBizPayment": "到账",
+    "retimeKey": "单号 / ID",
+    "retimeKeyRequired": "请输入单号或 ID",
+    "retimeKeyPlaceholder": "审批记录填 ID，其余填单号（如 BG…/HK…）",
+    "retimeField": "修正字段",
+    "retimeNewValue": "新时间",
+    "retimeNewPlaceholder": "选择新时间（本地时区）",
+    "retimeNewRequired": "请选择新时间",
+    "retimeReason": "修改原因",
+    "retimeReasonRequired": "请填写修改原因（留痕必填）",
+    "retimePickFirst": "请先检索单据"
   }
 }

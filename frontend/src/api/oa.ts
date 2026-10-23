@@ -1,4 +1,4 @@
-import { request, toQuery } from './http'
+import { download, request, toQuery } from './http'
 import type {
   ListQuery,
   OaCatalogGroup,
@@ -27,6 +27,13 @@ export function listMyOaInstances(params: ListQuery) {
     method: 'get',
     params: toQuery(params as Record<string, unknown>),
   })
+}
+
+export function exportMyOaInstances(params: { status?: string }) {
+  return download(
+    { url: '/oa/instances/my/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
+    'oa_my_instances.xlsx',
+  )
 }
 
 export function listOaRelated(tab: 'todo' | 'done' | 'cc', params: ListQuery) {

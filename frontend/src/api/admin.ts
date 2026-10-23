@@ -120,6 +120,10 @@ export function dictTypes() {
   return request<DictType[]>({ url: '/admin/dict/types', method: 'get' })
 }
 
+export function exportDicts() {
+  return download({ url: '/admin/dict/types/export', method: 'get' }, 'dicts.xlsx')
+}
+
 export function dictItems(type: string) {
   return request<DictItemOption[]>({
     url: '/admin/dict/items',
@@ -181,9 +185,20 @@ export function listAuditLogs(params: ListQuery) {
   })
 }
 
+export function exportAuditLogs(params: ListQuery) {
+  return download(
+    { url: '/admin/audit-logs/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
+    'audit_logs.xlsx',
+  )
+}
+
 // ---- depts ----
 export function listDepts() {
   return request<Dept[] | PageResult<Dept>>({ url: '/admin/depts', method: 'get' })
+}
+
+export function exportDepts() {
+  return download({ url: '/admin/depts/export', method: 'get' }, 'depts.xlsx')
 }
 
 export function createDept(data: Partial<Dept>) {

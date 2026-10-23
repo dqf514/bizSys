@@ -6,12 +6,14 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
+  exportApprovalTasks,
   getInstance,
   getTimeline,
   listApprovalTasks,
@@ -210,6 +212,11 @@ onMounted(() => {
         :model-value="ccUnreadOnly"
         :active-text="t('approval.approval.unreadOnly')"
         @update:model-value="toggleUnreadOnly(Boolean($event))"
+      />
+      <ExportButton
+        v-if="activeTab !== 'cc'"
+        v-permission="'approval:view'"
+        :export-fn="() => exportApprovalTasks(activeTab as ApprovalTab)"
       />
       <el-button @click="list.refresh(); refreshTabCounts()">{{ t('common.action.refresh') }}</el-button>
     </template>

@@ -6,12 +6,13 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import FormRenderer from '@/modules/oa/components/FormRenderer.vue'
 import { useListPage } from '@/composables/useListPage'
-import { getOaInstance, listMyOaInstances, withdrawOaInstance } from '@/api/oa'
+import { exportMyOaInstances, getOaInstance, listMyOaInstances, withdrawOaInstance } from '@/api/oa'
 import { getInstance } from '@/api/approval'
 import { useDict } from '@/composables/useDict'
 import type { FlowGraphData, OaInstanceDetail, OaInstanceItem } from '@/api/types'
@@ -122,6 +123,10 @@ async function doWithdraw() {
 <template>
   <ListPage :title="t('oa.my.title')" :loading="list.loading.value">
     <template #actions>
+      <ExportButton
+        v-permission="'oa:my'"
+        :export-fn="() => exportMyOaInstances({ status: activeStatus === 'all' ? '' : activeStatus })"
+      />
       <el-button @click="list.refresh()">{{ t('common.action.refresh') }}</el-button>
     </template>
 

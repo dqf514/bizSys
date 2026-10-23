@@ -1,4 +1,4 @@
-import { request, toQuery } from './http'
+import { download, request, toQuery } from './http'
 import type {
   ApprovalCcItem,
   ApprovalInstanceDetail,
@@ -19,6 +19,10 @@ export function listApprovalTasks(tab: ApprovalTab, params: ListQuery) {
     method: 'get',
     params: toQuery({ ...params, tab } as Record<string, unknown>),
   })
+}
+
+export function exportApprovalTasks(tab: ApprovalTab) {
+  return download({ url: '/approval/tasks/export', method: 'get', params: { tab } }, `approval_${tab}.xlsx`)
 }
 
 export function getTimeline(bizType: string, bizId: number) {

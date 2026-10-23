@@ -1,6 +1,8 @@
 """审批中心与流程定义路由 /api/v1/approval。"""
 
-from fastapi import APIRouter, Depends, Query
+from types import SimpleNamespace
+
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,8 +16,34 @@ from app.core.route import EnvelopeRoute
 from app.modules.approval import service
 from app.modules.approval.schemas import AddSignIn, CommentIn, DefinitionIn, PreviewIn, TransferIn, WithdrawIn
 from app.modules.auth.models import User
+from app.services.excel import export_xlsx_styled, now_filename
 
 router = APIRouter(prefix="/approval", tags=["approval"], route_class=EnvelopeRoute)
+
+_BIZ_TYPE_CN = {
+    "contract": "合同",
+    "task": "任务",
+    "report": "报告",
+    "invoice": "开票申请",
+    "settlement": "结算",
+    "oa": "OA申请",
+}
+
+_DONE_ACTION_CN = {"agree": "已同意", "reject": "已驳回", "transfer": "已转办", "add_sign": "已加签"}
+
+_INSTANCE_STATUS_CN = {"running": "审批中", "approved": "已通过", "rejected": "已驳回", "withdrawn": "已撤回"}
+
+TASK_EXPORT_COLS = [
+    {"key": "title", "label": "标题", "width": 36},
+    {"key": "bizType", "label": "业务类型", "width": 12},
+    {"key": "nodeName", "label": "节点", "width": 16},
+    {"key": "status", "label": "状态", "width": 10},
+    {"key": "initiatorName", "label": "发起人", "width": 12},
+    {"key": "assigneeName", "label": "处理人", "width": 12},
+    {"key": "comment", "label": "意见", "width": 24},
+    {"key": "createTime", "label": "发起时间", "width": 19},
+    {"key": "actedAt", "label": "处理时间", "width": 19},
+]
 
 
 def _user_or_404(db: Session, user_id: int) -> User:
@@ -37,6 +65,35 @@ def list_tasks(
     db: Session = Depends(get_db),
 ):
     return service.list_tasks(db, user, PageParams(page=page, size=size), tab)
+
+
+@router.get("/tasks/export")
+def export_tasks(
+    tab: str = Query("todo", pattern="^(todo|done|initiated)$"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """审批中心导出（与 /tasks 同为登录可用，复用 list_tasks 过滤）。"""
+    data = service.list_tasks(db, user, SimpleNamespace(page=1, size=100_000), tab)
+    rows = []
+    for item in data["items"]:
+        item = dict(item)
+        item["bizType"] = _BIZ_TYPE_CN.get(item["bizType"], item["bizType"])
+        if tab == "todo":
+            item["status"] = item.get("statusText") or "待审批"
+        elif tab == "done":
+            item["status"] = _DONE_ACTION_CN.get(item.get("action", ""), item.get("action", ""))
+        else:
+            item["status"] = _INSTANCE_STATUS_CN.get(item["status"], item["status"])
+        rows.append(item)
+    payload = export_xlsx_styled(rows, TASK_EXPORT_COLS, f"approval_{tab}")
+    record(db, user_id=user.id, module="approval", action="tasks_export", detail={"tab": tab, "count": len(rows)})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename(f'approval_{tab}')}"},
+    )
 
 
 @router.get("/instances/{instance_id}")

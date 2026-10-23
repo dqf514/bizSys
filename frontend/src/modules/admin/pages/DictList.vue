@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ExportButton from '@/components/list/ExportButton.vue'
 import { clearDictCache } from '@/composables/useDict'
 import {
   dictTypes,
@@ -10,6 +11,7 @@ import {
   createDictItem,
   updateDictItem,
   deleteDictItem,
+  exportDicts,
 } from '@/api/admin'
 import type { DictItem, DictType } from '@/api/types'
 
@@ -158,6 +160,7 @@ async function removeItem(row: DictItem) {
       <el-button v-permission="'admin:dict:edit'" @click="openItemCreate">
         {{ t('admin.dict.createItem') }}
       </el-button>
+      <ExportButton v-permission="'admin:dict:list'" :export-fn="() => exportDicts()" />
       <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
     </template>
 

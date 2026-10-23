@@ -4,8 +4,9 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ExportButton from '@/components/list/ExportButton.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listAuditLogs } from '@/api/admin'
+import { exportAuditLogs, listAuditLogs } from '@/api/admin'
 import type { AuditLog } from '@/api/types'
 
 defineOptions({ name: 'AuditLogList' })
@@ -52,6 +53,12 @@ function viewDetail(row: AuditLog) {
 <template>
   <ListPage :title="t('admin.audit.title')" :loading="list.loading.value">
     <template #actions>
+      <ExportButton
+        v-permission="'admin:audit:list'"
+        :export-fn="() =>
+          exportAuditLogs({ q: searchModel.q || undefined, filters: { module: searchModel.module || undefined } })
+        "
+      />
       <el-button @click="list.refresh()">{{ t('common.action.refresh') }}</el-button>
     </template>
 

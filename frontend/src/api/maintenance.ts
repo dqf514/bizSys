@@ -57,3 +57,32 @@ export function deleteBackup(name: string) {
 export function purgeData(data: { password: string; confirm: string; forceBackupSkip?: boolean }) {
   return request<PurgeResult>({ url: '/admin/maintenance/purge', method: 'post', data })
 }
+
+export interface RetimeField {
+  field: string
+  fieldLabel: string
+  value: string
+}
+
+export interface RetimeLookupResult {
+  bizType: string
+  id: number
+  label: string
+  fields: RetimeField[]
+}
+
+export function retimeLookup(bizType: string, key: string) {
+  return request<RetimeLookupResult>({
+    url: '/admin/maintenance/retime/lookup',
+    method: 'get',
+    params: { bizType, key },
+  })
+}
+
+export function retimeRecord(data: { bizType: string; id: number; field: string; value: string; reason: string }) {
+  return request<{ id: number; field: string; value: string }>({
+    url: '/admin/maintenance/retime',
+    method: 'post',
+    data,
+  })
+}

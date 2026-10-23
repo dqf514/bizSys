@@ -313,6 +313,8 @@ MENU_TREE = [
                         [
                             (None, "backup-manage", "", "", "", "admin:backup:manage", []),
                             (None, "maintenance-purge", "", "", "", "admin:maintenance:purge", []),
+                            # 记录时间修正：高危，仅超管（biz_perms 不含此项）
+                            (None, "maintenance-retime", "", "", "", "admin:maintenance:retime", []),
                         ],
                     ),
                     (

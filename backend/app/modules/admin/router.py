@@ -447,6 +447,49 @@ def dict_items(
     return [{"label": i.label, "labelEn": i.label_en, "value": i.value, "extra": i.extra} for i in rows]
 
 
+DICT_EXPORT_COLS = [
+    {"key": "typeCode", "label": "类型编码", "width": 20},
+    {"key": "typeName", "label": "类型名称", "width": 18},
+    {"key": "label", "label": "标签", "width": 16},
+    {"key": "labelEn", "label": "英文标签", "width": 18},
+    {"key": "value", "label": "字典值", "width": 16},
+    {"key": "sort", "label": "排序", "width": 8},
+    {"key": "status", "label": "状态", "width": 8},
+]
+
+
+@router.get("/dict/types/export")
+def export_dict_types(
+    current: User = Depends(require_perm("admin:dict:list")),
+    db: Session = Depends(get_db),
+):
+    """字典导出（平铺类型+字典项，沿用 admin:dict:list 查看权限）。"""
+    types = db.scalars(select(DictType).where(DictType.deleted == 0).order_by(DictType.code)).all()
+    status_cn = {"enabled": "启用", "disabled": "停用"}
+    rows = []
+    for t in types:
+        for i in sorted((x for x in t.items if x.deleted == 0), key=lambda x: x.sort):
+            rows.append(
+                {
+                    "typeCode": t.code,
+                    "typeName": t.name,
+                    "label": i.label,
+                    "labelEn": i.label_en,
+                    "value": i.value,
+                    "sort": i.sort,
+                    "status": status_cn.get(i.status, i.status),
+                }
+            )
+    payload = export_xlsx_styled(rows, DICT_EXPORT_COLS, "dicts")
+    audit(db, user_id=current.id, module="admin", action="dict_export", detail={"count": len(rows)})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('dicts')}"},
+    )
+
+
 @router.post("/dict/types", status_code=201)
 def create_dict_type(
     body: S.DictTypeIn,
@@ -676,6 +719,67 @@ def list_audit_logs(
     }
 
 
+AUDIT_EXPORT_COLS = [
+    {"key": "username", "label": "操作人", "width": 14},
+    {"key": "module", "label": "模块", "width": 12},
+    {"key": "action", "label": "动作", "width": 20},
+    {"key": "bizType", "label": "业务类型", "width": 12},
+    {"key": "bizId", "label": "业务ID", "width": 10},
+    {"key": "detail", "label": "明细", "width": 48},
+    {"key": "traceId", "label": "追踪ID", "width": 24},
+    {"key": "ip", "label": "IP", "width": 14},
+    {"key": "createTime", "label": "时间", "width": 19},
+]
+
+
+@router.get("/audit-logs/export")
+def export_audit_logs(
+    request: Request,
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """审计日志导出（沿用 admin:audit:list 查看权限，复用列表筛选）。"""
+    from types import SimpleNamespace
+
+    stmt, _ = apply_list_filters(
+        select(AuditLog),
+        AuditLog,
+        request.query_params,
+        db,
+        SimpleNamespace(page=1, size=100_000),
+        search_cols=["module", "action"],
+        filter_cols={"module", "user_id", "biz_type"},
+        sort_cols={"id", "create_time"},
+        default_sort=("id", "desc"),
+    )
+    logs = db.scalars(stmt).all()
+    usernames = {
+        u.id: u.username for u in db.scalars(select(User).where(User.id.in_({r.user_id for r in logs if r.user_id})))
+    }
+    rows = [
+        {
+            "username": usernames.get(r.user_id, "") if r.user_id else "",
+            "module": r.module,
+            "action": r.action,
+            "bizType": r.biz_type or "",
+            "bizId": r.biz_id or "",
+            "detail": r.detail or "",
+            "traceId": r.trace_id or "",
+            "ip": r.ip or "",
+            "createTime": _t(r.create_time),
+        }
+        for r in logs
+    ]
+    payload = export_xlsx_styled(rows, AUDIT_EXPORT_COLS, "audit_logs")
+    audit(db, user_id=current.id, module="admin", action="audit_export", detail={"count": len(rows)})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('audit_logs')}"},
+    )
+
+
 # ---------------- 偏好 ----------------
 @router.put("/prefs")
 def save_prefs(
@@ -695,6 +799,44 @@ def list_depts(current: User = Depends(get_current_user), db: Session = Depends(
         select(Dept).where(Dept.deleted == 0, Dept.status == "enabled").order_by(Dept.sort, Dept.id)
     ).all()
     return [{"id": d.id, "parentId": d.parent_id, "name": d.name, "code": d.code, "sort": d.sort} for d in rows]
+
+
+DEPT_EXPORT_COLS = [
+    {"key": "name", "label": "部门名称", "width": 22},
+    {"key": "code", "label": "部门编码", "width": 12},
+    {"key": "parentName", "label": "上级部门", "width": 22},
+    {"key": "sort", "label": "排序", "width": 8},
+    {"key": "status", "label": "状态", "width": 8},
+]
+
+
+@router.get("/depts/export")
+def export_depts(
+    current: User = Depends(require_perm("admin:dept:list")),
+    db: Session = Depends(get_db),
+):
+    """部门导出（沿用 admin:dept:list 查看权限；含停用部门，状态列区分）。"""
+    rows = db.scalars(select(Dept).where(Dept.deleted == 0).order_by(Dept.sort, Dept.id)).all()
+    name_map = {d.id: d.name for d in rows}
+    status_cn = {"enabled": "启用", "disabled": "停用"}
+    items = [
+        {
+            "name": d.name,
+            "code": d.code,
+            "parentName": name_map.get(d.parent_id, "") if d.parent_id else "",
+            "sort": d.sort,
+            "status": status_cn.get(d.status, d.status),
+        }
+        for d in rows
+    ]
+    payload = export_xlsx_styled(items, DEPT_EXPORT_COLS, "depts")
+    audit(db, user_id=current.id, module="admin", action="dept_export", detail={"count": len(items)})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('depts')}"},
+    )
 
 
 @router.post("/depts", status_code=201)

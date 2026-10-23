@@ -31,10 +31,19 @@
 - `GET /admin/menus/tree?include_buttons=` · `POST/PUT/DELETE /admin/menus[/{id}]`
 - `GET /admin/dict/types`（含 items）· `GET /admin/dict/items?type=code` → `[{label,labelEn,value,extra}]`
   `POST /admin/dict/types` · `POST/PUT/DELETE /admin/dict/items[/{id}]`
+  `GET /admin/dict/types/export`（平铺类型+字典项 xlsx，沿用 admin:dict:list）
 - `GET/POST/PUT /admin/number-rules`（预览 preview 字段）
-- `GET /admin/audit-logs`（分页）
+- `GET /admin/audit-logs`（分页）· `GET /admin/audit-logs/export`（同检索参数 xlsx，沿用 admin:audit:list）
 - `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
 - `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
+  `GET /admin/depts/export`（含停用部门，沿用 admin:dept:list）
+- 数据维护（/admin/maintenance）：备份设置/备份管理/一键清空（略，见系统设置章节）；
+  记录时间修正（admin:maintenance:retime，仅超管）：
+  `GET /admin/maintenance/retime/lookup?bizType=&key=` → `{id,label,fields:[{field,fieldLabel,value}]}`
+  （bizType ∈ approval_record(按ID)/report(report_no)/settlement/invoice/payment(单号)）
+  `POST /admin/maintenance/retime` `{bizType,id,field,value(YYYY-MM-DD HH:MM:SS 本地时区),reason(必填)}`
+  → 白名单字段改值（approval_record.at；report.create_time/seal_time；结算/发票/到账 create_time），
+  sys_audit_log 留痕 `{field,old,new,reason}`
 - 系统设置（sys_config，Secret AES-GCM 加密落库、接口只回 secretSet 布尔）：
   - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl}}`
   - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{enabled,corpId,agentId,secret?,callbackUrl?}}`（secret 空=不修改）
@@ -71,6 +80,7 @@
 - `GET /approval/tasks?tab=todo|done|initiated&page&size` →
   `{items:[{id,instanceId,bizType,bizId,title,status,nodeName,comment,initiatorName,assigneeName,createTime,actedAt}],...}`
   - todo=我待办(status=pending & assignee=me)；done=我已办；initiated=我发起的实例
+- `GET /approval/tasks/export?tab=todo|done|initiated`（xlsx 流，与列表同为登录可用）
 - `GET /approval/instances/{instance_id}` → 实例快照 + 时间线（含 formSnapshot、records）
 - `GET /approval/instances/{bizType}/{bizId}/timeline` →
   `{instanceId,status, currentNode, records:[{action:"start|agree|reject|withdraw|add_sign|transfer",operatorName,nodeName,comment,at}]}`
@@ -81,6 +91,9 @@
   · `DELETE /approval/definitions/{id}`（admin:flow:edit；有运行中实例时拒绝，逻辑删）
   定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
+
+## OA /oa
+- `GET /oa/instances/my?status=&page&size`（oa:my）· `GET /oa/instances/my/export?status=`（xlsx 流，沿用 oa:my）
 
 ## 任务 /task
 - 状态机（2026-10 精简）：`draft 创建待提交 → in_progress 分配执行中 → finished 已完成 → settled 已结算`，

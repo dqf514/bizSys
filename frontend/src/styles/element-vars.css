@@ -61,6 +61,7 @@
   --el-component-size: var(--bs-density-control-height);
   --el-component-size-small: var(--bs-density-control-height-sm);
   --el-component-size-large: var(--bs-density-control-height-lg);
+  --el-card-padding: var(--bs-density-card-padding);
 
   /* shadow / motion / mask */
   --el-box-shadow: var(--bs-shadow-elevation2);

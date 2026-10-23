@@ -49,15 +49,16 @@
   --bs-motion-base: 150ms;
   --bs-motion-slow: 250ms;
   --bs-motion-curve: cubic-bezier(0.2, 0, 0, 1);
-  --bs-density-comfortable-control-height: 32px;
-  --bs-density-comfortable-control-height-sm: 24px;
-  --bs-density-comfortable-control-height-lg: 40px;
-  --bs-density-comfortable-table-row-height: 40px;
-  --bs-density-comfortable-table-header-height: 40px;
-  --bs-density-comfortable-padding-y: 8px;
-  --bs-density-comfortable-padding-x: 12px;
+  --bs-density-comfortable-control-height: 30px;
+  --bs-density-comfortable-control-height-sm: 22px;
+  --bs-density-comfortable-control-height-lg: 36px;
+  --bs-density-comfortable-table-row-height: 36px;
+  --bs-density-comfortable-table-header-height: 36px;
+  --bs-density-comfortable-padding-y: 6px;
+  --bs-density-comfortable-padding-x: 10px;
   --bs-density-comfortable-font-size: 14px;
-  --bs-density-comfortable-nav-item-height: 40px;
+  --bs-density-comfortable-nav-item-height: 36px;
+  --bs-density-comfortable-card-padding: 14px;
   --bs-density-compact-control-height: 28px;
   --bs-density-compact-control-height-sm: 22px;
   --bs-density-compact-control-height-lg: 34px;
@@ -67,6 +68,7 @@
   --bs-density-compact-padding-x: 8px;
   --bs-density-compact-font-size: 13px;
   --bs-density-compact-nav-item-height: 32px;
+  --bs-density-compact-card-padding: 10px;
   --bs-layout-topbar-height: 48px;
   --bs-layout-statusbar-height: 26px;
   --bs-layout-tabbar-height: 36px;
@@ -106,15 +108,16 @@
   --bs-color-semantic-info: #2563eb;
   --bs-color-semantic-info-soft: #eff6ff;
   /* comfortable density (default) */
-  --bs-density-control-height: 32px;
-  --bs-density-control-height-sm: 24px;
-  --bs-density-control-height-lg: 40px;
-  --bs-density-table-row-height: 40px;
-  --bs-density-table-header-height: 40px;
-  --bs-density-padding-y: 8px;
-  --bs-density-padding-x: 12px;
+  --bs-density-control-height: 30px;
+  --bs-density-control-height-sm: 22px;
+  --bs-density-control-height-lg: 36px;
+  --bs-density-table-row-height: 36px;
+  --bs-density-table-header-height: 36px;
+  --bs-density-padding-y: 6px;
+  --bs-density-padding-x: 10px;
   --bs-density-font-size: 14px;
-  --bs-density-nav-item-height: 40px;
+  --bs-density-nav-item-height: 36px;
+  --bs-density-card-padding: 14px;
   --bs-color-primary: #2563eb;
   --bs-accent-name: blue;
   --bs-duration: 150ms;
@@ -177,6 +180,7 @@ html[data-density="compact"] {
   --bs-density-padding-x: 8px;
   --bs-density-font-size: 13px;
   --bs-density-nav-item-height: 32px;
+  --bs-density-card-padding: 10px;
 }
 
 html[data-accent="blue"] {

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ExportButton from '@/components/list/ExportButton.vue'
 import {
   listDepts,
   createDept,
@@ -10,6 +11,7 @@ import {
   listDeptMembers,
   setDeptMembers,
   listUsers,
+  exportDepts,
   type DeptMember,
 } from '@/api/admin'
 import type { AdminUser, Dept } from '@/api/types'
@@ -140,6 +142,7 @@ async function saveMembers() {
       <el-button v-permission="'admin:dept:edit'" type="primary" @click="openCreate()">
         {{ t('admin.dept.create') }}
       </el-button>
+      <ExportButton v-permission="'admin:dept:list'" :export-fn="() => exportDepts()" />
       <el-button @click="load()">{{ t('common.action.refresh') }}</el-button>
     </template>
 

@@ -306,6 +306,24 @@
     "purgeConfirmMismatch": "Confirmation word incorrect; please type CLEAR",
     "forceBackupSkip": "Skip pre-purge backup (not recommended)",
     "purgeConfirmBtn": "Confirm Purge",
-    "purgeDone": "Purge completed, returning to login page"
+    "purgeDone": "Purge completed, returning to login page",
+    "retimeTitle": "Record Time Correction",
+    "retimeTip": "Correct time fields on approval records, reports, settlements, invoices and payments. Saved in server local time; every change is audited with old value, new value, operator and reason.",
+    "retimeBizType": "Business Type",
+    "retimeBizApproval": "Approval Record",
+    "retimeBizReport": "Report",
+    "retimeBizSettlement": "Settlement",
+    "retimeBizInvoice": "Invoice",
+    "retimeBizPayment": "Payment",
+    "retimeKey": "Doc No. / ID",
+    "retimeKeyRequired": "Please enter a document no. or ID",
+    "retimeKeyPlaceholder": "Record ID for approvals, otherwise the doc no. (e.g. BG…/HK…)",
+    "retimeField": "Field",
+    "retimeNewValue": "New Time",
+    "retimeNewPlaceholder": "Pick new time (local)",
+    "retimeNewRequired": "Please pick a new time",
+    "retimeReason": "Reason",
+    "retimeReasonRequired": "Reason is required (audit trail)",
+    "retimePickFirst": "Look up a record first"
   }
 }

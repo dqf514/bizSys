@@ -1,6 +1,7 @@
 """数据维护入参。"""
 
 import re
+from datetime import datetime
 
 from pydantic import Field, field_validator
 
@@ -30,3 +31,22 @@ class PurgeIn(CamelModel):
     password: str = Field(..., min_length=1, max_length=128)
     confirm: str = Field(..., min_length=1, max_length=32)
     force_backup_skip: bool = False
+
+
+class RetimeIn(CamelModel):
+    """记录时间修正：biz_type 白名单内的单据时间字段改值，原因必填（留痕审计）。"""
+
+    biz_type: str = Field(..., min_length=1, max_length=32)
+    id: int = Field(..., ge=1)
+    field: str = Field(..., min_length=1, max_length=32)
+    value: str = Field(..., min_length=1, max_length=32)
+    reason: str = Field(..., min_length=1, max_length=255)
+
+    @field_validator("value")
+    @classmethod
+    def _check_value(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise ValueError("时间格式须为 YYYY-MM-DD HH:MM:SS（服务器本地时区）") from None
+        return v
