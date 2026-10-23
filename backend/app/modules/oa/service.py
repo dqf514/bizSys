@@ -10,13 +10,18 @@ from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithd
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
+from app.modules.admin.models import Dept
 from app.modules.approval import engine
 from app.modules.approval import service as approval_svc
 from app.modules.approval.graph import parse_json
 from app.modules.approval.models import ApprovalCc, ApprovalDefinition, ApprovalInstance, ApprovalRecord, ApprovalTask
 from app.modules.auth.models import User
+from app.modules.contract.models import Contract
+from app.modules.crm.models import Customer
 from app.modules.oa.models import OaForm, OaInstance
-from app.modules.oa.schemas import EXPOSABLE_TYPES, OPTION_TYPES, FormFieldIn
+from app.modules.oa.schemas import EXPOSABLE_TYPES, LAYOUT_TYPES, OPTION_TYPES, ConditionGroup, FormFieldIn
+from app.modules.report.models import Report
+from app.modules.task.models import Task
 from app.services.numbering import next_no
 
 # ---------------- 表单 schema / 数据校验 ----------------
@@ -26,15 +31,34 @@ def validate_fields(fields: list[FormFieldIn]) -> None:
     """发布前校验字段定义（非法 → 62002）。"""
     errors: list[str] = []
     keys: set[str] = set()
+    known_keys = {f.key for f in fields if f.key}
     for f in fields:
         label = f.label or f.key
+        if f.type in LAYOUT_TYPES:
+            continue  # 布局控件不占数据位
         if f.key in keys:
             errors.append(f"字段 key 重复：{f.key}")
         keys.add(f.key)
-        if f.type in OPTION_TYPES and not f.options:
+        if f.type in OPTION_TYPES and f.options_source == "manual" and not f.options and not f.cascade:
             errors.append(f"字段「{label}」需要配置选项")
+        if f.type in OPTION_TYPES and f.options_source == "dict" and not f.dict_type:
+            errors.append(f"字段「{label}」使用字典数据源但未配置字典类型")
         if f.expose_variable and f.type not in EXPOSABLE_TYPES:
             errors.append(f"字段「{label}」类型 {f.type} 不能作为流程变量")
+        if f.cascade:
+            parent = (f.cascade.get("parent") or "") if isinstance(f.cascade, dict) else ""
+            if parent not in known_keys:
+                errors.append(f"字段「{label}」级联父控件不存在：{parent or '未配置'}")
+        if f.type == "resource":
+            if not f.resource:
+                errors.append(f"字段「{label}」未配置资源类型")
+            for m in f.mappings:
+                if m.to not in known_keys or m.to == f.key:
+                    errors.append(f"字段「{label}」带出目标控件不存在：{m.to}")
+        for group, gname in ((f.show_when, "显示"), (f.required_when, "必填"), (f.readonly_when, "只读")):
+            for r in (group.rules if group else []):
+                if r.field not in known_keys:
+                    errors.append(f"字段「{label}」{gname}条件引用控件不存在：{r.field}")
     if not fields:
         errors.append("至少需要一个字段")
     if errors:
@@ -52,10 +76,90 @@ def _parse_date(v: str) -> date | None:
         return None
 
 
-def _validate_value(f: FormFieldIn, v, errors: list[str]) -> None:
+# ---------------- 条件逻辑求值（与前端 formLogic 语义一致） ----------------
+
+
+def _num(v) -> float | None:
+    if isinstance(v, bool):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _eval_rule(rule, data: dict) -> bool:
+    actual = data.get(rule.field)
+    if rule.op == "empty":
+        return _is_empty(actual)
+    if rule.op == "not_empty":
+        return not _is_empty(actual)
+    if _is_empty(actual):
+        return False
+    if rule.op in ("gt", "gte", "lt", "lte"):
+        a, b = _num(actual), _num(rule.value)
+        if a is None or b is None:
+            return False
+        return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b}[rule.op]
+    if isinstance(actual, (list, tuple)):
+        # checkbox 多选：eq=包含任一值，ne=不含该值
+        values = [str(x) for x in actual]
+        if rule.op == "eq":
+            return rule.value in values
+        if rule.op == "ne":
+            return rule.value not in values
+        if rule.op == "contains":
+            return rule.value in values
+        return False
+    s = str(actual)
+    if rule.op == "eq":
+        return s == rule.value
+    if rule.op == "ne":
+        return s != rule.value
+    if rule.op == "contains":
+        return rule.value in s
+    return False
+
+
+def eval_condition(group: ConditionGroup | None, data: dict) -> bool:
+    """条件组求值：无规则视为恒真（未配置条件）。"""
+    if not group or not group.rules:
+        return True
+    results = [_eval_rule(r, data) for r in group.rules]
+    return all(results) if group.logic == "and" else any(results)
+
+
+def _visible(f: FormFieldIn, data: dict) -> bool:
+    """showWhen 不满足 → 隐藏，提交时跳过校验。"""
+    return eval_condition(f.show_when, data)
+
+
+def _effective_required(f: FormFieldIn, data: dict) -> bool:
+    if f.required:
+        return True
+    if f.required_when and f.required_when.rules:
+        return eval_condition(f.required_when, data)
+    return False
+
+
+def _allowed_options(f: FormFieldIn, data: dict) -> list[str] | None:
+    """当前可选选项（str 列表）；None = 不做成员校验（字典源选项由字典维护）。"""
+    if f.options_source == "dict":
+        return None
+    if isinstance(f.cascade, dict):
+        parent_val = data.get(f.cascade.get("parent") or "")
+        mapping = f.cascade.get("map") or {}
+        key = "" if parent_val is None else str(parent_val)
+        allowed = mapping.get(key)
+        if isinstance(allowed, list):
+            return [str(o) for o in allowed]
+    return [str(o) for o in f.options]
+
+
+def _validate_value(f: FormFieldIn, v, errors: list[str], data: dict) -> None:
     label = f.label or f.key
     if _is_empty(v):
-        if f.required:
+        if _effective_required(f, data):
             errors.append(f"{label} 为必填项")
         return
     if f.type in ("text", "textarea"):
@@ -79,10 +183,12 @@ def _validate_value(f: FormFieldIn, v, errors: list[str]) -> None:
             elif start > end:
                 errors.append(f"{label} 结束日期不能早于开始日期")
     elif f.type in ("select", "radio"):
-        if str(v) not in [str(o) for o in f.options]:
+        allowed = _allowed_options(f, data)
+        if allowed is not None and str(v) not in allowed:
             errors.append(f"{label} 选项非法")
     elif f.type == "checkbox":
-        if not isinstance(v, list) or any(str(x) not in [str(o) for o in f.options] for x in v):
+        allowed = _allowed_options(f, data)
+        if not isinstance(v, list) or (allowed is not None and any(str(x) not in allowed for x in v)):
             errors.append(f"{label} 选项非法")
     elif f.type == "file":
         if not isinstance(v, list) or any(not isinstance(x, str) or not x for x in v):
@@ -90,13 +196,27 @@ def _validate_value(f: FormFieldIn, v, errors: list[str]) -> None:
     elif f.type == "user":
         if isinstance(v, bool) or not isinstance(v, int):
             errors.append(f"{label} 应为人员 ID")
+    elif f.type == "resource":
+        rid = v.get("id") if isinstance(v, dict) else None
+        if (
+            not isinstance(v, dict)
+            or isinstance(rid, bool)
+            or not isinstance(rid, int)
+            or not isinstance(v.get("name"), str)
+        ):
+            errors.append(f"{label} 应为资源对象（id + name）")
 
 
 def validate_data(fields: list[FormFieldIn], data: dict) -> None:
-    """提交数据校验（非法 → 62003）；schema 之外的键忽略。"""
+    """提交数据校验（非法 → 62003）；schema 之外的键忽略；布局控件与条件隐藏字段跳过。"""
     errors: list[str] = []
+    data = data or {}
     for f in fields:
-        _validate_value(f, (data or {}).get(f.key), errors)
+        if f.type in LAYOUT_TYPES or not f.key:
+            continue
+        if not _visible(f, data):
+            continue
+        _validate_value(f, data.get(f.key), errors, data)
     if errors:
         raise BizException(R.OA_DATA_INVALID, "；".join(errors))
 
@@ -109,11 +229,20 @@ def fields_of(form: OaForm) -> list[FormFieldIn]:
     return [FormFieldIn.model_validate(x) for x in schema_of(form).get("fields") or []]
 
 
+def normalized_fields(form: OaForm) -> list[dict]:
+    """统一输出 camelCase：种子/历史存量是 snake_case（FormFieldIn 双向兼容），前端只认 camel。"""
+    return [f.model_dump(by_alias=True) for f in fields_of(form)]
+
+
 # ---------------- 发起 / 直通 ----------------
 
 
 def _exposed_variables(fields: list[FormFieldIn], data: dict) -> dict:
-    return {f.key: data.get(f.key) for f in fields if f.expose_variable and not _is_empty(data.get(f.key))}
+    return {
+        f.key: data.get(f.key)
+        for f in fields
+        if f.key and f.expose_variable and _visible(f, data or {}) and not _is_empty(data.get(f.key))
+    }
 
 
 def _form_payload(form: OaForm, with_schema: bool = True) -> dict:
@@ -128,7 +257,7 @@ def _form_payload(form: OaForm, with_schema: bool = True) -> dict:
         "sort": form.sort,
         "description": form.description,
         "flowDefinitionId": form.flow_definition_id,
-        "fields": schema_of(form).get("fields") or [] if with_schema else None,
+        "fields": normalized_fields(form) if with_schema else None,
         "publishedAt": form.published_at.strftime("%Y-%m-%d %H:%M:%S") if form.published_at else "",
         "createTime": form.create_time.strftime("%Y-%m-%d %H:%M:%S") if form.create_time else "",
     }
@@ -329,7 +458,7 @@ def instance_detail(db: Session, inst: OaInstance, user: User) -> dict:
     if not _can_view(db, inst, user):
         raise BizException(R.AUTH_FORBIDDEN, http_status=403)
     data = instance_item(db, inst)
-    data["schema"] = schema_of(inst)
+    data["schema"] = {"fields": normalized_fields(inst)}
     data["formData"] = parse_json(inst.form_data, {})
     data["timeline"] = (
         approval_svc.instance_timeline(db, inst.flow_instance_id)["records"] if inst.flow_instance_id else []
@@ -398,6 +527,273 @@ def stats(db: Session, with_backlog: bool = False) -> dict:
             slot["pendingTasks"] += todo_by_flow.get(r.flow_instance_id or 0, 0)
         result["backlog"] = sorted(backlog.values(), key=lambda x: -x["instances"])
     return result
+
+
+# ---------------- 资源控件：全站数据检索（OA 填写人只读） ----------------
+
+# (资源类型, 展示名, 可带出字段 [(key, 标签)])
+RESOURCE_DEFS: list[tuple[str, str, list[tuple[str, str]]]] = [
+    (
+        "customer",
+        "客户",
+        [
+            ("customerNo", "客户编号"),
+            ("name", "客户名称"),
+            ("customerType", "客户类型"),
+            ("grade", "客户等级"),
+            ("taxNo", "纳税识别号"),
+            ("contactPerson", "联系人"),
+            ("contactPhone", "联系电话"),
+            ("address", "地址"),
+        ],
+    ),
+    (
+        "contract",
+        "合同",
+        [
+            ("contractNo", "合同编号"),
+            ("name", "合同名称"),
+            ("customerName", "客户名称"),
+            ("amount", "合同金额"),
+            ("contractType", "合同类型"),
+            ("status", "状态"),
+        ],
+    ),
+    (
+        "task",
+        "检测任务",
+        [
+            ("taskNo", "任务编号"),
+            ("taskName", "任务名称"),
+            ("customerName", "客户名称"),
+            ("contractNo", "合同编号"),
+            ("status", "状态"),
+        ],
+    ),
+    (
+        "report",
+        "报告",
+        [("reportNo", "报告编号"), ("fileName", "文件名"), ("status", "状态")],
+    ),
+    ("dept", "部门", [("name", "部门名称"), ("code", "部门编码")]),
+    (
+        "user",
+        "用户",
+        [("name", "姓名"), ("username", "登录名"), ("deptName", "部门"), ("mobile", "手机"), ("email", "邮箱")],
+    ),
+    (
+        "oa_instance",
+        "OA 申请单",
+        [
+            ("displayNo", "申请编号"),
+            ("formName", "表单"),
+            ("applicantName", "申请人"),
+            ("status", "状态"),
+            ("createTime", "申请时间"),
+        ],
+    ),
+]
+
+
+def resource_meta() -> list[dict]:
+    """资源类型 + 可带出字段清单（供设计器配置 mappings）。"""
+    return [
+        {"type": t, "label": label, "fields": [{"key": k, "label": lab} for k, lab in fields]}
+        for t, label, fields in RESOURCE_DEFS
+    ]
+
+
+def _paged(db: Session, stmt, page: int, size: int):
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    rows = db.scalars(stmt.offset((page - 1) * size).limit(size)).all()
+    return rows, total
+
+
+def _search_customer(db: Session, q: str, page: int, size: int) -> dict:
+    stmt = select(Customer).where(Customer.deleted == 0)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Customer.name.like(like) | Customer.customer_no.like(like) | Customer.tax_no.like(like))
+    rows, total = _paged(db, stmt.order_by(Customer.id.desc()), page, size)
+    items = [
+        {
+            "id": c.id,
+            "label": c.name,
+            "sub": c.customer_no,
+            "fields": {
+                "customerNo": c.customer_no,
+                "name": c.name,
+                "customerType": c.customer_type,
+                "grade": c.grade,
+                "taxNo": c.tax_no,
+                "contactPerson": c.contact_person or "",
+                "contactPhone": c.contact_phone or "",
+                "address": c.address,
+            },
+        }
+        for c in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_contract(db: Session, q: str, page: int, size: int) -> dict:
+    # 只列已通过的合同（可用状态）
+    stmt = select(Contract).where(Contract.deleted == 0, Contract.status == "approved")
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            Contract.name.like(like) | Contract.contract_no.like(like) | Contract.customer_name.like(like)
+        )
+    rows, total = _paged(db, stmt.order_by(Contract.id.desc()), page, size)
+    items = [
+        {
+            "id": c.id,
+            "label": c.name,
+            "sub": c.contract_no or "",
+            "fields": {
+                "contractNo": c.contract_no or "",
+                "name": c.name,
+                "customerName": c.customer_name,
+                "amount": float(c.amount) if c.amount is not None else None,
+                "contractType": c.contract_type,
+                "status": c.status,
+            },
+        }
+        for c in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_task(db: Session, q: str, page: int, size: int) -> dict:
+    stmt = select(Task).where(Task.deleted == 0)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Task.task_name.like(like) | Task.task_no.like(like) | Task.customer_name.like(like))
+    rows, total = _paged(db, stmt.order_by(Task.id.desc()), page, size)
+    items = [
+        {
+            "id": t.id,
+            "label": t.task_name,
+            "sub": t.task_no or "",
+            "fields": {
+                "taskNo": t.task_no or "",
+                "taskName": t.task_name,
+                "customerName": t.customer_name,
+                "contractNo": t.contract_no,
+                "status": t.status,
+            },
+        }
+        for t in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_report(db: Session, q: str, page: int, size: int) -> dict:
+    stmt = select(Report).where(Report.deleted == 0)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Report.report_no.like(like) | Report.file_name.like(like))
+    rows, total = _paged(db, stmt.order_by(Report.id.desc()), page, size)
+    items = [
+        {
+            "id": r.id,
+            "label": r.report_no,
+            "sub": r.file_name,
+            "fields": {"reportNo": r.report_no, "fileName": r.file_name, "status": r.status},
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_dept(db: Session, q: str, page: int, size: int) -> dict:
+    stmt = select(Dept).where(Dept.deleted == 0, Dept.status == "enabled")
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Dept.name.like(like) | Dept.code.like(like))
+    rows, total = _paged(db, stmt.order_by(Dept.sort, Dept.id), page, size)
+    items = [
+        {"id": d.id, "label": d.name, "sub": d.code, "fields": {"name": d.name, "code": d.code}} for d in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_user(db: Session, q: str, page: int, size: int) -> dict:
+    stmt = select(User).where(User.deleted == 0, User.status == "enabled")
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(User.name.like(like) | User.username.like(like))
+    rows, total = _paged(db, stmt.order_by(User.id), page, size)
+    items = [
+        {
+            "id": u.id,
+            "label": u.name or u.username,
+            "sub": u.dept_name,
+            "fields": {
+                "name": u.name,
+                "username": u.username,
+                "deptName": u.dept_name,
+                "mobile": u.mobile,
+                "email": u.email,
+            },
+        }
+        for u in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def _search_oa_instance(db: Session, user: User, q: str, page: int, size: int) -> dict:
+    """只列本人可见的申请单：申请人 / 有待办 / 有已办 / 被抄送。"""
+    visible_flow_ids = select(ApprovalTask.instance_id).where(
+        ApprovalTask.assignee_id == user.id, ApprovalTask.deleted == 0
+    ).union(
+        select(ApprovalCc.instance_id).where(ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0),
+        select(ApprovalRecord.instance_id).where(ApprovalRecord.operator_id == user.id, ApprovalRecord.deleted == 0),
+    )
+    stmt = select(OaInstance).where(
+        OaInstance.deleted == 0,
+        (OaInstance.applicant_id == user.id) | (OaInstance.flow_instance_id.in_(visible_flow_ids)),
+    )
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(OaInstance.display_no.like(like) | OaInstance.form_name.like(like))
+    rows, total = _paged(db, stmt.order_by(OaInstance.id.desc()), page, size)
+    items = [
+        {
+            "id": i.id,
+            "label": i.display_no,
+            "sub": i.form_name,
+            "fields": {
+                "displayNo": i.display_no,
+                "formName": i.form_name,
+                "applicantName": i.applicant_name,
+                "status": i.status,
+                "createTime": _fmt(i.create_time),
+            },
+        }
+        for i in rows
+    ]
+    return {"items": items, "total": total}
+
+
+def search_resource(db: Session, rtype: str, user: User, q: str, page: int, size: int) -> dict:
+    """资源控件通用检索；返回 {items: [{id, label, sub, fields}], total}。"""
+    q = q.strip()
+    if rtype == "customer":
+        return _search_customer(db, q, page, size)
+    if rtype == "contract":
+        return _search_contract(db, q, page, size)
+    if rtype == "task":
+        return _search_task(db, q, page, size)
+    if rtype == "report":
+        return _search_report(db, q, page, size)
+    if rtype == "dept":
+        return _search_dept(db, q, page, size)
+    if rtype == "user":
+        return _search_user(db, q, page, size)
+    if rtype == "oa_instance":
+        return _search_oa_instance(db, user, q, page, size)
+    raise BizException(R.GENERIC_PARAM, f"未知资源类型：{rtype}")
 
 
 # ---------------- 管理端：表单 CRUD / 发布 ----------------
@@ -479,7 +875,7 @@ def create_form(db: Session, body, user: User) -> dict:
         icon=body.icon,
         sort=body.sort,
         description=body.description,
-        schema_json=json.dumps({"fields": [f.model_dump() for f in body.fields]}, ensure_ascii=False),
+        schema_json=json.dumps({"fields": [f.model_dump(by_alias=True) for f in body.fields]}, ensure_ascii=False),
         flow_definition_id=body.flow_definition_id,
         status="draft",
         create_by=user.id,
@@ -505,7 +901,7 @@ def update_form(db: Session, form_id: int, body, user: User) -> dict:
     form.icon = body.icon
     form.sort = body.sort
     form.description = body.description
-    form.schema_json = json.dumps({"fields": [f.model_dump() for f in body.fields]}, ensure_ascii=False)
+    form.schema_json = json.dumps({"fields": [f.model_dump(by_alias=True) for f in body.fields]}, ensure_ascii=False)
     form.flow_definition_id = body.flow_definition_id
     form.update_by = user.id
     db.flush()

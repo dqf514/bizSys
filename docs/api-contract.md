@@ -94,6 +94,19 @@
 
 ## OA /oa
 - `GET /oa/instances/my?status=&page&size`（oa:my）· `GET /oa/instances/my/export?status=`（xlsx 流，沿用 oa:my）
+- 资源控件检索（oa:apply，OA 填写人只读）：
+  - `GET /oa/resources/meta` → `[{type,label,fields:[{key,label}]}]`
+    （type ∈ customer/contract/task/report/dept/user/oa_instance；fields 为可带出字段清单，设计器配 mappings 用）
+  - `GET /oa/resources/{rtype}?q&page&size` → `{items:[{id,label,sub,fields:{...}}],total}`
+    合同只列 status=approved；oa_instance 只列本人可见（申请人/有待办/已办/被抄送）；dept/user 只列 enabled
+- 表单字段 schema 扩展（全部可选，存量兼容；提交时服务端同语义校验）：
+  - 条件逻辑：`showWhen/requiredWhen/readonlyWhen` = `{logic:"and|or",rules:[{field,op,value}]}`，
+    op ∈ eq/ne/gt/gte/lt/lte/contains/empty/not_empty；showWhen 不满足 → 隐藏且服务端跳过校验
+  - 控件联动：`cascade:{parent,map:{父值:[可选选项]}}`（父值不在 map 回退全选项）；
+    `optionsSource:"manual|dict"` + `dictType`（字典源不做选项成员校验）
+  - 资源控件：`type:"resource"` + `resource` + `mappings:[{from,to}]`，值形状 `{id:int,name:str}`，选中后按 mappings 带出
+  - 布局控件 `divider`/`text_block`（key 允许为空、不占数据位）；`span`(12/24)、`description`、`defaultValue`
+  - schema_json 读写统一 camelCase（历史 snake_case 存量读取时归一化）
 
 ## 任务 /task
 - 状态机（2026-10 精简）：`draft 创建待提交 → in_progress 分配执行中 → finished 已完成 → settled 已结算`，

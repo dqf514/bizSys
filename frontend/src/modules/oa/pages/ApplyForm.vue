@@ -55,7 +55,14 @@ const submitting = ref(false)
 
 function openApply(form: OaForm) {
   currentForm.value = form
-  formData.value = {}
+  // 应用字段默认值（checkbox/daterange 等数组型浅拷贝防串改）
+  const data: Record<string, unknown> = {}
+  for (const f of form.fields ?? []) {
+    if (f.key && f.defaultValue !== undefined && f.defaultValue !== null && f.defaultValue !== '') {
+      data[f.key] = Array.isArray(f.defaultValue) ? [...f.defaultValue] : f.defaultValue
+    }
+  }
+  formData.value = data
   dialogVisible.value = true
 }
 

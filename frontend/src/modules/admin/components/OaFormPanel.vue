@@ -128,7 +128,19 @@ function validateForm(): string | null {
     if (!/^[a-z][a-z0-9_]*$/.test(f.key) || keys.has(f.key)) return `${t('oa.design.fieldKey')}: ${f.key}`
     keys.add(f.key)
     if (!f.label.trim()) return `${t('oa.design.fieldLabel')}: ${f.key}`
-    if (OPTION_TYPES.includes(f.type) && !f.options?.length) return `${t('oa.design.options')}: ${f.key}`
+    // 手工选项且未配级联时才强制要求选项；字典源需 dictType
+    if (
+      OPTION_TYPES.includes(f.type) &&
+      (f.optionsSource ?? 'manual') === 'manual' &&
+      !f.options?.length &&
+      !f.cascade
+    ) {
+      return `${t('oa.design.options')}: ${f.key}`
+    }
+    if (OPTION_TYPES.includes(f.type) && f.optionsSource === 'dict' && !f.dictType?.trim()) {
+      return `${t('oa.design.dictType')}: ${f.key}`
+    }
+    if (f.type === 'resource' && !f.resource) return `${t('oa.design.resourceType')}: ${f.key}`
   }
   return null
 }
@@ -156,6 +168,17 @@ async function save() {
       placeholder: f.placeholder || undefined,
       maxlength: f.maxlength || undefined,
       exposeVariable: Boolean(f.exposeVariable),
+      span: f.span ?? undefined,
+      description: f.description || undefined,
+      defaultValue: f.defaultValue ?? undefined,
+      showWhen: f.showWhen ?? undefined,
+      requiredWhen: f.requiredWhen ?? undefined,
+      readonlyWhen: f.readonlyWhen ?? undefined,
+      optionsSource: OPTION_TYPES.includes(f.type) ? (f.optionsSource ?? 'manual') : undefined,
+      dictType: f.dictType || undefined,
+      cascade: f.cascade ?? undefined,
+      resource: f.type === 'resource' ? f.resource || undefined : undefined,
+      mappings: f.type === 'resource' && f.mappings?.length ? f.mappings : undefined,
     })),
   }
   saving.value = true

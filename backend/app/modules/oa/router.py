@@ -59,6 +59,25 @@ def catalog(current: User = Depends(require_perm("oa:apply")), db: Session = Dep
     return svc.catalog(db)
 
 
+@router.get("/resources/meta")
+def resource_meta(current: User = Depends(require_perm("oa:apply"))):
+    """资源控件元数据：资源类型 + 可带出字段清单（设计器配置 mappings 用）。"""
+    return svc.resource_meta()
+
+
+@router.get("/resources/{rtype}")
+def search_resources(
+    rtype: str,
+    q: str = Query(""),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current: User = Depends(require_perm("oa:apply")),
+    db: Session = Depends(get_db),
+):
+    """全站资源通用检索（OA 填写人只读）：customer/contract/task/report/dept/user/oa_instance。"""
+    return svc.search_resource(db, rtype, current, q, page, size)
+
+
 @router.post("/instances", status_code=201)
 def apply(body: S.ApplyIn, current: User = Depends(require_perm("oa:apply")), db: Session = Depends(get_db)):
     inst = svc.apply(db, body.form_id, current, body.data)

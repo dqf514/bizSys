@@ -7,6 +7,9 @@ import type {
   OaForm,
   OaInstanceDetail,
   OaInstanceItem,
+  OaResourceItem,
+  OaResourceMeta,
+  OaResourceType,
   OaStats,
   PageResult,
 } from './types'
@@ -15,6 +18,20 @@ import type {
 
 export function listOaCatalog() {
   return request<OaCatalogGroup[]>({ url: '/oa/catalog', method: 'get' })
+}
+
+/* ---------- 资源控件检索 ---------- */
+
+export function listOaResourceMeta() {
+  return request<OaResourceMeta[]>({ url: '/oa/resources/meta', method: 'get' })
+}
+
+export function searchOaResources(rtype: OaResourceType, params: { q?: string; page?: number; size?: number }) {
+  return request<PageResult<OaResourceItem>>({
+    url: `/oa/resources/${rtype}`,
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
 }
 
 export function applyOa(formId: number, data: Record<string, unknown>) {

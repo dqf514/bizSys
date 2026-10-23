@@ -691,6 +691,43 @@ export type OaFieldType =
   | 'checkbox'
   | 'file'
   | 'user'
+  | 'resource'
+  | 'divider'
+  | 'text_block'
+
+export type OaConditionOp = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'empty' | 'not_empty'
+
+export interface OaConditionRule {
+  field: string
+  op: OaConditionOp
+  value: string
+}
+
+export interface OaConditionGroup {
+  logic: 'and' | 'or'
+  rules: OaConditionRule[]
+}
+
+export type OaResourceType = 'customer' | 'contract' | 'task' | 'report' | 'dept' | 'user' | 'oa_instance'
+
+export interface OaFieldMapping {
+  /** 资源字段 key（来自 /oa/resources/meta 的 fields） */
+  from: string
+  /** 本表单控件 key */
+  to: string
+}
+
+export interface OaCascade {
+  /** 父控件 key */
+  parent: string
+  /** 父值 → 可选选项 */
+  map: Record<string, string[]>
+}
+
+export interface OaResourceValue {
+  id: number
+  name: string
+}
 
 export interface OaField {
   key: string
@@ -701,6 +738,36 @@ export interface OaField {
   placeholder?: string
   maxlength?: number | null
   exposeVariable?: boolean
+  /** 栅格宽度：12=半行 / 24=整行（默认整行） */
+  span?: 12 | 24 | null
+  description?: string
+  defaultValue?: unknown
+  /** 条件显示：不满足则隐藏（提交时忽略） */
+  showWhen?: OaConditionGroup | null
+  /** 条件必填：满足时按必填校验 */
+  requiredWhen?: OaConditionGroup | null
+  /** 条件只读：满足时禁用编辑（前端约束） */
+  readonlyWhen?: OaConditionGroup | null
+  optionsSource?: 'manual' | 'dict'
+  dictType?: string
+  cascade?: OaCascade | null
+  /** type=resource 时的资源类型 */
+  resource?: OaResourceType | ''
+  /** 资源选中后的带出字段映射 */
+  mappings?: OaFieldMapping[]
+}
+
+export interface OaResourceMeta {
+  type: OaResourceType
+  label: string
+  fields: { key: string; label: string }[]
+}
+
+export interface OaResourceItem {
+  id: number
+  label: string
+  sub: string
+  fields: Record<string, unknown>
 }
 
 export type OaFormStatus = 'draft' | 'published' | 'disabled'
