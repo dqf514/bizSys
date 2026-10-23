@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record
-from app.common.pagination import PageParams
+from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
@@ -69,7 +69,7 @@ def resource_meta(current: User = Depends(require_perm("oa:apply"))):
 def search_resources(
     rtype: str,
     q: str = Query(""),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=100),
     current: User = Depends(require_perm("oa:apply")),
     db: Session = Depends(get_db),
@@ -97,7 +97,7 @@ def apply(body: S.ApplyIn, current: User = Depends(require_perm("oa:apply")), db
 @router.get("/instances/my")
 def my_instances(
     status: str = Query(""),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:my")),
     db: Session = Depends(get_db),
@@ -140,7 +140,7 @@ def export_my_instances(
 @router.get("/related")
 def related(
     tab: str = Query("todo", pattern="^(todo|done|cc)$"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:related")),
     db: Session = Depends(get_db),
@@ -293,7 +293,7 @@ def admin_instances(
     status: str = Query(""),
     keyword: str = Query(""),
     stuck_days: int = Query(0, ge=0, alias="stuckDays"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:admin:handle")),
     db: Session = Depends(get_db),

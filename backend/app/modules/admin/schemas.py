@@ -39,6 +39,20 @@ class RoleIn(CamelModel):
     status: str = "enabled"
     remark: str = ""
 
+    @field_validator("data_scope")
+    @classmethod
+    def _scope_known(cls, v: str) -> str:
+        if v not in ("all", "dept", "self"):
+            raise ValueError(f"未知数据范围：{v}")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def _status_known(cls, v: str) -> str:
+        if v not in ("enabled", "disabled"):
+            raise ValueError(f"未知状态：{v}")
+        return v
+
 
 class RoleOut(BaseModel):
     id: int

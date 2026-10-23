@@ -11,7 +11,7 @@ import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
 import { Bottom, CopyDocument, Delete, Rank, Top } from '@element-plus/icons-vue'
 import type { OaField, OaResourceItem, OaResourceValue } from '@/api/types'
-import { listUsers } from '@/api/admin'
+import { userOptions as fetchUserOptions } from '@/api/admin'
 import { useDict } from '@/composables/useDict'
 import { isEmptyValue, isFieldReadonly, isFieldRequired, isFieldVisible } from '../formLogic'
 import ResourcePicker from './ResourcePicker.vue'
@@ -147,8 +147,9 @@ const hasUserField = computed(() => props.fields.some((f) => f.type === 'user'))
 onMounted(async () => {
   if (!hasUserField.value) return
   try {
-    const data = await listUsers({ page: 1, size: 200 })
-    userOptions.value = (data.items ?? []).map((u) => ({ id: u.id, name: u.name || u.username }))
+    // 轻量选人端点（登录可用）：OA 填写人通常无 admin:user:list
+    const data = await fetchUserOptions()
+    userOptions.value = (data ?? []).map((u) => ({ id: u.id, name: u.label }))
   } catch {
     userLoadFailed.value = true
   }

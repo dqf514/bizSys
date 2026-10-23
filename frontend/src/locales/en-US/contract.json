@@ -56,7 +56,8 @@
     "amountInvalid": "Invalid amount",
     "dateRangeRequired": "Please select date range",
     "uploadTip": "Drag & drop or click to upload",
-    "frameworkNoPlaceholder": "Pick an approved framework contract of this customer (searchable)"
+    "frameworkNoPlaceholder": "Pick an approved framework contract of this customer (searchable)",
+    "endBeforeStart": "End date cannot be earlier than start date"
   },
   "finance": {
     "contractAmount": "Contract Amount",

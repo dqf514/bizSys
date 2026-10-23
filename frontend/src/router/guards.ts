@@ -65,12 +65,22 @@ export function setupGuards(router: Router) {
     return true
   })
 
+  // 未匹配到任何路由：路径在菜单全集里 → 403（无权限）；否则 → 404
+  router.beforeEach((to) => {
+    if (to.name !== 'NotFound') return true
+    const auth = useAuthStore()
+    if (auth.loaded && auth.allMenuPaths.includes(to.path)) {
+      return { name: 'Forbidden', query: { path: to.fullPath }, replace: true }
+    }
+    return true
+  })
+
   router.afterEach((to) => {
     // 导航成功即清除该路径的自动刷新标记，下次发版仍可自愈
     sessionStorage.removeItem(`bs.chunkReload:${to.fullPath}`)
     if (to.path.startsWith('/login')) return
-    // redirect / NotFound are transient — never open tabs for them
-    if (to.meta?.tabless || to.name === 'NotFound') return
+    // redirect / NotFound / Forbidden are transient — never open tabs for them
+    if (to.meta?.tabless || to.name === 'NotFound' || to.name === 'Forbidden') return
     const tabs = useTabsStore()
     tabs.openFromRoute(to)
   })

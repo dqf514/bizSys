@@ -136,7 +136,24 @@
     "all": "All",
     "pending": "Pending",
     "done": "Done",
-    "initiated": "Initiated"
+    "initiated": "Initiated",
+    "running": "Running",
+    "withdrawn": "Withdrawn",
+    "in_progress": "In Progress",
+    "finished": "Finished",
+    "stopped": "Stopped",
+    "sealed": "Sealed",
+    "uploaded": "Uploaded",
+    "invoicing": "Invoicing",
+    "invoiced": "Invoiced",
+    "paid": "Paid",
+    "settled": "Settled",
+    "published": "Published",
+    "transferred": "Transferred",
+    "terminated": "Terminated",
+    "confirmed": "Confirmed",
+    "cancelled": "Cancelled",
+    "agreed": "Agreed"
   },
   "theme": {
     "light": "Light",
@@ -188,5 +205,12 @@
     "item": "",
     "record": "",
     "count": ""
+  },
+  "error": {
+    "notFoundTitle": "Page Not Found",
+    "notFoundDesc": "The address you visited does not exist or has been removed",
+    "forbiddenTitle": "No Permission",
+    "forbiddenDesc": "You do not have permission to view this page. Contact an administrator if you need access.",
+    "backToWorkbench": "Back to Workbench"
   }
 }

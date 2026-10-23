@@ -66,6 +66,15 @@
     "timelineTerminate": "Terminated",
     "timelineRestart": "Rolled back",
     "timelineAutoPass": "Auto passed",
-    "timelineFallback": "Resolution note"
+    "timelineFallback": "Resolution note",
+    "snapshotField": {
+      "taskId": "Task ID",
+      "taskItemId": "Task Item ID",
+      "displayNo": "Doc No.",
+      "formKey": "Form Key",
+      "formName": "Form Name",
+      "category": "Category",
+      "data": "Form Data"
+    }
   }
 }

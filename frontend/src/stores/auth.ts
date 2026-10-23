@@ -23,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserProfile | null>(null)
   const perms = ref<string[]>([])
   const menus = ref<MenuNode[]>([])
+  const allMenuPaths = ref<string[]>([])
   const loaded = ref(false)
 
   const isSuper = computed(() => (user.value?.roles ?? []).includes('super'))
@@ -77,6 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = profile
     perms.value = profile.perms ?? []
     menus.value = profile.menus ?? []
+    allMenuPaths.value = profile.allMenuPaths ?? []
     const theme = useThemeStore()
     theme.applyFromPrefs(profile.prefs)
     loaded.value = true
@@ -116,6 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     perms.value = []
     menus.value = []
+    allMenuPaths.value = []
     loaded.value = false
     // drop dynamic routes and tab state so the next session starts clean
     resetRoutes()
@@ -143,6 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     perms,
     menus,
+    allMenuPaths,
     loaded,
     isSuper,
     isLoggedIn,

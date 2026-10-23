@@ -3,7 +3,7 @@
 > 所有路由前缀 `/api/v1`。**统一响应信封**：`{"code":0,"message":"ok","data":...,"traceId":"..."}`。
 > `code=0` 成功；非 0 为业务错误（HTTP 状态码可能仍为 200/401/403/404/422/500）。
 > 鉴权：`Authorization: Bearer <access_token>`。
-> 分页：请求 `?page=1&size=20`，响应 `data = {items, total, page, size}`。
+> 分页：请求 `?page=1&size=20`（1 ≤ page ≤ 1e9，1 ≤ size ≤ 200，越界 422/10001），响应 `data = {items, total, page, size}`。
 > 检索：`q=关键词`（模糊）`status=xx`（状态页签，`all` 表示不过滤）
 >  `filters[字段]=值`（等值/逗号多值） `range[字段]=起|止` `sort=字段:asc|desc`。
 
@@ -15,9 +15,10 @@
 - `POST /auth/refresh` `{refresh_token}` → `{access_token,refresh_token,token_type,user}`（旋转：旧 refresh_token 立即吊销）
 - `POST /auth/logout`（可带 `{refresh_token}` 吊销）
 - `POST /auth/password` `{old_password,new_password}`（新密码至少 8 位；原密码错误 20004）
-- `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[]}`
+- `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[],allMenuPaths[]}`
   - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
   - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）
+  - allMenuPaths 为全量菜单路由路径（不过滤权限）：前端据此区分 404（路径不存在）与 403（无权限）
 - 企业微信扫码登录（免登录，凭据见系统设置；配置/联调步骤见 docs/wecom-setup.md）：
   - `GET /auth/wecom/qr-url?redirect_uri=` → `{url,state}`（state 存 Redis 10min 一次性，防 CSRF；未启用/未配置 90001）
   - `POST /auth/wecom/callback` `{code,state}` → 与 /auth/login 相同结构；错误码：20005 企微账号未绑定本地用户 / 20006 state 无效或已过期
@@ -28,7 +29,9 @@
   `POST /admin/users/export`（同检索参数，返回 xlsx 流）
 - `GET /admin/users/options?q=&limit=20` → `[{id,label,sub}]`（登录即可读：流程/通知选人用，仅 enabled 用户）
 - `GET /admin/roles` · `POST/PUT/DELETE /admin/roles[/{id}]` · `PUT /admin/roles/{id}/menus` `{menuIds[]}`
-- `GET /admin/menus/tree?include_buttons=` · `POST/PUT/DELETE /admin/menus[/{id}]`
+  （RoleIn 校验：dataScope ∈ all/dept/self，status ∈ enabled/disabled，非法值 422/10001）
+- `GET /admin/menus/tree?include_buttons=`（任一权限可读：admin:menu:list 或 admin:role:edit——角色授权弹窗共用此树）
+  · `POST/PUT/DELETE /admin/menus[/{id}]`
 - `GET /admin/dict/types`（含 items）· `GET /admin/dict/items?type=code` → `[{label,labelEn,value,extra}]`
   `POST /admin/dict/types` · `POST/PUT/DELETE /admin/dict/items[/{id}]`
   `GET /admin/dict/types/export`（平铺类型+字典项 xlsx，沿用 admin:dict:list）
@@ -66,6 +69,7 @@
 - `GET /contract/contracts` 分页：
   `{id,contractNo,name,customerId,customerName,contractType,subjectType,amount,startDate,endDate,payCycle,delivery,sealType,handlerId,handlerName,frameworkNo,paymentOrg,remark,status,flowInstanceId,attachments:[{id,fileName,size}],createTime,updateTime}`
 - `POST /contract/contracts` · `PUT /contract/contracts/{id}`（仅 draft/rejected）· `DELETE`（仅 draft → 逻辑删）
+  校验：amount 必须 >0 且 ≤ 999999999999.99（Numeric(14,2) 口径）；endDate 不得早于 startDate（违反 422/10001）
 - `POST /contract/contracts/{id}/submit` → 启动审批（创建 approval instance，状态→approving）
 - `POST /contract/contracts/{id}/void` → 作废（审批中需先撤回；已作废 50001）
 - `GET /contract/contracts/{id}` 详情（含附件、审批时间线可选）

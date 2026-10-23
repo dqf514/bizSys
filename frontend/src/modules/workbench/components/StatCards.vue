@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import WidgetShell from './WidgetShell.vue'
@@ -25,9 +25,29 @@ const stats = ref({
 })
 const loading = ref(false)
 
+interface CardDef {
+  key: keyof typeof stats.value
+  labelKey: string
+  path: string
+  color: string
+  /** 无该权限时不发卡也不请求，避免 403 toast */
+  perm?: string
+}
+
+const ALL_CARDS: CardDef[] = [
+  { key: 'approvalTodo', labelKey: 'workbench.card.approvalTodo', path: '/approval', color: 'var(--bs-color-semantic-warning)' },
+  { key: 'myTasks', labelKey: 'workbench.card.myTasks', path: '/task/tasks', color: 'var(--bs-color-primary)', perm: 'task:list' },
+  { key: 'contractApproving', labelKey: 'workbench.card.contractApproving', path: '/contract/contracts', color: 'var(--bs-color-semantic-info)', perm: 'contract:list' },
+  { key: 'customerTotal', labelKey: 'workbench.card.customerTotal', path: '/crm/customers', color: 'var(--bs-color-semantic-success)', perm: 'crm:customer:list' },
+  { key: 'taskTotal', labelKey: 'workbench.card.taskTotal', path: '/task/tasks', color: 'var(--bs-color-semantic-danger)', perm: 'task:list' },
+]
+
+const cards = computed(() => ALL_CARDS.filter((c) => !c.perm || auth.hasPerm(c.perm)))
+
 async function loadStats() {
   loading.value = true
-  const safe = async (fn: () => Promise<number>) => {
+  const safe = async (fn: () => Promise<number>, perm?: string) => {
+    if (perm && !auth.hasPerm(perm)) return 0
     try {
       return await fn()
     } catch {
@@ -42,15 +62,15 @@ async function loadStats() {
     safe(async () => {
       const d = await listTasks({ page: 1, size: 1, filters: { owner_id: auth.user?.id } })
       return d.total ?? 0
-    }),
+    }, 'task:list'),
     safe(async () => {
       const d = await listContracts({ page: 1, size: 1, status: 'approving' })
       return d.total ?? 0
-    }),
+    }, 'contract:list'),
     safe(async () => {
       const d = await listCustomers({ page: 1, size: 1, status: 'all' })
       return d.total ?? 0
-    }),
+    }, 'crm:customer:list'),
     safe(async () => {
       try {
         const c = await taskCounts()
@@ -60,7 +80,7 @@ async function loadStats() {
         const d = await listTasks({ page: 1, size: 1 })
         return d.total ?? 0
       }
-    }),
+    }, 'task:list'),
   ])
   stats.value = { approvalTodo, myTasks, contractApproving, customerTotal, taskTotal }
   loading.value = false
@@ -69,14 +89,6 @@ async function loadStats() {
 onMounted(() => {
   void loadStats()
 })
-
-const cards = [
-  { key: 'approvalTodo', labelKey: 'workbench.card.approvalTodo', path: '/approval', color: 'var(--bs-color-semantic-warning)' },
-  { key: 'myTasks', labelKey: 'workbench.card.myTasks', path: '/task/tasks', color: 'var(--bs-color-primary)' },
-  { key: 'contractApproving', labelKey: 'workbench.card.contractApproving', path: '/contract/contracts', color: 'var(--bs-color-semantic-info)' },
-  { key: 'customerTotal', labelKey: 'workbench.card.customerTotal', path: '/crm/customers', color: 'var(--bs-color-semantic-success)' },
-  { key: 'taskTotal', labelKey: 'workbench.card.taskTotal', path: '/task/tasks', color: 'var(--bs-color-semantic-danger)' },
-] as const
 </script>
 
 <template>

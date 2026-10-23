@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
-from app.common.pagination import PageParams
+from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.config import settings
 from app.core.db import get_db
@@ -147,7 +147,7 @@ def _filtered(db: Session, request: Request, page: PageParams):
 @router.get("/contracts")
 def list_contracts(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(require_perm("contract:list")),
     db: Session = Depends(get_db),

@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
+import StatusTag from '@/components/common/StatusTag.vue'
 import { clearDictCache } from '@/composables/useDict'
 import {
   dictTypes,
@@ -190,7 +191,11 @@ async function removeItem(row: DictItem) {
           <el-table-column :label="t('admin.dict.itemLabelEn')" prop="labelEn" min-width="120" />
           <el-table-column :label="t('admin.dict.itemValue')" prop="value" min-width="120" />
           <el-table-column :label="t('admin.dict.itemSort')" prop="sort" width="80" />
-          <el-table-column :label="t('admin.dict.itemStatus')" prop="status" width="90" />
+          <el-table-column :label="t('admin.dict.itemStatus')" prop="status" width="90">
+            <template #default="{ row }">
+              <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
+            </template>
+          </el-table-column>
           <el-table-column :label="t('admin.dict.itemExtra')" prop="extra" min-width="100" />
           <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
             <template #default="{ row }">

@@ -136,7 +136,24 @@
     "all": "全部",
     "pending": "待处理",
     "done": "已完成",
-    "initiated": "我发起"
+    "initiated": "我发起",
+    "running": "进行中",
+    "withdrawn": "已撤回",
+    "in_progress": "进行中",
+    "finished": "已完成",
+    "stopped": "已终止",
+    "sealed": "已盖章",
+    "uploaded": "已上传",
+    "invoicing": "开票中",
+    "invoiced": "已开票",
+    "paid": "已到账",
+    "settled": "已结算",
+    "published": "已发布",
+    "transferred": "已转办",
+    "terminated": "已终止",
+    "confirmed": "已确认",
+    "cancelled": "已取消",
+    "agreed": "已同意"
   },
   "theme": {
     "light": "亮色",
@@ -188,5 +205,12 @@
     "item": "条",
     "record": "条",
     "count": "个"
+  },
+  "error": {
+    "notFoundTitle": "页面不存在",
+    "notFoundDesc": "您访问的地址不存在或已被移除",
+    "forbiddenTitle": "没有访问权限",
+    "forbiddenDesc": "您没有访问该页面的权限，如需访问请联系管理员开通",
+    "backToWorkbench": "返回工作台"
   }
 }

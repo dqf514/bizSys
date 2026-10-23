@@ -26,6 +26,8 @@ interface WidgetMeta {
   component: Component
   /** grid columns out of 12 on wide screens */
   span: 6 | 12
+  /** 无该权限时整个 widget 隐藏（其接口必然 403） */
+  perm?: string
 }
 
 const WIDGET_META: WidgetMeta[] = [
@@ -34,8 +36,8 @@ const WIDGET_META: WidgetMeta[] = [
   { key: 'myInitiated', labelKey: 'workbench.widget.myInitiated', component: MyInitiatedCard, span: 6 },
   { key: 'ccInbox', labelKey: 'workbench.widget.ccInbox', component: CcInboxCard, span: 6 },
   { key: 'notify', labelKey: 'workbench.widget.notify', component: NotifyCard, span: 6 },
-  { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6 },
-  { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6 },
+  { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6, perm: 'task:list' },
+  { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6, perm: 'task:list' },
   { key: 'quickLinks', labelKey: 'workbench.widget.quickLinks', component: QuickLinks, span: 12 },
 ]
 
@@ -72,7 +74,16 @@ const visibleWidgets = computed(() =>
   widgets.value
     .filter((w) => w.visible)
     .map((w) => WIDGET_META.find((m) => m.key === w.key))
-    .filter((m): m is WidgetMeta => Boolean(m)),
+    .filter((m): m is WidgetMeta => Boolean(m))
+    .filter((m) => !m.perm || auth.hasPerm(m.perm)),
+)
+
+/** 自定义弹窗只列出当前用户有权使用的 widget */
+const customizableWidgets = computed(() =>
+  widgets.value.filter((w) => {
+    const meta = WIDGET_META.find((m) => m.key === w.key)
+    return meta && (!meta.perm || auth.hasPerm(meta.perm))
+  }),
 )
 
 function persist() {
@@ -84,7 +95,9 @@ function persist() {
 }
 
 function onCustomizeSave(next: DashboardWidgetPref[]) {
-  widgets.value = next
+  // 弹窗只包含有权 widget，保存时保留无权限 widget 的原有偏好
+  const shown = new Set(next.map((w) => w.key))
+  widgets.value = [...next, ...widgets.value.filter((w) => !shown.has(w.key))]
   persist()
 }
 
@@ -126,7 +139,7 @@ watch(
 
     <CustomizeDialog
       v-model="customizeVisible"
-      :widgets="widgets"
+      :widgets="customizableWidgets"
       :label-keys="WIDGET_LABEL_KEYS"
       @save="onCustomizeSave"
     />

@@ -145,6 +145,12 @@ const router = createRouter({
           component: () => import('@/modules/common/Redirect.vue'),
           meta: { tabless: true },
         },
+        {
+          path: '/403',
+          name: 'Forbidden',
+          component: () => import('@/modules/common/Forbidden.vue'),
+          meta: { tabless: true },
+        },
       ],
     },
     {

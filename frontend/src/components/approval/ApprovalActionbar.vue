@@ -9,7 +9,7 @@ import {
   addSignTask,
   withdrawInstance,
 } from '@/api/approval'
-import { listUsers } from '@/api/admin'
+import { userOptions as fetchUserOptions } from '@/api/admin'
 import type { ApprovalTask } from '@/api/types'
 
 const props = defineProps<{
@@ -35,8 +35,9 @@ const canAct = computed(() => props.canAct !== false)
 async function loadUsers() {
   if (userOptions.value.length) return
   try {
-    const data = await listUsers({ page: 1, size: 100 })
-    userOptions.value = (data.items ?? []).map((u) => ({ id: u.id, name: u.name || u.username }))
+    // 轻量选人端点（登录可用）：非管理员审批人也能转办/加签
+    const data = await fetchUserOptions()
+    userOptions.value = (data ?? []).map((u) => ({ id: u.id, name: u.label }))
   } catch {
     userOptions.value = []
   }

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record
-from app.common.pagination import PageParams
+from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
@@ -59,7 +59,7 @@ def _user_or_404(db: Session, user_id: int) -> User:
 @router.get("/tasks")
 def list_tasks(
     tab: str = Query("todo", pattern="^(todo|done|initiated)$"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -209,7 +209,7 @@ def withdraw(
 @router.get("/cc")
 def list_cc(
     unread: int = Query(0, ge=0, le=1),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

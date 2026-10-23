@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 MAX_PAGE_SIZE = 200
+# page 上限：防 OFFSET bigint 溢出（MySQL OFFSET 上限约 2^64-1，过大值直接 500）
+PAGE_MAX = 10**9
 
 
 class PageParams(BaseModel):
-    page: int = Field(1, ge=1)
+    page: int = Field(1, ge=1, le=PAGE_MAX)
     size: int = Field(20, ge=1, le=MAX_PAGE_SIZE)
 
 

@@ -63,3 +63,19 @@ def require_perm(code: str):
         raise BizException(R.AUTH_FORBIDDEN, f"缺少权限：{code}", http_status=403)
 
     return _checker
+
+
+def require_any_perm(*codes: str):
+    """任一权限点满足即可（如菜单树同时服务菜单管理与角色授权两个入口）。超管角色绕过。"""
+
+    def _checker(
+        user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        if SUPER_ROLE in user.role_codes:
+            return user
+        if any(code in user.perm_codes for code in codes):
+            return user
+        raise BizException(R.AUTH_FORBIDDEN, f"缺少权限：{'|'.join(codes)}", http_status=403)
+
+    return _checker

@@ -8,10 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
-from app.common.pagination import PageParams
+from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.db import get_db
-from app.core.deps import SUPER_ROLE, get_current_user, require_perm
+from app.core.deps import SUPER_ROLE, get_current_user, require_any_perm, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.core.security import hash_password
@@ -80,7 +80,7 @@ def user_options(
 @router.get("/users")
 def list_users(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(require_perm("admin:user:list")),
     db: Session = Depends(get_db),
@@ -260,7 +260,7 @@ def _role_out(db: Session, r: Role) -> dict:
 @router.get("/roles")
 def list_roles(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(50, ge=1, le=200),
     current: User = Depends(require_perm("admin:role:list")),
     db: Session = Depends(get_db),
@@ -349,7 +349,9 @@ def set_role_menus(
 @router.get("/menus/tree")
 def menus_tree(
     include_buttons: bool = False,
-    current: User = Depends(get_current_user),
+    # 全量菜单树：菜单管理（admin:menu:list）与角色授权弹窗（admin:role:edit）共用；
+    # 前端导航用 /auth/me 的 menu_tree_for_user，不走这里
+    current: User = Depends(require_any_perm("admin:menu:list", "admin:role:edit")),
     db: Session = Depends(get_db),
 ):
     return svc.menu_tree_all(db, include_buttons=include_buttons)
@@ -676,7 +678,7 @@ def reset_number_rule(
 @router.get("/audit-logs")
 def list_audit_logs(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("admin:audit:list")),
     db: Session = Depends(get_db),
@@ -948,7 +950,7 @@ def set_dept_members(
 @router.get("/notifies")
 def list_notifies(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=100),
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),

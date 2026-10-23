@@ -177,6 +177,9 @@ http.interceptors.response.use(
     const payload = error.response?.data as { message?: string } | undefined
     if (status === 404) {
       notify(payload?.message || i18n.global.t('common.message.loadFailed'))
+    } else if (status === 403) {
+      // 403 统一用友好文案，后端 message 里的权限码不外抛给用户
+      notify(i18n.global.t('common.message.noPermission'))
     } else if (payload?.message) {
       notify(payload.message)
     } else if (status === 0 || !error.response) {

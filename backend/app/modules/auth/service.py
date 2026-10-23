@@ -153,10 +153,11 @@ def _user_out(db: Session, user: User) -> dict:
 
 
 def me(db: Session, user: User) -> dict:
-    from app.modules.admin.service import menu_tree_for_user
+    from app.modules.admin.service import all_menu_paths, menu_tree_for_user
 
     data = _user_out(db, user)
     data["menus"] = menu_tree_for_user(db, user)
+    data["allMenuPaths"] = all_menu_paths(db)
     return data
 
 

@@ -160,8 +160,21 @@ async function openDetail(row: Row) {
   }
 }
 
-/** snake_case / camelCase 字段名转可读标签 */
+/** 快照字段名 → i18n 标签：先查各模块既有键，未命中再机械转可读英文 */
+const SNAPSHOT_LABEL_PREFIXES = [
+  'approval.approval.snapshotField',
+  'contract.contract',
+  'task.task',
+  'report.report',
+  'finance.settlement',
+]
+
 function snapshotLabel(key: string) {
+  for (const prefix of SNAPSHOT_LABEL_PREFIXES) {
+    const tk = `${prefix}.${key}`
+    const tr = t(tk)
+    if (typeof tr === 'string' && tr !== tk) return tr
+  }
   const words = key
     .replace(/_/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -174,9 +187,10 @@ function snapshotValue(v: unknown, key = ''): string {
   if (typeof v === 'object') return JSON.stringify(v, null, 2)
   const s = String(v)
   if (/status/i.test(key) && /^[a-z_]+$/.test(s)) {
-    const tk = `report.report.status.${s}`
-    const tr = t(tk)
-    if (tr !== tk) return tr
+    for (const tk of [`report.report.status.${s}`, `common.status.${s}`]) {
+      const tr = t(tk)
+      if (typeof tr === 'string' && tr !== tk) return tr
+    }
   }
   return s
 }

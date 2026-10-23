@@ -68,6 +68,14 @@ def menu_tree_for_user(db: Session, user: User) -> list[dict]:
     return _build_tree(menus)
 
 
+def all_menu_paths(db: Session) -> list[str]:
+    """全部菜单路由路径（不过滤权限）：前端据此区分 404（路径不存在）与 403（无权限）。"""
+    rows = db.scalars(
+        select(Menu.path).where(Menu.deleted == 0, Menu.menu_type == "menu", Menu.path.isnot(None), Menu.path != "")
+    ).all()
+    return sorted(set(rows))
+
+
 def _build_tree(menus: list[Menu]) -> list[dict]:
     nodes = {m.id: {**_menu_node(m), "children": []} for m in menus}
     roots = []

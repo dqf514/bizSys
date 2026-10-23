@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
-from app.common.pagination import PageParams
+from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.db import get_db
 from app.core.deps import require_perm
@@ -208,7 +208,7 @@ def _settlement_filtered(db: Session, request: Request, page: PageParams):
 @router.get("/settlements")
 def list_settlements(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(require_perm("finance:settlement:list")),
     db: Session = Depends(get_db),
@@ -575,7 +575,7 @@ def _invoice_list_out(i: Invoice, smap: dict[int, Settlement], users: dict[int, 
 @router.get("/invoices")
 def list_invoices(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(require_perm("finance:invoice:list")),
     db: Session = Depends(get_db),
@@ -666,7 +666,7 @@ def _payment_filtered(db: Session, request: Request, page: PageParams):
 @router.get("/payments")
 def list_payments(
     request: Request,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(require_perm("finance:payment:list")),
     db: Session = Depends(get_db),

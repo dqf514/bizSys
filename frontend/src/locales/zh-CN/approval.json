@@ -66,6 +66,15 @@
     "timelineTerminate": "强制结束",
     "timelineRestart": "拉回节点",
     "timelineAutoPass": "自动通过",
-    "timelineFallback": "解析说明"
+    "timelineFallback": "解析说明",
+    "snapshotField": {
+      "taskId": "任务ID",
+      "taskItemId": "任务项ID",
+      "displayNo": "单据编号",
+      "formKey": "表单标识",
+      "formName": "表单名称",
+      "category": "表单分类",
+      "data": "表单数据"
+    }
   }
 }

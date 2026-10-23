@@ -71,6 +71,15 @@ const typeOpts = useDictOptions('contract_type')
 const payCycleOpts = useDictOptions('pay_cycle')
 const deliveryOpts = useDictOptions('delivery_way')
 
+const endDateRules = [
+  { required: true, message: t('common.form.required') },
+  {
+    validator: (_r: unknown, v: string, cb: (e?: Error) => void) => {
+      cb(v && form.startDate && v < form.startDate ? new Error(t('contract.contract.endBeforeStart')) : undefined)
+    },
+  },
+]
+
 /** 框架合同下拉：仅当前客户已通过的框架合同；未选客户时为空 */
 async function fetchFrameworkOptions(q: string): Promise<RemoteOption[]> {
   if (!form.customerId) return []
@@ -298,11 +307,11 @@ function cancel() {
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('contract.contract.startDate')" prop="startDate" :rules="[{ required: true, message: t('common.form.required') }]">
-            <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" @change="formRef?.validateField('endDate').catch(() => false)" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('contract.contract.endDate')" prop="endDate" :rules="[{ required: true, message: t('common.form.required') }]">
+          <el-form-item :label="t('contract.contract.endDate')" prop="endDate" :rules="endDateRules">
             <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
         </el-col>

@@ -52,6 +52,7 @@ export interface UserProfile {
   perms: string[]
   prefs?: UserPrefs
   menus?: MenuNode[]
+  allMenuPaths?: string[]
 }
 
 export interface LoginResult {

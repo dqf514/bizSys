@@ -9,8 +9,9 @@ const router = useRouter()
 <template>
   <div class="not-found">
     <div class="nf-code">404</div>
-    <div class="nf-text">{{ t('common.message.loadFailed') }}</div>
-    <el-button type="primary" @click="router.push('/workbench')">{{ t('common.action.back') }}</el-button>
+    <div class="nf-title">{{ t('common.error.notFoundTitle') }}</div>
+    <div class="nf-text">{{ t('common.error.notFoundDesc') }}</div>
+    <el-button type="primary" @click="router.push('/workbench')">{{ t('common.error.backToWorkbench') }}</el-button>
   </div>
 </template>
 
@@ -29,6 +30,11 @@ const router = useRouter()
   font-size: 64px;
   font-weight: 700;
   color: var(--bs-color-primary);
+}
+
+.nf-title {
+  font-size: var(--bs-typography-font-size-lg);
+  font-weight: 600;
 }
 
 .nf-text {
