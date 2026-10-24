@@ -82,6 +82,19 @@ def test_form_crud_publish(client, admin_headers):
     assert d["code"] == 62005
 
 
+def test_form_delete_recreate_repeatable(client, admin_headers):
+    # 同 key 草稿 删除→重建→再删除 可重复（软删写行 id，不与历史软删行撞唯一键）
+    key = _uniq("ut_del_")
+    fid1 = _create_form(client, admin_headers, key, publish=False)
+    assert client.delete(f"{BASE}/admin/forms/{fid1}", headers=admin_headers).json()["code"] == 0
+    fid2 = _create_form(client, admin_headers, key, publish=False)
+    assert fid2 != fid1
+    assert client.delete(f"{BASE}/admin/forms/{fid2}", headers=admin_headers).json()["code"] == 0
+    # 删除后目录/列表均不可见
+    forms = client.get(f"{BASE}/admin/forms", headers=admin_headers).json()["data"]
+    assert all(f["id"] not in (fid1, fid2) for f in forms)
+
+
 def test_publish_schema_validation(client, admin_headers):
     # select 无选项 → 62002；暴露变量类型非法 → 62002
     fid = _create_form(

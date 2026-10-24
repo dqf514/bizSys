@@ -1004,7 +1004,7 @@ def delete_form(db: Session, form_id: int) -> None:
     used = db.scalar(select(OaInstance.id).where(OaInstance.form_id == form.id, OaInstance.deleted == 0))
     if used:
         raise BizException(R.OA_INVALID_STATE, "已有申请单据，不能删除")
-    form.deleted = 1
+    form.deleted = form.id  # deleted 入唯一键：写 id 保证多条同 key+version 软删行互不冲突
     form.update_time = datetime.now()
 
 

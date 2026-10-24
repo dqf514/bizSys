@@ -1,9 +1,10 @@
 <script setup lang="ts">
-/** OA 表单设计（统一流程设计页的第二页签）：表单列表 + 新建/编辑弹窗（基本属性 + 三栏字段设计器 + 绑定流程）。
+/** OA 表单设计（统一流程设计页的第二页签）：表单列表 + 全屏新建/编辑（顶部基础设置与保存/取消 + 三栏字段设计器）。
  * 字段设计器复刻 TPCworkflow FormDesigner 交互（字段面板/画布实时预览/属性编辑），数据模型保持 fields[]。
- * 绑定流程下拉右侧"去设计" → emit('goto-def', flowDefinitionId)，由 FlowDefList 切回流程定义页签并打开编辑。
+ * 设计过程防抖自动保存本地草稿（localStorage，按 userId+formKey 隔离），意外关闭后可恢复；仅防意外，
+ * 不改变后端草稿/发布语义。绑定流程下拉右侧"去设计" → emit('goto-def', flowDefinitionId)。
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
@@ -11,6 +12,14 @@ import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import FormDesigner from '@/modules/oa/components/FormDesigner.vue'
 import { useDict } from '@/composables/useDict'
+import {
+  clearOaFormDesignDraft,
+  oaFormDesignDraftKey,
+  readOaFormDesignDraft,
+  writeOaFormDesignDraft,
+  type OaFormDesignDraftMeta,
+} from '@/composables/oaFormDesignDraft'
+import { useAuthStore } from '@/stores/auth'
 import {
   bindLatestFlow,
   createOaForm,
@@ -31,6 +40,7 @@ const emit = defineEmits<{ (e: 'goto-def', flowDefinitionId: number): void }>()
 
 const { t } = useI18n()
 const { options: dictOptions } = useDict()
+const auth = useAuthStore()
 
 const forms = ref<OaForm[]>([])
 const flowDefs = ref<OaFlowDefOption[]>([])
@@ -78,7 +88,7 @@ function categoryLabel(c: string) {
   return categoryOptions.value.find((o) => o.value === c)?.label || c || '-'
 }
 
-/* ---------- 新建/编辑弹窗 ---------- */
+/* ---------- 新建/编辑（全屏设计器） ---------- */
 const OPTION_TYPES: OaFieldType[] = ['select', 'radio', 'checkbox']
 
 const dialogVisible = ref(false)
@@ -96,17 +106,102 @@ const form = reactive({
   fields: [] as OaField[],
 })
 
-function openCreate() {
+/* ---------- 设计器本地草稿（防抖自动保存） ---------- */
+const DRAFT_DEBOUNCE_MS = 1800
+const savedAt = ref('')
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+// 编辑态以 formKey 隔离（编辑时 key 锁定不变）；新建固定用 "new"
+const draftKey = computed(() =>
+  oaFormDesignDraftKey(auth.user?.id, editingId.value ? form.key : 'new'),
+)
+
+function hhmmss(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+function snapshotMeta(): OaFormDesignDraftMeta {
+  return {
+    key: form.key,
+    name: form.name,
+    category: form.category,
+    icon: form.icon,
+    sort: form.sort,
+    description: form.description,
+    flowDefinitionId: form.flowDefinitionId,
+  }
+}
+
+function persistDraft() {
+  saveTimer = null
+  if (!dialogVisible.value) return
+  if (writeOaFormDesignDraft(draftKey.value, { meta: snapshotMeta(), fields: form.fields, savedAt: Date.now() })) {
+    savedAt.value = hhmmss(new Date())
+  }
+}
+
+watch(
+  form,
+  () => {
+    if (!dialogVisible.value) return
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(persistDraft, DRAFT_DEBOUNCE_MS)
+  },
+  { deep: true },
+)
+
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (dialogVisible.value && readOaFormDesignDraft(draftKey.value)) e.preventDefault()
+}
+window.addEventListener('beforeunload', onBeforeUnload)
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    persistDraft() /* 组件卸载前把最后一次防抖内的修改落盘 */
+  }
+})
+
+/** 打开前检测本地草稿：恢复 / 丢弃 / 关闭提示（保留草稿但不恢复，下次仍会提示） */
+async function promptDraftIfAny(key: string): Promise<'restored' | 'fresh'> {
+  const draft = readOaFormDesignDraft(key)
+  if (!draft) return 'fresh'
+  try {
+    await ElMessageBox.confirm(
+      t('oa.design.draftFound', { time: new Date(draft.savedAt).toLocaleString() }),
+      t('oa.design.draftRestoreTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('oa.design.draftRestore'),
+        cancelButtonText: t('oa.design.draftDiscard'),
+        distinguishCancelAndClose: true,
+      },
+    )
+    Object.assign(form, draft.meta, { fields: draft.fields })
+    savedAt.value = hhmmss(new Date(draft.savedAt))
+    return 'restored'
+  } catch (action) {
+    if (action === 'cancel') clearOaFormDesignDraft(key) /* 明确丢弃 */
+    return 'fresh' /* close：保留草稿，按非草稿内容继续 */
+  }
+}
+
+async function openCreate() {
   editingId.value = null
+  savedAt.value = ''
   Object.assign(form, {
     key: '', name: '', category: 'other', icon: 'Document', sort: 0, description: '',
     flowDefinitionId: null, fields: [],
   })
+  await promptDraftIfAny(oaFormDesignDraftKey(auth.user?.id, 'new'))
   dialogVisible.value = true
 }
 
-function openEdit(row: OaForm) {
+async function openEdit(row: OaForm) {
   editingId.value = row.id
+  savedAt.value = ''
   Object.assign(form, {
     key: row.key,
     name: row.name,
@@ -117,7 +212,39 @@ function openEdit(row: OaForm) {
     flowDefinitionId: row.flowDefinitionId,
     fields: (row.fields ?? []).map((f) => ({ ...f, options: f.options ? [...f.options] : undefined })),
   })
+  await promptDraftIfAny(oaFormDesignDraftKey(auth.user?.id, row.key))
   dialogVisible.value = true
+}
+
+/** 关闭前确认：有草稿时选择丢弃（确认）/保留（取消）/继续编辑（叉掉提示）；返回是否关闭 */
+async function confirmDiscard(): Promise<'close' | 'stay'> {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    persistDraft()
+  }
+  if (!readOaFormDesignDraft(draftKey.value)) return 'close'
+  try {
+    await ElMessageBox.confirm(t('oa.design.cancelTip'), t('common.action.cancel'), {
+      type: 'warning',
+      confirmButtonText: t('oa.design.discardDraft'),
+      cancelButtonText: t('oa.design.keepDraft'),
+      distinguishCancelAndClose: true,
+    })
+    clearOaFormDesignDraft(draftKey.value) /* 确认 = 丢弃草稿并关闭 */
+    savedAt.value = ''
+    return 'close'
+  } catch (action) {
+    return action === 'cancel' ? 'close' : 'stay' /* cancel=保留草稿关闭；close=回到编辑 */
+  }
+}
+
+/** 取消按钮 / X / ESC 统一走同一确认流 */
+async function onCancelClick() {
+  if ((await confirmDiscard()) === 'close') dialogVisible.value = false
+}
+
+async function beforeClose(done: () => void) {
+  if ((await confirmDiscard()) === 'close') done()
 }
 
 function validateForm(): string | null {
@@ -186,6 +313,9 @@ async function save() {
   try {
     if (editingId.value) await updateOaForm(editingId.value, payload)
     else await createOaForm(payload)
+    if (saveTimer) clearTimeout(saveTimer)
+    clearOaFormDesignDraft(draftKey.value) /* 正式保存成功后清除本地草稿 */
+    savedAt.value = ''
     ElMessage.success(t('common.message.saveSuccess'))
     dialogVisible.value = false
     void load()
@@ -261,7 +391,7 @@ function rowActions(row: OaForm): ActionItem[] {
 }
 
 function onAction(key: string, row: OaForm) {
-  if (key === 'edit') openEdit(row)
+  if (key === 'edit') void openEdit(row)
   else if (key === 'publish') void doPublish(row)
   else if (key === 'disable') void doDisable(row)
   else if (key === 'newVersion') void doNewVersion(row)
@@ -327,61 +457,75 @@ function gotoDesign() {
       </template>
     </ListTable>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? t('oa.design.editForm') : t('oa.design.createForm')" width="1280px" append-to-body>
-      <div class="form-basic">
-        <el-form label-width="96px" size="default">
-          <el-row :gutter="16">
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.formKey')">
-                <el-input v-model="form.key" :disabled="Boolean(editingId)" :placeholder="t('oa.design.formKeyTip')" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.formName')">
-                <el-input v-model="form.name" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.category')">
-                <el-select v-model="form.category" style="width: 100%">
-                  <el-option v-for="o in categoryOptions" :key="o.value" :value="o.value" :label="o.label" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.icon')">
-                <el-input v-model="form.icon" :placeholder="t('oa.design.iconTip')" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.sort')">
-                <el-input-number v-model="form.sort" :min="0" :max="999" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="t('oa.design.boundFlow')">
-                <div class="flow-bind">
-                  <el-select v-model="form.flowDefinitionId" clearable :placeholder="t('oa.design.noFlow')" style="flex: 1">
-                    <el-option v-for="d in flowDefs" :key="d.id" :value="d.id" :label="`${d.name} (${d.code})`" />
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editingId ? t('oa.design.editForm') : t('oa.design.createForm')"
+      fullscreen
+      append-to-body
+      class="oa-form-designer-dialog"
+      :before-close="beforeClose"
+    >
+      <div class="designer-shell">
+        <div class="designer-topbar">
+          <el-form class="topbar-form" label-width="92px" size="default">
+            <el-row :gutter="12">
+              <el-col :span="4">
+                <el-form-item :label="t('oa.design.formKey')">
+                  <el-input v-model="form.key" :disabled="Boolean(editingId)" :placeholder="t('oa.design.formKeyTip')" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
+                <el-form-item :label="t('oa.design.formName')">
+                  <el-input v-model="form.name" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="5">
+                <el-form-item :label="t('oa.design.category')">
+                  <el-select v-model="form.category" style="width: 100%">
+                    <el-option v-for="o in categoryOptions" :key="o.value" :value="o.value" :label="o.label" />
                   </el-select>
-                  <el-button :disabled="!form.flowDefinitionId" @click="gotoDesign">{{ t('oa.design.goDesign') }}</el-button>
-                </div>
-              </el-form-item>
-            </el-col>
-            <el-col :span="24">
-              <el-form-item :label="t('oa.design.description')">
-                <el-input v-model="form.description" type="textarea" :rows="2" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-form>
-      </div>
+                </el-form-item>
+              </el-col>
+              <el-col :span="5">
+                <el-form-item :label="t('oa.design.icon')">
+                  <el-input v-model="form.icon" :placeholder="t('oa.design.iconTip')" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item :label="t('oa.design.sort')">
+                  <el-input-number v-model="form.sort" :min="0" :max="999" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="12">
+              <el-col :span="10">
+                <el-form-item :label="t('oa.design.boundFlow')">
+                  <div class="flow-bind">
+                    <el-select v-model="form.flowDefinitionId" clearable :placeholder="t('oa.design.noFlow')" style="flex: 1">
+                      <el-option v-for="d in flowDefs" :key="d.id" :value="d.id" :label="`${d.name} (${d.code})`" />
+                    </el-select>
+                    <el-button :disabled="!form.flowDefinitionId" @click="gotoDesign">{{ t('oa.design.goDesign') }}</el-button>
+                  </div>
+                </el-form-item>
+              </el-col>
+              <el-col :span="14">
+                <el-form-item :label="t('oa.design.description')">
+                  <el-input v-model="form.description" type="textarea" :rows="1" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+          <div class="topbar-side">
+            <span v-if="savedAt" class="saved-at">{{ t('oa.form.autoSaved', { time: savedAt }) }}</span>
+            <div class="topbar-actions">
+              <el-button @click="onCancelClick">{{ t('common.action.cancel') }}</el-button>
+              <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+            </div>
+          </div>
+        </div>
 
-      <FormDesigner v-model:fields="form.fields" />
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
-      </template>
+        <FormDesigner v-model:fields="form.fields" class="designer-main" />
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -401,9 +545,60 @@ function gotoDesign() {
   flex-shrink: 0;
 }
 
-.form-basic {
+.designer-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 顶部基础设置 + 操作（常驻不滚动） */
+.designer-topbar {
+  display: flex;
+  gap: var(--bs-space-3);
+  flex-shrink: 0;
   border-bottom: 1px solid var(--bs-color-border-subtle);
+  padding-bottom: var(--bs-space-2);
   margin-bottom: var(--bs-space-3);
+}
+
+.topbar-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar-form :deep(.el-form-item) {
+  margin-bottom: var(--bs-space-2);
+}
+
+.topbar-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--bs-space-1);
+  padding-bottom: var(--bs-space-2);
+}
+
+.topbar-actions {
+  display: flex;
+  gap: var(--bs-space-2);
+}
+
+.topbar-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.saved-at {
+  color: var(--bs-color-fg-muted);
+  font-size: var(--bs-typography-font-size-xs);
+  white-space: nowrap;
+}
+
+.designer-main {
+  flex: 1;
+  min-height: 0;
 }
 
 .flow-bind {
@@ -418,5 +613,20 @@ function gotoDesign() {
 
 .stale-tag {
   margin-left: var(--bs-space-1);
+}
+</style>
+
+<!-- 全屏弹窗 body 布局（teleport 到 body，scoped 不可达，用全局类） -->
+<style>
+.oa-form-designer-dialog.is-fullscreen {
+  display: flex;
+  flex-direction: column;
+}
+
+.oa-form-designer-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--bs-space-3) var(--bs-space-4);
 }
 </style>

@@ -547,8 +547,8 @@ function onResourceTypeChange(f: OaField) {
 .oa-form-designer {
   display: flex;
   gap: var(--bs-space-3);
-  min-height: 460px;
-  height: 58vh;
+  flex: 1;
+  min-height: 0;
 }
 
 .ofd-panel-title {
@@ -565,7 +565,7 @@ function onResourceTypeChange(f: OaField) {
 
 /* ---------- 左：字段面板 ---------- */
 .ofd-palette {
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -671,7 +671,7 @@ function onResourceTypeChange(f: OaField) {
 
 /* ---------- 右：属性 ---------- */
 .ofd-props {
-  width: 320px;
+  width: 360px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

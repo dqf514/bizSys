@@ -17,7 +17,7 @@ class OaForm(BaseModel):
     """OA 表单模板（draft/published/disabled；发布后改版走 form_version+1 新草稿）。"""
 
     __tablename__ = "oa_form"
-    # deleted 入唯一键：软删行不阻塞同 key+version 重建
+    # deleted 入唯一键：软删行不阻塞同 key+version 重建；软删时写行 id（而非固定 1），避免多条软删行互撞
     __table_args__ = (UniqueConstraint("key", "form_version", "deleted", name="uq_oa_form_key_version"),)
 
     key: Mapped[str] = mapped_column(String(64), index=True, comment="表单标识")
