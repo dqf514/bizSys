@@ -109,7 +109,11 @@
     "logActionOut": "Stock Out",
     "flowStatus": "Flow Status",
     "flowDefinition": "Flow Definition",
-    "flowGoto": "Go to Flow Center"
+    "flowGoto": "Go to Flow Center",
+    "sectionBasic": "Basic Info",
+    "sectionRelated": "Related Info",
+    "anchorNav": "Navigation",
+    "summary": "Summary"
   },
   "sample": {
     "title": "Samples",

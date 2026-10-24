@@ -109,7 +109,11 @@
     "logActionOut": "出库",
     "flowStatus": "流程状态",
     "flowDefinition": "流程定义",
-    "flowGoto": "前往流程中心"
+    "flowGoto": "前往流程中心",
+    "sectionBasic": "基本信息",
+    "sectionRelated": "关联信息",
+    "anchorNav": "页面导航",
+    "summary": "摘要"
   },
   "sample": {
     "title": "样品管理",

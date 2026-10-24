@@ -40,7 +40,11 @@
     "resourcePick": "选择数据",
     "resourceSearchTip": "输入关键字检索",
     "resourceName": "名称",
-    "resourceNo": "编号/说明"
+    "resourceNo": "编号/说明",
+    "autoSaved": "已自动保存 {time}",
+    "draftRestored": "已恢复上次未提交的草稿",
+    "clearDraft": "清空重填",
+    "clearConfirm": "确认清空已填写内容并重填？本地草稿也将被清除"
   },
   "my": {
     "title": "我的申请",

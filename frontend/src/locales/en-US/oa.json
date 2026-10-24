@@ -40,7 +40,11 @@
     "resourcePick": "Pick Record",
     "resourceSearchTip": "Type keywords to search",
     "resourceName": "Name",
-    "resourceNo": "No. / Info"
+    "resourceNo": "No. / Info",
+    "autoSaved": "Auto-saved at {time}",
+    "draftRestored": "Restored your last unsubmitted draft",
+    "clearDraft": "Clear & refill",
+    "clearConfirm": "Clear all entered content and start over? The local draft will also be removed"
   },
   "my": {
     "title": "My Applications",
