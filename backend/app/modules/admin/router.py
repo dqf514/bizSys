@@ -98,7 +98,7 @@ def list_users(
         pp,
         search_cols=["username", "name", "mobile"],
         filter_cols={"status", "dept_id"},
-        sort_cols={"update_time", "create_time", "id", "last_login_at"},
+        sort_cols={"update_time", "create_time", "id", "last_login_at", "username", "name", "status"},
     )
     rows = db.scalars(stmt).all()
     return {"items": [_user_out(db, u) for u in rows], "total": total, "page": page, "size": size}
@@ -283,6 +283,7 @@ def list_roles(
         pp,
         search_cols=["code", "name"],
         filter_cols={"status"},
+        sort_cols={"id", "create_time", "update_time", "code", "name", "status"},
     )
     rows = db.scalars(stmt).all()
     return {"items": [_role_out(db, r) for r in rows], "total": total, "page": page, "size": size}
@@ -701,7 +702,7 @@ def list_audit_logs(
         pp,
         search_cols=["module", "action"],
         filter_cols={"module", "user_id", "biz_type"},
-        sort_cols={"id", "create_time"},
+        sort_cols={"id", "create_time", "module", "action", "user_id"},
         default_sort=("id", "desc"),
     )
     rows = db.scalars(stmt).all()
@@ -760,7 +761,7 @@ def export_audit_logs(
         SimpleNamespace(page=1, size=100_000),
         search_cols=["module", "action"],
         filter_cols={"module", "user_id", "biz_type"},
-        sort_cols={"id", "create_time"},
+        sort_cols={"id", "create_time", "module", "action", "user_id"},
         default_sort=("id", "desc"),
     )
     logs = db.scalars(stmt).all()

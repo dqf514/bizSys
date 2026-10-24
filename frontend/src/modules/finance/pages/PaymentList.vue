@@ -44,13 +44,13 @@ function fmtAmount(row: Record<string, unknown>) {
 }
 
 const columns: ListColumn[] = [
-  { prop: 'paymentNo', labelKey: 'finance.payment.paymentNo', width: 160, fixed: 'left' },
+  { prop: 'paymentNo', labelKey: 'finance.payment.paymentNo', width: 160, fixed: 'left', sortable: 'payment_no' },
   { prop: 'settlementNo', labelKey: 'finance.payment.settlementNo', width: 150 },
-  { prop: 'payType', labelKey: 'finance.payment.payType', width: 110 },
-  { prop: 'payerName', labelKey: 'finance.payment.payerName', minWidth: 150 },
-  { prop: 'amount', labelKey: 'finance.payment.amount', width: 120 },
+  { prop: 'payType', labelKey: 'finance.payment.payType', width: 110, sortable: 'pay_type' },
+  { prop: 'payerName', labelKey: 'finance.payment.payerName', minWidth: 150, sortable: 'payer_name' },
+  { prop: 'amount', labelKey: 'finance.payment.amount', width: 120, align: 'right', sortable: 'amount' },
   { prop: 'bank', labelKey: 'finance.payment.bank', minWidth: 150 },
-  { prop: 'paidAt', labelKey: 'finance.payment.paidAt', width: 120 },
+  { prop: 'paidAt', labelKey: 'finance.payment.paidAt', width: 120, sortable: 'paid_at' },
   { prop: 'createBy', labelKey: 'finance.payment.createBy', width: 100 },
 ]
 
@@ -88,6 +88,7 @@ const createVisible = ref(false)
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #payType="{ row }">
           {{ payTypeOpts.opts.value.find((x) => x.value === row.payType)?.label || row.payType || '-' }}

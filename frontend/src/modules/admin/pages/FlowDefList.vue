@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import FlowChainDesigner from '@/components/flow/FlowChainDesigner.vue'
 import OaFormPanel from '@/modules/admin/components/OaFormPanel.vue'
@@ -317,6 +318,16 @@ async function remove(row: FlowDef) {
     /* http notifies */
   }
 }
+
+const defActions: ActionItem[] = [
+  { key: 'edit', tip: 'common.action.edit', perm: 'admin:flow:edit' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'admin:flow:edit' },
+]
+
+function onDefAction(key: string, row: FlowDef) {
+  if (key === 'edit') openEdit(row)
+  else if (key === 'delete') void remove(row)
+}
 </script>
 
 <template>
@@ -336,8 +347,8 @@ async function remove(row: FlowDef) {
 
     <template #table>
       <el-table v-if="activeTab === 'defs'" :data="items" row-key="id" border stripe height="100%">
-        <el-table-column :label="t('admin.flow.code')" prop="code" width="130" />
-        <el-table-column :label="t('admin.flow.version')" width="120">
+        <el-table-column :label="t('admin.flow.code')" prop="code" width="130" sortable />
+        <el-table-column :label="t('admin.flow.version')" prop="version" width="120" sortable>
           <template #default="{ row }">
             <span :class="{ muted: isHistory(row as FlowDef) }">v{{ (row as FlowDef).version ?? 1 }}</span>
             <el-tag v-if="isHistory(row as FlowDef)" type="info" size="small" effect="plain" class="node-tag">
@@ -345,8 +356,8 @@ async function remove(row: FlowDef) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('admin.flow.name')" prop="name" min-width="150" />
-        <el-table-column :label="t('admin.flow.bizType')" width="110">
+        <el-table-column :label="t('admin.flow.name')" prop="name" min-width="150" sortable />
+        <el-table-column :label="t('admin.flow.bizType')" prop="bizType" width="110" sortable>
           <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
         </el-table-column>
         <el-table-column :label="t('oa.design.boundTo')" min-width="150">
@@ -359,7 +370,7 @@ async function remove(row: FlowDef) {
             <span v-else class="muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('admin.flow.enabled')" width="90">
+        <el-table-column :label="t('admin.flow.enabled')" prop="enabled" width="90" sortable>
           <template #default="{ row }">
             <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
               {{ row.enabled ? t('common.form.enabled') : t('common.form.disabled') }}
@@ -383,14 +394,9 @@ async function remove(row: FlowDef) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button v-permission="'admin:flow:edit'" link type="primary" @click="openEdit(row as FlowDef)">
-              {{ t('common.action.edit') }}
-            </el-button>
-            <el-button v-permission="'admin:flow:edit'" link type="danger" @click="remove(row as FlowDef)">
-              {{ t('common.action.delete') }}
-            </el-button>
+            <ActionBar :actions="defActions" @select="(key: string) => onDefAction(key, row as FlowDef)" />
           </template>
         </el-table-column>
       </el-table>

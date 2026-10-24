@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { clearDictCache } from '@/composables/useDict'
@@ -150,6 +151,16 @@ async function removeItem(row: DictItem) {
     /* http notifies */
   }
 }
+
+const itemActions: ActionItem[] = [
+  { key: 'edit', tip: 'common.action.edit', perm: 'admin:dict:edit' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'admin:dict:edit' },
+]
+
+function onItemAction(key: string, row: DictItem) {
+  if (key === 'edit') openItemEdit(row)
+  else if (key === 'delete') void removeItem(row)
+}
 </script>
 
 <template>
@@ -187,24 +198,19 @@ async function removeItem(row: DictItem) {
           </span>
         </div>
         <el-table :data="activeType?.items || []" row-key="id" border stripe height="100%">
-          <el-table-column :label="t('admin.dict.itemLabel')" prop="label" min-width="120" />
-          <el-table-column :label="t('admin.dict.itemLabelEn')" prop="labelEn" min-width="120" />
-          <el-table-column :label="t('admin.dict.itemValue')" prop="value" min-width="120" />
-          <el-table-column :label="t('admin.dict.itemSort')" prop="sort" width="80" />
-          <el-table-column :label="t('admin.dict.itemStatus')" prop="status" width="90">
+          <el-table-column :label="t('admin.dict.itemLabel')" prop="label" min-width="120" sortable />
+          <el-table-column :label="t('admin.dict.itemLabelEn')" prop="labelEn" min-width="120" sortable />
+          <el-table-column :label="t('admin.dict.itemValue')" prop="value" min-width="120" sortable />
+          <el-table-column :label="t('admin.dict.itemSort')" prop="sort" width="80" sortable />
+          <el-table-column :label="t('admin.dict.itemStatus')" prop="status" width="90" sortable>
             <template #default="{ row }">
               <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
             </template>
           </el-table-column>
           <el-table-column :label="t('admin.dict.itemExtra')" prop="extra" min-width="100" />
-          <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button v-permission="'admin:dict:edit'" link type="primary" @click="openItemEdit(row as DictItem)">
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button v-permission="'admin:dict:edit'" link type="danger" @click="removeItem(row as DictItem)">
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="itemActions" @select="(key: string) => onItemAction(key, row as DictItem)" />
             </template>
           </el-table-column>
         </el-table>

@@ -59,12 +59,13 @@ def _user_or_404(db: Session, user_id: int) -> User:
 @router.get("/tasks")
 def list_tasks(
     tab: str = Query("todo", pattern="^(todo|done|initiated)$"),
+    sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.list_tasks(db, user, PageParams(page=page, size=size), tab)
+    return service.list_tasks(db, user, PageParams(page=page, size=size), tab, sort=sort)
 
 
 @router.get("/tasks/export")
@@ -209,12 +210,13 @@ def withdraw(
 @router.get("/cc")
 def list_cc(
     unread: int = Query(0, ge=0, le=1),
+    sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.list_cc(db, user, PageParams(page=page, size=size), unread_only=bool(unread))
+    return service.list_cc(db, user, PageParams(page=page, size=size), unread_only=bool(unread), sort=sort)
 
 
 @router.post("/cc/{cc_id}/read")

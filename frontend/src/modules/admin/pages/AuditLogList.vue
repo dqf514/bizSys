@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import { useListPage } from '@/composables/useListPage'
 import { exportAuditLogs, listAuditLogs } from '@/api/admin'
@@ -32,13 +33,13 @@ const list = useListPage<AuditLog>({
 
 const columns: ListColumn[] = [
   { prop: 'username', labelKey: 'admin.audit.username', width: 120 },
-  { prop: 'module', labelKey: 'admin.audit.module', width: 100 },
-  { prop: 'action', labelKey: 'admin.audit.action', width: 110 },
+  { prop: 'module', labelKey: 'admin.audit.module', width: 100, sortable: 'module' },
+  { prop: 'action', labelKey: 'admin.audit.action', width: 110, sortable: 'action' },
   { prop: 'bizType', labelKey: 'admin.audit.bizType', width: 100 },
   { prop: 'bizId', labelKey: 'admin.audit.bizId', width: 90 },
   { prop: 'detail', labelKey: 'admin.audit.detail', minWidth: 200 },
   { prop: 'ip', labelKey: 'admin.audit.ip', width: 120 },
-  { prop: 'createTime', labelKey: 'admin.audit.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'admin.audit.createTime', width: 160, sortable: 'create_time' },
 ]
 
 const detailVisible = ref(false)
@@ -81,13 +82,12 @@ function viewDetail(row: AuditLog) {
         :size="Number(list.query.size)"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="110" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="viewDetail(row as unknown as AuditLog)">
-                {{ t('admin.audit.viewDetail') }}
-              </el-button>
+              <ActionBar :actions="[{ key: 'view', tip: 'admin.audit.viewDetail' }]" @select="viewDetail(row as unknown as AuditLog)" />
             </template>
           </el-table-column>
         </template>

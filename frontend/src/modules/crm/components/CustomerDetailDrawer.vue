@@ -212,18 +212,18 @@ function openSettlement(row: Settlement) {
               <span v-if="contractTotal" class="bs-tab-count">({{ contractTotal }})</span>
             </template>
             <el-table v-loading="relatedLoading" :data="contracts" border stripe size="small">
-              <el-table-column :label="t('contract.contract.contractNo')" width="150">
+              <el-table-column :label="t('contract.contract.contractNo')" prop="contractNo" width="150" sortable>
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openContract(row as unknown as Contract)">
                     {{ row.contractNo }}
                   </el-button>
                 </template>
               </el-table-column>
-              <el-table-column :label="t('contract.contract.name')" prop="name" min-width="160" />
-              <el-table-column :label="t('contract.contract.amount')" width="120">
+              <el-table-column :label="t('contract.contract.name')" prop="name" min-width="160" sortable />
+              <el-table-column :label="t('contract.contract.amount')" prop="amount" width="120" sortable align="right">
                 <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
               </el-table-column>
-              <el-table-column :label="t('common.form.status')" width="110">
+              <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
                 <template #default="{ row }">
                   <StatusTag :status="String(row.status)" i18n-prefix="contract.contract.status" />
                 </template>
@@ -237,15 +237,15 @@ function openSettlement(row: Settlement) {
               <span v-if="taskTotal" class="bs-tab-count">({{ taskTotal }})</span>
             </template>
             <el-table v-loading="relatedLoading" :data="tasks" border stripe size="small">
-              <el-table-column :label="t('task.task.taskNo')" width="150">
+              <el-table-column :label="t('task.task.taskNo')" prop="taskNo" width="150" sortable>
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTask(row as unknown as Task)">
                     {{ row.taskNo }}
                   </el-button>
                 </template>
               </el-table-column>
-              <el-table-column :label="t('task.task.taskName')" prop="taskName" min-width="160" />
-              <el-table-column :label="t('common.form.status')" width="110">
+              <el-table-column :label="t('task.task.taskName')" prop="taskName" min-width="160" sortable />
+              <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
                 <template #default="{ row }">
                   <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
                 </template>
@@ -259,17 +259,17 @@ function openSettlement(row: Settlement) {
               <span v-if="settlementTotal" class="bs-tab-count">({{ settlementTotal }})</span>
             </template>
             <el-table v-loading="relatedLoading" :data="settlements" border stripe size="small">
-              <el-table-column :label="t('finance.settlement.settlementNo')" width="150">
+              <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" width="150" sortable>
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openSettlement(row as unknown as Settlement)">
                     {{ row.settlementNo }}
                   </el-button>
                 </template>
               </el-table-column>
-              <el-table-column :label="t('finance.settlement.amount')" width="120">
+              <el-table-column :label="t('finance.settlement.amount')" prop="amount" width="120" sortable align="right">
                 <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
               </el-table-column>
-              <el-table-column :label="t('common.form.status')" width="110">
+              <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
                 <template #default="{ row }">
                   <StatusTag :status="String(row.status)" i18n-prefix="finance.settlement.status" />
                 </template>

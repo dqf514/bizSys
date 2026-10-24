@@ -7,6 +7,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
@@ -44,17 +45,38 @@ const list = useListPage<Contract>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'contractNo', labelKey: 'contract.contract.contractNo', width: 150, fixed: 'left' },
-  { prop: 'name', labelKey: 'contract.contract.name', minWidth: 200, fixed: 'left' },
-  { prop: 'customerName', labelKey: 'contract.contract.customerName', minWidth: 150 },
-  { prop: 'contractType', labelKey: 'contract.contract.contractType', width: 110 },
-  { prop: 'amount', labelKey: 'contract.contract.amount', width: 120 },
-  { prop: 'startDate', labelKey: 'contract.contract.startDate', width: 110 },
-  { prop: 'endDate', labelKey: 'contract.contract.endDate', width: 110 },
+  { prop: 'contractNo', labelKey: 'contract.contract.contractNo', width: 150, fixed: 'left', sortable: 'contract_no' },
+  { prop: 'name', labelKey: 'contract.contract.name', minWidth: 200, fixed: 'left', sortable: 'name' },
+  { prop: 'customerName', labelKey: 'contract.contract.customerName', minWidth: 150, sortable: 'customer_name' },
+  { prop: 'contractType', labelKey: 'contract.contract.contractType', width: 110, sortable: 'contract_type' },
+  { prop: 'amount', labelKey: 'contract.contract.amount', width: 120, sortable: 'amount' },
+  { prop: 'startDate', labelKey: 'contract.contract.startDate', width: 110, sortable: 'start_date' },
+  { prop: 'endDate', labelKey: 'contract.contract.endDate', width: 110, sortable: 'end_date' },
   { prop: 'handlerName', labelKey: 'contract.contract.handlerName', width: 100 },
-  { prop: 'status', labelKey: 'contract.contract.status', width: 100 },
-  { prop: 'createTime', labelKey: 'contract.contract.createTime', width: 160 },
+  { prop: 'status', labelKey: 'contract.contract.status', width: 100, sortable: 'status' },
+  { prop: 'createTime', labelKey: 'contract.contract.createTime', width: 160, sortable: 'create_time' },
 ]
+
+/** 行内动作随状态变化；超过 3 个自动收进「更多」 */
+function rowActions(row: Contract): ActionItem[] {
+  const s = String(row.status)
+  const acts: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
+  if (['draft', 'rejected'].includes(s)) acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'contract:edit' })
+  if (['draft', 'rejected'].includes(s)) acts.push({ key: 'submit', tip: 'contract.contract.submit', perm: 'contract:submit' })
+  if (['draft', 'rejected', 'approved'].includes(s)) {
+    acts.push({ key: 'void', tip: 'contract.contract.void', icon: 'FolderDelete', danger: true, perm: 'contract:edit' })
+  }
+  if (s === 'draft') acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'contract:delete' })
+  return acts
+}
+
+function onRowAction(key: string, row: Contract) {
+  if (key === 'detail') openDetail(row)
+  else if (key === 'edit') openEdit(row)
+  else if (key === 'submit') void doSubmit(row)
+  else if (key === 'void') void doVoid(row)
+  else if (key === 'delete') void remove(row)
+}
 
 function openCreate() {
   router.push('/contract/contracts/new')
@@ -156,6 +178,7 @@ function fmtAmount(row: Record<string, unknown>) {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #amount="{ row }">{{ fmtAmount(row) }}</template>
         <template #contractType="{ row }">
@@ -170,47 +193,9 @@ function fmtAmount(row: Record<string, unknown>) {
           <el-button link type="primary" @click="openDetail(row as unknown as Contract)">{{ row.contractNo }}</el-button>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="290" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button
-                v-if="['draft', 'rejected'].includes(String(row.status))"
-                v-permission="'contract:edit'"
-                link
-                type="primary"
-                @click="openEdit(row as unknown as Contract)"
-              >
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button
-                v-if="['draft', 'rejected'].includes(String(row.status))"
-                v-permission="'contract:submit'"
-                link
-                type="warning"
-                @click="doSubmit(row as unknown as Contract)"
-              >
-                {{ t('contract.contract.submit') }}
-              </el-button>
-              <el-button link type="primary" @click="openDetail(row as unknown as Contract)">
-                {{ t('common.action.detail') }}
-              </el-button>
-              <el-button
-                v-if="['draft', 'rejected', 'approved'].includes(String(row.status))"
-                v-permission="'contract:edit'"
-                link
-                type="danger"
-                @click="doVoid(row as unknown as Contract)"
-              >
-                {{ t('contract.contract.void') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'draft'"
-                v-permission="'contract:delete'"
-                link
-                type="danger"
-                @click="remove(row as unknown as Contract)"
-              >
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="rowActions(row as unknown as Contract)" @select="(k) => onRowAction(k, row as unknown as Contract)" />
             </template>
           </el-table-column>
         </template>

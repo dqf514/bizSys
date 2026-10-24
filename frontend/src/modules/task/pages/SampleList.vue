@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
@@ -52,15 +53,15 @@ const list = useListPage<SampleRow>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'sampleNo', labelKey: 'task.sample.sampleNo', width: 170, fixed: 'left' },
-  { prop: 'name', labelKey: 'task.sample.name', minWidth: 140 },
+  { prop: 'sampleNo', labelKey: 'task.sample.sampleNo', width: 170, fixed: 'left', sortable: 'sample_no' },
+  { prop: 'name', labelKey: 'task.sample.name', minWidth: 140, sortable: 'name' },
   { prop: 'model', labelKey: 'task.sample.model', width: 120 },
   { prop: 'vin', labelKey: 'task.sample.vin', width: 160 },
-  { prop: 'taskNo', labelKey: 'task.sample.task', width: 150 },
-  { prop: 'customerName', labelKey: 'task.sample.customer', minWidth: 140 },
-  { prop: 'sampleDate', labelKey: 'task.sample.sampleDate', width: 110 },
-  { prop: 'inStock', labelKey: 'task.sample.inStock', width: 90 },
-  { prop: 'createTime', labelKey: 'task.sample.createTime', width: 160 },
+  { prop: 'taskNo', labelKey: 'task.sample.task', width: 150, sortable: 'task_no' },
+  { prop: 'customerName', labelKey: 'task.sample.customer', minWidth: 140, sortable: 'customer_name' },
+  { prop: 'sampleDate', labelKey: 'task.sample.sampleDate', width: 110, sortable: 'sample_date' },
+  { prop: 'inStock', labelKey: 'task.sample.inStock', width: 90, sortable: 'in_stock' },
+  { prop: 'createTime', labelKey: 'task.sample.createTime', width: 160, sortable: 'create_time' },
 ]
 
 function openTask(row: SampleRow) {
@@ -102,6 +103,7 @@ function openTask(row: SampleRow) {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #inStock="{ row }">
           <StatusTag :status="String(row.inStock)" i18n-prefix="task.sample.stock" />
@@ -112,11 +114,12 @@ function openTask(row: SampleRow) {
           </el-button>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openTask(row as unknown as SampleRow)">
-                {{ t('task.sample.goTask') }}
-              </el-button>
+              <ActionBar
+                :actions="[{ key: 'goTask', tip: 'task.sample.goTask', icon: 'Position' }]"
+                @select="openTask(row as unknown as SampleRow)"
+              />
             </template>
           </el-table-column>
         </template>

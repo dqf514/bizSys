@@ -7,6 +7,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import SmartInput from '@/components/form/SmartInput.vue'
@@ -60,18 +61,30 @@ const list = useListPage<Customer>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'customerNo', labelKey: 'crm.customer.customerNo', width: 130, fixed: 'left' },
-  { prop: 'name', labelKey: 'crm.customer.name', minWidth: 180, fixed: 'left' },
-  { prop: 'customerType', labelKey: 'crm.customer.customerType', width: 110 },
+  { prop: 'customerNo', labelKey: 'crm.customer.customerNo', width: 130, fixed: 'left', sortable: 'customer_no' },
+  { prop: 'name', labelKey: 'crm.customer.name', minWidth: 180, fixed: 'left', sortable: 'name' },
+  { prop: 'customerType', labelKey: 'crm.customer.customerType', width: 110, sortable: 'customer_type' },
   { prop: 'contactPerson', labelKey: 'crm.customer.contactPerson', width: 110 },
   { prop: 'taxNo', labelKey: 'crm.customer.taxNo', width: 170 },
-  { prop: 'grade', labelKey: 'crm.customer.grade', width: 80 },
-  { prop: 'status', labelKey: 'crm.customer.status', width: 90 },
+  { prop: 'grade', labelKey: 'crm.customer.grade', width: 80, sortable: 'grade' },
+  { prop: 'status', labelKey: 'crm.customer.status', width: 90, sortable: 'status' },
   { prop: 'province', labelKey: 'crm.customer.province', width: 100 },
   { prop: 'city', labelKey: 'crm.customer.city', width: 100 },
   { prop: 'payOrg', labelKey: 'crm.customer.payOrg', minWidth: 140 },
-  { prop: 'createTime', labelKey: 'crm.customer.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'crm.customer.createTime', width: 160, sortable: 'create_time' },
 ]
+
+const rowActions: ActionItem[] = [
+  { key: 'detail', tip: 'common.action.detail' },
+  { key: 'edit', tip: 'common.action.edit', perm: 'crm:customer:edit' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'crm:customer:delete' },
+]
+
+function onRowAction(key: string, row: Customer) {
+  if (key === 'detail') openDetail(row)
+  else if (key === 'edit') openEdit(row)
+  else if (key === 'delete') void remove(row)
+}
 
 const typeOpts = useDictOptions('customer_type')
 const gradeOpts = useDictOptions('customer_grade')
@@ -273,6 +286,7 @@ async function doImport() {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
@@ -287,14 +301,9 @@ async function doImport() {
           {{ gradeOpts.opts.value.find((x) => x.value === row.grade)?.label || row.grade || '-' }}
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="180" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button v-permission="'crm:customer:edit'" link type="primary" @click="openEdit(row as unknown as Customer)">
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button v-permission="'crm:customer:delete'" link type="danger" @click="remove(row as unknown as Customer)">
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="rowActions" @select="(k) => onRowAction(k, row as unknown as Customer)" />
             </template>
           </el-table-column>
         </template>

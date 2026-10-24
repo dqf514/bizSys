@@ -7,6 +7,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
@@ -52,14 +53,30 @@ const list = useListPage<OaInstanceItem>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'displayNo', labelKey: 'oa.my.displayNo', width: 150, fixed: 'left' },
-  { prop: 'formName', labelKey: 'oa.my.formName', minWidth: 120 },
-  { prop: 'applicantName', labelKey: 'approval.approval.initiatorName', width: 100 },
-  { prop: 'status', labelKey: 'oa.my.status', width: 96 },
+  { prop: 'displayNo', labelKey: 'oa.my.displayNo', width: 150, fixed: 'left', sortable: 'display_no' },
+  { prop: 'formName', labelKey: 'oa.my.formName', minWidth: 120, sortable: 'form_name' },
+  { prop: 'applicantName', labelKey: 'approval.approval.initiatorName', width: 100, sortable: 'applicant_name' },
+  { prop: 'status', labelKey: 'oa.my.status', width: 96, sortable: 'status' },
   { prop: 'pendingNames', labelKey: 'oa.my.pendingNames', minWidth: 120 },
-  { prop: 'createTime', labelKey: 'oa.my.createTime', width: 165 },
-  { prop: 'finishedAt', labelKey: 'oa.my.finishedAt', width: 165 },
+  { prop: 'createTime', labelKey: 'oa.my.createTime', width: 165, sortable: 'create_time' },
+  { prop: 'finishedAt', labelKey: 'oa.my.finishedAt', width: 165, sortable: 'finished_at' },
 ]
+
+/** 仅流转中且有流程实例的单据可干预 */
+function rowActions(row: OaInstanceItem): ActionItem[] {
+  if (!canIntervene(row)) return []
+  return [
+    { key: 'reassign', tip: 'oa.handle.reassign', icon: 'Position', disabled: !row.pendingTasks?.length },
+    { key: 'restart', tip: 'oa.handle.restart', icon: 'RefreshLeft' },
+    { key: 'terminate', tip: 'oa.handle.terminate', icon: 'CircleClose', danger: true },
+  ]
+}
+
+function onRowAction(key: string, row: OaInstanceItem) {
+  if (key === 'terminate') void doTerminate(row)
+  else if (key === 'reassign') void openReassign(row)
+  else if (key === 'restart') openRestart(row)
+}
 
 function switchStatus(v: string) {
   activeStatus.value = v
@@ -192,21 +209,20 @@ onMounted(() => list.refresh())
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="oa.status" />
         </template>
         <template #pendingNames="{ row }">{{ row.pendingNames || '-' }}</template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <template v-if="canIntervene(row as OaInstanceItem)">
-                <el-button link type="danger" @click="doTerminate(row as OaInstanceItem)">{{ t('oa.handle.terminate') }}</el-button>
-                <el-button link type="primary" :disabled="!(row as OaInstanceItem).pendingTasks?.length" @click="openReassign(row as OaInstanceItem)">
-                  {{ t('oa.handle.reassign') }}
-                </el-button>
-                <el-button link type="warning" @click="openRestart(row as OaInstanceItem)">{{ t('oa.handle.restart') }}</el-button>
-              </template>
+              <ActionBar
+                v-if="rowActions(row as OaInstanceItem).length"
+                :actions="rowActions(row as OaInstanceItem)"
+                @select="(k) => onRowAction(k, row as OaInstanceItem)"
+              />
               <span v-else class="no-op">-</span>
             </template>
           </el-table-column>

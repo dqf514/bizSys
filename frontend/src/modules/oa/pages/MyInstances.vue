@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
@@ -44,13 +45,13 @@ const list = useListPage<OaInstanceItem>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'displayNo', labelKey: 'oa.my.displayNo', width: 150, fixed: 'left' },
-  { prop: 'formName', labelKey: 'oa.my.formName', minWidth: 130 },
-  { prop: 'category', labelKey: 'oa.design.category', width: 90 },
-  { prop: 'status', labelKey: 'oa.my.status', width: 100 },
+  { prop: 'displayNo', labelKey: 'oa.my.displayNo', width: 150, fixed: 'left', sortable: 'display_no' },
+  { prop: 'formName', labelKey: 'oa.my.formName', minWidth: 130, sortable: 'form_name' },
+  { prop: 'category', labelKey: 'oa.design.category', width: 90, sortable: 'category' },
+  { prop: 'status', labelKey: 'oa.my.status', width: 100, sortable: 'status' },
   { prop: 'pendingNames', labelKey: 'oa.my.pendingNames', minWidth: 120 },
-  { prop: 'createTime', labelKey: 'oa.my.createTime', width: 165 },
-  { prop: 'finishedAt', labelKey: 'oa.my.finishedAt', width: 165 },
+  { prop: 'createTime', labelKey: 'oa.my.createTime', width: 165, sortable: 'create_time' },
+  { prop: 'finishedAt', labelKey: 'oa.my.finishedAt', width: 165, sortable: 'finished_at' },
 ]
 
 function switchStatus(v: string) {
@@ -145,6 +146,7 @@ async function doWithdraw() {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #displayNo="{ row }">
           <el-button link type="primary" @click="openDetail(row as OaInstanceItem)">{{ row.displayNo }}</el-button>
@@ -155,9 +157,9 @@ async function doWithdraw() {
         </template>
         <template #pendingNames="{ row }">{{ row.pendingNames || '-' }}</template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row as OaInstanceItem)">{{ t('common.action.detail') }}</el-button>
+              <ActionBar :actions="[{ key: 'detail', tip: 'common.action.detail' }]" @select="openDetail(row as OaInstanceItem)" />
             </template>
           </el-table-column>
         </template>

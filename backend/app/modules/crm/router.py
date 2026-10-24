@@ -122,7 +122,7 @@ def _filtered(db: Session, request: Request, page: PageParams):
         search_cols=["name", "customer_no", "tax_no", "code"],
         filter_cols={"status", "customer_type", "grade"},
         range_cols={"create_time"},
-        sort_cols={"update_time", "create_time", "id", "customer_no", "name"},
+        sort_cols={"update_time", "create_time", "id", "customer_no", "name", "customer_type", "grade", "status"},
     )
 
 

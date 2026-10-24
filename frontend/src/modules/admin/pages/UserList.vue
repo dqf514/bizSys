@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
@@ -48,16 +49,38 @@ const list = useListPage<AdminUser>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'username', labelKey: 'admin.user.username', width: 140, fixed: 'left' },
-  { prop: 'name', labelKey: 'admin.user.name', width: 120 },
+  { prop: 'username', labelKey: 'admin.user.username', width: 140, fixed: 'left', sortable: 'username' },
+  { prop: 'name', labelKey: 'admin.user.name', width: 120, sortable: 'name' },
   { prop: 'deptName', labelKey: 'admin.user.dept', minWidth: 140 },
   { prop: 'mobile', labelKey: 'admin.user.mobile', width: 120 },
   { prop: 'email', labelKey: 'admin.user.email', minWidth: 160 },
-  { prop: 'status', labelKey: 'admin.user.status', width: 90 },
+  { prop: 'status', labelKey: 'admin.user.status', width: 90, sortable: 'status' },
   { prop: 'roles', labelKey: 'admin.user.roles', width: 140 },
-  { prop: 'createTime', labelKey: 'admin.user.createTime', width: 160 },
-  { prop: 'lastLoginAt', labelKey: 'admin.user.lastLoginAt', width: 160 },
+  { prop: 'createTime', labelKey: 'admin.user.createTime', width: 160, sortable: 'create_time' },
+  { prop: 'lastLoginAt', labelKey: 'admin.user.lastLoginAt', width: 160, sortable: 'last_login_at' },
 ]
+
+/** 启停动作图标/文案随当前状态切换 */
+function rowActions(row: AdminUser): ActionItem[] {
+  const enabled = row.status === 'enabled'
+  return [
+    { key: 'edit', tip: 'common.action.edit', perm: 'admin:user:edit' },
+    { key: 'resetPwd', tip: 'admin.user.resetPassword', icon: 'Key', perm: 'admin:user:edit' },
+    {
+      key: enabled ? 'disable' : 'enable',
+      tip: enabled ? 'common.action.disable' : 'common.action.enable',
+      perm: 'admin:user:edit',
+    },
+    { key: 'delete', tip: 'common.action.delete', perm: 'admin:user:delete' },
+  ]
+}
+
+function onRowAction(key: string, row: AdminUser) {
+  if (key === 'edit') openEdit(row)
+  else if (key === 'resetPwd') void resetPwd(row)
+  else if (key === 'enable' || key === 'disable') void toggleStatus(row)
+  else if (key === 'delete') void remove(row)
+}
 
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
@@ -274,6 +297,7 @@ function onReset() {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
@@ -285,20 +309,9 @@ function onReset() {
           <el-button link type="primary" @click="openEdit(row as unknown as AdminUser)">{{ row.username }}</el-button>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="240" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button v-permission="'admin:user:edit'" link type="primary" @click="openEdit(row as unknown as AdminUser)">
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button v-permission="'admin:user:edit'" link type="warning" @click="resetPwd(row as unknown as AdminUser)">
-                {{ t('admin.user.resetPassword') }}
-              </el-button>
-              <el-button v-permission="'admin:user:edit'" link @click="toggleStatus(row as unknown as AdminUser)">
-                {{ row.status === 'enabled' ? t('common.action.disable') : t('common.action.enable') }}
-              </el-button>
-              <el-button v-permission="'admin:user:delete'" link type="danger" @click="remove(row as unknown as AdminUser)">
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="rowActions(row as unknown as AdminUser)" @select="(k) => onRowAction(k, row as unknown as AdminUser)" />
             </template>
           </el-table-column>
         </template>

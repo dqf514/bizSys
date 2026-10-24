@@ -418,31 +418,31 @@ async function doVoid() {
         <div class="tasks-reports">
           <div class="section-title">{{ t('contract.contract.relatedTasks') }}</div>
           <el-table v-loading="tasksLoading" :data="tasks" border stripe size="small">
-            <el-table-column :label="t('task.task.taskNo')" width="150">
+            <el-table-column :label="t('task.task.taskNo')" prop="taskNo" width="150" sortable>
               <template #default="{ row }">
                 <el-button link type="primary" @click="openTask(row as unknown as Task)">{{ row.taskNo }}</el-button>
               </template>
             </el-table-column>
-            <el-table-column :label="t('task.task.taskName')" prop="taskName" min-width="160" />
-            <el-table-column :label="t('common.form.status')" width="110">
+            <el-table-column :label="t('task.task.taskName')" prop="taskName" min-width="160" sortable />
+            <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
               <template #default="{ row }">
                 <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
               </template>
             </el-table-column>
-            <el-table-column :label="t('task.task.createTime')" prop="createTime" width="160" />
+            <el-table-column :label="t('task.task.createTime')" prop="createTime" width="160" sortable />
           </el-table>
 
           <div class="section-title">{{ t('contract.contract.relatedReports') }}</div>
           <el-table v-loading="reportsLoading" :data="reports" border stripe size="small">
-            <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" />
-            <el-table-column :label="t('report.report.taskNo')" prop="taskNo" width="140" />
-            <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="130" />
-            <el-table-column :label="t('common.form.status')" width="110">
+            <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" sortable />
+            <el-table-column :label="t('report.report.taskNo')" prop="taskNo" width="140" sortable />
+            <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="130" sortable />
+            <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
               <template #default="{ row }">
                 <StatusTag :status="String(row.status)" i18n-prefix="report.report.status" />
               </template>
             </el-table-column>
-            <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" />
+            <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" sortable />
           </el-table>
         </div>
       </el-tab-pane>
@@ -454,40 +454,40 @@ async function doVoid() {
         <div v-loading="financeLoading" class="finance-tables">
           <div class="section-title">{{ t('contract.finance.settlements') }}</div>
           <el-table :data="settlements" border stripe size="small">
-            <el-table-column :label="t('finance.settlement.settlementNo')" width="150">
+            <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" width="150" sortable>
               <template #default="{ row }">
                 <el-button link type="primary" @click="openSettlement(row as unknown as Settlement)">
                   {{ row.settlementNo }}
                 </el-button>
               </template>
             </el-table-column>
-            <el-table-column :label="t('finance.settlement.amount')" width="120">
+            <el-table-column :label="t('finance.settlement.amount')" prop="amount" width="120" sortable align="right">
               <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
             </el-table-column>
-            <el-table-column :label="t('finance.settlement.invoiceableAmount')" width="120">
+            <el-table-column :label="t('finance.settlement.invoiceableAmount')" prop="invoiceableAmount" width="120" sortable align="right">
               <template #default="{ row }">{{ fmtMoney(row.invoiceableAmount) }}</template>
             </el-table-column>
-            <el-table-column :label="t('common.form.status')" width="110">
+            <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
               <template #default="{ row }">
                 <StatusTag :status="String(row.status)" i18n-prefix="finance.settlement.status" />
               </template>
             </el-table-column>
-            <el-table-column :label="t('finance.settlement.createTime')" prop="createTime" width="160" />
+            <el-table-column :label="t('finance.settlement.createTime')" prop="createTime" width="160" sortable />
           </el-table>
 
           <div class="section-title">{{ t('contract.finance.invoices') }}</div>
           <el-table :data="invoices" border stripe size="small">
-            <el-table-column :label="t('finance.invoice.invoiceNo')" prop="invoiceNo" width="160">
+            <el-table-column :label="t('finance.invoice.invoiceNo')" prop="invoiceNo" width="160" sortable>
               <template #default="{ row }">{{ row.invoiceNo || '-' }}</template>
             </el-table-column>
-            <el-table-column :label="t('finance.invoice.settlementNo')" prop="settlementNo" width="150" />
-            <el-table-column :label="t('finance.invoice.amount')" width="120">
+            <el-table-column :label="t('finance.invoice.settlementNo')" prop="settlementNo" width="150" sortable />
+            <el-table-column :label="t('finance.invoice.amount')" prop="amount" width="120" sortable align="right">
               <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
             </el-table-column>
-            <el-table-column :label="t('finance.invoice.invoiceDate')" width="120">
+            <el-table-column :label="t('finance.invoice.invoiceDate')" prop="invoiceDate" width="120" sortable>
               <template #default="{ row }">{{ row.invoiceDate || '-' }}</template>
             </el-table-column>
-            <el-table-column :label="t('common.form.status')" width="110">
+            <el-table-column :label="t('common.form.status')" prop="status" width="110" sortable>
               <template #default="{ row }">
                 <StatusTag :status="String(row.status)" i18n-prefix="finance.invoice.status" />
               </template>
@@ -496,15 +496,15 @@ async function doVoid() {
 
           <div class="section-title">{{ t('contract.finance.payments') }}</div>
           <el-table :data="payments" border stripe size="small">
-            <el-table-column :label="t('finance.payment.paymentNo')" prop="paymentNo" width="160" />
-            <el-table-column :label="t('finance.payment.payerName')" prop="payerName" min-width="140" />
-            <el-table-column :label="t('finance.payment.amount')" width="120">
+            <el-table-column :label="t('finance.payment.paymentNo')" prop="paymentNo" width="160" sortable />
+            <el-table-column :label="t('finance.payment.payerName')" prop="payerName" min-width="140" sortable />
+            <el-table-column :label="t('finance.payment.amount')" prop="amount" width="120" sortable align="right">
               <template #default="{ row }">{{ fmtMoney(row.amount) }}</template>
             </el-table-column>
-            <el-table-column :label="t('finance.payment.payType')" width="110">
+            <el-table-column :label="t('finance.payment.payType')" prop="payType" width="110" sortable>
               <template #default="{ row }">{{ payTypeLabel(row.payType) }}</template>
             </el-table-column>
-            <el-table-column :label="t('finance.payment.paidAt')" prop="paidAt" width="120" />
+            <el-table-column :label="t('finance.payment.paidAt')" prop="paidAt" width="120" sortable />
           </el-table>
         </div>
       </el-tab-pane>

@@ -173,7 +173,10 @@ def _filtered(db: Session, request: Request, page: PageParams):
         search_cols=["task_no", "task_name", "customer_name"],
         filter_cols={"status", "task_type", "biz_block", "dept_id", "owner_id", "contract_id", "customer_id"},
         range_cols={"plan_finish_date", "create_time"},
-        sort_cols={"update_time", "create_time", "id", "task_no", "plan_finish_date"},
+        sort_cols={
+            "update_time", "create_time", "id", "task_no", "plan_finish_date",
+            "task_name", "task_type", "customer_name", "biz_block", "status",
+        },
     )
 
 
@@ -548,7 +551,17 @@ def _filtered_samples(db: Session, request: Request, page: PageParams):
     if stock in ("in", "out"):
         stmt = stmt.where(TaskSample.in_stock == stock)
     sort = (request.query_params.get("sort") or "").strip()
-    sort_cols = {"create_time": TaskSample.create_time, "sample_date": TaskSample.sample_date, "id": TaskSample.id}
+    sort_cols = {
+        "create_time": TaskSample.create_time,
+        "sample_date": TaskSample.sample_date,
+        "id": TaskSample.id,
+        "sample_no": TaskSample.sample_no,
+        "name": TaskSample.name,
+        "in_stock": TaskSample.in_stock,
+        "task_name": Task.task_name,
+        "task_no": Task.task_no,
+        "customer_name": Task.customer_name,
+    }
     col = TaskSample.create_time
     direction = "desc"
     if ":" in sort:

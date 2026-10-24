@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ReportUploadDialog from '../components/ReportUploadDialog.vue'
@@ -55,16 +56,38 @@ const list = useListPage<Report>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'reportNo', labelKey: 'report.report.reportNo', width: 150, fixed: 'left' },
+  { prop: 'reportNo', labelKey: 'report.report.reportNo', width: 150, fixed: 'left', sortable: 'report_no' },
   { prop: 'taskNo', labelKey: 'report.report.taskNo', width: 140 },
   { prop: 'contractNo', labelKey: 'report.report.contractNo', width: 140 },
   { prop: 'itemName', labelKey: 'report.report.itemName', minWidth: 130 },
   { prop: 'customerName', labelKey: 'report.report.customerName', minWidth: 140 },
-  { prop: 'fileName', labelKey: 'report.report.fileName', minWidth: 160 },
-  { prop: 'status', labelKey: 'common.form.status', width: 110 },
+  { prop: 'fileName', labelKey: 'report.report.fileName', minWidth: 160, sortable: 'file_name' },
+  { prop: 'status', labelKey: 'common.form.status', width: 110, sortable: 'status' },
   { prop: 'createBy', labelKey: 'report.report.createBy', width: 100 },
-  { prop: 'createTime', labelKey: 'report.report.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'report.report.createTime', width: 160, sortable: 'create_time' },
 ]
+
+/** 行内动作随状态变化；超出 3 个收进「更多」 */
+function rowActions(row: Report): ActionItem[] {
+  const acts: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
+  if (row.status === 'uploaded' || row.status === 'rejected') {
+    acts.push({ key: 'submit', tip: 'report.report.submit', perm: 'report:submit' })
+  }
+  if (row.status === 'approved') {
+    acts.push({ key: 'seal', tip: 'report.report.seal', perm: 'report:seal' })
+  }
+  acts.push({ key: 'downloadRaw', tip: 'report.report.downloadRaw', icon: 'Download' })
+  if (row.pdfReady) acts.push({ key: 'downloadPdf', tip: 'report.report.downloadPdf', icon: 'Document' })
+  return acts
+}
+
+function onRowAction(key: string, row: Report) {
+  if (key === 'detail') openDetail(row)
+  else if (key === 'submit') void doSubmit(row)
+  else if (key === 'seal') void doSeal(row)
+  else if (key === 'downloadRaw') doDownload(row, false)
+  else if (key === 'downloadPdf') doDownload(row, true)
+}
 
 /* ---------- upload dialog ---------- */
 const uploadVisible = ref(false)
@@ -152,6 +175,7 @@ function openDetail(row: Report) {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #reportNo="{ row }">
           <el-button link type="primary" @click="openDetail(row as unknown as Report)">
@@ -162,40 +186,9 @@ function openDetail(row: Report) {
           <StatusTag :status="String(row.status)" i18n-prefix="report.report.status" />
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="330" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row as unknown as Report)">
-                {{ t('common.action.detail') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'uploaded' || row.status === 'rejected'"
-                v-permission="'report:submit'"
-                link
-                type="warning"
-                @click="doSubmit(row as unknown as Report)"
-              >
-                {{ t('report.report.submit') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'approved'"
-                v-permission="'report:seal'"
-                link
-                type="danger"
-                @click="doSeal(row as unknown as Report)"
-              >
-                {{ t('report.report.seal') }}
-              </el-button>
-              <el-button link type="primary" @click="doDownload(row as unknown as Report, false)">
-                {{ t('report.report.downloadRaw') }}
-              </el-button>
-              <el-button
-                v-if="row.pdfReady"
-                link
-                type="success"
-                @click="doDownload(row as unknown as Report, true)"
-              >
-                {{ t('report.report.downloadPdf') }}
-              </el-button>
+              <ActionBar :actions="rowActions(row as unknown as Report)" @select="(k) => onRowAction(k, row as unknown as Report)" />
             </template>
           </el-table-column>
         </template>

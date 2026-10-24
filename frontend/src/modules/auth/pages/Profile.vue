@@ -2,8 +2,9 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Camera, Delete, Edit, Plus, View } from '@element-plus/icons-vue'
+import { Camera, Plus, View } from '@element-plus/icons-vue'
 import StepUpDialog from '../components/StepUpDialog.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import * as authApi from '@/api/auth'
 import type { BankAccountIn } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -213,6 +214,11 @@ async function removeBank(row: BankAccount) {
   }
 }
 
+const rowActions: ActionItem[] = [
+  { key: 'edit', tip: 'common.action.edit' },
+  { key: 'delete', tip: 'common.action.delete' },
+]
+
 onMounted(() => {
   void load()
   void loadContacts()
@@ -298,14 +304,16 @@ onMounted(() => {
           </el-button>
         </div>
         <el-table :data="contacts" v-loading="contactsLoading">
-          <el-table-column prop="name" :label="t('auth.profile.contactName')" min-width="120" />
-          <el-table-column prop="relation" :label="t('auth.profile.relation')" width="120" />
-          <el-table-column prop="phone" :label="t('auth.profile.phone')" min-width="140" />
+          <el-table-column prop="name" :label="t('auth.profile.contactName')" min-width="120" sortable />
+          <el-table-column prop="relation" :label="t('auth.profile.relation')" width="120" sortable />
+          <el-table-column prop="phone" :label="t('auth.profile.phone')" min-width="140" sortable />
           <el-table-column prop="remark" :label="t('auth.profile.remark')" min-width="160" show-overflow-tooltip />
-          <el-table-column :label="t('common.action.operate')" width="120" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" :icon="Edit" @click="openContactDialog(row)" />
-              <el-button link type="danger" :icon="Delete" @click="removeContact(row)" />
+              <ActionBar
+                :actions="rowActions"
+                @select="(key: string) => (key === 'edit' ? openContactDialog(row) : removeContact(row))"
+              />
             </template>
           </el-table-column>
           <template #empty>{{ t('auth.profile.emptyContacts') }}</template>
@@ -320,7 +328,7 @@ onMounted(() => {
           </el-button>
         </div>
         <el-table :data="banks" v-loading="banksLoading">
-          <el-table-column prop="bankName" :label="t('auth.profile.bankName')" min-width="140" />
+          <el-table-column prop="bankName" :label="t('auth.profile.bankName')" min-width="140" sortable />
           <el-table-column :label="t('auth.profile.cardNo')" min-width="200">
             <template #default="{ row }">
               <span class="card-no">{{ revealed[row.id] || row.cardNo }}</span>
@@ -333,11 +341,13 @@ onMounted(() => {
               />
             </template>
           </el-table-column>
-          <el-table-column prop="holderName" :label="t('auth.profile.holderName')" min-width="120" />
-          <el-table-column :label="t('common.action.operate')" width="120" fixed="right">
+          <el-table-column prop="holderName" :label="t('auth.profile.holderName')" min-width="120" sortable />
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" :icon="Edit" @click="openBankDialog(row)" />
-              <el-button link type="danger" :icon="Delete" @click="removeBank(row)" />
+              <ActionBar
+                :actions="rowActions"
+                @select="(key: string) => (key === 'edit' ? openBankDialog(row) : removeBank(row))"
+              />
             </template>
           </el-table-column>
           <template #empty>{{ t('auth.profile.emptyBanks') }}</template>

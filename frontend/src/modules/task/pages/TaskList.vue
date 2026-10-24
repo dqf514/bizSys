@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import TaskDetailPanel from '../components/TaskDetailPanel.vue'
@@ -139,18 +140,19 @@ onActivated(() => {
 })
 
 const columns: ListColumn[] = [
-  { prop: 'taskNo', labelKey: 'task.task.taskNo', width: 150, fixed: 'left' },
-  { prop: 'taskTypeLabel', labelKey: 'task.task.taskType', width: 110 },
-  { prop: 'customerName', labelKey: 'task.task.customerName', minWidth: 140 },
+  { prop: 'taskNo', labelKey: 'task.task.taskNo', width: 150, fixed: 'left', sortable: 'task_no' },
+  { prop: 'taskTypeLabel', labelKey: 'task.task.taskType', width: 110, sortable: 'task_type' },
+  { prop: 'customerName', labelKey: 'task.task.customerName', minWidth: 140, sortable: 'customer_name' },
   {
     prop: 'bizBlock',
     labelKey: 'task.task.bizBlockDept',
     minWidth: 140,
+    sortable: 'biz_block',
     formatter: (row) => [row.bizBlockLabel || row.bizBlock, row.deptName].filter(Boolean).join(' / ') || '-',
   },
-  { prop: 'status', labelKey: 'task.task.status', width: 120 },
+  { prop: 'status', labelKey: 'task.task.status', width: 120, sortable: 'status' },
   { prop: 'ownerName', labelKey: 'task.task.ownerName', width: 100 },
-  { prop: 'updateTime', labelKey: 'task.task.updateTime', width: 160 },
+  { prop: 'updateTime', labelKey: 'task.task.updateTime', width: 160, sortable: 'update_time' },
 ]
 
 function openCreate() {
@@ -217,6 +219,7 @@ function onDetailChanged() {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #status="{ row }">
           <StatusTag :status="String(row.status)" i18n-prefix="task.task.status" />
@@ -231,11 +234,12 @@ function onDetailChanged() {
           <el-button link type="primary" @click="openDetail(row as unknown as Task)">{{ row.taskNo || '-' }}</el-button>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row as unknown as Task)">
-                {{ t('common.action.detail') }}
-              </el-button>
+              <ActionBar
+                :actions="[{ key: 'detail', tip: 'common.action.detail' }]"
+                @select="openDetail(row as unknown as Task)"
+              />
             </template>
           </el-table-column>
         </template>

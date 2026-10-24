@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
@@ -45,8 +46,8 @@ const baseColumns: ListColumn[] = [
   { prop: 'nodeName', labelKey: 'approval.approval.nodeName', width: 130 },
   { prop: 'status', labelKey: 'approval.approval.status', width: 100 },
   { prop: 'initiatorName', labelKey: 'approval.approval.initiatorName', width: 110 },
-  { prop: 'createTime', labelKey: 'approval.approval.createTime', width: 165 },
-  { prop: 'actedAt', labelKey: 'approval.approval.actedAt', width: 165 },
+  { prop: 'createTime', labelKey: 'approval.approval.createTime', width: 165, sortable: 'create_time' },
+  { prop: 'actedAt', labelKey: 'approval.approval.actedAt', width: 165, sortable: 'at' },
 ]
 
 const ccColumns: ListColumn[] = [
@@ -55,7 +56,7 @@ const ccColumns: ListColumn[] = [
   { prop: 'instanceStatus', labelKey: 'approval.approval.instanceStatus', width: 100 },
   { prop: 'initiatorName', labelKey: 'approval.approval.initiatorName', width: 110 },
   { prop: 'readAt', labelKey: 'approval.approval.readAt', width: 165 },
-  { prop: 'createTime', labelKey: 'approval.approval.createTime', width: 165 },
+  { prop: 'createTime', labelKey: 'approval.approval.createTime', width: 165, sortable: 'create_time' },
 ]
 
 const columns = computed<ListColumn[]>(() => (activeTab.value === 'cc' ? ccColumns : baseColumns))
@@ -135,6 +136,7 @@ onMounted(() => list.refresh())
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #title="{ row }">
           <el-button link type="primary" @click="openDetail(row)">{{ row.title }}</el-button>
@@ -152,9 +154,9 @@ onMounted(() => list.refresh())
           {{ row.readAt ? row.readAt : t('approval.approval.ccUnread') }}
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row)">{{ t('common.action.detail') }}</el-button>
+              <ActionBar :actions="[{ key: 'detail', tip: 'common.action.detail' }]" @select="openDetail(row)" />
             </template>
           </el-table-column>
         </template>

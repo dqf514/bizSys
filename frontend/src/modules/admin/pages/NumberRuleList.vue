@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import {
   listNumberRules,
   createNumberRule,
@@ -224,6 +225,18 @@ async function doReset(row: NumberRule) {
 }
 
 const hasCategory = computed(() => Boolean(BIZ_CATEGORY_DICT[form.bizType]))
+
+const EDIT_PERM = 'admin:numbering:edit'
+
+const ruleActions: ActionItem[] = [
+  { key: 'edit', tip: 'common.action.edit', perm: EDIT_PERM },
+  { key: 'resetSeq', tip: 'admin.numbering.resetSeq', icon: 'RefreshLeft', perm: EDIT_PERM },
+]
+
+function onAction(key: string, row: NumberRule) {
+  if (key === 'edit') openEdit(row)
+  else if (key === 'resetSeq') void doReset(row)
+}
 </script>
 
 <template>
@@ -237,17 +250,17 @@ const hasCategory = computed(() => Boolean(BIZ_CATEGORY_DICT[form.bizType]))
 
     <template #table>
       <el-table :data="items" row-key="id" border stripe height="100%">
-        <el-table-column :label="t('admin.numbering.bizType')" min-width="100">
+        <el-table-column :label="t('admin.numbering.bizType')" prop="bizType" min-width="100" sortable>
           <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
         </el-table-column>
-        <el-table-column :label="t('admin.numbering.categoryKey')" min-width="120">
+        <el-table-column :label="t('admin.numbering.categoryKey')" prop="categoryKey" min-width="120" sortable>
           <template #default="{ row }">{{ categoryLabel(row) }}</template>
         </el-table-column>
-        <el-table-column :label="t('admin.numbering.prefix')" prop="prefix" width="90" />
+        <el-table-column :label="t('admin.numbering.prefix')" prop="prefix" width="90" sortable />
         <el-table-column :label="t('admin.numbering.datePart')" min-width="110">
           <template #default="{ row }">{{ datePartLabel(row) }}</template>
         </el-table-column>
-        <el-table-column :label="t('admin.numbering.seqLen')" width="120">
+        <el-table-column :label="t('admin.numbering.seqLen')" prop="seqLen" width="120" sortable>
           <template #default="{ row }">
             {{ row.seqLen }} / {{ t('admin.numbering.seqStartShort') }}{{ row.seqStart ?? 1 }}
           </template>
@@ -255,10 +268,10 @@ const hasCategory = computed(() => Boolean(BIZ_CATEGORY_DICT[form.bizType]))
         <el-table-column :label="t('admin.numbering.separator')" width="80">
           <template #default="{ row }">{{ row.separator || '-' }}</template>
         </el-table-column>
-        <el-table-column :label="t('admin.numbering.resetCycle')" width="100">
+        <el-table-column :label="t('admin.numbering.resetCycle')" prop="resetCycle" width="100" sortable>
           <template #default="{ row }">{{ cycleLabel(row.resetCycle) }}</template>
         </el-table-column>
-        <el-table-column :label="t('admin.numbering.enabled')" width="80">
+        <el-table-column :label="t('admin.numbering.enabled')" prop="enabled" width="80" sortable>
           <template #default="{ row }">
             <el-tag :type="Number(row.enabled) ? 'success' : 'info'" size="small">
               {{ Number(row.enabled) ? t('common.form.enabled') : t('common.form.disabled') }}
@@ -270,14 +283,9 @@ const hasCategory = computed(() => Boolean(BIZ_CATEGORY_DICT[form.bizType]))
             <code class="preview-code">{{ row.preview || row.example || '-' }}</code>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.action.operate')" width="170" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button v-permission="'admin:numbering:edit'" link type="primary" @click="openEdit(row as NumberRule)">
-              {{ t('common.action.edit') }}
-            </el-button>
-            <el-button v-permission="'admin:numbering:edit'" link type="warning" @click="doReset(row as NumberRule)">
-              {{ t('admin.numbering.resetSeq') }}
-            </el-button>
+            <ActionBar :actions="ruleActions" @select="(key: string) => onAction(key, row as NumberRule)" />
           </template>
         </el-table-column>
       </el-table>

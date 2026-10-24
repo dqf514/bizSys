@@ -97,12 +97,13 @@ def apply(body: S.ApplyIn, current: User = Depends(require_perm("oa:apply")), db
 @router.get("/instances/my")
 def my_instances(
     status: str = Query(""),
+    sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:my")),
     db: Session = Depends(get_db),
 ):
-    return svc.my_instances(db, current, PageParams(page=page, size=size), status=status)
+    return svc.my_instances(db, current, PageParams(page=page, size=size), status=status, sort=sort)
 
 
 @router.get("/instances/my/export")
@@ -140,6 +141,7 @@ def export_my_instances(
 @router.get("/related")
 def related(
     tab: str = Query("todo", pattern="^(todo|done|cc)$"),
+    sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:related")),
@@ -148,8 +150,8 @@ def related(
     """与我相关：待办/已办/抄送——复用 approval 查询，过滤 biz_type='oa'。"""
     pp = PageParams(page=page, size=size)
     if tab == "cc":
-        return approval_svc.list_cc(db, current, pp, biz_type="oa")
-    return approval_svc.list_tasks(db, current, pp, tab, biz_type="oa")
+        return approval_svc.list_cc(db, current, pp, biz_type="oa", sort=sort)
+    return approval_svc.list_tasks(db, current, pp, tab, biz_type="oa", sort=sort)
 
 
 @router.get("/stats")
@@ -293,13 +295,14 @@ def admin_instances(
     status: str = Query(""),
     keyword: str = Query(""),
     stuck_days: int = Query(0, ge=0, alias="stuckDays"),
+    sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:admin:handle")),
     db: Session = Depends(get_db),
 ):
     return svc.admin_instances(
-        db, PageParams(page=page, size=size), status=status, keyword=keyword, stuck_days=stuck_days
+        db, PageParams(page=page, size=size), status=status, keyword=keyword, stuck_days=stuck_days, sort=sort
     )
 
 

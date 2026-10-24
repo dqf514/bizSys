@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
@@ -50,16 +51,24 @@ function fmtAmount(row: Record<string, unknown>, prop: string) {
 }
 
 const columns: ListColumn[] = [
-  { prop: 'invoiceNo', labelKey: 'finance.invoice.invoiceNo', width: 160, fixed: 'left' },
+  { prop: 'invoiceNo', labelKey: 'finance.invoice.invoiceNo', width: 160, fixed: 'left', sortable: 'invoice_no' },
   { prop: 'settlementNo', labelKey: 'finance.invoice.settlementNo', width: 150 },
   { prop: 'taskNo', labelKey: 'finance.invoice.taskNo', width: 140 },
   { prop: 'customerName', labelKey: 'finance.invoice.customerName', minWidth: 140 },
-  { prop: 'amount', labelKey: 'finance.invoice.amount', width: 120 },
-  { prop: 'invoiceDate', labelKey: 'finance.invoice.invoiceDate', width: 120 },
-  { prop: 'status', labelKey: 'common.form.status', width: 100 },
+  { prop: 'amount', labelKey: 'finance.invoice.amount', width: 120, align: 'right', sortable: 'amount' },
+  { prop: 'invoiceDate', labelKey: 'finance.invoice.invoiceDate', width: 120, sortable: 'invoice_date' },
+  { prop: 'status', labelKey: 'common.form.status', width: 100, sortable: 'status' },
   { prop: 'createBy', labelKey: 'finance.invoice.createBy', width: 100 },
-  { prop: 'createTime', labelKey: 'finance.invoice.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'finance.invoice.createTime', width: 160, sortable: 'create_time' },
 ]
+
+/** 仅「已开出未登记票号」可登记 */
+function rowActions(row: InvoiceListItem): ActionItem[] {
+  if (row.status === 'issued' && !row.invoiceNo) {
+    return [{ key: 'registerInvoice', tip: 'finance.invoice.register', icon: 'Postcard', perm: 'finance:invoice:edit' }]
+  }
+  return []
+}
 
 /* ---------- register invoice dialog ---------- */
 const invoiceVisible = ref(false)
@@ -185,6 +194,7 @@ async function doApply() {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #invoiceNo="{ row }">{{ row.invoiceNo || '-' }}</template>
         <template #amount="{ row }">{{ fmtAmount(row, 'amount') }}</template>
@@ -193,17 +203,12 @@ async function doApply() {
           <StatusTag :status="String(row.status)" i18n-prefix="finance.invoice.status" />
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="120" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button
-                v-if="row.status === 'issued' && !row.invoiceNo"
-                v-permission="'finance:invoice:edit'"
-                link
-                type="primary"
-                @click="openInvoiceRegister(row as unknown as InvoiceListItem)"
-              >
-                {{ t('finance.invoice.register') }}
-              </el-button>
+              <ActionBar
+                :actions="rowActions(row as unknown as InvoiceListItem)"
+                @select="openInvoiceRegister(row as unknown as InvoiceListItem)"
+              />
             </template>
           </el-table-column>
         </template>

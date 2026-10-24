@@ -183,52 +183,52 @@ async function doMark() {
         <template v-if="detail.confirmRecords?.length">
           <div class="section-title">{{ t('finance.settlement.confirmRecords') }}</div>
           <el-table :data="detail.confirmRecords" border size="small">
-            <el-table-column :label="t('common.form.status')" width="100">
+            <el-table-column prop="action" :label="t('common.form.status')" width="100" sortable>
               <template #default="{ row }">
                 <StatusTag :status="row.action" i18n-prefix="finance.settlement.confirmAction" />
               </template>
             </el-table-column>
-            <el-table-column prop="operatorName" :label="t('finance.settlement.confirmOperator')" width="100" />
-            <el-table-column prop="receiverName" :label="t('finance.settlement.confirmReceiver')" width="100">
+            <el-table-column prop="operatorName" :label="t('finance.settlement.confirmOperator')" width="100" sortable />
+            <el-table-column prop="receiverName" :label="t('finance.settlement.confirmReceiver')" width="100" sortable>
               <template #default="{ row }">{{ row.receiverName || '-' }}</template>
             </el-table-column>
             <el-table-column prop="note" :label="t('finance.settlement.confirmNote')" min-width="140">
               <template #default="{ row }">{{ row.note || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="createTime" :label="t('finance.settlement.createTime')" width="160" />
+            <el-table-column prop="createTime" :label="t('finance.settlement.createTime')" width="160" sortable />
           </el-table>
         </template>
 
         <div class="section-title">{{ t('finance.settlement.invoices') }}</div>
         <el-table :data="detail.invoices ?? []" border size="small">
-          <el-table-column prop="invoiceNo" :label="t('finance.settlement.invoiceNo')" min-width="140">
+          <el-table-column prop="invoiceNo" :label="t('finance.settlement.invoiceNo')" min-width="140" sortable>
             <template #default="{ row }">{{ row.invoiceNo || '-' }}</template>
           </el-table-column>
-          <el-table-column :label="t('finance.settlement.amount')" width="120">
+          <el-table-column prop="amount" :label="t('finance.settlement.amount')" width="120" sortable align="right">
             <template #default="{ row }">{{ fmtAmount(row, 'amount') }}</template>
           </el-table-column>
-          <el-table-column prop="invoiceDate" :label="t('finance.settlement.invoiceDate')" width="120">
+          <el-table-column prop="invoiceDate" :label="t('finance.settlement.invoiceDate')" width="120" sortable>
             <template #default="{ row }">{{ row.invoiceDate || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="status" :label="t('finance.settlement.invoiceStatus')" width="110">
+          <el-table-column prop="status" :label="t('finance.settlement.invoiceStatus')" width="110" sortable>
             <template #default="{ row }">{{ row.status || '-' }}</template>
           </el-table-column>
         </el-table>
 
         <div class="section-title">{{ t('finance.settlement.payments') }}</div>
         <el-table :data="detail.payments ?? []" border size="small">
-          <el-table-column prop="paymentNo" :label="t('finance.payment.paymentNo')" min-width="140" />
-          <el-table-column :label="t('finance.payment.payType')" width="110">
+          <el-table-column prop="paymentNo" :label="t('finance.payment.paymentNo')" min-width="140" sortable />
+          <el-table-column prop="payType" :label="t('finance.payment.payType')" width="110" sortable>
             <template #default="{ row }">{{ payTypeLabel(row.payType) }}</template>
           </el-table-column>
-          <el-table-column prop="payerName" :label="t('finance.payment.payerName')" min-width="120" />
-          <el-table-column :label="t('finance.payment.amount')" width="120">
+          <el-table-column prop="payerName" :label="t('finance.payment.payerName')" min-width="120" sortable />
+          <el-table-column prop="amount" :label="t('finance.payment.amount')" width="120" sortable align="right">
             <template #default="{ row }">{{ fmtAmount(row, 'amount') }}</template>
           </el-table-column>
           <el-table-column prop="bank" :label="t('finance.payment.bank')" min-width="120">
             <template #default="{ row }">{{ row.bank || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="paidAt" :label="t('finance.payment.paidAt')" width="110" />
+          <el-table-column prop="paidAt" :label="t('finance.payment.paidAt')" width="110" sortable />
         </el-table>
 
         <div class="section-title">{{ t('finance.settlement.invoiceTimeline') }}</div>

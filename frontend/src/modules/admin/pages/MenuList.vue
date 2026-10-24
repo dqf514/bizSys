@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import ListPage from '@/components/list/ListPage.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import MenuNavPreview from '@/modules/admin/components/MenuNavPreview.vue'
 import { menuTree, createMenu, updateMenu, deleteMenu } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
@@ -242,6 +243,18 @@ function typeLabel(type: string) {
   if (type === 'button') return t('admin.menu.typeButton')
   return t('admin.menu.typeMenu')
 }
+
+const menuActions: ActionItem[] = [
+  { key: 'add', tip: 'common.action.create', perm: 'admin:menu:create' },
+  { key: 'edit', tip: 'common.action.edit', perm: 'admin:menu:edit' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'admin:menu:delete' },
+]
+
+function onMenuAction(key: string, row: MenuNode) {
+  if (key === 'add') openCreate(row)
+  else if (key === 'edit') openEdit(row)
+  else if (key === 'delete') void remove(row)
+}
 </script>
 
 <template>
@@ -275,17 +288,9 @@ function typeLabel(type: string) {
               </template>
             </el-table-column>
             <el-table-column :label="t('admin.menu.sort')" prop="sort" width="70" />
-            <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
+            <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
               <template #default="{ row }">
-                <el-button v-permission="'admin:menu:create'" link type="primary" @click="openCreate(row as MenuNode)">
-                  {{ t('common.action.create') }}
-                </el-button>
-                <el-button v-permission="'admin:menu:edit'" link type="primary" @click="openEdit(row as MenuNode)">
-                  {{ t('common.action.edit') }}
-                </el-button>
-                <el-button v-permission="'admin:menu:delete'" link type="danger" @click="remove(row as MenuNode)">
-                  {{ t('common.action.delete') }}
-                </el-button>
+                <ActionBar :actions="menuActions" @select="(key: string) => onMenuAction(key, row as MenuNode)" />
               </template>
             </el-table-column>
           </el-table>

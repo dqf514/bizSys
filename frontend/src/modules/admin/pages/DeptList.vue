@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import {
   listDepts,
@@ -134,6 +135,22 @@ async function saveMembers() {
     membersSaving.value = false
   }
 }
+
+const DEPT_PERM = 'admin:dept:edit'
+
+const deptActions: ActionItem[] = [
+  { key: 'add', tip: 'common.action.create', perm: DEPT_PERM },
+  { key: 'edit', tip: 'common.action.edit', perm: DEPT_PERM },
+  { key: 'members', tip: 'admin.dept.members', icon: 'User', perm: DEPT_PERM },
+]
+
+function onDeptAction(key: string, row: Dept) {
+  if (key === 'add') openCreate(row)
+  else if (key === 'edit') openEdit(row)
+  else if (key === 'members') void openMembers(row)
+}
+
+const memberRowActions: ActionItem[] = [{ key: 'remove', tip: 'common.action.delete' }]
 </script>
 
 <template>
@@ -153,17 +170,9 @@ async function saveMembers() {
         </el-table-column>
         <el-table-column :label="t('admin.dept.code')" prop="code" min-width="120" />
         <el-table-column :label="t('admin.dept.sort')" prop="sort" width="80" />
-        <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openCreate(row as Dept)">
-              {{ t('common.action.create') }}
-            </el-button>
-            <el-button v-permission="'admin:dept:edit'" link type="primary" @click="openEdit(row as Dept)">
-              {{ t('common.action.edit') }}
-            </el-button>
-            <el-button v-permission="'admin:dept:edit'" link type="warning" @click="openMembers(row as Dept)">
-              {{ t('admin.dept.members') }}
-            </el-button>
+            <ActionBar :actions="deptActions" @select="(key: string) => onDeptAction(key, row as Dept)" />
           </template>
         </el-table-column>
       </el-table>
@@ -231,7 +240,7 @@ async function saveMembers() {
       </el-table-column>
       <el-table-column :label="t('common.action.operate')" width="70" align="center">
         <template #default="{ $index }">
-          <el-button link type="danger" @click="removeMemberRow($index)">{{ t('common.action.delete') }}</el-button>
+          <ActionBar :actions="memberRowActions" @select="removeMemberRow($index)" />
         </template>
       </el-table-column>
     </el-table>

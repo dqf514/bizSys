@@ -18,6 +18,7 @@ import {
 } from '@/api/maintenance'
 import { useAuthStore } from '@/stores/auth'
 import { useBrandingStore } from '@/stores/branding'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 
 defineOptions({ name: 'AdminMaintenance' })
 
@@ -224,6 +225,16 @@ function formatSize(size: number): string {
   return `${size} B`
 }
 
+const backupActions: ActionItem[] = [
+  { key: 'download', tip: 'common.action.download' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'admin:backup:manage' },
+]
+
+function onBackupAction(key: string, row: BackupFile) {
+  if (key === 'download') void downloadBackup(row.name)
+  else if (key === 'delete') void doDeleteBackup(row)
+}
+
 function openPurge() {
   purgeForm.password = ''
   purgeForm.confirm = ''
@@ -321,24 +332,19 @@ async function doPurge() {
           </div>
         </template>
         <el-table :data="backups" size="small" class="backup-table">
-          <el-table-column prop="name" :label="t('admin.maintenance.fileName')" min-width="240" show-overflow-tooltip />
-          <el-table-column :label="t('admin.maintenance.size')" width="90">
+          <el-table-column prop="name" :label="t('admin.maintenance.fileName')" min-width="240" sortable show-overflow-tooltip />
+          <el-table-column prop="size" :label="t('admin.maintenance.size')" width="90" sortable align="right">
             <template #default="{ row }">{{ formatSize(row.size) }}</template>
           </el-table-column>
-          <el-table-column prop="createdAt" :label="t('admin.maintenance.createdAt')" width="160" />
-          <el-table-column :label="t('admin.maintenance.kind')" width="90">
+          <el-table-column prop="createdAt" :label="t('admin.maintenance.createdAt')" width="160" sortable />
+          <el-table-column prop="kind" :label="t('admin.maintenance.kind')" width="90" sortable>
             <template #default="{ row }">
               {{ row.kind === 'auto' ? t('admin.maintenance.kindAuto') : t('admin.maintenance.kindManual') }}
             </template>
           </el-table-column>
-          <el-table-column :label="t('common.action.operate')" width="150" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="downloadBackup(row.name)">
-                {{ t('common.action.download') }}
-              </el-button>
-              <el-button v-permission="'admin:backup:manage'" link type="danger" @click="doDeleteBackup(row)">
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="backupActions" @select="(key: string) => onBackupAction(key, row as BackupFile)" />
             </template>
           </el-table-column>
           <template #empty>{{ t('admin.maintenance.empty') }}</template>

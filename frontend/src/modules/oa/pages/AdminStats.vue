@@ -36,9 +36,9 @@ onMounted(load)
       <div v-if="stats?.backlog?.length" class="backlog-card">
         <div class="chart-title">{{ t('oa.adminStats.backlog') }}</div>
         <el-table :data="stats.backlog" border>
-          <el-table-column prop="formName" :label="t('oa.my.formName')" min-width="160" />
-          <el-table-column prop="instances" :label="t('oa.adminStats.instances')" width="120" align="right" />
-          <el-table-column prop="pendingTasks" :label="t('oa.adminStats.pendingTasks')" width="120" align="right" />
+          <el-table-column prop="formName" :label="t('oa.my.formName')" min-width="160" sortable />
+          <el-table-column prop="instances" :label="t('oa.adminStats.instances')" width="120" align="right" sortable />
+          <el-table-column prop="pendingTasks" :label="t('oa.adminStats.pendingTasks')" width="120" align="right" sortable />
         </el-table>
       </div>
     </StatsPanel>

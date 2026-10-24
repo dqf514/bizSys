@@ -98,6 +98,7 @@ export function useListPage<T = unknown>(options: UseListPageOptions<T>) {
     query.status = options.defaultStatus ?? 'all'
     query.filters = {}
     query.range = {}
+    query.sort = ''
     void load()
   }
 
@@ -118,6 +119,14 @@ export function useListPage<T = unknown>(options: UseListPageOptions<T>) {
 
   function setStatus(status: string) {
     query.status = status
+    query.page = 1
+    void load()
+  }
+
+  /** 表头排序循环：升序→降序→取消（回到后端默认排序） */
+  function onSortChange(e: { sortField?: string; order: 'ascending' | 'descending' | null }) {
+    if (!e.sortField) return
+    query.sort = e.order ? `${e.sortField}:${e.order === 'ascending' ? 'asc' : 'desc'}` : ''
     query.page = 1
     void load()
   }
@@ -170,6 +179,7 @@ export function useListPage<T = unknown>(options: UseListPageOptions<T>) {
     setPage,
     setSize,
     setStatus,
+    onSortChange,
     exportList,
   }
 }

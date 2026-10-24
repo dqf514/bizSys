@@ -140,7 +140,10 @@ def _filtered(db: Session, request: Request, page: PageParams):
         search_cols=["name", "contract_no", "customer_name"],
         filter_cols={"status", "customer_id", "contract_type"},
         range_cols={"start_date", "end_date", "create_time"},
-        sort_cols={"update_time", "create_time", "id", "contract_no", "amount"},
+        sort_cols={
+            "update_time", "create_time", "id", "contract_no", "amount", "name",
+            "customer_name", "status", "start_date", "end_date", "contract_type",
+        },
     )
 
 

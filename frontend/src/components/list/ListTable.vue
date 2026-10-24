@@ -12,6 +12,15 @@ export interface ListColumn {
   slot?: string
   formatter?: (row: Record<string, unknown>) => string
   showOverflowTooltip?: boolean
+  /** 后端排序字段名（snake_case，须在接口 sort 白名单内）；'local' 为前端本地排序（按 prop 取值）；不传则不可排序 */
+  sortable?: string
+  align?: 'left' | 'center' | 'right'
+}
+
+export interface SortChange {
+  prop: string
+  order: 'ascending' | 'descending' | null
+  sortField?: string
 }
 
 const props = defineProps<{
@@ -31,6 +40,7 @@ const emit = defineEmits<{
   (e: 'update:size', v: number): void
   (e: 'selection-change', rows: Record<string, unknown>[]): void
   (e: 'row-click', row: Record<string, unknown>): void
+  (e: 'sort-change', payload: SortChange): void
 }>()
 
 const { t } = useI18n()
@@ -51,6 +61,12 @@ function onSelectionChange(rows: Record<string, unknown>[]) {
   selected.value = rows
   emit('selection-change', rows)
 }
+
+function onSortChange(payload: { prop: string; order: 'ascending' | 'descending' | null }) {
+  const col = props.columns.find((c) => c.prop === payload.prop)
+  const sortField = col?.sortable && col.sortable !== 'local' ? col.sortable : undefined
+  emit('sort-change', { ...payload, sortField })
+}
 </script>
 
 <template>
@@ -66,6 +82,7 @@ function onSelectionChange(rows: Record<string, unknown>[]) {
       class="table"
       @selection-change="onSelectionChange"
       @row-click="(row: Record<string, unknown>) => emit('row-click', row)"
+      @sort-change="onSortChange"
     >
       <el-table-column v-if="props.selectable" type="selection" width="40" fixed="left" />
       <el-table-column
@@ -76,6 +93,8 @@ function onSelectionChange(rows: Record<string, unknown>[]) {
         :width="col.width"
         :min-width="col.minWidth || 100"
         :fixed="col.fixed"
+        :align="col.align"
+        :sortable="col.sortable === 'local' ? true : col.sortable ? 'custom' : false"
         :show-overflow-tooltip="col.showOverflowTooltip ?? true"
       >
         <template #default="{ row }">

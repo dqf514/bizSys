@@ -414,13 +414,35 @@ def instance_item(db: Session, inst: OaInstance) -> dict:
     }
 
 
-def my_instances(db: Session, user: User, params: PageParams, status: str = "") -> dict:
+# 实例列表排序白名单（'col:asc|desc'，非法回退 id desc）
+_OA_SORT_COLS = {
+    "id": OaInstance.id,
+    "display_no": OaInstance.display_no,
+    "form_name": OaInstance.form_name,
+    "category": OaInstance.category,
+    "applicant_name": OaInstance.applicant_name,
+    "status": OaInstance.status,
+    "create_time": OaInstance.create_time,
+    "finished_at": OaInstance.finished_at,
+}
+
+
+def _oa_sort_order(raw: str):
+    col, desc = OaInstance.id, True
+    if ":" in (raw or ""):
+        key, _, d = raw.partition(":")
+        if key in _OA_SORT_COLS:
+            col, desc = _OA_SORT_COLS[key], d != "asc"
+    return col.desc() if desc else col.asc()
+
+
+def my_instances(db: Session, user: User, params: PageParams, status: str = "", sort: str = "") -> dict:
     stmt = select(OaInstance).where(OaInstance.applicant_id == user.id, OaInstance.deleted == 0)
     if status:
         stmt = stmt.where(OaInstance.status == status)
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
-        stmt.order_by(OaInstance.id.desc()).offset((params.page - 1) * params.size).limit(params.size)
+        stmt.order_by(_oa_sort_order(sort)).offset((params.page - 1) * params.size).limit(params.size)
     ).all()
     return page_result([instance_item(db, r) for r in rows], total, params.page, params.size)
 
@@ -990,7 +1012,7 @@ def delete_form(db: Session, form_id: int) -> None:
 
 
 def admin_instances(
-    db: Session, params: PageParams, status: str = "", keyword: str = "", stuck_days: int = 0
+    db: Session, params: PageParams, status: str = "", keyword: str = "", stuck_days: int = 0, sort: str = ""
 ) -> dict:
     stmt = select(OaInstance).where(OaInstance.deleted == 0)
     if status:
@@ -1010,7 +1032,7 @@ def admin_instances(
         )
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
-        stmt.order_by(OaInstance.id.desc()).offset((params.page - 1) * params.size).limit(params.size)
+        stmt.order_by(_oa_sort_order(sort)).offset((params.page - 1) * params.size).limit(params.size)
     ).all()
     return page_result([instance_item(db, r) for r in rows], total, params.page, params.size)
 

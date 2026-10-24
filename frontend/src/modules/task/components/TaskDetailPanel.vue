@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
@@ -443,6 +444,38 @@ function logActionLabel(action: string) {
   if (action === 'out') return t('task.task.logActionOut')
   return action || '-'
 }
+
+/* ---------- 内嵌表格操作列（ActionBar） ---------- */
+const itemRowActions = computed<ActionItem[]>(() => {
+  const acts: ActionItem[] = []
+  if (canMaintainItems.value) acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'task:edit' })
+  if (isDraft.value) acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'task:edit' })
+  return acts
+})
+
+function onItemRowAction(key: string, row: Record<string, unknown>) {
+  if (key === 'edit') openItemEdit(row as unknown as TaskItem)
+  else if (key === 'delete') void removeItem(row as unknown as TaskItem)
+}
+
+function sampleRowActions(row: Record<string, unknown>): ActionItem[] {
+  const acts: ActionItem[] = []
+  if (row.inStock !== 'in') acts.push({ key: 'sampleIn', tip: 'task.task.sampleIn', icon: 'Download' })
+  if (row.inStock === 'in') acts.push({ key: 'sampleOut', tip: 'task.task.sampleOut', icon: 'Upload' })
+  if (canMaintainSamples.value) acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'task:edit' })
+  if (isDraft.value) acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'task:edit' })
+  return acts
+}
+
+function onSampleRowAction(key: string, row: Record<string, unknown>) {
+  const sample = row as unknown as TaskSample
+  if (key === 'sampleIn') void doSampleFlow(sample, 'in')
+  else if (key === 'sampleOut') void doSampleFlow(sample, 'out')
+  else if (key === 'edit') openSampleEdit(sample)
+  else if (key === 'delete') void removeSample(sample)
+}
+
+const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
 </script>
 
 <template>
@@ -507,13 +540,13 @@ function logActionLabel(action: string) {
           </el-button>
         </div>
         <el-table :data="items" border stripe size="small">
-          <el-table-column :label="t('task.task.itemCode')" prop="itemCode" width="120" />
-          <el-table-column :label="t('task.task.itemName')" prop="name" min-width="140" />
+          <el-table-column :label="t('task.task.itemCode')" prop="itemCode" width="120" sortable />
+          <el-table-column :label="t('task.task.itemName')" prop="name" min-width="140" sortable />
           <el-table-column :label="t('task.task.itemStd')" prop="std" min-width="110" />
-          <el-table-column :label="t('task.task.itemDept')" prop="dept" width="110" />
-          <el-table-column :label="t('task.task.itemInspector')" prop="inspector" width="100" />
-          <el-table-column :label="t('task.task.itemQty')" prop="qty" width="80" />
-          <el-table-column :label="t('task.task.itemReportNo')" prop="reportNo" width="130" />
+          <el-table-column :label="t('task.task.itemDept')" prop="dept" width="110" sortable />
+          <el-table-column :label="t('task.task.itemInspector')" prop="inspector" width="100" sortable />
+          <el-table-column :label="t('task.task.itemQty')" prop="qty" width="80" sortable />
+          <el-table-column :label="t('task.task.itemReportNo')" prop="reportNo" width="130" sortable />
           <el-table-column :label="t('task.task.itemReportStatus')" width="120">
             <template #default="{ row }">
               <StatusTag
@@ -527,28 +560,13 @@ function logActionLabel(action: string) {
           <el-table-column
             v-if="canMaintainItems || isDraft"
             :label="t('common.action.operate')"
-            width="130"
+            width="90"
             fixed="right"
+            align="center"
+            header-align="center"
           >
             <template #default="{ row }">
-              <el-button
-                v-if="canMaintainItems"
-                v-permission="'task:edit'"
-                link
-                type="primary"
-                @click="openItemEdit(row as unknown as TaskItem)"
-              >
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button
-                v-if="isDraft"
-                v-permission="'task:edit'"
-                link
-                type="danger"
-                @click="removeItem(row as unknown as TaskItem)"
-              >
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="itemRowActions" @select="(key: string) => onItemRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -565,53 +583,20 @@ function logActionLabel(action: string) {
           </el-button>
         </div>
         <el-table :data="samples" border stripe size="small">
-          <el-table-column :label="t('task.task.sampleNo')" prop="sampleNo" width="130" />
-          <el-table-column :label="t('task.task.sampleName')" prop="name" min-width="130" />
-          <el-table-column :label="t('task.task.sampleModel')" prop="model" width="110" />
-          <el-table-column :label="t('task.task.sampleVin')" prop="vin" width="140" />
+          <el-table-column :label="t('task.task.sampleNo')" prop="sampleNo" width="130" sortable />
+          <el-table-column :label="t('task.task.sampleName')" prop="name" min-width="130" sortable />
+          <el-table-column :label="t('task.task.sampleModel')" prop="model" width="110" sortable />
+          <el-table-column :label="t('task.task.sampleVin')" prop="vin" width="140" sortable />
           <el-table-column :label="t('task.task.sampleVehicleType')" prop="vehicleType" width="110" />
-          <el-table-column :label="t('task.task.sampleDate')" prop="sampleDate" width="110" />
+          <el-table-column :label="t('task.task.sampleDate')" prop="sampleDate" width="110" sortable />
           <el-table-column :label="t('task.task.sampleInStock')" width="90">
             <template #default="{ row }">
               <StatusTag :status="String(row.inStock)" i18n-prefix="task.task.sampleStatus" />
             </template>
           </el-table-column>
-          <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button
-                v-if="row.inStock !== 'in'"
-                link
-                type="success"
-                @click="doSampleFlow(row as unknown as TaskSample, 'in')"
-              >
-                {{ t('task.task.sampleIn') }}
-              </el-button>
-              <el-button
-                v-if="row.inStock === 'in'"
-                link
-                type="warning"
-                @click="doSampleFlow(row as unknown as TaskSample, 'out')"
-              >
-                {{ t('task.task.sampleOut') }}
-              </el-button>
-              <el-button
-                v-if="canMaintainSamples"
-                v-permission="'task:edit'"
-                link
-                type="primary"
-                @click="openSampleEdit(row as unknown as TaskSample)"
-              >
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button
-                v-if="isDraft"
-                v-permission="'task:edit'"
-                link
-                type="danger"
-                @click="removeSample(row as unknown as TaskSample)"
-              >
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="sampleRowActions(row)" @select="(key: string) => onSampleRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -628,20 +613,21 @@ function logActionLabel(action: string) {
           </el-button>
         </div>
         <el-table v-loading="reportsLoading" :data="reports" border stripe size="small">
-          <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" />
-          <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="140" />
-          <el-table-column :label="t('report.report.fileName')" prop="fileName" min-width="160" />
+          <el-table-column :label="t('report.report.reportNo')" prop="reportNo" width="150" sortable />
+          <el-table-column :label="t('report.report.itemName')" prop="itemName" min-width="140" sortable />
+          <el-table-column :label="t('report.report.fileName')" prop="fileName" min-width="160" sortable />
           <el-table-column :label="t('common.form.status')" width="110">
             <template #default="{ row }">
               <StatusTag :status="String(row.status)" i18n-prefix="report.report.status" />
             </template>
           </el-table-column>
-          <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" />
-          <el-table-column :label="t('common.action.operate')" width="90" fixed="right">
+          <el-table-column :label="t('report.report.createTime')" prop="createTime" width="160" sortable />
+          <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openReportDetail(row as unknown as Report)">
-                {{ t('common.action.detail') }}
-              </el-button>
+              <ActionBar
+                :actions="reportRowActions"
+                @select="openReportDetail(row as unknown as Report)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -653,12 +639,12 @@ function logActionLabel(action: string) {
           <span v-if="logs.length" class="bs-tab-count">({{ logs.length }})</span>
         </template>
         <el-table :data="logs" border stripe size="small">
-          <el-table-column :label="t('task.task.logSampleNo')" prop="sampleNo" width="150" />
+          <el-table-column :label="t('task.task.logSampleNo')" prop="sampleNo" width="150" sortable />
           <el-table-column :label="t('task.task.logAction')" width="100">
             <template #default="{ row }">{{ logActionLabel(String(row.action)) }}</template>
           </el-table-column>
-          <el-table-column :label="t('task.task.logOperator')" prop="operatorName" width="120" />
-          <el-table-column :label="t('task.task.logTime')" prop="createTime" width="160" />
+          <el-table-column :label="t('task.task.logOperator')" prop="operatorName" width="120" sortable />
+          <el-table-column :label="t('task.task.logTime')" prop="createTime" width="160" sortable />
           <el-table-column :label="t('task.task.logRemark')" prop="remark" min-width="180" />
         </el-table>
       </el-tab-pane>

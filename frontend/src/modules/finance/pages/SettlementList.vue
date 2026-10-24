@@ -6,6 +6,7 @@ import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
@@ -65,17 +66,45 @@ function fmtAmount(row: Record<string, unknown>, prop: string) {
 }
 
 const columns: ListColumn[] = [
-  { prop: 'settlementNo', labelKey: 'finance.settlement.settlementNo', width: 150, fixed: 'left' },
-  { prop: 'taskNo', labelKey: 'finance.settlement.taskNo', width: 140 },
-  { prop: 'customerName', labelKey: 'finance.settlement.customerName', minWidth: 140 },
-  { prop: 'contractNo', labelKey: 'finance.settlement.contractNo', width: 140 },
-  { prop: 'amount', labelKey: 'finance.settlement.amount', width: 120 },
-  { prop: 'invoiceableAmount', labelKey: 'finance.settlement.invoiceableAmount', width: 120 },
-  { prop: 'status', labelKey: 'common.form.status', width: 110 },
-  { prop: 'confirmStatus', labelKey: 'finance.settlement.confirmStatusLabel', width: 100 },
+  { prop: 'settlementNo', labelKey: 'finance.settlement.settlementNo', width: 150, fixed: 'left', sortable: 'settlement_no' },
+  { prop: 'taskNo', labelKey: 'finance.settlement.taskNo', width: 140, sortable: 'task_no' },
+  { prop: 'customerName', labelKey: 'finance.settlement.customerName', minWidth: 140, sortable: 'customer_name' },
+  { prop: 'contractNo', labelKey: 'finance.settlement.contractNo', width: 140, sortable: 'contract_no' },
+  { prop: 'amount', labelKey: 'finance.settlement.amount', width: 120, align: 'right', sortable: 'amount' },
+  { prop: 'invoiceableAmount', labelKey: 'finance.settlement.invoiceableAmount', width: 120, align: 'right', sortable: 'invoiceable_amount' },
+  { prop: 'status', labelKey: 'common.form.status', width: 110, sortable: 'status' },
+  { prop: 'confirmStatus', labelKey: 'finance.settlement.confirmStatusLabel', width: 100, sortable: 'confirm_status' },
   { prop: 'createBy', labelKey: 'finance.settlement.createBy', width: 100 },
-  { prop: 'createTime', labelKey: 'finance.settlement.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'finance.settlement.createTime', width: 160, sortable: 'create_time' },
 ]
+
+/** 行内动作随状态/确认态变化 */
+function rowActions(row: Settlement): ActionItem[] {
+  const acts: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
+  if (row.status === 'rejected') {
+    acts.push({ key: 'submit', tip: 'finance.settlement.resubmit', perm: 'finance:settlement:create' })
+  }
+  if (row.status === 'pending' && row.confirmStatus !== 'confirmed') {
+    acts.push({ key: 'sendConfirm', tip: 'finance.settlement.sendConfirm', icon: 'Position', perm: 'finance:settlement:confirm' })
+  }
+  if (row.status === 'pending' && row.confirmStatus === 'confirmed') {
+    acts.push({ key: 'invoice', tip: 'finance.settlement.applyInvoice', perm: 'finance:invoice:apply' })
+  }
+  if (row.status === 'invoiced') {
+    acts.push({ key: 'registerInvoice', tip: 'finance.settlement.registerInvoice', icon: 'Postcard', perm: 'finance:invoice:edit' })
+    acts.push({ key: 'registerPayment', tip: 'finance.settlement.registerPayment', icon: 'CreditCard', perm: 'finance:payment:create' })
+  }
+  return acts
+}
+
+function onRowAction(key: string, row: Settlement) {
+  if (key === 'detail') openDetail(row)
+  else if (key === 'submit') void doResubmit(row)
+  else if (key === 'sendConfirm') openDetail(row)
+  else if (key === 'invoice') void doApplyInvoice(row)
+  else if (key === 'registerInvoice') void openInvoiceRegister(row)
+  else if (key === 'registerPayment') openPaymentRegister(row)
+}
 
 /* ---------- create settlement dialog ---------- */const createVisible = ref(false)
 const createFormRef = ref<FormInstance>()
@@ -281,6 +310,7 @@ function openPaymentRegister(row: Settlement) {
         row-key="id"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #settlementNo="{ row }">
           <el-button link type="primary" @click="openDetail(row as unknown as Settlement)">
@@ -301,56 +331,9 @@ function openPaymentRegister(row: Settlement) {
           <span v-else>-</span>
         </template>
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="300" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row as unknown as Settlement)">
-                {{ t('common.action.detail') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'rejected'"
-                v-permission="'finance:settlement:create'"
-                link
-                type="warning"
-                @click="doResubmit(row as unknown as Settlement)"
-              >
-                {{ t('finance.settlement.resubmit') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'pending' && row.confirmStatus !== 'confirmed'"
-                v-permission="'finance:settlement:confirm'"
-                link
-                type="primary"
-                @click="openDetail(row as unknown as Settlement)"
-              >
-                {{ t('finance.settlement.sendConfirm') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'pending' && row.confirmStatus === 'confirmed'"
-                v-permission="'finance:invoice:apply'"
-                link
-                type="warning"
-                @click="doApplyInvoice(row as unknown as Settlement)"
-              >
-                {{ t('finance.settlement.applyInvoice') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'invoiced'"
-                v-permission="'finance:invoice:edit'"
-                link
-                type="primary"
-                @click="openInvoiceRegister(row as unknown as Settlement)"
-              >
-                {{ t('finance.settlement.registerInvoice') }}
-              </el-button>
-              <el-button
-                v-if="row.status === 'invoiced'"
-                v-permission="'finance:payment:create'"
-                link
-                type="success"
-                @click="openPaymentRegister(row as unknown as Settlement)"
-              >
-                {{ t('finance.settlement.registerPayment') }}
-              </el-button>
+              <ActionBar :actions="rowActions(row as unknown as Settlement)" @select="(k) => onRowAction(k, row as unknown as Settlement)" />
             </template>
           </el-table-column>
         </template>

@@ -7,6 +7,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import FormDesigner from '@/modules/oa/components/FormDesigner.vue'
 import { useDict } from '@/composables/useDict'
@@ -64,13 +65,13 @@ const flowNameOf = computed(() => {
 })
 
 const columns: ListColumn[] = [
-  { prop: 'name', labelKey: 'oa.design.formName', minWidth: 140, fixed: 'left' },
-  { prop: 'key', labelKey: 'oa.design.formKey', width: 150 },
-  { prop: 'category', labelKey: 'oa.design.category', width: 90 },
-  { prop: 'formVersion', labelKey: 'oa.design.version', width: 70 },
-  { prop: 'status', labelKey: 'oa.my.status', width: 96 },
+  { prop: 'name', labelKey: 'oa.design.formName', minWidth: 140, fixed: 'left', sortable: 'local' },
+  { prop: 'key', labelKey: 'oa.design.formKey', width: 150, sortable: 'local' },
+  { prop: 'category', labelKey: 'oa.design.category', width: 90, sortable: 'local' },
+  { prop: 'formVersion', labelKey: 'oa.design.version', width: 70, sortable: 'local' },
+  { prop: 'status', labelKey: 'oa.my.status', width: 96, sortable: 'local' },
   { prop: 'flowDefinitionId', labelKey: 'oa.design.boundFlow', minWidth: 140 },
-  { prop: 'publishedAt', labelKey: 'oa.design.publishedAt', width: 165 },
+  { prop: 'publishedAt', labelKey: 'oa.design.publishedAt', width: 165, sortable: 'local' },
 ]
 
 function categoryLabel(c: string) {
@@ -242,6 +243,32 @@ async function doDelete(row: OaForm) {
 
 const editable = (row: OaForm) => row.status === 'draft' || row.status === 'disabled'
 
+const DESIGN_PERM = 'oa:admin:design'
+
+function rowActions(row: OaForm): ActionItem[] {
+  const acts: ActionItem[] = []
+  if (editable(row)) acts.push({ key: 'edit', tip: 'common.action.edit', perm: DESIGN_PERM })
+  if (row.status !== 'published') {
+    acts.push({ key: 'publish', tip: 'oa.design.publish', icon: 'Promotion', perm: DESIGN_PERM })
+  }
+  if (row.status === 'published') {
+    acts.push({ key: 'disable', tip: 'oa.design.disable', perm: DESIGN_PERM })
+    acts.push({ key: 'newVersion', tip: 'oa.design.newVersion', icon: 'DocumentCopy', perm: DESIGN_PERM })
+  }
+  if (flowStale(row)) acts.push({ key: 'bindLatest', tip: 'oa.design.bindLatest', icon: 'Link', perm: DESIGN_PERM })
+  if (row.status === 'draft') acts.push({ key: 'delete', tip: 'common.action.delete', perm: DESIGN_PERM })
+  return acts
+}
+
+function onAction(key: string, row: OaForm) {
+  if (key === 'edit') openEdit(row)
+  else if (key === 'publish') void doPublish(row)
+  else if (key === 'disable') void doDisable(row)
+  else if (key === 'newVersion') void doNewVersion(row)
+  else if (key === 'bindLatest') void doBindLatest(row)
+  else if (key === 'delete') void doDelete(row)
+}
+
 /** 绑定流程落后最新启用版本（可一键绑定最新版） */
 const flowStale = (row: OaForm) =>
   Boolean(row.flowDefinitionId && row.flowVersion != null && row.flowLatestVersion != null
@@ -292,26 +319,9 @@ function gotoDesign() {
       </template>
       <template #publishedAt="{ row }">{{ row.publishedAt || '-' }}</template>
       <template #extraColumns>
-        <el-table-column :label="t('common.action.operate')" width="360" fixed="right">
+        <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button v-if="editable(row as OaForm)" v-permission="'oa:admin:design'" link type="primary" @click="openEdit(row as OaForm)">
-              {{ t('common.action.edit') }}
-            </el-button>
-            <el-button v-if="row.status !== 'published'" v-permission="'oa:admin:design'" link type="success" @click="doPublish(row as OaForm)">
-              {{ t('oa.design.publish') }}
-            </el-button>
-            <el-button v-if="row.status === 'published'" v-permission="'oa:admin:design'" link type="warning" @click="doDisable(row as OaForm)">
-              {{ t('oa.design.disable') }}
-            </el-button>
-            <el-button v-if="row.status === 'published'" v-permission="'oa:admin:design'" link type="primary" @click="doNewVersion(row as OaForm)">
-              {{ t('oa.design.newVersion') }}
-            </el-button>
-            <el-button v-if="flowStale(row as OaForm)" v-permission="'oa:admin:design'" link type="warning" @click="doBindLatest(row as OaForm)">
-              {{ t('oa.design.bindLatest') }}
-            </el-button>
-            <el-button v-if="row.status === 'draft'" v-permission="'oa:admin:design'" link type="danger" @click="doDelete(row as OaForm)">
-              {{ t('common.action.delete') }}
-            </el-button>
+            <ActionBar :actions="rowActions(row as OaForm)" @select="(key: string) => onAction(key, row as OaForm)" />
           </template>
         </el-table-column>
       </template>

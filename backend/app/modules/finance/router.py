@@ -201,7 +201,10 @@ def _settlement_filtered(db: Session, request: Request, page: PageParams):
         search_cols=["settlement_no", "task_no", "customer_name", "contract_no"],
         filter_cols={"status", "task_id", "contract_id", "customer_id", "confirm_status"},
         range_cols={"create_time"},
-        sort_cols={"update_time", "create_time", "id", "settlement_no", "amount"},
+        sort_cols={
+            "update_time", "create_time", "id", "settlement_no", "amount", "invoiceable_amount",
+            "task_no", "contract_no", "customer_name", "status", "confirm_status",
+        },
     )
 
 
@@ -552,7 +555,7 @@ def _invoice_filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         filter_cols={"settlement_id"},
-        sort_cols={"update_time", "create_time", "id", "amount", "invoice_date"},
+        sort_cols={"update_time", "create_time", "id", "amount", "invoice_date", "invoice_no", "status"},
         extra_where=extra,
     )
 
@@ -658,7 +661,7 @@ def _payment_filtered(db: Session, request: Request, page: PageParams):
         search_cols=["payment_no", "payer_name", "payer_account"],
         filter_cols={"pay_type", "settlement_id"},
         range_cols={"paid_at", "create_time"},
-        sort_cols={"update_time", "create_time", "id", "payment_no", "amount", "paid_at"},
+        sort_cols={"update_time", "create_time", "id", "payment_no", "amount", "paid_at", "pay_type", "payer_name"},
         extra_where=_rel_filters(Payment, request.query_params),
     )
 

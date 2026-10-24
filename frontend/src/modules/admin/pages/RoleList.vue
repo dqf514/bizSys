@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import { useListPage } from '@/composables/useListPage'
 import { listRoles, createRole, updateRole, deleteRole, grantRoleMenus, menuTree } from '@/api/admin'
 import type { MenuNode, Role } from '@/api/types'
@@ -24,13 +25,25 @@ const list = useListPage<Role>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'code', labelKey: 'admin.role.code', width: 140 },
-  { prop: 'name', labelKey: 'admin.role.name', minWidth: 140 },
+  { prop: 'code', labelKey: 'admin.role.code', width: 140, sortable: 'code' },
+  { prop: 'name', labelKey: 'admin.role.name', minWidth: 140, sortable: 'name' },
   { prop: 'dataScope', labelKey: 'admin.role.dataScope', width: 120 },
-  { prop: 'status', labelKey: 'common.form.status', width: 100 },
+  { prop: 'status', labelKey: 'common.form.status', width: 100, sortable: 'status' },
   { prop: 'remark', labelKey: 'admin.role.remark', minWidth: 160 },
-  { prop: 'createTime', labelKey: 'common.form.createTime', width: 160 },
+  { prop: 'createTime', labelKey: 'common.form.createTime', width: 160, sortable: 'create_time' },
 ]
+
+const rowActions: ActionItem[] = [
+  { key: 'grant', tip: 'admin.role.grantMenus', icon: 'Key', perm: 'admin:role:edit' },
+  { key: 'edit', tip: 'common.action.edit', perm: 'admin:role:edit' },
+  { key: 'delete', tip: 'common.action.delete', perm: 'admin:role:delete' },
+]
+
+function onRowAction(key: string, row: Role) {
+  if (key === 'grant') void openGrant(row)
+  else if (key === 'edit') openEdit(row)
+  else if (key === 'delete') void remove(row)
+}
 
 const dialogVisible = ref(false)
 const grantVisible = ref(false)
@@ -150,19 +163,12 @@ function onTreeCheck(_data: unknown, info: { checkedKeys: number[]; checkedNodes
         :size="Number(list.query.size)"
         @update:page="list.setPage"
         @update:size="list.setSize"
+        @sort-change="list.onSortChange"
       >
         <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="220" fixed="right">
+          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
-              <el-button v-permission="'admin:role:edit'" link type="primary" @click="openGrant(row as unknown as Role)">
-                {{ t('admin.role.grantMenus') }}
-              </el-button>
-              <el-button v-permission="'admin:role:edit'" link type="primary" @click="openEdit(row as unknown as Role)">
-                {{ t('common.action.edit') }}
-              </el-button>
-              <el-button v-permission="'admin:role:delete'" link type="danger" @click="remove(row as unknown as Role)">
-                {{ t('common.action.delete') }}
-              </el-button>
+              <ActionBar :actions="rowActions" @select="(k) => onRowAction(k, row as unknown as Role)" />
             </template>
           </el-table-column>
         </template>

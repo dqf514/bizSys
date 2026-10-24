@@ -53,7 +53,21 @@ def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
     }
 
 
-def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo", biz_type: str | None = None) -> dict:
+def _pick_sort(raw: str, mapping: dict, default_col, default_desc: bool = True):
+    """白名单排序：'col:asc|desc'，非法回退默认。"""
+    col = default_col
+    desc = default_desc
+    if ":" in (raw or ""):
+        key, _, d = raw.partition(":")
+        if key in mapping:
+            col = mapping[key]
+            desc = d != "asc"
+    return col.desc() if desc else col.asc()
+
+
+def list_tasks(
+    db: Session, user: User, params: PageParams, tab: str = "todo", biz_type: str | None = None, sort: str = ""
+) -> dict:
     tab = tab or "todo"
     if tab == "todo":
         stmt = select(ApprovalTask).where(
@@ -66,9 +80,12 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo", b
                 ApprovalInstance.biz_type == biz_type
             )
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        order = _pick_sort(
+            sort, {"create_time": ApprovalTask.create_time, "id": ApprovalTask.id}, ApprovalTask.create_time
+        )
         rows = list(
             db.scalars(
-                stmt.order_by(ApprovalTask.create_time.desc())
+                stmt.order_by(order)
                     .offset((params.page - 1) * params.size)
                     .limit(params.size)
             )
@@ -87,9 +104,10 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo", b
                 ApprovalInstance.biz_type == biz_type
             )
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        order = _pick_sort(sort, {"at": ApprovalRecord.at, "id": ApprovalRecord.id}, ApprovalRecord.at)
         rows = list(
             db.scalars(
-                stmt.order_by(ApprovalRecord.at.desc())
+                stmt.order_by(order)
                     .offset((params.page - 1) * params.size)
                     .limit(params.size)
             )
@@ -126,9 +144,19 @@ def list_tasks(db: Session, user: User, params: PageParams, tab: str = "todo", b
         if biz_type:
             stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        order = _pick_sort(
+            sort,
+            {
+                "create_time": ApprovalInstance.create_time,
+                "status": ApprovalInstance.status,
+                "title": ApprovalInstance.title,
+                "id": ApprovalInstance.id,
+            },
+            ApprovalInstance.create_time,
+        )
         rows = list(
             db.scalars(
-                stmt.order_by(ApprovalInstance.create_time.desc())
+                stmt.order_by(order)
                     .offset((params.page - 1) * params.size)
                     .limit(params.size)
             )
@@ -277,7 +305,7 @@ def instance_timeline(db: Session, instance_id: int) -> dict:
 
 
 def list_cc(
-    db: Session, user: User, params: PageParams, unread_only: bool = False, biz_type: str | None = None
+    db: Session, user: User, params: PageParams, unread_only: bool = False, biz_type: str | None = None, sort: str = ""
 ) -> dict:
     stmt = select(ApprovalCc).where(ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0)
     if unread_only:
@@ -287,9 +315,10 @@ def list_cc(
             ApprovalInstance.biz_type == biz_type
         )
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    order = _pick_sort(sort, {"create_time": ApprovalCc.create_time, "id": ApprovalCc.id}, ApprovalCc.create_time)
     rows = list(
         db.scalars(
-            stmt.order_by(ApprovalCc.create_time.desc())
+            stmt.order_by(order)
                 .offset((params.page - 1) * params.size)
                 .limit(params.size)
         )
