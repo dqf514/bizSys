@@ -32,7 +32,7 @@ HIDDEN_MENUS = {"ApprovalCenter"}
 
 MENU_TREE = [
     ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
-    # 业务系统分组：客户/合同/任务/样品/报告/财务（开票→结算→到账 保持既有顺序）
+    # 业务系统分组：客户/合同/任务/报告/样品/财务（开票→结算→到账 保持既有顺序）
     (
         "menu.bizSystem",
         "BizSystem",
@@ -87,17 +87,6 @@ MENU_TREE = [
                 ],
             ),
             (
-                "menu.sample",
-                "Samples",
-                "/task/samples",
-                "task/SampleList",
-                "Box",
-                "task:sample:list",
-                [
-                    (None, "sample-export", "", "", "", "task:sample:list:export", []),
-                ],
-            ),
-            (
                 "menu.report",
                 "Reports",
                 "/report/reports",
@@ -109,6 +98,17 @@ MENU_TREE = [
                     (None, "report-submit", "", "", "", "report:submit", []),
                     (None, "report-seal", "", "", "", "report:seal", []),
                     (None, "report-export", "", "", "", "report:export", []),
+                ],
+            ),
+            (
+                "menu.sample",
+                "Samples",
+                "/task/samples",
+                "task/SampleList",
+                "Box",
+                "task:sample:list",
+                [
+                    (None, "sample-export", "", "", "", "task:sample:list:export", []),
                 ],
             ),
             (
@@ -161,8 +161,6 @@ MENU_TREE = [
             ),
         ],
     ),
-    # 流程中心并入工作台门户：菜单隐藏保留（权限点 approval:view 仍由它承载），/approval 走前端静态路由深链
-    ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
     (
         "menu.oaSystem",
         "OaSystem",
@@ -357,6 +355,8 @@ MENU_TREE = [
             ),
         ],
     ),
+    # 流程中心并入工作台门户：菜单隐藏保留（权限点 approval:view 仍由它承载），/approval 走前端静态路由深链
+    ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
 ]
 
 

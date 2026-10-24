@@ -96,11 +96,11 @@ def manager_headers(client):
 
 
 def test_menu_tree_biz_group(client, admin_headers):
-    """业务系统分组含客户/合同/任务/样品/报告/财务；流程中心隐藏但仍挂权限点。
+    """业务系统分组含客户/合同/任务/报告/样品/财务；流程中心隐藏但仍挂权限点。
 
-    测试库跨运行复用、种子不回写 parent_id/sort，先执行批次A迁移脚本（幂等）再断言目标结构。
+    测试库跨运行复用、种子不回写 parent_id/sort，先执行批次E迁移脚本（幂等）再断言目标结构。
     """
-    from scripts.migrate_nav_batch_a import main as migrate_nav
+    from scripts.migrate_nav_batch_e import main as migrate_nav
 
     migrate_nav()
     tree = client.get("/api/v1/admin/menus/tree", headers=admin_headers).json()["data"]
@@ -117,7 +117,7 @@ def test_menu_tree_biz_group(client, admin_headers):
     biz = find(tree, "BizSystem")
     assert biz and biz["menuType"] == "dir", biz
     child_names = [c["name"] for c in biz["children"]]
-    assert child_names == ["Customers", "Contracts", "Tasks", "Samples", "Reports", "Finance"], child_names
+    assert child_names == ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Finance"], child_names
     sample = find(tree, "Samples")
     assert sample["path"] == "/task/samples" and sample["permission"] == "task:sample:list"
     finance = find(tree, "Finance")

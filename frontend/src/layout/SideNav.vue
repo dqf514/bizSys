@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElButton, ElDialog, ElIcon, ElMenu, ElMessage } from 'element-plus'
@@ -25,7 +25,18 @@ function visibleMenus(nodes: MenuNode[]): MenuNode[] {
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
 }
 
-/** per-user top-level order stored as CSV of menu ids in prefs.navOrder */
+function menuTitle(node: MenuNode) {
+  return node.titleKey ? t(node.titleKey) : node.name
+}
+
+// ---- 三区结构：顶层独立菜单（工作台）钉在顶部，顶级目录渲染为「区」 ----
+const visibleTree = computed(() => visibleMenus(auth.menus))
+/** 顶层独立菜单（工作台），不属于任何区，固定最前 */
+const topMenus = computed(() => visibleTree.value.filter((n) => n.menuType === 'menu'))
+/** 顶级目录 = 区（业务系统/OA系统/系统管理）；无权限区已被 visibleMenus 整区剔除 */
+const zoneDirs = computed(() => visibleTree.value.filter((n) => n.menuType === 'dir'))
+
+/** per-user zone order stored as CSV of menu ids in prefs.navOrder */
 const customOrder = computed<number[]>(() => {
   const raw = auth.user?.prefs?.navOrder
   if (typeof raw !== 'string' || !raw) return []
@@ -35,23 +46,50 @@ const customOrder = computed<number[]>(() => {
     .filter((n) => Number.isFinite(n))
 })
 
-const menus = computed(() => {
-  const tree = visibleMenus(auth.menus)
+/**
+ * 结构优先：navOrder 是批次A之前的旧数据（含已移动/已删除的顶层业务菜单 id）
+ * 或与当前区结构不一致（缺区/多 id）时整体作废，回退默认区序。
+ */
+const validOrder = computed<number[]>(() => {
   const order = customOrder.value
-  if (!order.length) return tree
-  const rank = new Map(order.map((id, i) => [id, i]))
-  // items missing from the saved order keep their default relative order at the end (stable sort)
-  return [...tree].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity))
+  if (!order.length) return []
+  const ids = new Set(zoneDirs.value.map((n) => n.id))
+  if (order.length !== ids.size || order.some((id) => !ids.has(id))) return []
+  return order
 })
 
-// ---- customize dialog ----
+const zones = computed(() => {
+  const order = validOrder.value
+  if (!order.length) return zoneDirs.value
+  const rank = new Map(order.map((id, i) => [id, i]))
+  return [...zoneDirs.value].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
+})
+
+async function persistOrder(csv: string) {
+  await authApi.updatePrefs({ navOrder: csv })
+  if (auth.user) auth.user.prefs = { ...(auth.user.prefs ?? {}), navOrder: csv }
+}
+
+// 失效的个人排序一次性静默重置（避免旧 id 永久卡住默认结构）
+const staleResetDone = ref(false)
+watch(
+  [customOrder, validOrder],
+  ([order, valid]) => {
+    if (staleResetDone.value || !order.length || valid.length || !zoneDirs.value.length) return
+    staleResetDone.value = true
+    void persistOrder('')
+  },
+  { immediate: true },
+)
+
+// ---- customize dialog（区级排序；工作台固定顶部不参与） ----
 const sortVisible = ref(false)
 const draft = ref<MenuNode[]>([])
 const saving = ref(false)
 const dragIndex = ref(-1)
 
 function openSort() {
-  draft.value = [...menus.value]
+  draft.value = [...zones.value]
   sortVisible.value = true
 }
 
@@ -66,11 +104,6 @@ function onDrop(i: number) {
   const [item] = draft.value.splice(from, 1)
   if (!item) return
   draft.value.splice(i, 0, item)
-}
-
-async function persistOrder(csv: string) {
-  await authApi.updatePrefs({ navOrder: csv })
-  if (auth.user) auth.user.prefs = { ...(auth.user.prefs ?? {}), navOrder: csv }
 }
 
 async function saveSort() {
@@ -105,7 +138,11 @@ async function resetSort() {
       class="nav-menu"
       router
     >
-      <SideNavItem v-for="node in menus" :key="node.id" :node="node" />
+      <SideNavItem v-for="node in topMenus" :key="node.id" :node="node" />
+      <div v-for="zone in zones" :key="zone.id" class="nav-zone">
+        <div class="nav-zone-title">{{ menuTitle(zone) }}</div>
+        <SideNavItem v-for="child in zone.children" :key="child.id" :node="child" />
+      </div>
     </ElMenu>
     <div class="nav-footer">
       <button type="button" class="nav-sort-btn" :title="t('common.navSort.customize')" @click="openSort">
@@ -129,7 +166,7 @@ async function resetSort() {
           @dragend="dragIndex = -1"
         >
           <ElIcon class="drag-handle"><Rank /></ElIcon>
-          <span>{{ node.titleKey ? t(node.titleKey) : node.name }}</span>
+          <span>{{ menuTitle(node) }}</span>
         </li>
       </ul>
       <template #footer>
@@ -155,6 +192,25 @@ async function resetSort() {
   min-height: 0;
   overflow-y: auto;
   background: transparent;
+}
+
+.nav-zone {
+  border-top: 1px solid var(--bs-color-border-subtle);
+  margin-top: var(--bs-space-1);
+  padding-top: var(--bs-space-1);
+}
+
+.nav-zone-title {
+  padding: var(--bs-space-1) var(--bs-space-4) var(--bs-space-1) calc(var(--bs-space-4) + 4px);
+  font-size: var(--bs-typography-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--bs-color-fg-muted);
+  user-select: none;
+}
+
+.side-nav.collapsed .nav-zone-title {
+  display: none;
 }
 
 .nav-label {

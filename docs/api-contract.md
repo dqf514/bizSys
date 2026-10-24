@@ -215,12 +215,14 @@
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
 
-## 导航结构（批次A）
+## 导航结构（批次A 定形 / 批次E 归一）
 - 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
-- 业务系统子级顺序：客户管理 / 合同管理 / 任务管理 / 样品管理（Samples，`/task/samples`，
-  componentKey `task/SampleList`）/ 报告管理 / 财务管理（子级 开票申请→结算信息→到账信息 不变）。
-- 存量库结构归并靠 `backend/scripts/migrate_nav_batch_a.py`（幂等）；种子只保证新库直接产出目标结构
+  前端侧栏将四个顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
+- 业务系统子级顺序：客户管理 / 合同管理 / 任务管理 / 报告管理 / 样品管理（Samples，`/task/samples`，
+  componentKey `task/SampleList`）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
+- 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
+  去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；种子只保证新库直接产出目标结构
   （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
 
 ## 报告 /report
