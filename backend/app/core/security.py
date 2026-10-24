@@ -48,6 +48,19 @@ def create_refresh_token(user_id: int) -> tuple[str, str]:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), jti
 
 
+def create_step_up_token(user_id: int, minutes: int = 5) -> str:
+    """敏感操作二次验证 token（短时有效，typ=step_up，仅证明"刚验证过身份"，不含权限）。"""
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "typ": "step_up",
+        "iat": now,
+        "exp": now + timedelta(minutes=minutes),
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
 def decode_token(token: str, expect_type: str) -> dict:
     """解码并校验；失败抛 jwt 异常由调用方处理。"""
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])

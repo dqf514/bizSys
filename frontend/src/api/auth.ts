@@ -1,5 +1,14 @@
 import { request, download } from './http'
-import type { LoginResult, RefreshResult, UserProfile, UserPrefs } from './types'
+import type {
+  BankAccount,
+  EmergencyContact,
+  LoginResult,
+  ProfileInfo,
+  RefreshResult,
+  StepUpResult,
+  UserProfile,
+  UserPrefs,
+} from './types'
 
 export function login(username: string, password: string) {
   return request<LoginResult>({
@@ -58,6 +67,87 @@ export function updatePrefs(prefs: UserPrefs) {
     url: '/admin/prefs',
     method: 'put',
     data: { prefs },
+  })
+}
+
+// ---------------- 批次B 个人档案 ----------------
+
+export function getProfile() {
+  return request<ProfileInfo>({ url: '/auth/profile', method: 'get' })
+}
+
+export function updateProfile(data: { mobile: string; email: string }, stepUpToken = '') {
+  return request<ProfileInfo>({
+    url: '/auth/profile',
+    method: 'patch',
+    data,
+    headers: stepUpToken ? { 'X-Step-Up-Token': stepUpToken } : {},
+  })
+}
+
+export function stepUp(password: string) {
+  return request<StepUpResult>({ url: '/auth/step-up', method: 'post', data: { password } })
+}
+
+export function uploadAvatar(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<{ avatarUrl: string }>({
+    url: '/auth/profile/avatar',
+    method: 'post',
+    data: form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function listContacts() {
+  return request<EmergencyContact[]>({ url: '/auth/profile/contacts', method: 'get' })
+}
+
+export function createContact(data: Omit<EmergencyContact, 'id' | 'createTime'>) {
+  return request<EmergencyContact>({ url: '/auth/profile/contacts', method: 'post', data })
+}
+
+export function updateContact(id: number, data: Omit<EmergencyContact, 'id' | 'createTime'>) {
+  return request<EmergencyContact>({ url: `/auth/profile/contacts/${id}`, method: 'put', data })
+}
+
+export function deleteContact(id: number) {
+  return request<void>({ url: `/auth/profile/contacts/${id}`, method: 'delete' })
+}
+
+export function listBankAccounts() {
+  return request<BankAccount[]>({ url: '/auth/profile/bank-accounts', method: 'get' })
+}
+
+export type BankAccountIn = Pick<BankAccount, 'bankName' | 'cardNo' | 'holderName'>
+
+function withStepUp(stepUpToken: string) {
+  return { headers: { 'X-Step-Up-Token': stepUpToken } }
+}
+
+export function createBankAccount(data: BankAccountIn, stepUpToken: string) {
+  return request<BankAccount>({ url: '/auth/profile/bank-accounts', method: 'post', data, ...withStepUp(stepUpToken) })
+}
+
+export function updateBankAccount(id: number, data: BankAccountIn, stepUpToken: string) {
+  return request<BankAccount>({
+    url: `/auth/profile/bank-accounts/${id}`,
+    method: 'put',
+    data,
+    ...withStepUp(stepUpToken),
+  })
+}
+
+export function deleteBankAccount(id: number, stepUpToken: string) {
+  return request<void>({ url: `/auth/profile/bank-accounts/${id}`, method: 'delete', ...withStepUp(stepUpToken) })
+}
+
+export function revealBankAccount(id: number, stepUpToken: string) {
+  return request<BankAccount>({
+    url: `/auth/profile/bank-accounts/${id}/reveal`,
+    method: 'get',
+    ...withStepUp(stepUpToken),
   })
 }
 

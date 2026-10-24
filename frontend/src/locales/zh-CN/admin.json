@@ -21,7 +21,10 @@
     "disableConfirm": "确认停用该用户？",
     "usernamePlaceholder": "登录账号",
     "namePlaceholder": "显示姓名",
-    "passwordPlaceholder": "初始密码"
+    "passwordPlaceholder": "初始密码",
+    "employeeNo": "工号",
+    "hireDate": "入职日期",
+    "jobLevel": "职级"
   },
   "role": {
     "title": "角色管理",

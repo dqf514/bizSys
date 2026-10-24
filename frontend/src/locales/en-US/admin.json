@@ -21,7 +21,10 @@
     "disableConfirm": "Disable this user?",
     "usernamePlaceholder": "Login account",
     "namePlaceholder": "Display name",
-    "passwordPlaceholder": "Initial password"
+    "passwordPlaceholder": "Initial password",
+    "employeeNo": "Employee No.",
+    "hireDate": "Hire Date",
+    "jobLevel": "Job Level"
   },
   "role": {
     "title": "Roles",

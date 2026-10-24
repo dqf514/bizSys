@@ -48,11 +48,52 @@ export interface UserProfile {
   dept_name?: string | null
   email?: string
   mobile?: string
+  avatarUrl?: string
+  avatar_url?: string
   roles: string[]
   perms: string[]
   prefs?: UserPrefs
   menus?: MenuNode[]
   allMenuPaths?: string[]
+}
+
+/** 批次B 个人档案（GET /auth/profile） */
+export interface ProfileInfo {
+  id: number
+  username: string
+  name: string
+  mobile: string
+  email: string
+  employeeNo: string
+  hireDate: string
+  jobLevel: string
+  avatarUrl: string
+  deptName: string
+  leaderName: string
+  roles: string[]
+}
+
+export interface EmergencyContact {
+  id: number
+  name: string
+  relation: string
+  phone: string
+  remark: string
+  createTime: string
+}
+
+export interface BankAccount {
+  id: number
+  bankName: string
+  cardNo: string
+  cardLast4: string
+  holderName: string
+  createTime: string
+}
+
+export interface StepUpResult {
+  stepUpToken: string
+  expiresIn: number
 }
 
 export interface LoginResult {
@@ -76,6 +117,9 @@ export interface AdminUser {
   mobile: string
   email: string
   status: 'enabled' | 'disabled'
+  employeeNo?: string
+  hireDate?: string
+  jobLevel?: string
   roles: string[]
   roleIds?: number[]
   createTime: string

@@ -50,6 +50,19 @@ function menuToRoutes(nodes: MenuNode[], out: RouteRecordRaw[] = []) {
 
 /** Detail / edit routes opened from list pages (not menu nodes) */
 export const extraRoutes: RouteRecordRaw[] = [
+  // 个人档案（批次B）：头像菜单"我的信息"进入，不占菜单
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/modules/auth/pages/Profile.vue'),
+    meta: {
+      tabKey: '/profile',
+      titleKey: 'auth.profile.title',
+      title: 'Profile',
+      keepAlive: false,
+      componentName: 'ProfilePage',
+    },
+  },
   // 流程中心并入工作台后不再单列菜单，/approval 深链（收藏/快捷方式/通知跳转）保持可用
   {
     path: '/approval',

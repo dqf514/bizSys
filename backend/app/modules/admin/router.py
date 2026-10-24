@@ -52,6 +52,9 @@ def _user_out(db: Session, u: User, with_roles: bool = True) -> dict:
         "mobile": u.mobile,
         "email": u.email,
         "status": u.status,
+        "employeeNo": u.employee_no,
+        "hireDate": u.hire_date.isoformat() if u.hire_date else "",
+        "jobLevel": u.job_level,
         "roles": u.role_codes if with_roles else [],
         "createTime": _t(u.create_time),
         "lastLoginAt": _t(u.last_login_at),
@@ -120,6 +123,9 @@ def create_user(
         mobile=body.mobile,
         email=body.email,
         status=body.status,
+        employee_no=body.employee_no,
+        hire_date=body.hire_date,
+        job_level=body.job_level,
         create_by=current.id,
     )
     db.add(u)
@@ -150,6 +156,9 @@ def update_user(
     u.mobile = body.mobile
     u.email = body.email
     u.status = body.status
+    u.employee_no = body.employee_no
+    u.hire_date = body.hire_date
+    u.job_level = body.job_level
     u.update_by = current.id
     if body.password:
         u.password_hash = hash_password(body.password)

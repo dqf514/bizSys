@@ -25,10 +25,27 @@
   - `GET /auth/wecom/qr-url?redirect_uri=` → `{url,state}`（state 存 Redis 10min 一次性，防 CSRF；未启用/未配置 90001）
   - `POST /auth/wecom/callback` `{code,state}` → 与 /auth/login 相同结构；错误码：20005 企微账号未绑定本地用户 / 20006 state 无效或已过期
 
+### 个人档案（批次B，登录即可，仅本人数据；越权一律 404/403）
+- `GET /auth/profile` → `{id,username,name,mobile,email,employeeNo,hireDate,jobLevel,avatarUrl,deptName,leaderName,roles[]}`
+  （employeeNo/hireDate/jobLevel 组织字段由管理员维护、本人只读；leaderName 沿部门负责人链向上取，无则空串）
+- `PATCH /auth/profile` `{mobile,email}`：电话/邮箱任一变更要求 `X-Step-Up-Token` 头，否则 403/20007；
+  邮箱格式校验 + 全库唯一（20008，为邮箱验证码登录预留）；电话格式校验（为短信登录预留）
+- `POST /auth/step-up` `{password, method="password"}` → `{stepUpToken, expiresIn:300}`：
+  密码重验签发 5 分钟 step-up JWT（typ=step_up）；method 预留 sms/email；密码错误 20004
+- `POST /auth/profile/avatar`（multipart file）：jpg/png/webp + ≤5MB + 魔数校验，UUID 存储名（uploads/avatar/），
+  旧文件自动清理 → `{avatarUrl}`；`GET /auth/avatar/{uid}` 公开读图（同 /public/logo，<img> 无法带 Authorization）
+- 紧急联系人：`GET/POST /auth/profile/contacts` · `PUT/DELETE /auth/profile/contacts/{id}`
+  `{name,relation,phone,remark}`（多条，非敏感不需 step-up）
+- 银行卡（增删改/查看完整卡号均需 step-up）：`GET/POST /auth/profile/bank-accounts` ·
+  `PUT/DELETE /auth/profile/bank-accounts/{id}` · `GET /auth/profile/bank-accounts/{id}/reveal`
+  `{bankName,cardNo,holderName}`；列表卡号默认脱敏（`**** 后4位`），reveal 返回完整卡号；
+  审计只记后 4 位，不落完整卡号明文
+
 ## 系统管理 /admin（权限码 admin:*）
-- `GET /admin/users`（分页检索）· `POST /admin/users` `{username,password,name,deptId,deptName,mobile,email,status,roleIds[]}`
+- `GET /admin/users`（分页检索）· `POST /admin/users` `{username,password,name,deptId,deptName,mobile,email,status,roleIds[],employeeNo,hireDate,jobLevel}`
   `PUT /admin/users/{id}` · `DELETE /admin/users/{id}` · `POST /admin/users/{id}/reset-password` `{password}`
   `POST /admin/users/export`（同检索参数，返回 xlsx 流）
+  （employeeNo/hireDate/jobLevel 为批次B 组织字段，沿用 admin:user:create / admin:user:edit）
 - `GET /admin/users/options?q=&limit=20` → `[{id,label,sub}]`（登录即可读：流程/通知选人用，仅 enabled 用户）
 - `GET /admin/roles` · `POST/PUT/DELETE /admin/roles[/{id}]` · `PUT /admin/roles/{id}/menus` `{menuIds[]}`
   （RoleIn 校验：dataScope ∈ all/dept/self，status ∈ enabled/disabled，非法值 422/10001）

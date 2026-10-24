@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.schemas import CamelModel
+from app.core.schemas import CamelModel, OptionalDate
 
 
 class UserIn(CamelModel):
@@ -15,6 +15,10 @@ class UserIn(CamelModel):
     email: str = ""
     status: str = "enabled"
     role_ids: list[int] = []
+    # 批次B 组织字段（管理员维护，本人只读；职级预留对接 HR 系统）
+    employee_no: str = Field(default="", max_length=32)
+    hire_date: OptionalDate = None
+    job_level: str = Field(default="", max_length=32)
 
 
 class UserOut(BaseModel):

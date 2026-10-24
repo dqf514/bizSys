@@ -12,6 +12,7 @@ function normalizeUser(raw: UserProfile): UserProfile {
     ...raw,
     deptId: raw.deptId ?? raw.dept_id ?? null,
     deptName: raw.deptName ?? raw.dept_name ?? null,
+    avatarUrl: raw.avatarUrl ?? raw.avatar_url ?? '',
     perms: raw.perms ?? [],
     roles: raw.roles ?? [],
   }

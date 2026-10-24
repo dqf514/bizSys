@@ -43,3 +43,36 @@ class LoginOut(BaseModel):
 
 class MeOut(UserOut):
     menus: list = []
+
+
+# ---------------- 批次B 个人档案 ----------------
+
+
+class StepUpIn(CamelModel):
+    """二次身份验证。当前仅 method=password；method 预留 sms/email（验证码登录复用同一 step-up 通道）。"""
+
+    password: str = Field(min_length=1, max_length=128)
+    method: str = Field(default="password", max_length=16)
+
+
+class ProfilePatchIn(CamelModel):
+    """自助可编辑字段：电话/邮箱（变更需 step-up）。
+
+    邮箱/电话作为后期邮箱验证码/短信验证码登录的标识预留，故做格式与唯一性校验。
+    """
+
+    mobile: str = Field(default="", max_length=32)
+    email: str = Field(default="", max_length=128)
+
+
+class ContactIn(CamelModel):
+    name: str = Field(min_length=1, max_length=64)
+    relation: str = Field(default="", max_length=32)
+    phone: str = Field(default="", max_length=32)
+    remark: str = Field(default="", max_length=255)
+
+
+class BankAccountIn(CamelModel):
+    bank_name: str = Field(min_length=1, max_length=64)
+    card_no: str = Field(min_length=8, max_length=30, pattern=r"^\d+$")
+    holder_name: str = Field(min_length=1, max_length=64)

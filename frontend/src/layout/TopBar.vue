@@ -41,7 +41,6 @@ const branding = useBrandingStore()
 const theme = useThemeStore()
 const { t } = useI18n()
 const { isEligible, isFavorite, toggleFavorite } = useShortcuts()
-const profileVisible = ref(false)
 const accountVisible = ref(false)
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
@@ -78,7 +77,7 @@ function closeAccount() {
 
 function openProfile() {
   closeAccount()
-  profileVisible.value = true
+  router.push('/profile')
 }
 
 function openChangePassword() {
@@ -207,14 +206,20 @@ async function submitPassword() {
       >
         <template #reference>
           <button class="account-btn" type="button">
-            <span class="avatar">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
+            <span class="avatar">
+              <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" class="avatar-img" alt="" />
+              <template v-else>{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</template>
+            </span>
             <span class="account-name">{{ auth.user?.name || auth.user?.username }}</span>
           </button>
         </template>
 
         <div class="account-panel">
           <div class="account-head">
-            <span class="avatar avatar-lg">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
+            <span class="avatar avatar-lg">
+              <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" class="avatar-img" alt="" />
+              <template v-else>{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</template>
+            </span>
             <div class="account-meta">
               <div class="account-display">{{ auth.user?.name || auth.user?.username }}</div>
               <div class="account-sub">{{ auth.user?.deptName || auth.user?.username }}</div>
@@ -297,17 +302,6 @@ async function submitPassword() {
         </div>
       </ElPopover>
     </div>
-
-    <el-dialog v-model="profileVisible" :title="t('auth.user.profile')" width="420px" append-to-body>
-      <el-descriptions :column="1" border>
-        <el-descriptions-item :label="t('auth.login.username')">{{ auth.user?.username }}</el-descriptions-item>
-        <el-descriptions-item :label="t('auth.user.profile')">{{ auth.user?.name }}</el-descriptions-item>
-        <el-descriptions-item :label="t('auth.user.dept')">{{ auth.user?.deptName || '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="t('auth.user.roles')">{{ (auth.user?.roles || []).join(', ') }}</el-descriptions-item>
-        <el-descriptions-item :label="t('auth.user.email')">{{ auth.user?.email || '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="t('auth.user.mobile')">{{ auth.user?.mobile || '-' }}</el-descriptions-item>
-      </el-descriptions>
-    </el-dialog>
 
     <el-dialog v-model="pwdVisible" :title="t('auth.user.changePassword')" width="420px" append-to-body>
       <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="110px">
@@ -447,6 +441,13 @@ async function submitPassword() {
   color: var(--bs-color-primary);
   font-size: var(--bs-typography-font-size-xs);
   font-weight: 600;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .avatar-lg {

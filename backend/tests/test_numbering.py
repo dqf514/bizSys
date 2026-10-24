@@ -111,12 +111,20 @@ def test_reset_seq_respects_seq_start(db):
 
 
 def test_next_no_concurrent_unique():
-    """多线程并发取号不重复（DB 行锁）。"""
+    """多线程并发取号不重复（DB 行锁）。
+
+    预建 seq 行：5 线程同时"首建"会在唯一索引间隙锁上偶发 MySQL 死锁（1213，与行锁语义无关），
+    本用例聚焦行锁防重；首建竞态由 next_no 的 savepoint 分支兜底。
+    """
+    from app.services.numbering import _period_key
+
     db = SessionLocal()
     biz = f"utc{uuid.uuid4().hex[:10]}"  # uuid 保证跨运行幂等（本用例 commit 不回滚）
     try:
         rule = NumberRule(biz_type=biz, category_key="", prefix="CC", seq_len=6, seq_start=1, enabled=1)
         db.add(rule)
+        db.flush()
+        db.add(NumberSeq(rule_id=rule.id, period_key=_period_key(rule, datetime.now()), value=0))
         db.commit()
     finally:
         db.close()

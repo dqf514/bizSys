@@ -174,12 +174,13 @@ http.interceptors.response.use(
       notify(i18n.global.t('common.message.operationFailed'))
       return Promise.reject(error)
     }
-    const payload = error.response?.data as { message?: string } | undefined
+    const payload = error.response?.data as { message?: string; code?: number } | undefined
     if (status === 404) {
       notify(payload?.message || i18n.global.t('common.message.loadFailed'))
     } else if (status === 403) {
-      // 403 统一用友好文案，后端 message 里的权限码不外抛给用户
-      notify(i18n.global.t('common.message.noPermission'))
+      // 20007 step-up 需要把后端文案透出（引导二次验证），其余 403 统一友好文案、权限码不外抛
+      if (payload?.code === 20007) notify(payload.message || '')
+      else notify(i18n.global.t('common.message.noPermission'))
     } else if (payload?.message) {
       notify(payload.message)
     } else if (status === 0 || !error.response) {

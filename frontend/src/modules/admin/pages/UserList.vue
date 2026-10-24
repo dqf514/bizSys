@@ -74,6 +74,9 @@ const form = reactive({
   email: '',
   status: 'enabled',
   roleIds: [] as number[],
+  employeeNo: '',
+  hireDate: '',
+  jobLevel: '',
 })
 
 const roleOptions = ref<Role[]>([])
@@ -107,6 +110,9 @@ function openCreate() {
     email: '',
     status: 'enabled',
     roleIds: [],
+    employeeNo: '',
+    hireDate: '',
+    jobLevel: '',
   })
   dialogVisible.value = true
   void loadOptions()
@@ -125,6 +131,9 @@ function openEdit(row: AdminUser) {
     email: row.email ?? '',
     status: row.status,
     roleIds: (row as { roleIds?: number[] }).roleIds ?? [],
+    employeeNo: row.employeeNo ?? '',
+    hireDate: row.hireDate ?? '',
+    jobLevel: row.jobLevel ?? '',
   })
   dialogVisible.value = true
   void loadOptions()
@@ -145,6 +154,9 @@ async function save() {
       email: form.email,
       status: form.status,
       roleIds: form.roleIds,
+      employeeNo: form.employeeNo,
+      hireDate: form.hireDate || null,
+      jobLevel: form.jobLevel,
     }
     if (editingId.value) {
       await updateUser(editingId.value, payload)
@@ -322,6 +334,20 @@ function onReset() {
       </el-form-item>
       <el-form-item :label="t('admin.user.mobile')">
         <el-input v-model="form.mobile" />
+      </el-form-item>
+      <el-form-item :label="t('admin.user.employeeNo')">
+        <el-input v-model="form.employeeNo" maxlength="32" />
+      </el-form-item>
+      <el-form-item :label="t('admin.user.hireDate')">
+        <el-date-picker
+          v-model="form.hireDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item :label="t('admin.user.jobLevel')">
+        <el-input v-model="form.jobLevel" maxlength="32" />
       </el-form-item>
       <el-form-item :label="t('admin.user.email')">
         <el-input v-model="form.email" />
