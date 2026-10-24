@@ -37,3 +37,9 @@ deploy/.env
 
 # 本地调试残留
 .bs_token
+
+# 供应商/需求原始资料（本地参考，不入库）
+docs/风洞数字化解决方案V1.pdf
+docs/风洞数字化解决方案V1.docx
+改进讨论*.pdf
+改进内容.txt
