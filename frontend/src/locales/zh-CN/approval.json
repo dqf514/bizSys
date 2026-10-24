@@ -75,6 +75,7 @@
       "formName": "表单名称",
       "category": "表单分类",
       "data": "表单数据"
-    }
+    },
+    "bizOa": "OA申请"
   }
 }

@@ -13,6 +13,8 @@ import NotifyCard from '../components/NotifyCard.vue'
 import MyTasksCard from '../components/MyTasksCard.vue'
 import MonthCalendar from '../components/MonthCalendar.vue'
 import QuickLinks from '../components/QuickLinks.vue'
+import OaQuickApply from '../components/OaQuickApply.vue'
+import FinanceOverview from '../components/FinanceOverview.vue'
 import CustomizeDialog from '../components/CustomizeDialog.vue'
 
 defineOptions({ name: 'Dashboard' })
@@ -28,6 +30,8 @@ interface WidgetMeta {
   span: 6 | 12
   /** 无该权限时整个 widget 隐藏（其接口必然 403） */
   perm?: string
+  /** 任一权限满足即可（财务概览聚合多个列表接口） */
+  anyPerm?: string[]
 }
 
 const WIDGET_META: WidgetMeta[] = [
@@ -36,6 +40,14 @@ const WIDGET_META: WidgetMeta[] = [
   { key: 'myInitiated', labelKey: 'workbench.widget.myInitiated', component: MyInitiatedCard, span: 6 },
   { key: 'ccInbox', labelKey: 'workbench.widget.ccInbox', component: CcInboxCard, span: 6 },
   { key: 'notify', labelKey: 'workbench.widget.notify', component: NotifyCard, span: 6 },
+  { key: 'oaQuickApply', labelKey: 'workbench.widget.oaQuickApply', component: OaQuickApply, span: 6, perm: 'oa:apply' },
+  {
+    key: 'financeOverview',
+    labelKey: 'workbench.widget.financeOverview',
+    component: FinanceOverview,
+    span: 6,
+    anyPerm: ['finance:settlement:list', 'finance:invoice:list', 'finance:payment:list'],
+  },
   { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6, perm: 'task:list' },
   { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6, perm: 'task:list' },
   { key: 'quickLinks', labelKey: 'workbench.widget.quickLinks', component: QuickLinks, span: 12 },
@@ -70,19 +82,25 @@ function readPrefWidgets(): DashboardWidgetPref[] {
 const widgets = ref<DashboardWidgetPref[]>(readPrefWidgets())
 const customizeVisible = ref(false)
 
+function permitted(m: WidgetMeta): boolean {
+  if (m.perm && !auth.hasPerm(m.perm)) return false
+  if (m.anyPerm?.length && !m.anyPerm.some((p) => auth.hasPerm(p))) return false
+  return true
+}
+
 const visibleWidgets = computed(() =>
   widgets.value
     .filter((w) => w.visible)
     .map((w) => WIDGET_META.find((m) => m.key === w.key))
     .filter((m): m is WidgetMeta => Boolean(m))
-    .filter((m) => !m.perm || auth.hasPerm(m.perm)),
+    .filter(permitted),
 )
 
 /** 自定义弹窗只列出当前用户有权使用的 widget */
 const customizableWidgets = computed(() =>
   widgets.value.filter((w) => {
     const meta = WIDGET_META.find((m) => m.key === w.key)
-    return meta && (!meta.perm || auth.hasPerm(meta.perm))
+    return meta && permitted(meta)
   }),
 )
 

@@ -163,7 +163,8 @@
     "compact": "Compact",
     "accent": "Accent",
     "toggleTheme": "Toggle theme",
-    "brand": "Brand skin"
+    "brand": "Brand skin",
+    "appearance": "Appearance"
   },
   "lang": {
     "zhCN": "中文",

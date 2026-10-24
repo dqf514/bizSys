@@ -19,6 +19,8 @@
   - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
   - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）
   - allMenuPaths 为全量菜单路由路径（不过滤权限）：前端据此区分 404（路径不存在）与 403（无权限）
+  - 导航树只返回 visible=1 菜单（含 super）；隐藏菜单（如批次A 隐藏的 ApprovalCenter）不出现在导航，
+    但其路径仍在 allMenuPaths 中，前端以静态路由深链直达（/approval）
 - 企业微信扫码登录（免登录，凭据见系统设置；配置/联调步骤见 docs/wecom-setup.md）：
   - `GET /auth/wecom/qr-url?redirect_uri=` → `{url,state}`（state 存 Redis 10min 一次性，防 CSRF；未启用/未配置 90001）
   - `POST /auth/wecom/callback` `{code,state}` → 与 /auth/login 相同结构；错误码：20005 企微账号未绑定本地用户 / 20006 state 无效或已过期
@@ -143,8 +145,14 @@
 - 样品 `task_sample`：`{id,sampleNo,name,model,vin,vehicleType,sampleDate,inStock:"in"|"out"}`
   `POST /task/tasks/{id}/samples`（sampleNo 自动 `任务号-01`）· `PUT /task/samples/{sid}` · `DELETE`
   `POST /task/samples/{sid}/in` `/out`（写 `task_sample_flow` 流水）
+- 跨任务样品列表（样品管理页，批次A）：
+  `GET /task/samples` 分页（`task:sample:list`），行 = 样品字段 + `{taskId,taskNo,taskName,customerName,createTime}`；
+  检索：`q`（样品编号/名称/VIN/任务名/客户名）、`status=in|out` 页签、`sort=create_time|sample_date|id:asc|desc`
+- `GET /task/samples/counts`（`task:sample:list`）→ `{in,out,all}`
+- `POST /task/samples/export`（`task:sample:list:export`，xlsx 中文表头，同列表过滤条件）
 - `POST /task/tasks/export`
-- 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）
+- 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）、
+  `task:sample:list`、`task:sample:list:export`（种子挂 super/biz_user）
 
 ## 财务 /finance
 - 结算单状态机：`pending 待开票 → invoicing 开票审批中 → invoiced 已开票 → paid 已到账`；
@@ -187,6 +195,14 @@
   `finance:payment:list/create/export`
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
+
+## 导航结构（批次A）
+- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 系统管理（System）；
+  流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
+- 业务系统子级顺序：客户管理 / 合同管理 / 任务管理 / 样品管理（Samples，`/task/samples`，
+  componentKey `task/SampleList`）/ 报告管理 / 财务管理（子级 开票申请→结算信息→到账信息 不变）。
+- 存量库结构归并靠 `backend/scripts/migrate_nav_batch_a.py`（幂等）；种子只保证新库直接产出目标结构
+  （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
 
 ## 报告 /report
 - 状态机：`uploaded 已上传待审 → approving 审批中 → approved 批准通过 → sealed 签章完成`；

@@ -163,7 +163,8 @@
     "compact": "紧凑",
     "accent": "强调色",
     "toggleTheme": "切换主题",
-    "brand": "品牌皮肤"
+    "brand": "品牌皮肤",
+    "appearance": "外观"
   },
   "lang": {
     "zhCN": "中文",

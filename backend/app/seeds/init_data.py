@@ -27,116 +27,141 @@ from app.modules.auth.models import User
 
 # (title_key, name, path, component_key, icon, permission, children)
 # children 中 permission 为空串表示纯目录
+# 入口并入他页、仅作权限载体的隐藏菜单（种子里强制 visible=0）
+HIDDEN_MENUS = {"ApprovalCenter"}
+
 MENU_TREE = [
     ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
-    # 客户/合同/任务与参考系统一致：各自是一级模块，不收拢进"基础信息"目录
+    # 业务系统分组：客户/合同/任务/样品/报告/财务（开票→结算→到账 保持既有顺序）
     (
-        "menu.contract",
-        "Contracts",
-        "/contract/contracts",
-        "contract/ContractList",
-        "Document",
-        "contract:list",
-        [
-            (None, "contract-create", "", "", "", "contract:create", []),
-            (None, "contract-edit", "", "", "", "contract:edit", []),
-            (None, "contract-submit", "", "", "", "contract:submit", []),
-            (None, "contract-delete", "", "", "", "contract:delete", []),
-            (None, "contract-export", "", "", "", "contract:list:export", []),
-        ],
-    ),
-    (
-        "menu.task",
-        "Tasks",
-        "/task/tasks",
-        "task/TaskList",
-        "List",
-        "task:list",
-        [
-            (None, "task-create", "", "", "", "task:create", []),
-            (None, "task-edit", "", "", "", "task:edit", []),
-            (None, "task-assign", "", "", "", "task:assign", []),
-            (None, "task-submit", "", "", "", "task:submit", []),
-            (None, "task-export", "", "", "", "task:list:export", []),
-        ],
-    ),
-    (
-        "menu.customer",
-        "Customers",
-        "/crm/customers",
-        "crm/CustomerList",
-        "User",
-        "crm:customer:list",
-        [
-            (None, "customer-create", "", "", "", "crm:customer:create", []),
-            (None, "customer-edit", "", "", "", "crm:customer:edit", []),
-            (None, "customer-delete", "", "", "", "crm:customer:delete", []),
-            (None, "customer-export", "", "", "", "crm:customer:list:export", []),
-            (None, "customer-import", "", "", "", "crm:customer:import", []),
-        ],
-    ),
-    (
-        "menu.finance",
-        "Finance",
+        "menu.bizSystem",
+        "BizSystem",
         "",
         "",
-        "Money",
+        "Suitcase",
         "",
         [
             (
-                "menu.financeInvoice",
-                "FinanceInvoices",
-                "/finance/invoices",
-                "finance/InvoiceList",
-                "Postcard",
-                "finance:invoice:list",
+                "menu.customer",
+                "Customers",
+                "/crm/customers",
+                "crm/CustomerList",
+                "User",
+                "crm:customer:list",
                 [
-                    (None, "invoice-export", "", "", "", "finance:invoice:export", []),
+                    (None, "customer-create", "", "", "", "crm:customer:create", []),
+                    (None, "customer-edit", "", "", "", "crm:customer:edit", []),
+                    (None, "customer-delete", "", "", "", "crm:customer:delete", []),
+                    (None, "customer-export", "", "", "", "crm:customer:list:export", []),
+                    (None, "customer-import", "", "", "", "crm:customer:import", []),
                 ],
             ),
             (
-                "menu.financeSettlement",
-                "FinanceSettlements",
-                "/finance/settlements",
-                "finance/SettlementList",
-                "Tickets",
-                "finance:settlement:list",
+                "menu.contract",
+                "Contracts",
+                "/contract/contracts",
+                "contract/ContractList",
+                "Document",
+                "contract:list",
                 [
-                    (None, "settlement-create", "", "", "", "finance:settlement:create", []),
-                    (None, "settlement-export", "", "", "", "finance:settlement:export", []),
-                    (None, "settlement-confirm", "", "", "", "finance:settlement:confirm", []),
-                    (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
-                    (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
+                    (None, "contract-create", "", "", "", "contract:create", []),
+                    (None, "contract-edit", "", "", "", "contract:edit", []),
+                    (None, "contract-submit", "", "", "", "contract:submit", []),
+                    (None, "contract-delete", "", "", "", "contract:delete", []),
+                    (None, "contract-export", "", "", "", "contract:list:export", []),
                 ],
             ),
             (
-                "menu.financePayment",
-                "FinancePayments",
-                "/finance/payments",
-                "finance/PaymentList",
-                "Wallet",
-                "finance:payment:list",
+                "menu.task",
+                "Tasks",
+                "/task/tasks",
+                "task/TaskList",
+                "List",
+                "task:list",
                 [
-                    (None, "payment-create", "", "", "", "finance:payment:create", []),
-                    (None, "payment-export", "", "", "", "finance:payment:export", []),
+                    (None, "task-create", "", "", "", "task:create", []),
+                    (None, "task-edit", "", "", "", "task:edit", []),
+                    (None, "task-assign", "", "", "", "task:assign", []),
+                    (None, "task-submit", "", "", "", "task:submit", []),
+                    (None, "task-export", "", "", "", "task:list:export", []),
+                ],
+            ),
+            (
+                "menu.sample",
+                "Samples",
+                "/task/samples",
+                "task/SampleList",
+                "Box",
+                "task:sample:list",
+                [
+                    (None, "sample-export", "", "", "", "task:sample:list:export", []),
+                ],
+            ),
+            (
+                "menu.report",
+                "Reports",
+                "/report/reports",
+                "report/ReportList",
+                "Document",
+                "report:list",
+                [
+                    (None, "report-create", "", "", "", "report:create", []),
+                    (None, "report-submit", "", "", "", "report:submit", []),
+                    (None, "report-seal", "", "", "", "report:seal", []),
+                    (None, "report-export", "", "", "", "report:export", []),
+                ],
+            ),
+            (
+                "menu.finance",
+                "Finance",
+                "",
+                "",
+                "Money",
+                "",
+                [
+                    (
+                        "menu.financeInvoice",
+                        "FinanceInvoices",
+                        "/finance/invoices",
+                        "finance/InvoiceList",
+                        "Postcard",
+                        "finance:invoice:list",
+                        [
+                            (None, "invoice-export", "", "", "", "finance:invoice:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.financeSettlement",
+                        "FinanceSettlements",
+                        "/finance/settlements",
+                        "finance/SettlementList",
+                        "Tickets",
+                        "finance:settlement:list",
+                        [
+                            (None, "settlement-create", "", "", "", "finance:settlement:create", []),
+                            (None, "settlement-export", "", "", "", "finance:settlement:export", []),
+                            (None, "settlement-confirm", "", "", "", "finance:settlement:confirm", []),
+                            (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
+                            (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
+                        ],
+                    ),
+                    (
+                        "menu.financePayment",
+                        "FinancePayments",
+                        "/finance/payments",
+                        "finance/PaymentList",
+                        "Wallet",
+                        "finance:payment:list",
+                        [
+                            (None, "payment-create", "", "", "", "finance:payment:create", []),
+                            (None, "payment-export", "", "", "", "finance:payment:export", []),
+                        ],
+                    ),
                 ],
             ),
         ],
     ),
-    (
-        "menu.report",
-        "Reports",
-        "/report/reports",
-        "report/ReportList",
-        "Document",
-        "report:list",
-        [
-            (None, "report-create", "", "", "", "report:create", []),
-            (None, "report-submit", "", "", "", "report:submit", []),
-            (None, "report-seal", "", "", "", "report:seal", []),
-            (None, "report-export", "", "", "", "report:export", []),
-        ],
-    ),
+    # 流程中心并入工作台门户：菜单隐藏保留（权限点 approval:view 仍由它承载），/approval 走前端静态路由深链
     ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
     (
         "menu.oaSystem",
@@ -441,6 +466,7 @@ def _seed_menus(db: Session) -> dict[str, int]:
     - 已存在的种子菜单：仅同步 title_key/path/component_key/icon/permission/menu_type，
       不回写 parent_id/sort（管理员在菜单管理里的结构调整与排序得以保留）。
     - 树外的菜单（界面自定义新增）：保留，不做逻辑删除。
+    - HIDDEN_MENUS 中的菜单强制隐藏（visible=0）：入口并入其他页面，但权限点仍由菜单承载。
     """
     existing = {m.name: m for m in db.scalars(select(Menu).where(Menu.deleted == 0)).all()}
     perm_to_id: dict[str, int] = {}
@@ -459,6 +485,7 @@ def _seed_menus(db: Session) -> dict[str, int]:
                     permission=perm or "",
                     menu_type=_menu_type(children, comp, perm, path),
                     sort=idx,
+                    visible=0 if name in HIDDEN_MENUS else 1,
                 )
                 db.add(m)
                 db.flush()
@@ -471,6 +498,8 @@ def _seed_menus(db: Session) -> dict[str, int]:
                 m.icon = icon
                 m.permission = perm or ""
                 m.menu_type = _menu_type(children, comp, perm, path)
+                if name in HIDDEN_MENUS:
+                    m.visible = 0
             if perm:
                 perm_to_id[perm] = m.id
             walk(children, m.id)
@@ -517,6 +546,8 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "task:assign",
         "task:submit",
         "task:list:export",
+        "task:sample:list",
+        "task:sample:list:export",
         "finance:settlement:list",
         "finance:settlement:create",
         "finance:settlement:export",

@@ -412,6 +412,16 @@ export interface TaskSample {
   inStock: 'in' | 'out'
 }
 
+/** 跨任务样品列表行（GET /task/samples） */
+export interface SampleRow extends TaskSample {
+  id: number
+  taskId: number
+  taskNo: string
+  taskName: string
+  customerName: string
+  createTime: string
+}
+
 export interface TaskLog {
   id: number
   sampleNo?: string

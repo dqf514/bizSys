@@ -50,6 +50,19 @@ function menuToRoutes(nodes: MenuNode[], out: RouteRecordRaw[] = []) {
 
 /** Detail / edit routes opened from list pages (not menu nodes) */
 export const extraRoutes: RouteRecordRaw[] = [
+  // 流程中心并入工作台后不再单列菜单，/approval 深链（收藏/快捷方式/通知跳转）保持可用
+  {
+    path: '/approval',
+    name: 'ApprovalCenter',
+    component: () => import('@/modules/approval/pages/TodoList.vue'),
+    meta: {
+      tabKey: '/approval',
+      titleKey: 'menu.approval',
+      title: 'Approval Center',
+      keepAlive: true,
+      componentName: 'TodoList',
+    },
+  },
   {
     path: '/contract/contracts/new',
     name: 'ContractEditNew',

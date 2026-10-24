@@ -75,6 +75,7 @@
       "formName": "Form Name",
       "category": "Category",
       "data": "Form Data"
-    }
+    },
+    "bizOa": "OA Request"
   }
 }

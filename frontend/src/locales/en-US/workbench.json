@@ -16,7 +16,9 @@
     "notify": "Notifications",
     "myTasks": "My Tasks In Progress",
     "calendar": "Calendar",
-    "quickLinks": "Shortcuts"
+    "quickLinks": "Shortcuts",
+    "oaQuickApply": "OA Quick Apply",
+    "financeOverview": "Finance Overview"
   },
   "customize": "Customize",
   "customizeTitle": "Customize Workbench",
@@ -42,5 +44,11 @@
   "todoList": "To-do",
   "noData": "Nothing to do",
   "env": "Env",
-  "envDev": "Development"
+  "envDev": "Development",
+  "finance": {
+    "settlementPending": "Pending Settlements",
+    "invoiceApproving": "Invoices Approving",
+    "paymentTotal": "Payments"
+  },
+  "emptyOaForms": "No OA forms available"
 }

@@ -2,6 +2,7 @@ import { request, download, toQuery } from './http'
 import type {
   ListQuery,
   PageResult,
+  SampleRow,
   Task,
   TaskCounts,
   TaskItem,
@@ -68,6 +69,29 @@ export function deleteTaskSample(sampleId: number) {
 
 export function sampleFlow(sampleId: number, action: 'in' | 'out') {
   return request<void>({ url: `/task/samples/${sampleId}/${action}`, method: 'post' })
+}
+
+export function listSamples(params: ListQuery) {
+  return request<PageResult<SampleRow>>({
+    url: '/task/samples',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function sampleCounts() {
+  return request<Record<string, number>>({ url: '/task/samples/counts', method: 'get' })
+}
+
+export function exportSamples(params: ListQuery) {
+  return download(
+    {
+      url: '/task/samples/export',
+      method: 'post',
+      data: toQuery(params as Record<string, unknown>),
+    },
+    'samples.xlsx',
+  )
 }
 
 export function exportTasks(params: ListQuery) {

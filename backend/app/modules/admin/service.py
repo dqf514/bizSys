@@ -38,7 +38,10 @@ def menu_tree_for_user(db: Session, user: User) -> list[dict]:
     避免叶子节点因找不到父级而被提升为根节点、平铺展示。
     """
     if "super" in user.role_codes:
-        return menu_tree_all(db)
+        menus = db.scalars(
+            select(Menu).where(Menu.deleted == 0, Menu.visible == 1).order_by(Menu.sort, Menu.id)
+        ).all()
+        return _build_tree([m for m in menus if m.menu_type != "button"])
     menu_ids = set(
         db.scalars(
             select(RoleMenu.menu_id)

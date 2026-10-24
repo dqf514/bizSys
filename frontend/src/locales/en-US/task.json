@@ -110,5 +110,27 @@
     "flowStatus": "Flow Status",
     "flowDefinition": "Flow Definition",
     "flowGoto": "Go to Flow Center"
+  },
+  "sample": {
+    "title": "Samples",
+    "sampleNo": "Sample No.",
+    "name": "Name",
+    "model": "Model",
+    "vin": "VIN",
+    "vehicleType": "Vehicle Type",
+    "task": "Task",
+    "customer": "Customer",
+    "sampleDate": "Sample Date",
+    "inStock": "Stock",
+    "createTime": "Created At",
+    "searchQ": "Search",
+    "placeholderQ": "Sample no./name/VIN/task/customer",
+    "goTask": "View Task",
+    "stockIn": "In Stock",
+    "stockOut": "Checked Out",
+    "stock": {
+      "in": "In Stock",
+      "out": "Checked Out"
+    }
   }
 }

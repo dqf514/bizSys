@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** 流程中心：我的待办 / 我发起的（未读进度角标） / 抄送我的 / 已办。 */
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
@@ -28,13 +29,18 @@ defineOptions({ name: 'TodoList' })
 type CenterTab = ApprovalTab | 'cc'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'approval.approval.titleField', width: 220 },
 ]
 
-const activeTab = ref<CenterTab>('todo')
+const CENTER_TABS: CenterTab[] = ['todo', 'initiated', 'cc', 'done']
+// 支持 /approval?tab=xx 深链（工作台板块「更多」入口）
+const initialTab = CENTER_TABS.includes(route.query.tab as CenterTab) ? (route.query.tab as CenterTab) : 'todo'
+const activeTab = ref<CenterTab>(initialTab)
 const todoCount = ref<number | undefined>(undefined)
 const ccUnreadCount = ref<number | undefined>(undefined)
 
@@ -110,6 +116,8 @@ async function refreshTabCounts() {
 
 function switchTab(tab: string) {
   activeTab.value = tab as CenterTab
+  // 地址栏同步 tab，便于收藏/分享深链
+  router.replace({ query: tab === 'todo' ? {} : { tab } })
   list.query.page = 1
   list.refresh()
 }
@@ -206,6 +214,7 @@ function bizTypeLabel(bt: string) {
   if (bt === 'task') return t('approval.approval.bizTask')
   if (bt === 'report') return t('approval.approval.bizReport')
   if (bt === 'invoice') return t('approval.approval.bizInvoice')
+  if (bt === 'oa') return t('approval.approval.bizOa')
   return bt
 }
 

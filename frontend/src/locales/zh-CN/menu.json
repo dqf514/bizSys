@@ -30,5 +30,7 @@
   "oaStats": "统计看板",
   "oaAdmin": "OA管理",
   "oaFlowStats": "流程统计",
-  "oaFlowHandle": "流程处理"
+  "oaFlowHandle": "流程处理",
+  "bizSystem": "业务系统",
+  "sample": "样品管理"
 }

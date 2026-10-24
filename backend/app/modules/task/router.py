@@ -4,7 +4,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -496,6 +496,135 @@ def delete_item(
 
 
 # ---------------- 样品 ----------------
+
+SAMPLE_STATUS_CN = {"in": "在库", "out": "出库"}
+
+SAMPLE_EXPORT_COLS = [
+    {"key": "sampleNo", "label": "样品编号", "width": 22},
+    {"key": "name", "label": "样品名称", "width": 24},
+    {"key": "model", "label": "型号", "width": 16},
+    {"key": "vin", "label": "VIN", "width": 22},
+    {"key": "vehicleType", "label": "车型", "width": 12},
+    {"key": "taskNo", "label": "所属任务", "width": 18},
+    {"key": "taskName", "label": "任务名称", "width": 30},
+    {"key": "customerName", "label": "客户", "width": 24},
+    {"key": "sampleDate", "label": "送样日期", "width": 12},
+    {"key": "inStockText", "label": "库存状态", "width": 10},
+    {"key": "createTime", "label": "创建时间", "width": 19},
+]
+
+
+def _sample_row(s: TaskSample, t: Task | None) -> dict:
+    return {
+        **_sample_out(s),
+        "taskId": s.task_id,
+        "taskNo": (t.task_no or "") if t else "",
+        "taskName": t.task_name if t else "",
+        "customerName": t.customer_name if t else "",
+        "createTime": _t(s.create_time),
+    }
+
+
+def _filtered_samples(db: Session, request: Request, page: PageParams):
+    """跨任务样品列表：JOIN 任务取编号/名称/客户；q 覆盖样品编号/名称/VIN/任务名/客户名。"""
+    stmt = (
+        select(TaskSample, Task)
+        .join(Task, Task.id == TaskSample.task_id)
+        .where(TaskSample.deleted == 0, Task.deleted == 0)
+    )
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                TaskSample.sample_no.like(like),
+                TaskSample.name.like(like),
+                TaskSample.vin.like(like),
+                Task.task_name.like(like),
+                Task.customer_name.like(like),
+            )
+        )
+    stock = request.query_params.get("status")
+    if stock in ("in", "out"):
+        stmt = stmt.where(TaskSample.in_stock == stock)
+    sort = (request.query_params.get("sort") or "").strip()
+    sort_cols = {"create_time": TaskSample.create_time, "sample_date": TaskSample.sample_date, "id": TaskSample.id}
+    col = TaskSample.create_time
+    direction = "desc"
+    if ":" in sort:
+        key, _, d = sort.partition(":")
+        if key in sort_cols:
+            col = sort_cols[key]
+            direction = "asc" if d == "asc" else "desc"
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    stmt = stmt.order_by(col.asc() if direction == "asc" else col.desc(), TaskSample.id.desc())
+    stmt = stmt.offset((page.page - 1) * page.size).limit(page.size)
+    return stmt, total
+
+
+@router.get("/samples")
+def list_samples(
+    request: Request,
+    page: int = Query(1, ge=1, le=PAGE_MAX),
+    size: int = Query(20, ge=1, le=200),
+    user: User = Depends(require_perm("task:sample:list")),
+    db: Session = Depends(get_db),
+):
+    stmt, total = _filtered_samples(db, request, PageParams(page=page, size=size))
+    rows = db.execute(stmt).all()
+    return {
+        "items": [_sample_row(s, t) for s, t in rows],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
+
+
+@router.get("/samples/counts")
+def sample_counts(
+    user: User = Depends(require_perm("task:sample:list")),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        select(TaskSample.in_stock, func.count())
+        .join(Task, Task.id == TaskSample.task_id)
+        .where(TaskSample.deleted == 0, Task.deleted == 0)
+        .group_by(TaskSample.in_stock)
+    ).all()
+    data = {"in": 0, "out": 0}
+    data.update({s: n for s, n in rows})
+    data["all"] = sum(data.values())
+    return data
+
+
+@router.post("/samples/export")
+def export_samples(
+    request: Request,
+    current: User = Depends(require_perm("task:sample:list:export")),
+    db: Session = Depends(get_db),
+):
+    stmt, _ = _filtered_samples(db, request, SimpleNamespace(page=1, size=100_000))
+    rows = db.execute(stmt).all()
+    payload_rows = []
+    for s, t in rows:
+        item = _sample_row(s, t)
+        item["inStockText"] = SAMPLE_STATUS_CN.get(s.in_stock, s.in_stock)
+        payload_rows.append(item)
+    payload = export_xlsx_styled(payload_rows, SAMPLE_EXPORT_COLS, "samples")
+    audit(
+        db,
+        user_id=current.id,
+        module="task",
+        action="sample_export",
+        detail={"count": len(payload_rows)},
+        trace_id=getattr(request.state, "trace_id", ""),
+    )
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('samples')}"},
+    )
 
 
 @router.post("/tasks/{tid}/samples", status_code=201)

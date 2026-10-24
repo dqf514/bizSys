@@ -110,5 +110,27 @@
     "flowStatus": "流程状态",
     "flowDefinition": "流程定义",
     "flowGoto": "前往流程中心"
+  },
+  "sample": {
+    "title": "样品管理",
+    "sampleNo": "样品编号",
+    "name": "样品名称",
+    "model": "型号",
+    "vin": "VIN",
+    "vehicleType": "车型",
+    "task": "所属任务",
+    "customer": "客户",
+    "sampleDate": "送样日期",
+    "inStock": "库存状态",
+    "createTime": "创建时间",
+    "searchQ": "搜索",
+    "placeholderQ": "样品编号/名称/VIN/任务/客户",
+    "goTask": "查看任务",
+    "stockIn": "在库",
+    "stockOut": "出库",
+    "stock": {
+      "in": "在库",
+      "out": "出库"
+    }
   }
 }

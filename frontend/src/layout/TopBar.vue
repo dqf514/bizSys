@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox, ElDropdown, ElDropdownMenu, ElDropdownItem, ElIcon, ElMessage } from 'element-plus'
+import { ElMessageBox, ElIcon, ElMessage, ElPopover } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   Fold,
@@ -9,21 +9,24 @@ import {
   Search,
   Sunny,
   Moon,
-  Monitor,
   User,
   SwitchButton,
   Lock,
   Odometer,
   Star,
   StarFilled,
+  Brush,
 } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useBrandingStore } from '@/stores/branding'
-import { useThemeStore, ACCENTS, type Density, type ThemeMode, type Accent } from '@/stores/theme'
+import { useThemeStore, ACCENTS, type Density, type ThemeMode } from '@/stores/theme'
 import { changePassword as changePasswordApi } from '@/api/auth'
 import { useShortcuts } from '@/composables/useShortcuts'
 import type { Locale } from '@/i18n'
+import NotifyBell from './NotifyBell.vue'
+
+defineOptions({ name: 'TopBar' })
 
 defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{
@@ -39,6 +42,7 @@ const theme = useThemeStore()
 const { t } = useI18n()
 const { isEligible, isFavorite, toggleFavorite } = useShortcuts()
 const profileVisible = ref(false)
+const accountVisible = ref(false)
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
 
@@ -52,27 +56,38 @@ const breadcrumbs = computed(() => {
   }))
 })
 
-function cycleTheme() {
-  theme.toggleTheme()
+const themeModes: { value: ThemeMode; labelKey: string }[] = [
+  { value: 'light', labelKey: 'common.theme.light' },
+  { value: 'dark', labelKey: 'common.theme.dark' },
+  { value: 'brand-smvic', labelKey: 'common.theme.brand' },
+]
+
+const densities: { value: Density; labelKey: string }[] = [
+  { value: 'comfortable', labelKey: 'common.theme.comfortable' },
+  { value: 'compact', labelKey: 'common.theme.compact' },
+]
+
+const locales: { value: Locale; labelKey: string }[] = [
+  { value: 'zh-CN', labelKey: 'common.lang.zhCN' },
+  { value: 'en-US', labelKey: 'common.lang.enUS' },
+]
+
+function closeAccount() {
+  accountVisible.value = false
 }
 
-function setThemeMode(mode: ThemeMode) {
-  theme.setTheme(mode)
+function openProfile() {
+  closeAccount()
+  profileVisible.value = true
 }
 
-function setDensity(d: Density) {
-  theme.setDensity(d)
-}
-
-function setAccent(a: Accent) {
-  theme.setAccent(a)
-}
-
-function setLang(locale: Locale) {
-  theme.setAppLocale(locale)
+function openChangePassword() {
+  closeAccount()
+  changePassword()
 }
 
 async function doLogout() {
+  closeAccount()
   try {
     await ElMessageBox.confirm(t('auth.user.logoutConfirm'), t('common.action.confirm'), {
       type: 'warning',
@@ -181,86 +196,106 @@ async function submitPassword() {
     </button>
 
     <div class="actions">
-      <ElDropdown trigger="click" @command="setDensity">
-        <button class="icon-btn" type="button" :title="t('common.theme.density')">
-          <ElIcon :size="16"><Monitor /></ElIcon>
-        </button>
-        <template #dropdown>
-          <ElDropdownMenu>
-            <ElDropdownItem command="comfortable" :disabled="theme.density === 'comfortable'">
-              {{ t('common.theme.comfortable') }}
-            </ElDropdownItem>
-            <ElDropdownItem command="compact" :disabled="theme.density === 'compact'">
-              {{ t('common.theme.compact') }}
-            </ElDropdownItem>
-          </ElDropdownMenu>
-        </template>
-      </ElDropdown>
+      <NotifyBell />
 
-      <ElDropdown trigger="click" @command="setThemeMode">
-        <button class="icon-btn" type="button" :title="t('common.theme.toggleTheme')" @click="cycleTheme">
-          <ElIcon :size="16">
-            <Moon v-if="theme.theme === 'light'" />
-            <Sunny v-else />
-          </ElIcon>
-        </button>
-        <template #dropdown>
-          <ElDropdownMenu>
-            <ElDropdownItem command="light">{{ t('common.theme.light') }}</ElDropdownItem>
-            <ElDropdownItem command="dark">{{ t('common.theme.dark') }}</ElDropdownItem>
-            <ElDropdownItem command="brand-smvic">{{ t('common.theme.brand') }}</ElDropdownItem>
-          </ElDropdownMenu>
+      <ElPopover
+        v-model:visible="accountVisible"
+        trigger="click"
+        placement="bottom-end"
+        :width="300"
+        popper-class="account-pop"
+      >
+        <template #reference>
+          <button class="account-btn" type="button">
+            <span class="avatar">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
+            <span class="account-name">{{ auth.user?.name || auth.user?.username }}</span>
+          </button>
         </template>
-      </ElDropdown>
 
-      <ElDropdown trigger="click" @command="setAccent">
-        <button class="icon-btn accent-btn" type="button" :title="t('common.theme.accent')">
-          <span class="accent-dot" />
-        </button>
-        <template #dropdown>
-          <ElDropdownMenu>
-            <ElDropdownItem v-for="a in ACCENTS" :key="a" :command="a" :disabled="theme.accent === a">
-              <span class="accent-swatch" :class="`accent-${a}`" /> {{ a }}
-            </ElDropdownItem>
-          </ElDropdownMenu>
-        </template>
-      </ElDropdown>
+        <div class="account-panel">
+          <div class="account-head">
+            <span class="avatar avatar-lg">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
+            <div class="account-meta">
+              <div class="account-display">{{ auth.user?.name || auth.user?.username }}</div>
+              <div class="account-sub">{{ auth.user?.deptName || auth.user?.username }}</div>
+            </div>
+          </div>
 
-      <ElDropdown trigger="click" @command="setLang">
-        <button class="icon-btn lang-btn" type="button" :title="t('common.lang.switch')">
-          {{ theme.locale === 'zh-CN' ? t('common.lang.shortZh') : t('common.lang.shortEn') }}
-        </button>
-        <template #dropdown>
-          <ElDropdownMenu>
-            <ElDropdownItem command="zh-CN" :disabled="theme.locale === 'zh-CN'">
-              {{ t('common.lang.zhCN') }}
-            </ElDropdownItem>
-            <ElDropdownItem command="en-US" :disabled="theme.locale === 'en-US'">
-              {{ t('common.lang.enUS') }}
-            </ElDropdownItem>
-          </ElDropdownMenu>
-        </template>
-      </ElDropdown>
+          <button class="panel-item" type="button" @click="openProfile">
+            <ElIcon><User /></ElIcon>{{ t('auth.user.profile') }}
+          </button>
+          <button class="panel-item" type="button" @click="openChangePassword">
+            <ElIcon><Lock /></ElIcon>{{ t('auth.user.changePassword') }}
+          </button>
 
-      <ElDropdown trigger="click">
-        <button class="account-btn" type="button">
-          <span class="avatar">{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</span>
-          <span class="account-name">{{ auth.user?.name || auth.user?.username }}</span>
-        </button>
-        <template #dropdown>
-          <ElDropdownMenu>
-            <ElDropdownItem @click="profileVisible = true">
-              <ElIcon><User /></ElIcon>{{ t('auth.user.profile') }}
-            </ElDropdownItem>
-            <ElDropdownItem @click="changePassword">
-              <ElIcon><Lock /></ElIcon>{{ t('auth.user.changePassword') }}
-            </ElDropdownItem>
-            <ElDropdownItem divided @click="doLogout">
-              <ElIcon><SwitchButton /></ElIcon>{{ t('auth.user.logout') }}
-            </ElDropdownItem>
-          </ElDropdownMenu>
-        </template>
-      </ElDropdown>
+          <div class="panel-divider" />
+
+          <div class="panel-section">
+            <div class="panel-label">
+              <ElIcon><Brush /></ElIcon>{{ t('common.theme.appearance') }}
+            </div>
+            <div class="seg-row">
+              <button
+                v-for="m in themeModes"
+                :key="m.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.theme === m.value }"
+                @click="theme.setTheme(m.value)"
+              >
+                <ElIcon v-if="m.value === 'light'"><Sunny /></ElIcon>
+                <ElIcon v-else-if="m.value === 'dark'"><Moon /></ElIcon>
+                {{ t(m.labelKey) }}
+              </button>
+            </div>
+            <div class="accent-row">
+              <button
+                v-for="a in ACCENTS"
+                :key="a"
+                type="button"
+                class="accent-swatch-btn"
+                :class="[`accent-${a}`, { active: theme.accent === a }]"
+                :title="a"
+                @click="theme.setAccent(a)"
+              />
+            </div>
+            <div class="seg-row">
+              <button
+                v-for="d in densities"
+                :key="d.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.density === d.value }"
+                @click="theme.setDensity(d.value)"
+              >
+                {{ t(d.labelKey) }}
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <div class="panel-label">{{ t('common.lang.switch') }}</div>
+            <div class="seg-row">
+              <button
+                v-for="l in locales"
+                :key="l.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.locale === l.value }"
+                @click="theme.setAppLocale(l.value)"
+              >
+                {{ t(l.labelKey) }}
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-divider" />
+
+          <button class="panel-item danger" type="button" @click="doLogout">
+            <ElIcon><SwitchButton /></ElIcon>{{ t('auth.user.logout') }}
+          </button>
+        </div>
+      </ElPopover>
     </div>
 
     <el-dialog v-model="profileVisible" :title="t('auth.user.profile')" width="420px" append-to-body>
@@ -384,36 +419,6 @@ async function submitPassword() {
   gap: var(--bs-space-1);
 }
 
-.lang-btn {
-  width: auto;
-  padding: 0 var(--bs-space-2);
-  font-size: var(--bs-typography-font-size-xs);
-  font-weight: 600;
-}
-
-.accent-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--bs-radius-full);
-  background: var(--bs-color-primary);
-}
-
-.accent-swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 6px;
-  border-radius: var(--bs-radius-full);
-  vertical-align: middle;
-}
-
-.accent-blue { background: var(--bs-color-accent-blue); }
-.accent-green { background: var(--bs-color-accent-green); }
-.accent-purple { background: var(--bs-color-accent-purple); }
-.accent-orange { background: var(--bs-color-accent-orange); }
-.accent-cyan { background: var(--bs-color-accent-cyan); }
-.accent-red { background: var(--bs-color-accent-red); }
-
 .account-btn {
   display: flex;
   align-items: center;
@@ -444,7 +449,138 @@ async function submitPassword() {
   font-weight: 600;
 }
 
+.avatar-lg {
+  width: 36px;
+  height: 36px;
+  font-size: var(--bs-typography-font-size-base);
+}
+
 .account-name {
   font-size: var(--bs-typography-font-size-sm);
 }
+
+.account-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  padding: var(--bs-space-2);
+}
+
+.account-meta {
+  min-width: 0;
+}
+
+.account-display {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-sub {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-item {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  width: 100%;
+  padding: var(--bs-space-2);
+  border: none;
+  border-radius: var(--bs-radius-sm);
+  background: transparent;
+  color: var(--bs-color-fg-default);
+  font-size: var(--bs-typography-font-size-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.panel-item:hover {
+  background: var(--bs-color-fill-hover);
+}
+
+.panel-item.danger {
+  color: var(--bs-color-semantic-danger);
+}
+
+.panel-divider {
+  height: 1px;
+  margin: var(--bs-space-1) 0;
+  background: var(--bs-color-border-subtle);
+}
+
+.panel-section {
+  padding: var(--bs-space-1) var(--bs-space-2) var(--bs-space-2);
+}
+
+.panel-label {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-1);
+  margin-bottom: var(--bs-space-1);
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+}
+
+.seg-row {
+  display: flex;
+  gap: var(--bs-space-1);
+  margin-bottom: var(--bs-space-1);
+}
+
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--bs-space-2);
+  border: 1px solid var(--bs-color-border-default);
+  border-radius: var(--bs-radius-sm);
+  background: var(--bs-color-bg-surface);
+  color: var(--bs-color-fg-secondary);
+  font-size: var(--bs-typography-font-size-xs);
+  cursor: pointer;
+}
+
+.seg-btn.active {
+  border-color: var(--bs-color-primary);
+  color: var(--bs-color-primary);
+  background: var(--bs-color-brand-primary-soft);
+}
+
+.accent-row {
+  display: flex;
+  gap: var(--bs-space-2);
+  margin: var(--bs-space-1) 0;
+}
+
+.accent-swatch-btn {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-radius: var(--bs-radius-full);
+  cursor: pointer;
+  padding: 0;
+}
+
+.accent-swatch-btn.active {
+  border-color: var(--bs-color-primary);
+}
+
+.accent-blue { background: var(--bs-color-accent-blue); }
+.accent-green { background: var(--bs-color-accent-green); }
+.accent-purple { background: var(--bs-color-accent-purple); }
+.accent-orange { background: var(--bs-color-accent-orange); }
+.accent-cyan { background: var(--bs-color-accent-cyan); }
+.accent-red { background: var(--bs-color-accent-red); }
 </style>

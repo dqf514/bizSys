@@ -3,7 +3,7 @@
 import { onMounted, ref, resolveComponent } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElIcon } from 'element-plus'
 import ListPage from '@/components/list/ListPage.vue'
 import FormRenderer from '@/modules/oa/components/FormRenderer.vue'
@@ -14,6 +14,7 @@ import type { OaCatalogGroup, OaForm } from '@/api/types'
 defineOptions({ name: 'ApplyForm' })
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const { options: dictOptions } = useDict()
 
@@ -34,7 +35,15 @@ async function load() {
   }
 }
 
-onMounted(() => void load())
+onMounted(() => {
+  void load().then(() => {
+    // 工作台「OA 快捷发起」深链：?form=<key> 直接打开发起弹窗
+    const key = String(route.query.form || '')
+    if (!key) return
+    const target = groups.value.flatMap((g) => g.forms ?? []).find((f) => f.key === key)
+    if (target) openApply(target)
+  })
+})
 
 function categoryLabel(c: string) {
   return categoryLabels.value[c] || t('oa.catalog.uncategorized')

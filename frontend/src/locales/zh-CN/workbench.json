@@ -16,7 +16,9 @@
     "notify": "通知公告",
     "myTasks": "我的任务进行中",
     "calendar": "本月日历",
-    "quickLinks": "快捷入口"
+    "quickLinks": "快捷入口",
+    "oaQuickApply": "OA 快捷发起",
+    "financeOverview": "财务概览"
   },
   "customize": "自定义",
   "customizeTitle": "自定义工作台",
@@ -42,5 +44,11 @@
   "todoList": "待办事项",
   "noData": "暂无待办",
   "env": "环境",
-  "envDev": "开发环境"
+  "envDev": "开发环境",
+  "finance": {
+    "settlementPending": "待结算",
+    "invoiceApproving": "开票审批中",
+    "paymentTotal": "到账笔数"
+  },
+  "emptyOaForms": "暂无可发起的 OA 表单"
 }
