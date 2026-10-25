@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar from '@/components/list/ActionBar.vue'
@@ -13,7 +14,7 @@ import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import FormRenderer from '@/modules/oa/components/FormRenderer.vue'
 import { useListPage } from '@/composables/useListPage'
-import { exportMyOaInstances, getOaInstance, listMyOaInstances, withdrawOaInstance } from '@/api/oa'
+import { exportMyOaInstances, getOaInstance, listMyOaInstances, myOaInstanceCounts, withdrawOaInstance } from '@/api/oa'
 import { getInstance } from '@/api/approval'
 import { useDict } from '@/composables/useDict'
 import type { FlowGraphData, OaInstanceDetail, OaInstanceItem } from '@/api/types'
@@ -24,24 +25,42 @@ const { t } = useI18n()
 const { options: dictOptions } = useDict()
 
 const activeStatus = ref('all')
+const counts = ref<Record<string, number>>({})
 const statusTabs = computed<StatusTabItem[]>(() => [
-  { value: 'all', labelKey: 'common.action.all' },
-  { value: 'running', label: t('oa.status.running') },
-  { value: 'approved', label: t('oa.status.approved') },
-  { value: 'rejected', label: t('oa.status.rejected') },
-  { value: 'withdrawn', label: t('oa.status.withdrawn') },
-  { value: 'terminated', label: t('oa.status.terminated') },
+  { value: 'all', labelKey: 'common.action.all', count: counts.value.all ?? 0 },
+  { value: 'running', label: t('oa.status.running'), count: counts.value.running ?? 0 },
+  { value: 'approved', label: t('oa.status.approved'), count: counts.value.approved ?? 0 },
+  { value: 'rejected', label: t('oa.status.rejected'), count: counts.value.rejected ?? 0 },
+  { value: 'withdrawn', label: t('oa.status.withdrawn'), count: counts.value.withdrawn ?? 0 },
+  { value: 'terminated', label: t('oa.status.terminated'), count: counts.value.terminated ?? 0 },
 ])
+
+async function loadCounts() {
+  try {
+    counts.value = (await myOaInstanceCounts()) ?? {}
+  } catch {
+    /* counts optional */
+  }
+}
+
+const searchModel = ref<Record<string, any>>({ q: '' })
+const searchFields: SearchField[] = [
+  { key: 'q', labelKey: 'oa.my.searchQ', placeholderKey: 'oa.my.placeholderQ', width: 240 },
+]
 
 const list = useListPage<OaInstanceItem>({
   fetch: async (params) => {
     const data = await listMyOaInstances({
       ...params,
       status: activeStatus.value === 'all' ? '' : activeStatus.value,
+      q: searchModel.value.q || undefined,
     })
     return { items: data.items, total: data.total ?? 0 }
   },
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [
@@ -62,6 +81,7 @@ function switchStatus(v: string) {
 
 const categoryLabels = ref<Record<string, string>>({})
 onMounted(async () => {
+  void loadCounts()
   const opts = await dictOptions('oa_category')
   categoryLabels.value = Object.fromEntries(opts.map((o) => [o.value, o.label]))
 })
@@ -126,9 +146,18 @@ async function doWithdraw() {
     <template #actions>
       <ExportButton
         v-permission="'oa:my'"
-        :export-fn="() => exportMyOaInstances({ status: activeStatus === 'all' ? '' : activeStatus })"
+        :export-fn="() => exportMyOaInstances({ status: activeStatus === 'all' ? '' : activeStatus, q: searchModel.q || undefined })"
       />
       <el-button @click="list.refresh()">{{ t('common.action.refresh') }}</el-button>
+    </template>
+
+    <template #searchBar>
+      <SearchBar
+        v-model="searchModel"
+        :fields="searchFields"
+        @search="list.search()"
+        @reset="searchModel = { q: '' }; list.reset()"
+      />
     </template>
 
     <template #statusTabs>

@@ -59,23 +59,34 @@ def _user_or_404(db: Session, user_id: int) -> User:
 @router.get("/tasks")
 def list_tasks(
     tab: str = Query("todo", pattern="^(todo|done|initiated)$"),
+    q: str = Query("", max_length=64),
     sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.list_tasks(db, user, PageParams(page=page, size=size), tab, sort=sort)
+    return service.list_tasks(db, user, PageParams(page=page, size=size), tab, sort=sort, q=q)
+
+
+@router.get("/tasks/counts")
+def task_counts(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """审批页签计数（todo/done/initiated/cc）。"""
+    return service.task_counts(db, user)
 
 
 @router.get("/tasks/export")
 def export_tasks(
     tab: str = Query("todo", pattern="^(todo|done|initiated)$"),
+    q: str = Query("", max_length=64),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """审批中心导出（与 /tasks 同为登录可用，复用 list_tasks 过滤）。"""
-    data = service.list_tasks(db, user, SimpleNamespace(page=1, size=100_000), tab)
+    data = service.list_tasks(db, user, SimpleNamespace(page=1, size=100_000), tab, q=q)
     rows = []
     for item in data["items"]:
         item = dict(item)
@@ -210,13 +221,14 @@ def withdraw(
 @router.get("/cc")
 def list_cc(
     unread: int = Query(0, ge=0, le=1),
+    q: str = Query("", max_length=64),
     sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.list_cc(db, user, PageParams(page=page, size=size), unread_only=bool(unread), sort=sort)
+    return service.list_cc(db, user, PageParams(page=page, size=size), unread_only=bool(unread), sort=sort, q=q)
 
 
 @router.post("/cc/{cc_id}/read")

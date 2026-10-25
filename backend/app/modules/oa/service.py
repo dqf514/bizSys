@@ -436,15 +436,30 @@ def _oa_sort_order(raw: str):
     return col.desc() if desc else col.asc()
 
 
-def my_instances(db: Session, user: User, params: PageParams, status: str = "", sort: str = "") -> dict:
+def my_instances(db: Session, user: User, params: PageParams, status: str = "", sort: str = "", q: str = "") -> dict:
     stmt = select(OaInstance).where(OaInstance.applicant_id == user.id, OaInstance.deleted == 0)
     if status:
         stmt = stmt.where(OaInstance.status == status)
+    if q.strip():
+        like = f"%{q.strip()}%"
+        stmt = stmt.where((OaInstance.display_no.like(like)) | (OaInstance.form_name.like(like)))
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
         stmt.order_by(_oa_sort_order(sort)).offset((params.page - 1) * params.size).limit(params.size)
     ).all()
     return page_result([instance_item(db, r) for r in rows], total, params.page, params.size)
+
+
+def instance_status_counts(db: Session, user: User | None = None) -> dict:
+    """OA 单据状态页签计数：user 为空=管理端全量，否则=本人申请。"""
+    stmt = select(OaInstance.status, func.count()).where(OaInstance.deleted == 0).group_by(OaInstance.status)
+    if user is not None:
+        stmt = stmt.where(OaInstance.applicant_id == user.id)
+    rows = db.execute(stmt).all()
+    data = {s: 0 for s in ("running", "approved", "rejected", "withdrawn", "terminated")}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
 
 
 def _can_view(db: Session, inst: OaInstance, user: User) -> bool:

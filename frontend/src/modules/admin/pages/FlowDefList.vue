@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
@@ -26,6 +27,15 @@ const pageTabs = computed<StatusTabItem[]>(() => [
 
 const items = ref<FlowDef[]>([])
 const loading = ref(false)
+/** 本地全量列表：前端关键词过滤（code/name） */
+const defKeyword = ref('')
+const filteredItems = computed(() => {
+  const kw = defKeyword.value.trim().toLowerCase()
+  if (!kw) return items.value
+  return items.value.filter(
+    (x) => x.code?.toLowerCase().includes(kw) || x.name?.toLowerCase().includes(kw),
+  )
+})
 /** flowDefinitionId → 绑定的 OA 表单名（绑定信息反查） */
 const boundForms = ref<Map<number, string[]>>(new Map())
 
@@ -334,6 +344,13 @@ function onDefAction(key: string, row: FlowDef) {
   <ListPage :title="t('admin.flow.title')" :loading="activeTab === 'defs' ? loading : false">
     <template #actions>
       <template v-if="activeTab === 'defs'">
+        <el-input
+          v-model="defKeyword"
+          :placeholder="t('common.form.placeholderSearch')"
+          :prefix-icon="Search"
+          clearable
+          class="local-filter"
+        />
         <el-button v-permission="'admin:flow:edit'" type="primary" @click="openCreate">
           {{ t('admin.flow.create') }}
         </el-button>
@@ -346,7 +363,7 @@ function onDefAction(key: string, row: FlowDef) {
     </template>
 
     <template #table>
-      <el-table v-if="activeTab === 'defs'" :data="items" row-key="id" border stripe height="100%">
+      <el-table v-if="activeTab === 'defs'" :data="filteredItems" row-key="id" border stripe height="100%">
         <el-table-column :label="t('admin.flow.code')" prop="code" width="130" sortable />
         <el-table-column :label="t('admin.flow.version')" prop="version" width="120" sortable>
           <template #default="{ row }">
@@ -586,5 +603,9 @@ function onDefAction(key: string, row: FlowDef) {
 .preview-route {
   margin-top: var(--bs-space-2);
   word-break: break-all;
+}
+
+.local-filter {
+  width: 220px;
 }
 </style>

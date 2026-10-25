@@ -21,8 +21,15 @@ export function listApprovalTasks(tab: ApprovalTab, params: ListQuery) {
   })
 }
 
-export function exportApprovalTasks(tab: ApprovalTab) {
-  return download({ url: '/approval/tasks/export', method: 'get', params: { tab } }, `approval_${tab}.xlsx`)
+export function approvalTaskCounts() {
+  return request<Record<string, number>>({ url: '/approval/tasks/counts', method: 'get' })
+}
+
+export function exportApprovalTasks(tab: ApprovalTab, q?: string) {
+  return download(
+    { url: '/approval/tasks/export', method: 'get', params: { tab, q: q || undefined } },
+    `approval_${tab}.xlsx`,
+  )
 }
 
 export function getTimeline(bizType: string, bizId: number) {

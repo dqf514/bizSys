@@ -15,6 +15,7 @@ import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
+  approvalTaskCounts,
   exportApprovalTasks,
   getInstance,
   getTimeline,
@@ -42,14 +43,13 @@ const CENTER_TABS: CenterTab[] = ['todo', 'initiated', 'cc', 'done']
 // 支持 /approval?tab=xx 深链（工作台板块「更多」入口）
 const initialTab = CENTER_TABS.includes(route.query.tab as CenterTab) ? (route.query.tab as CenterTab) : 'todo'
 const activeTab = ref<CenterTab>(initialTab)
-const todoCount = ref<number | undefined>(undefined)
-const ccUnreadCount = ref<number | undefined>(undefined)
+const counts = ref<Record<string, number>>({})
 
 const statusTabs = computed<StatusTabItem[]>(() => [
-  { value: 'todo', labelKey: 'approval.approval.tabTodo', count: todoCount.value },
-  { value: 'initiated', labelKey: 'approval.approval.tabInitiated' },
-  { value: 'cc', labelKey: 'approval.approval.tabCc', count: ccUnreadCount.value },
-  { value: 'done', labelKey: 'approval.approval.tabDone' },
+  { value: 'todo', labelKey: 'approval.approval.tabTodo', count: counts.value.todo },
+  { value: 'initiated', labelKey: 'approval.approval.tabInitiated', count: counts.value.initiated },
+  { value: 'cc', labelKey: 'approval.approval.tabCc', count: counts.value.cc },
+  { value: 'done', labelKey: 'approval.approval.tabDone', count: counts.value.done },
 ])
 
 type Row = Record<string, unknown>
@@ -61,6 +61,7 @@ const list = useListPage<Row>({
         ...params,
         status: undefined,
         unread: ccUnreadOnly.value ? 1 : 0,
+        q: searchModel.value.q || undefined,
       })
       return { items: data.items as unknown as Row[], total: data.total ?? 0 }
     }
@@ -73,6 +74,9 @@ const list = useListPage<Row>({
   },
   defaultStatus: 'todo',
   autoLoad: false,
+  onLoaded: () => {
+    void refreshTabCounts()
+  },
 })
 
 const ccUnreadOnly = ref(false)
@@ -102,16 +106,9 @@ const columns = computed<ListColumn[]>(() => (activeTab.value === 'cc' ? ccColum
 
 async function refreshTabCounts() {
   try {
-    const todo = await listApprovalTasks('todo', { page: 1, size: 1 })
-    todoCount.value = todo.total ?? 0
+    counts.value = (await approvalTaskCounts()) ?? {}
   } catch {
-    todoCount.value = undefined
-  }
-  try {
-    const cc = await listCcItems({ page: 1, size: 1, unread: 1 })
-    ccUnreadCount.value = cc.total ?? 0
-  } catch {
-    ccUnreadCount.value = undefined
+    counts.value = {}
   }
 }
 
@@ -240,7 +237,7 @@ onMounted(() => {
       <ExportButton
         v-if="activeTab !== 'cc'"
         v-permission="'approval:view'"
-        :export-fn="() => exportApprovalTasks(activeTab as ApprovalTab)"
+        :export-fn="() => exportApprovalTasks(activeTab as ApprovalTab, searchModel.q || undefined)"
       />
       <el-button @click="list.refresh(); refreshTabCounts()">{{ t('common.action.refresh') }}</el-button>
     </template>

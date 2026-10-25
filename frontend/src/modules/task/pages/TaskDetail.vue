@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import TaskDetailPanel from '../components/TaskDetailPanel.vue'
+import BackButton from '@/components/common/BackButton.vue'
 import type { Task } from '@/api/types'
 
 defineOptions({ name: 'TaskDetail' })
@@ -23,7 +24,7 @@ function onRemoved() {
   <div class="task-detail">
     <div class="detail-header">
       <h2 class="detail-title">{{ loaded?.taskName || t('task.task.detail') }}</h2>
-      <el-button @click="router.push('/task/tasks')">{{ t('common.action.back') }}</el-button>
+      <BackButton to="/task/tasks" />
     </div>
     <TaskDetailPanel :task-id="taskId" @loaded="loaded = $event" @removed="onRemoved" />
   </div>

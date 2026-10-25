@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -12,7 +12,14 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
-import { listContracts, deleteContract, submitContract, voidContract, exportContracts } from '@/api/contract'
+import {
+  listContracts,
+  contractCounts,
+  deleteContract,
+  submitContract,
+  voidContract,
+  exportContracts,
+} from '@/api/contract'
 import type { Contract } from '@/api/types'
 
 defineOptions({ name: 'ContractList' })
@@ -26,14 +33,34 @@ const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'contract.contract.searchName', placeholderKey: 'contract.contract.placeholderName', width: 220 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'draft', labelKey: 'contract.contract.statusDraft' },
-  { value: 'approving', labelKey: 'contract.contract.statusApproving' },
-  { value: 'approved', labelKey: 'contract.contract.statusApproved' },
-  { value: 'rejected', labelKey: 'contract.contract.statusRejected' },
-  { value: 'voided', labelKey: 'contract.contract.statusVoided' },
-  { value: 'all', labelKey: 'common.action.all' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'draft', labelKey: 'contract.contract.statusDraft', count: 0 },
+  { value: 'approving', labelKey: 'contract.contract.statusApproving', count: 0 },
+  { value: 'approved', labelKey: 'contract.contract.statusApproved', count: 0 },
+  { value: 'rejected', labelKey: 'contract.contract.statusRejected', count: 0 },
+  { value: 'voided', labelKey: 'contract.contract.statusVoided', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await contractCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<Contract>({
   fetch: async (params) => {
@@ -42,6 +69,9 @@ const list = useListPage<Contract>({
   },
   exportFn: (params) => exportContracts({ ...params, q: searchModel.value.q || undefined }),
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [

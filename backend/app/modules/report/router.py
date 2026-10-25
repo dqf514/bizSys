@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -152,6 +152,19 @@ def list_reports(
     rows = list(db.scalars(stmt).all())
     items, tasks, users = _brief_map(db, rows)
     return {"items": [_out(r, items, tasks, users) for r in rows], "total": total, "page": page, "size": size}
+
+
+@router.get("/reports/counts")
+def report_counts(
+    user: User = Depends(require_perm("report:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/uploaded/approving/approved/rejected/sealed）。"""
+    rows = db.execute(select(Report.status, func.count()).where(Report.deleted == 0).group_by(Report.status)).all()
+    data = {s: 0 for s in ("uploaded", "approving", "approved", "rejected", "sealed")}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
 
 
 @router.get("/reports/item-options")

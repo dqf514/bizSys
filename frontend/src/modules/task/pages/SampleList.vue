@@ -24,9 +24,9 @@ const searchFields: SearchField[] = [
 ]
 
 const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
   { value: 'in', labelKey: 'task.sample.stockIn', count: 0 },
   { value: 'out', labelKey: 'task.sample.stockOut', count: 0 },
-  { value: 'all', labelKey: 'common.action.all', count: 0 },
 ])
 
 async function loadCounts() {

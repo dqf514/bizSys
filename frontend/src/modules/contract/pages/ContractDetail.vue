@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import CountUp from '@/components/common/CountUp.vue'
+import BackButton from '@/components/common/BackButton.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import SettlementDetailDrawer from '@/modules/finance/components/SettlementDetailDrawer.vue'
 import { getContract, getContractFinanceSummary, downloadAttachment, voidContract } from '@/api/contract'
@@ -330,7 +331,7 @@ async function doVoid() {
         >
           {{ t('contract.contract.void') }}
         </el-button>
-        <el-button @click="router.push('/contract/contracts')">{{ t('common.action.back') }}</el-button>
+        <BackButton to="/contract/contracts" />
       </div>
     </div>
 

@@ -9,6 +9,10 @@ export function listCustomers(params: ListQuery) {
   })
 }
 
+export function customerCounts() {
+  return request<Record<string, number>>({ url: '/crm/customers/counts', method: 'get' })
+}
+
 export function getCustomer(id: number) {
   return request<CustomerDetail>({ url: `/crm/customers/${id}`, method: 'get' })
 }

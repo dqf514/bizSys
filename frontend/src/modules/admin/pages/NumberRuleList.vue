@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
@@ -21,6 +22,17 @@ const { options: dictOptions } = useDict()
 
 const items = ref<NumberRule[]>([])
 const loading = ref(false)
+/** 本地全量列表：前端关键词过滤（bizType/categoryKey/prefix/preview） */
+const keyword = ref('')
+const filteredItems = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return items.value
+  return items.value.filter((x) =>
+    [x.bizType, x.categoryKey, x.prefix, x.preview, x.example]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(kw)),
+  )
+})
 
 async function load() {
   loading.value = true
@@ -242,6 +254,13 @@ function onAction(key: string, row: NumberRule) {
 <template>
   <ListPage :title="t('admin.numbering.title')" :loading="loading">
     <template #actions>
+      <el-input
+        v-model="keyword"
+        :placeholder="t('common.form.placeholderSearch')"
+        :prefix-icon="Search"
+        clearable
+        class="local-filter"
+      />
       <el-button v-permission="'admin:numbering:edit'" type="primary" @click="openCreate">
         {{ t('admin.numbering.create') }}
       </el-button>
@@ -249,7 +268,7 @@ function onAction(key: string, row: NumberRule) {
     </template>
 
     <template #table>
-      <el-table :data="items" row-key="id" border stripe height="100%">
+      <el-table :data="filteredItems" row-key="id" border stripe height="100%">
         <el-table-column :label="t('admin.numbering.bizType')" prop="bizType" min-width="100" sortable>
           <template #default="{ row }">{{ bizLabel(row.bizType) }}</template>
         </el-table-column>
@@ -407,5 +426,9 @@ function onAction(key: string, row: NumberRule) {
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
   line-height: 1.4;
+}
+
+.local-filter {
+  width: 220px;
 }
 </style>

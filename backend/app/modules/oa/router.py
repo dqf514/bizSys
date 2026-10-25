@@ -97,23 +97,34 @@ def apply(body: S.ApplyIn, current: User = Depends(require_perm("oa:apply")), db
 @router.get("/instances/my")
 def my_instances(
     status: str = Query(""),
+    q: str = Query("", max_length=64),
     sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
     current: User = Depends(require_perm("oa:my")),
     db: Session = Depends(get_db),
 ):
-    return svc.my_instances(db, current, PageParams(page=page, size=size), status=status, sort=sort)
+    return svc.my_instances(db, current, PageParams(page=page, size=size), status=status, sort=sort, q=q)
+
+
+@router.get("/instances/my/counts")
+def my_instance_counts(
+    current: User = Depends(require_perm("oa:my")),
+    db: Session = Depends(get_db),
+):
+    """我的申请状态页签计数。"""
+    return svc.instance_status_counts(db, current)
 
 
 @router.get("/instances/my/export")
 def export_my_instances(
     status: str = Query(""),
+    q: str = Query("", max_length=64),
     current: User = Depends(require_perm("oa:my")),
     db: Session = Depends(get_db),
 ):
     """我的申请导出（沿用列表查看权限，复用 my_instances 过滤）。"""
-    data = svc.my_instances(db, current, SimpleNamespace(page=1, size=100_000), status=status)
+    data = svc.my_instances(db, current, SimpleNamespace(page=1, size=100_000), status=status, q=q)
     cat_map = dict(
         db.execute(
             select(DictItem.value, DictItem.label).where(
@@ -141,6 +152,7 @@ def export_my_instances(
 @router.get("/related")
 def related(
     tab: str = Query("todo", pattern="^(todo|done|cc)$"),
+    q: str = Query("", max_length=64),
     sort: str = Query("", max_length=50),
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
@@ -150,8 +162,18 @@ def related(
     """与我相关：待办/已办/抄送——复用 approval 查询，过滤 biz_type='oa'。"""
     pp = PageParams(page=page, size=size)
     if tab == "cc":
-        return approval_svc.list_cc(db, current, pp, biz_type="oa", sort=sort)
-    return approval_svc.list_tasks(db, current, pp, tab, biz_type="oa", sort=sort)
+        return approval_svc.list_cc(db, current, pp, biz_type="oa", sort=sort, q=q)
+    return approval_svc.list_tasks(db, current, pp, tab, biz_type="oa", sort=sort, q=q)
+
+
+@router.get("/related/counts")
+def related_counts(
+    current: User = Depends(require_perm("oa:related")),
+    db: Session = Depends(get_db),
+):
+    """与我相关页签计数（todo/done/cc，限 OA 单据）。"""
+    counts = approval_svc.task_counts(db, current, biz_type="oa")
+    return {k: counts[k] for k in ("todo", "done", "cc")}
 
 
 @router.get("/stats")
@@ -304,6 +326,15 @@ def admin_instances(
     return svc.admin_instances(
         db, PageParams(page=page, size=size), status=status, keyword=keyword, stuck_days=stuck_days, sort=sort
     )
+
+
+@router.get("/admin/instances/counts")
+def admin_instance_counts(
+    current: User = Depends(require_perm("oa:admin:handle")),
+    db: Session = Depends(get_db),
+):
+    """管理端单据状态页签计数。"""
+    return svc.instance_status_counts(db)
 
 
 @router.post("/admin/instances/{inst_id}/terminate")

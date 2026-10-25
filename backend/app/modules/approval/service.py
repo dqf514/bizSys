@@ -65,8 +65,44 @@ def _pick_sort(raw: str, mapping: dict, default_col, default_desc: bool = True):
     return col.desc() if desc else col.asc()
 
 
+def task_counts(db: Session, user: User, biz_type: str | None = None) -> dict:
+    """审批页签计数：todo(我待办)/done(我已办)/initiated(我发起)/cc(抄送我)；biz_type 限定时联实例过滤。"""
+    todo_stmt = select(func.count()).select_from(ApprovalTask).where(
+        ApprovalTask.assignee_id == user.id, ApprovalTask.status == "pending", ApprovalTask.deleted == 0
+    )
+    done_stmt = select(func.count()).select_from(ApprovalRecord).where(
+        ApprovalRecord.operator_id == user.id,
+        ApprovalRecord.action.in_(("agree", "reject", "transfer", "add_sign")),
+        ApprovalRecord.deleted == 0,
+    )
+    cc_stmt = select(func.count()).select_from(ApprovalCc).where(
+        ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0
+    )
+    init_stmt = select(func.count()).select_from(ApprovalInstance).where(
+        ApprovalInstance.initiator_id == user.id, ApprovalInstance.deleted == 0
+    )
+    if biz_type:
+        todo_stmt = todo_stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalTask.instance_id).where(
+            ApprovalInstance.biz_type == biz_type
+        )
+        done_stmt = done_stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalRecord.instance_id).where(
+            ApprovalInstance.biz_type == biz_type
+        )
+        cc_stmt = cc_stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalCc.instance_id).where(
+            ApprovalInstance.biz_type == biz_type
+        )
+        init_stmt = init_stmt.where(ApprovalInstance.biz_type == biz_type)
+    return {
+        "todo": db.scalar(todo_stmt) or 0,
+        "done": db.scalar(done_stmt) or 0,
+        "initiated": db.scalar(init_stmt) or 0,
+        "cc": db.scalar(cc_stmt) or 0,
+    }
+
+
 def list_tasks(
-    db: Session, user: User, params: PageParams, tab: str = "todo", biz_type: str | None = None, sort: str = ""
+    db: Session, user: User, params: PageParams, tab: str = "todo", biz_type: str | None = None, sort: str = "",
+    q: str = "",
 ) -> dict:
     tab = tab or "todo"
     if tab == "todo":
@@ -75,10 +111,12 @@ def list_tasks(
             ApprovalTask.status == "pending",
             ApprovalTask.deleted == 0,
         )
+        if biz_type or q:
+            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalTask.instance_id)
         if biz_type:
-            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalTask.instance_id).where(
-                ApprovalInstance.biz_type == biz_type
-            )
+            stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
+        if q:
+            stmt = stmt.where(ApprovalInstance.title.like(f"%{q}%"))
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         order = _pick_sort(
             sort, {"create_time": ApprovalTask.create_time, "id": ApprovalTask.id}, ApprovalTask.create_time
@@ -99,10 +137,12 @@ def list_tasks(
             ApprovalRecord.action.in_(("agree", "reject", "transfer", "add_sign")),
             ApprovalRecord.deleted == 0,
         )
+        if biz_type or q:
+            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalRecord.instance_id)
         if biz_type:
-            stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalRecord.instance_id).where(
-                ApprovalInstance.biz_type == biz_type
-            )
+            stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
+        if q:
+            stmt = stmt.where(ApprovalInstance.title.like(f"%{q}%"))
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         order = _pick_sort(sort, {"at": ApprovalRecord.at, "id": ApprovalRecord.id}, ApprovalRecord.at)
         rows = list(
@@ -143,6 +183,8 @@ def list_tasks(
         )
         if biz_type:
             stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
+        if q:
+            stmt = stmt.where(ApprovalInstance.title.like(f"%{q}%"))
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         order = _pick_sort(
             sort,
@@ -305,15 +347,18 @@ def instance_timeline(db: Session, instance_id: int) -> dict:
 
 
 def list_cc(
-    db: Session, user: User, params: PageParams, unread_only: bool = False, biz_type: str | None = None, sort: str = ""
+    db: Session, user: User, params: PageParams, unread_only: bool = False, biz_type: str | None = None, sort: str = "",
+    q: str = "",
 ) -> dict:
     stmt = select(ApprovalCc).where(ApprovalCc.user_id == user.id, ApprovalCc.deleted == 0)
     if unread_only:
         stmt = stmt.where(ApprovalCc.read_at.is_(None))
+    if biz_type or q:
+        stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalCc.instance_id)
     if biz_type:
-        stmt = stmt.join(ApprovalInstance, ApprovalInstance.id == ApprovalCc.instance_id).where(
-            ApprovalInstance.biz_type == biz_type
-        )
+        stmt = stmt.where(ApprovalInstance.biz_type == biz_type)
+    if q:
+        stmt = stmt.where(ApprovalInstance.title.like(f"%{q}%"))
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     order = _pick_sort(sort, {"create_time": ApprovalCc.create_time, "id": ApprovalCc.id}, ApprovalCc.create_time)
     rows = list(

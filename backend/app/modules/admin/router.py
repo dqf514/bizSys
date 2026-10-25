@@ -104,6 +104,19 @@ def list_users(
     return {"items": [_user_out(db, u) for u in rows], "total": total, "page": page, "size": size}
 
 
+@router.get("/users/counts")
+def user_counts(
+    user: User = Depends(require_perm("admin:user:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/enabled/disabled）。"""
+    rows = db.execute(select(User.status, func.count()).where(User.deleted == 0).group_by(User.status)).all()
+    data = {"enabled": 0, "disabled": 0}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
+
+
 @router.post("/users", status_code=201)
 def create_user(
     body: S.UserIn,

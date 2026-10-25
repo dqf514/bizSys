@@ -9,6 +9,10 @@ export function listReports(params: ListQuery) {
   })
 }
 
+export function reportCounts() {
+  return request<Record<string, number>>({ url: '/report/reports/counts', method: 'get' })
+}
+
 export function reportItemOptions(q?: string, taskId?: number) {
   const params: Record<string, string | number> = {}
   if (q) params.q = q

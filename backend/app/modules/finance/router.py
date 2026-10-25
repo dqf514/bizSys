@@ -222,6 +222,21 @@ def list_settlements(
     return {"items": [_settlement_out(s, users) for s in rows], "total": total, "page": page, "size": size}
 
 
+@router.get("/settlements/counts")
+def settlement_counts(
+    user: User = Depends(require_perm("finance:settlement:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/approving/pending/invoicing/invoiced/paid/rejected）。"""
+    rows = db.execute(
+        select(Settlement.status, func.count()).where(Settlement.deleted == 0).group_by(Settlement.status)
+    ).all()
+    data = {s: 0 for s in ("approving", "pending", "invoicing", "invoiced", "paid", "rejected")}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
+
+
 @router.get("/settlements/task-options")
 def settlement_task_options(
     q: str = Query("", max_length=64),
@@ -593,6 +608,19 @@ def list_invoices(
         "page": page,
         "size": size,
     }
+
+
+@router.get("/invoices/counts")
+def invoice_counts(
+    user: User = Depends(require_perm("finance:invoice:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/approving/issued）。"""
+    rows = db.execute(select(Invoice.status, func.count()).where(Invoice.deleted == 0).group_by(Invoice.status)).all()
+    data = {"approving": 0, "issued": 0}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
 
 
 @router.get("/invoices/export")

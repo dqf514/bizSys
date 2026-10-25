@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type UploadFile } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -17,6 +17,7 @@ import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
 import {
   listCustomers,
+  customerCounts,
   createCustomer,
   updateCustomer,
   deleteCustomer,
@@ -36,11 +37,31 @@ const searchFields: SearchField[] = [
   { key: 'taxNo', labelKey: 'crm.customer.searchTaxNo', placeholderKey: 'crm.customer.placeholderTaxNo', width: 200 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'enabled', labelKey: 'crm.customer.enabled' },
-  { value: 'disabled', labelKey: 'crm.customer.disabled' },
-  { value: 'all', labelKey: 'common.action.all' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'enabled', labelKey: 'crm.customer.enabled', count: 0 },
+  { value: 'disabled', labelKey: 'crm.customer.disabled', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await customerCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<Customer>({
   fetch: async (params) => {
@@ -58,6 +79,9 @@ const list = useListPage<Customer>({
       filters: { taxNo: searchModel.value.taxNo || undefined },
     }),
   defaultStatus: 'enabled',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [

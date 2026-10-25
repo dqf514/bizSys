@@ -38,4 +38,22 @@ describe('i18n messages wired by namespace', () => {
     setLocale('zh-CN')
     expect(i18n.global.locale.value).toBe('zh-CN')
   })
+
+  it('resolves batch-G keys (nav settings menu + oa search)', () => {
+    for (const key of [
+      'common.nav.settings',
+      'common.nav.customize',
+      'oa.my.searchQ',
+      'oa.my.placeholderQ',
+      'oa.related.searchQ',
+      'oa.related.placeholderQ',
+    ]) {
+      expect(resolved(key), key).not.toBe(key)
+    }
+    setLocale('en-US')
+    for (const key of ['common.nav.settings', 'oa.my.searchQ', 'oa.related.searchQ']) {
+      expect(resolved(key), key).not.toBe(key)
+    }
+    setLocale('zh-CN')
+  })
 })

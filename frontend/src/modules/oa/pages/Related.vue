@@ -5,6 +5,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
+import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar from '@/components/list/ActionBar.vue'
@@ -14,7 +15,7 @@ import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import FormRenderer from '@/modules/oa/components/FormRenderer.vue'
 import { useListPage } from '@/composables/useListPage'
-import { getOaInstance, listOaRelated } from '@/api/oa'
+import { getOaInstance, listOaRelated, oaRelatedCounts } from '@/api/oa'
 import { getInstance, markCcRead } from '@/api/approval'
 import type { ApprovalInstanceDetail, ApprovalTask, OaInstanceDetail } from '@/api/types'
 
@@ -26,19 +27,40 @@ type Row = Record<string, unknown>
 const { t } = useI18n()
 
 const activeTab = ref<RelTab>('todo')
+const counts = ref<Record<string, number>>({})
 const statusTabs = computed<StatusTabItem[]>(() => [
-  { value: 'todo', label: t('oa.related.tabTodo') },
-  { value: 'done', label: t('oa.related.tabDone') },
-  { value: 'cc', label: t('oa.related.tabCc') },
+  { value: 'todo', label: t('oa.related.tabTodo'), count: counts.value.todo ?? 0 },
+  { value: 'done', label: t('oa.related.tabDone'), count: counts.value.done ?? 0 },
+  { value: 'cc', label: t('oa.related.tabCc'), count: counts.value.cc ?? 0 },
 ])
+
+async function loadCounts() {
+  try {
+    counts.value = (await oaRelatedCounts()) ?? {}
+  } catch {
+    /* counts optional */
+  }
+}
+
+const searchModel = ref<Record<string, any>>({ q: '' })
+const searchFields: SearchField[] = [
+  { key: 'q', labelKey: 'oa.related.searchQ', placeholderKey: 'oa.related.placeholderQ', width: 240 },
+]
 
 const list = useListPage<Row>({
   fetch: async (params) => {
-    const data = await listOaRelated(activeTab.value, { ...params, status: undefined })
+    const data = await listOaRelated(activeTab.value, {
+      ...params,
+      status: undefined,
+      q: searchModel.value.q || undefined,
+    })
     return { items: data.items as Row[], total: data.total ?? 0 }
   },
   defaultStatus: 'todo',
   autoLoad: false,
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const baseColumns: ListColumn[] = [
@@ -112,13 +134,25 @@ function onDone() {
   list.refresh()
 }
 
-onMounted(() => list.refresh())
+onMounted(() => {
+  void loadCounts()
+  list.refresh()
+})
 </script>
 
 <template>
   <ListPage :title="t('oa.related.title')" :loading="list.loading.value">
     <template #actions>
       <el-button @click="list.refresh()">{{ t('common.action.refresh') }}</el-button>
+    </template>
+
+    <template #searchBar>
+      <SearchBar
+        v-model="searchModel"
+        :fields="searchFields"
+        @search="list.search()"
+        @reset="searchModel = { q: '' }; list.reset()"
+      />
     </template>
 
     <template #statusTabs>

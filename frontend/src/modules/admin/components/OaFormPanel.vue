@@ -6,6 +6,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
@@ -46,6 +47,15 @@ const forms = ref<OaForm[]>([])
 const flowDefs = ref<OaFlowDefOption[]>([])
 const categoryOptions = ref<{ value: string; label: string }[]>([])
 const loading = ref(false)
+/** 本地全量列表：前端关键词过滤（name/key） */
+const formKeyword = ref('')
+const filteredForms = computed(() => {
+  const kw = formKeyword.value.trim().toLowerCase()
+  if (!kw) return forms.value
+  return forms.value.filter(
+    (f) => f.name?.toLowerCase().includes(kw) || f.key?.toLowerCase().includes(kw),
+  )
+})
 
 async function load() {
   loading.value = true
@@ -427,13 +437,20 @@ function gotoDesign() {
 <template>
   <div class="oa-form-panel">
     <div class="panel-toolbar">
+      <el-input
+        v-model="formKeyword"
+        :placeholder="t('common.form.placeholderSearch')"
+        :prefix-icon="Search"
+        clearable
+        class="local-filter"
+      />
       <el-button v-permission="'oa:admin:design'" type="primary" @click="openCreate">
         {{ t('oa.design.createForm') }}
       </el-button>
       <el-button @click="load">{{ t('common.action.refresh') }}</el-button>
     </div>
 
-    <ListTable :columns="columns" :data="forms as unknown as Record<string, unknown>[]" :loading="loading" :total="forms.length" :page="1" :size="Math.max(forms.length, 10)" row-key="id">
+    <ListTable :columns="columns" :data="filteredForms as unknown as Record<string, unknown>[]" :loading="loading" :total="filteredForms.length" :page="1" :size="Math.max(filteredForms.length, 10)" row-key="id">
       <template #category="{ row }">{{ categoryLabel(String(row.category)) }}</template>
       <template #status="{ row }">
         <StatusTag :status="String(row.status)" i18n-prefix="oa.formStatus" />
@@ -543,6 +560,10 @@ function gotoDesign() {
   display: flex;
   gap: var(--bs-space-2);
   flex-shrink: 0;
+}
+
+.local-filter {
+  width: 220px;
 }
 
 .designer-shell {

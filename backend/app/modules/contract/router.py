@@ -160,6 +160,21 @@ def list_contracts(
     return {"items": [_out(c) for c in rows], "total": total, "page": page, "size": size}
 
 
+@router.get("/contracts/counts")
+def contract_counts(
+    user: User = Depends(require_perm("contract:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/draft/approving/approved/rejected/voided）。"""
+    rows = db.execute(
+        select(Contract.status, func.count()).where(Contract.deleted == 0).group_by(Contract.status)
+    ).all()
+    data = {s: 0 for s in ("draft", "approving", "approved", "rejected", "voided")}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
+
+
 @router.get("/contracts/options")
 def contract_options(
     q: str = Query("", max_length=64),

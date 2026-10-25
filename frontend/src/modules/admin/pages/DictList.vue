@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
@@ -24,6 +25,35 @@ const { t } = useI18n()
 const types = ref<DictType[]>([])
 const loading = ref(false)
 const activeType = ref<DictType | null>(null)
+
+/** 本地全量：关键词同时过滤类型（code/name）与当前类型条目（label/labelEn/value） */
+const keyword = ref('')
+const filteredTypes = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return types.value
+  return types.value.filter(
+    (tp) =>
+      tp.code?.toLowerCase().includes(kw) ||
+      tp.name?.toLowerCase().includes(kw) ||
+      (tp.items ?? []).some(
+        (it) =>
+          it.label?.toLowerCase().includes(kw) ||
+          it.labelEn?.toLowerCase().includes(kw) ||
+          String(it.value ?? '').toLowerCase().includes(kw),
+      ),
+  )
+})
+const filteredItems = computed(() => {
+  const list = activeType.value?.items ?? []
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return list
+  return list.filter(
+    (it) =>
+      it.label?.toLowerCase().includes(kw) ||
+      it.labelEn?.toLowerCase().includes(kw) ||
+      String(it.value ?? '').toLowerCase().includes(kw),
+  )
+})
 
 async function load() {
   loading.value = true
@@ -166,6 +196,13 @@ function onItemAction(key: string, row: DictItem) {
 <template>
   <ListPage :title="t('admin.dict.title')" :loading="loading">
     <template #actions>
+      <el-input
+        v-model="keyword"
+        :placeholder="t('common.form.placeholderSearch')"
+        :prefix-icon="Search"
+        clearable
+        class="local-filter"
+      />
       <el-button v-permission="'admin:dict:edit'" type="primary" @click="openTypeCreate">
         {{ t('admin.dict.createType') }}
       </el-button>
@@ -179,7 +216,7 @@ function onItemAction(key: string, row: DictItem) {
     <div class="dict-layout">
       <div class="dict-types">
         <div
-          v-for="tp in types"
+          v-for="tp in filteredTypes"
           :key="tp.id"
           class="dict-type-item"
           :class="{ active: activeType?.id === tp.id }"
@@ -197,7 +234,7 @@ function onItemAction(key: string, row: DictItem) {
             {{ activeType ? `${activeType.code} · ${t('admin.dict.items')}` : t('admin.dict.selectType') }}
           </span>
         </div>
-        <el-table :data="activeType?.items || []" row-key="id" border stripe height="100%">
+        <el-table :data="filteredItems" row-key="id" border stripe height="100%">
           <el-table-column :label="t('admin.dict.itemLabel')" prop="label" min-width="120" sortable />
           <el-table-column :label="t('admin.dict.itemLabelEn')" prop="labelEn" min-width="120" sortable />
           <el-table-column :label="t('admin.dict.itemValue')" prop="value" min-width="120" sortable />
@@ -341,5 +378,9 @@ function onItemAction(key: string, row: DictItem) {
 
 .items-title {
   font-weight: 600;
+}
+
+.local-filter {
+  width: 220px;
 }
 </style>

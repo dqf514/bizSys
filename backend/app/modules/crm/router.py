@@ -139,6 +139,21 @@ def list_customers(
     return {"items": [_out(c) for c in rows], "total": total, "page": page, "size": size}
 
 
+@router.get("/customers/counts")
+def customer_counts(
+    user: User = Depends(require_perm("crm:customer:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/enabled/disabled）。"""
+    rows = db.execute(
+        select(Customer.status, func.count()).where(Customer.deleted == 0).group_by(Customer.status)
+    ).all()
+    data = {"enabled": 0, "disabled": 0}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
+
+
 @router.get("/customers/options")
 def customer_options(
     q: str = Query("", max_length=64),

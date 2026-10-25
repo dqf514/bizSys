@@ -12,6 +12,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
   listOaAdminInstances,
+  oaAdminInstanceCounts,
   reassignOaInstance,
   restartOaInstance,
   terminateOaInstance,
@@ -30,14 +31,23 @@ const searchFields: SearchField[] = [
 ]
 
 const activeStatus = ref('all')
+const counts = ref<Record<string, number>>({})
 const statusTabs = computed<StatusTabItem[]>(() => [
-  { value: 'all', labelKey: 'common.action.all' },
-  { value: 'running', label: t('oa.status.running') },
-  { value: 'approved', label: t('oa.status.approved') },
-  { value: 'rejected', label: t('oa.status.rejected') },
-  { value: 'withdrawn', label: t('oa.status.withdrawn') },
-  { value: 'terminated', label: t('oa.status.terminated') },
+  { value: 'all', labelKey: 'common.action.all', count: counts.value.all ?? 0 },
+  { value: 'running', label: t('oa.status.running'), count: counts.value.running ?? 0 },
+  { value: 'approved', label: t('oa.status.approved'), count: counts.value.approved ?? 0 },
+  { value: 'rejected', label: t('oa.status.rejected'), count: counts.value.rejected ?? 0 },
+  { value: 'withdrawn', label: t('oa.status.withdrawn'), count: counts.value.withdrawn ?? 0 },
+  { value: 'terminated', label: t('oa.status.terminated'), count: counts.value.terminated ?? 0 },
 ])
+
+async function loadCounts() {
+  try {
+    counts.value = (await oaAdminInstanceCounts()) ?? {}
+  } catch {
+    /* counts optional */
+  }
+}
 
 const list = useListPage<OaInstanceItem>({
   fetch: async (params) => {
@@ -50,6 +60,9 @@ const list = useListPage<OaInstanceItem>({
     return { items: data.items, total: data.total ?? 0 }
   },
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [
@@ -176,7 +189,10 @@ async function doRestart() {
 
 const canIntervene = (row: OaInstanceItem) => row.status === 'running' && row.flowInstanceId > 0
 
-onMounted(() => list.refresh())
+onMounted(() => {
+  void loadCounts()
+  list.refresh()
+})
 </script>
 
 <template>

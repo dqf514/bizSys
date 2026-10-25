@@ -38,6 +38,10 @@ export function listUsers(params: ListQuery) {
   })
 }
 
+export function userCounts() {
+  return request<Record<string, number>>({ url: '/admin/users/counts', method: 'get' })
+}
+
 export function createUser(data: Partial<AdminUser> & { password?: string }) {
   return request<AdminUser>({ url: '/admin/users', method: 'post', data })
 }

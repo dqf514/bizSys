@@ -58,13 +58,17 @@
     "formData": "表单内容",
     "withdraw": "撤回",
     "withdrawConfirm": "确认撤回该申请？",
-    "withdrawDone": "已撤回"
+    "withdrawDone": "已撤回",
+    "searchQ": "关键词",
+    "placeholderQ": "搜索单号/表单名称"
   },
   "related": {
     "title": "与我相关",
     "tabTodo": "待办",
     "tabDone": "已办",
-    "tabCc": "抄送"
+    "tabCc": "抄送",
+    "searchQ": "关键词",
+    "placeholderQ": "搜索标题"
   },
   "stats": {
     "title": "统计看板",

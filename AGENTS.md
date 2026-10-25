@@ -34,6 +34,13 @@ Two rules CI enforces:
 1. **No hardcoded UI strings.** Use `t('domain.key')`; add keys to both `zh-CN` and `en-US`.
 2. **No hardcoded colors.** Use `--bs-*` tokens — edit `src/styles/tokens/*.tokens.json`, then `pnpm token:build`.
 
+## UI Consistency Rules
+
+- **Search**: every server-paginated list page must have a `SearchBar` with a keyword field (`q`); add `q` support to the backend list endpoint when missing (follow the existing `filters` pattern). Small client-side full lists get at least a local keyword filter input. Tree tables (menus/depts) are exempt.
+- **StatusTabs**: every tab shows a count, including `all`; add a backend `…/counts` endpoint when missing (follow `task counts`). The `all` tab is always leftmost.
+- **Close / back / footer buttons**: drawers and dialogs use the built-in top-right `X` only — no duplicate custom close buttons. Page-level back uses the shared `BackButton` (`src/components/common/BackButton.vue`) placed top-right. Dialog/drawer footer buttons: secondary actions left, primary action right.
+- **Navigation**: the side-nav footer gear opens the settings popover (system settings requires `admin:setting:list`, customize order, appearance, language); nav-zone sorting lives in `NavSortDialog` and is also reachable from the TopBar avatar menu.
+
 ## Testing Guidelines
 
 Backend tests in `backend/tests/test_*.py` (pytest). `conftest.py` creates and seeds an isolated `bizsys_test` database — never point tests at the dev DB. Frontend tests are Vitest files colocated with source, named `*.test.ts`. Add a test per bug fix and per new API path.

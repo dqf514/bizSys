@@ -1,74 +1,27 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElButton, ElDialog, ElIcon, ElMenu, ElMessage } from 'element-plus'
-import { Operation, Rank } from '@element-plus/icons-vue'
+import { ElIcon, ElMenu, ElPopover } from 'element-plus'
+import { Brush, Operation, Setting, Tools } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import * as authApi from '@/api/auth'
-import type { MenuNode } from '@/api/types'
+import { useThemeStore, type Density, type ThemeMode } from '@/stores/theme'
+import type { Locale } from '@/i18n'
 import SideNavItem from './SideNavItem.vue'
+import NavSortDialog from './NavSortDialog.vue'
+import { openNavSort, useNavZones } from './useNavZones'
 
 const props = defineProps<{ collapsed: boolean }>()
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
+const theme = useThemeStore()
 const { t } = useI18n()
 
 const active = computed(() => route.path)
 
-function visibleMenus(nodes: MenuNode[]): MenuNode[] {
-  return nodes
-    .filter((n) => n.visible !== 0 && (n.menuType === 'dir' || n.menuType === 'menu'))
-    .map((n) => ({ ...n, children: visibleMenus(n.children ?? []) }))
-    .filter((n) => n.menuType === 'menu' || (n.children?.length ?? 0) > 0)
-    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-}
-
-function menuTitle(node: MenuNode) {
-  return node.titleKey ? t(node.titleKey) : node.name
-}
-
-// ---- 三区结构：顶层独立菜单（工作台）钉在顶部，顶级目录渲染为「区」 ----
-const visibleTree = computed(() => visibleMenus(auth.menus))
-/** 顶层独立菜单（工作台），不属于任何区，固定最前 */
-const topMenus = computed(() => visibleTree.value.filter((n) => n.menuType === 'menu'))
-/** 顶级目录 = 区（业务系统/OA系统/系统管理）；无权限区已被 visibleMenus 整区剔除 */
-const zoneDirs = computed(() => visibleTree.value.filter((n) => n.menuType === 'dir'))
-
-/** per-user zone order stored as CSV of menu ids in prefs.navOrder */
-const customOrder = computed<number[]>(() => {
-  const raw = auth.user?.prefs?.navOrder
-  if (typeof raw !== 'string' || !raw) return []
-  return raw
-    .split(',')
-    .map((s) => Number(s))
-    .filter((n) => Number.isFinite(n))
-})
-
-/**
- * 结构优先：navOrder 是批次A之前的旧数据（含已移动/已删除的顶层业务菜单 id）
- * 或与当前区结构不一致（缺区/多 id）时整体作废，回退默认区序。
- */
-const validOrder = computed<number[]>(() => {
-  const order = customOrder.value
-  if (!order.length) return []
-  const ids = new Set(zoneDirs.value.map((n) => n.id))
-  if (order.length !== ids.size || order.some((id) => !ids.has(id))) return []
-  return order
-})
-
-const zones = computed(() => {
-  const order = validOrder.value
-  if (!order.length) return zoneDirs.value
-  const rank = new Map(order.map((id, i) => [id, i]))
-  return [...zoneDirs.value].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
-})
-
-async function persistOrder(csv: string) {
-  await authApi.updatePrefs({ navOrder: csv })
-  if (auth.user) auth.user.prefs = { ...(auth.user.prefs ?? {}), navOrder: csv }
-}
+const { topMenus, zones, customOrder, validOrder, zoneDirs, menuTitle, persistOrder } = useNavZones()
 
 // 失效的个人排序一次性静默重置（避免旧 id 永久卡住默认结构）
 const staleResetDone = ref(false)
@@ -82,50 +35,33 @@ watch(
   { immediate: true },
 )
 
-// ---- customize dialog（区级排序；工作台固定顶部不参与） ----
-const sortVisible = ref(false)
-const draft = ref<MenuNode[]>([])
-const saving = ref(false)
-const dragIndex = ref(-1)
+// ---- 底部齿轮：设置弹层（系统设置[需权限] / 自定义排序 / 外观 / 语言） ----
+const settingsVisible = ref(false)
+
+const themeModes: { value: ThemeMode; labelKey: string }[] = [
+  { value: 'light', labelKey: 'common.theme.light' },
+  { value: 'dark', labelKey: 'common.theme.dark' },
+  { value: 'brand-smvic', labelKey: 'common.theme.brand' },
+]
+
+const densities: { value: Density; labelKey: string }[] = [
+  { value: 'comfortable', labelKey: 'common.theme.comfortable' },
+  { value: 'compact', labelKey: 'common.theme.compact' },
+]
+
+const locales: { value: Locale; labelKey: string }[] = [
+  { value: 'zh-CN', labelKey: 'common.lang.zhCN' },
+  { value: 'en-US', labelKey: 'common.lang.enUS' },
+]
+
+function openSettings() {
+  settingsVisible.value = false
+  router.push('/admin/settings')
+}
 
 function openSort() {
-  draft.value = [...zones.value]
-  sortVisible.value = true
-}
-
-function onDragStart(i: number) {
-  dragIndex.value = i
-}
-
-function onDrop(i: number) {
-  const from = dragIndex.value
-  dragIndex.value = -1
-  if (from < 0 || from === i) return
-  const [item] = draft.value.splice(from, 1)
-  if (!item) return
-  draft.value.splice(i, 0, item)
-}
-
-async function saveSort() {
-  saving.value = true
-  try {
-    await persistOrder(draft.value.map((n) => n.id).join(','))
-    sortVisible.value = false
-    ElMessage.success(t('common.message.saveSuccess'))
-  } finally {
-    saving.value = false
-  }
-}
-
-async function resetSort() {
-  saving.value = true
-  try {
-    await persistOrder('')
-    sortVisible.value = false
-    ElMessage.success(t('common.message.saveSuccess'))
-  } finally {
-    saving.value = false
-  }
+  settingsVisible.value = false
+  openNavSort()
 }
 </script>
 
@@ -145,36 +81,85 @@ async function resetSort() {
       </div>
     </ElMenu>
     <div class="nav-footer">
-      <button type="button" class="nav-sort-btn" :title="t('common.navSort.customize')" @click="openSort">
-        <ElIcon><Operation /></ElIcon>
-        <span class="nav-label">{{ t('common.navSort.customize') }}</span>
-      </button>
+      <ElPopover
+        v-model:visible="settingsVisible"
+        trigger="click"
+        placement="top-start"
+        :width="280"
+        popper-class="nav-settings-pop"
+      >
+        <template #reference>
+          <button type="button" class="nav-gear-btn" :title="t('common.nav.settings')">
+            <ElIcon><Setting /></ElIcon>
+            <span class="nav-label">{{ t('common.nav.settings') }}</span>
+          </button>
+        </template>
+
+        <div class="settings-panel">
+          <button
+            v-if="auth.hasPerm('admin:setting:list')"
+            class="panel-item"
+            type="button"
+            @click="openSettings"
+          >
+            <ElIcon><Tools /></ElIcon>{{ t('common.nav.settings') }}
+          </button>
+          <button class="panel-item" type="button" @click="openSort">
+            <ElIcon><Operation /></ElIcon>{{ t('common.nav.customize') }}
+          </button>
+
+          <div class="panel-divider" />
+
+          <div class="panel-section">
+            <div class="panel-label">
+              <ElIcon><Brush /></ElIcon>{{ t('common.theme.appearance') }}
+            </div>
+            <div class="seg-row">
+              <button
+                v-for="m in themeModes"
+                :key="m.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.theme === m.value }"
+                @click="theme.setTheme(m.value)"
+              >
+                {{ t(m.labelKey) }}
+              </button>
+            </div>
+            <div class="seg-row">
+              <button
+                v-for="d in densities"
+                :key="d.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.density === d.value }"
+                @click="theme.setDensity(d.value)"
+              >
+                {{ t(d.labelKey) }}
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <div class="panel-label">{{ t('common.lang.switch') }}</div>
+            <div class="seg-row">
+              <button
+                v-for="l in locales"
+                :key="l.value"
+                type="button"
+                class="seg-btn"
+                :class="{ active: theme.locale === l.value }"
+                @click="theme.setAppLocale(l.value)"
+              >
+                {{ t(l.labelKey) }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </ElPopover>
     </div>
 
-    <ElDialog v-model="sortVisible" :title="t('common.navSort.title')" width="360px" append-to-body>
-      <p class="sort-hint">{{ t('common.navSort.hint') }}</p>
-      <ul class="sort-list">
-        <li
-          v-for="(node, i) in draft"
-          :key="node.id"
-          class="sort-item"
-          :class="{ dragging: dragIndex === i }"
-          draggable="true"
-          @dragstart="onDragStart(i)"
-          @dragover.prevent
-          @drop="onDrop(i)"
-          @dragend="dragIndex = -1"
-        >
-          <ElIcon class="drag-handle"><Rank /></ElIcon>
-          <span>{{ menuTitle(node) }}</span>
-        </li>
-      </ul>
-      <template #footer>
-        <ElButton :disabled="saving" @click="resetSort">{{ t('common.navSort.resetDefault') }}</ElButton>
-        <ElButton :disabled="saving" @click="sortVisible = false">{{ t('common.action.cancel') }}</ElButton>
-        <ElButton type="primary" :loading="saving" @click="saveSort">{{ t('common.action.save') }}</ElButton>
-      </template>
-    </ElDialog>
+    <NavSortDialog />
   </div>
 </template>
 
@@ -227,7 +212,7 @@ async function resetSort() {
   padding: var(--bs-space-1);
 }
 
-.nav-sort-btn {
+.nav-gear-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -242,43 +227,77 @@ async function resetSort() {
   cursor: pointer;
 }
 
-.nav-sort-btn:hover {
+.nav-gear-btn:hover {
   background: var(--bs-color-fill-light);
   color: var(--bs-color-primary);
 }
 
-.sort-hint {
-  margin: 0 0 var(--bs-space-2);
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-item {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  width: 100%;
+  padding: var(--bs-space-2);
+  border: none;
+  border-radius: var(--bs-radius-sm);
+  background: transparent;
+  color: var(--bs-color-fg-default);
+  font-size: var(--bs-typography-font-size-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.panel-item:hover {
+  background: var(--bs-color-fill-hover);
+}
+
+.panel-divider {
+  height: 1px;
+  margin: var(--bs-space-1) 0;
+  background: var(--bs-color-border-subtle);
+}
+
+.panel-section {
+  padding: var(--bs-space-1) var(--bs-space-2) var(--bs-space-2);
+}
+
+.panel-label {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-1);
+  margin-bottom: var(--bs-space-1);
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
 }
 
-.sort-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.sort-item {
+.seg-row {
   display: flex;
-  align-items: center;
-  gap: var(--bs-space-2);
-  padding: var(--bs-space-2);
-  border: 1px solid var(--bs-color-border-default);
-  border-radius: var(--bs-radius-md);
+  gap: var(--bs-space-1);
   margin-bottom: var(--bs-space-1);
+}
+
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--bs-space-2);
+  border: 1px solid var(--bs-color-border-default);
+  border-radius: var(--bs-radius-sm);
   background: var(--bs-color-bg-surface);
-  cursor: grab;
-  user-select: none;
+  color: var(--bs-color-fg-secondary);
+  font-size: var(--bs-typography-font-size-xs);
+  cursor: pointer;
 }
 
-.sort-item.dragging {
-  opacity: 0.5;
-  border-style: dashed;
-}
-
-.drag-handle {
-  color: var(--bs-color-fg-muted);
+.seg-btn.active {
+  border-color: var(--bs-color-primary);
+  color: var(--bs-color-primary);
+  background: var(--bs-color-brand-primary-soft);
 }
 
 :deep(.el-menu-item),

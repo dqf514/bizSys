@@ -41,6 +41,10 @@ export function listSettlements(params: ListQuery) {
   })
 }
 
+export function settlementCounts() {
+  return request<Record<string, number>>({ url: '/finance/settlements/counts', method: 'get' })
+}
+
 export function settlementTaskOptions(q?: string) {
   return request<SettlementTaskOption[]>({
     url: '/finance/settlements/task-options',
@@ -83,6 +87,10 @@ export function listInvoices(params: ListQuery) {
     method: 'get',
     params: toQuery(params as Record<string, unknown>),
   })
+}
+
+export function invoiceCounts() {
+  return request<Record<string, number>>({ url: '/finance/invoices/counts', method: 'get' })
 }
 
 export function exportInvoices(params: ListQuery) {

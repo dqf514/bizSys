@@ -13,6 +13,7 @@ import {
   SwitchButton,
   Lock,
   Odometer,
+  Operation,
   Star,
   StarFilled,
   Brush,
@@ -25,6 +26,7 @@ import { changePassword as changePasswordApi } from '@/api/auth'
 import { useShortcuts } from '@/composables/useShortcuts'
 import type { Locale } from '@/i18n'
 import NotifyBell from './NotifyBell.vue'
+import { openNavSort } from './useNavZones'
 
 defineOptions({ name: 'TopBar' })
 
@@ -83,6 +85,11 @@ function openProfile() {
 function openChangePassword() {
   closeAccount()
   changePassword()
+}
+
+function openCustomize() {
+  closeAccount()
+  openNavSort()
 }
 
 async function doLogout() {
@@ -231,6 +238,9 @@ async function submitPassword() {
           </button>
           <button class="panel-item" type="button" @click="openChangePassword">
             <ElIcon><Lock /></ElIcon>{{ t('auth.user.changePassword') }}
+          </button>
+          <button class="panel-item" type="button" @click="openCustomize">
+            <ElIcon><Operation /></ElIcon>{{ t('common.nav.customize') }}
           </button>
 
           <div class="panel-divider" />

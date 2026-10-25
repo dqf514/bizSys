@@ -48,6 +48,7 @@
   `PUT /admin/users/{id}` · `DELETE /admin/users/{id}` · `POST /admin/users/{id}/reset-password` `{password}`
   `POST /admin/users/export`（同检索参数，返回 xlsx 流）
   （employeeNo/hireDate/jobLevel 为批次B 组织字段，沿用 admin:user:create / admin:user:edit）
+- `GET /admin/users/counts`（沿用 admin:user:list）→ `{enabled,disabled,all}`（状态页签计数）
 - `GET /admin/users/options?q=&limit=20` → `[{id,label,sub}]`（登录即可读：流程/通知选人用，仅 enabled 用户）
 - `GET /admin/roles` · `POST/PUT/DELETE /admin/roles[/{id}]` · `PUT /admin/roles/{id}/menus` `{menuIds[]}`
   （RoleIn 校验：dataScope ∈ all/dept/self，status ∈ enabled/disabled，非法值 422/10001）
@@ -83,6 +84,7 @@
 - `POST /crm/customers` · `PUT /crm/customers/{id}` · `DELETE /crm/customers/{id}`
 - `POST /crm/customers/export` · `GET /crm/customers/template` · `POST /crm/customers/import`（multipart file）
 - `GET /crm/customers/options?q=&limit=20` → `[{id,label,sub}]`（模糊选择器专用，label=客户名，sub=客户编号）
+- `GET /crm/customers/counts`（沿用 crm:customer:list）→ `{enabled,disabled,all}`（状态页签计数）
 - 权限码：`crm:customer:list/create/edit/delete/list:export/import`
 
 ## 合同 /contract
@@ -99,13 +101,17 @@
 - `POST /contract/contracts/export` · `GET /contract/contracts/options`（仅 approved，建任务时用）
 - `GET /contract/contracts/framework-options?customer_id=&q=&limit=` → `[{id,label,sub,customerId,customerName}]`
   （仅 approved 且 contract_type=framework 的合同；id=框架合同号，编辑合同"框架合同号"下拉用，可按客户过滤）
+- `GET /contract/contracts/counts`（沿用 contract:list）→ `{draft,approving,approved,rejected,voided,all}`（状态页签计数）
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
 ## 审批中心 /approval（自研引擎）
-- `GET /approval/tasks?tab=todo|done|initiated&page&size` →
+- `GET /approval/tasks?tab=todo|done|initiated&page&size&q=` →
   `{items:[{id,instanceId,bizType,bizId,title,status,nodeName,comment,initiatorName,assigneeName,createTime,actedAt}],...}`
   - todo=我待办(status=pending & assignee=me)；done=我已办；initiated=我发起的实例
-- `GET /approval/tasks/export?tab=todo|done|initiated`（xlsx 流，与列表同为登录可用）
+  - `q` 按单标题模糊检索（各 tab 均生效）
+- `GET /approval/tasks/counts` → `{todo,done,initiated,cc}`（页签计数，登录可用）
+- `GET /approval/tasks/export?tab=todo|done|initiated&q=`（xlsx 流，与列表同为登录可用）
+- `GET /approval/cc?page&size&unread=&q=`（抄送我的；`q` 按标题模糊检索）
 - `GET /approval/instances/{instance_id}` → 实例快照 + 时间线（含 formSnapshot、records）
 - `GET /approval/instances/{bizType}/{bizId}/timeline` →
   `{instanceId,status, currentNode, records:[{action:"start|agree|reject|withdraw|add_sign|transfer",operatorName,nodeName,comment,at}]}`
@@ -118,7 +124,13 @@
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
 
 ## OA /oa
-- `GET /oa/instances/my?status=&page&size`（oa:my）· `GET /oa/instances/my/export?status=`（xlsx 流，沿用 oa:my）
+- `GET /oa/instances/my?status=&page&size&q=`（oa:my；`q` 按单号/表单名模糊检索）·
+  `GET /oa/instances/my/export?status=&q=`（xlsx 流，沿用 oa:my）
+- `GET /oa/instances/my/counts`（沿用 oa:my）→ `{running,approved,rejected,withdrawn,terminated,all}`
+- `GET /oa/related?tab=todo|done|cc&page&size&q=`（复用通用审批端点，biz_type=oa；`q` 按标题模糊检索）
+- `GET /oa/related/counts` → `{todo,done,cc}`（页签计数）
+- 管理端单据检索：`GET /oa/admin/instances?status=&keyword=&stuckDays=&page&size`（oa:admin:handle）·
+  `GET /oa/admin/instances/counts` → `{running,approved,rejected,withdrawn,terminated,all}`
 - 资源控件检索（oa:apply，OA 填写人只读）：
   - `GET /oa/resources/meta` → `[{type,label,fields:[{key,label}]}]`
     （type ∈ customer/contract/task/report/dept/user/oa_instance；fields 为可带出字段清单，设计器配 mappings 用）
@@ -185,6 +197,8 @@
   `{id,settlementNo,taskId,taskNo,customerName,contractNo,amount,invoiceableAmount,status,statusText,remark,
     approvalInstanceId,confirmStatus,confirmBy,confirmTime,confirmNote,createBy,createTime}`
   检索：`q`（settlementNo/taskNo/customerName/contractNo）、`status` 页签、`filters[confirm_status]`
+- `GET /finance/settlements/counts`（沿用 finance:settlement:list）→
+  `{approving,pending,invoicing,invoiced,paid,rejected,all}`（状态页签计数）
 - `GET /finance/settlements/task-options?q=` → `[{value,label,sub}]`
   （仅 `finished` 且无结算单的任务；value=taskId，label=任务编号，sub=客户名称/合同号）
 - `POST /finance/settlements` `{taskId,amount,invoiceableAmount?,remark?}` → 201；
@@ -204,6 +218,7 @@
   `{id,invoiceNo,settlementId,settlementNo,taskNo,customerName,amount,invoiceDate,status,statusText,createBy,createTime}`
   （settlementNo/taskNo/customerName 关联 fin_settlement 带出；status ∈ `approving 审批中 / issued 已开票`）
   检索：`q`（invoiceNo/settlementNo/customerName）、`status` 页签
+- `GET /finance/invoices/counts`（沿用 finance:invoice:list）→ `{approving,issued,all}`（状态页签计数）
 - `GET /finance/payments` 分页：
   `{id,paymentNo,settlementId,settlementNo,payType,payerName,payerAccount,amount,bank,paidAt,remark,createBy,createTime}`
 - `POST /finance/payments` `{settlementId,payType,payerName,payerAccount?,amount,bank?,paidAt,remark?}` → 201；
@@ -234,6 +249,7 @@
   `{id,reportNo,taskId,taskNo,taskItemId,itemName,contractId,contractNo,customerId,customerName,fileName,status,statusText,pdfReady,
     sealBy,sealTime,remark,approvalInstanceId,createBy,createTime}`
   检索：`q`（reportNo/fileName/任务号/任务名/条目名/客户名）、`status` 页签
+- `GET /report/reports/counts`（沿用 report:list）→ `{uploaded,approving,approved,rejected,sealed,all}`（状态页签计数）
 - `GET /report/reports/item-options?q=` → `[{value,label,sub}]`
   （仅 needReport=1 且尚无未删除报告的条目；value=taskItemId，label=报告编号，sub=任务号/条目名）
 - `POST /report/reports`（multipart：`item_id` + `file`；限 pdf/doc/docx ≤ upload_max_mb）→ 201；

@@ -58,13 +58,17 @@
     "formData": "Form Data",
     "withdraw": "Withdraw",
     "withdrawConfirm": "Withdraw this application?",
-    "withdrawDone": "Withdrawn"
+    "withdrawDone": "Withdrawn",
+    "searchQ": "Keyword",
+    "placeholderQ": "Search no./form name"
   },
   "related": {
     "title": "Related to Me",
     "tabTodo": "To-do",
     "tabDone": "Done",
-    "tabCc": "CC"
+    "tabCc": "CC",
+    "searchQ": "Keyword",
+    "placeholderQ": "Search title"
   },
   "stats": {
     "title": "Statistics",

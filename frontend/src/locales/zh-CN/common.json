@@ -213,5 +213,9 @@
     "forbiddenTitle": "没有访问权限",
     "forbiddenDesc": "您没有访问该页面的权限，如需访问请联系管理员开通",
     "backToWorkbench": "返回工作台"
+  },
+  "nav": {
+    "settings": "系统设置",
+    "customize": "自定义排序"
   }
 }

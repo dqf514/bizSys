@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -11,7 +11,14 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listInvoices, updateInvoice, exportInvoices, applyInvoice, listSettlements } from '@/api/finance'
+import {
+  listInvoices,
+  invoiceCounts,
+  updateInvoice,
+  exportInvoices,
+  applyInvoice,
+  listSettlements,
+} from '@/api/finance'
 import type { InvoiceListItem } from '@/api/types'
 
 defineOptions({ name: 'InvoiceList' })
@@ -23,11 +30,31 @@ const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'finance.invoice.searchQ', placeholderKey: 'finance.invoice.placeholderQ', width: 260 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'approving', labelKey: 'finance.invoice.status.approving' },
-  { value: 'issued', labelKey: 'finance.invoice.status.issued' },
-  { value: 'all', labelKey: 'common.action.all' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'approving', labelKey: 'finance.invoice.status.approving', count: 0 },
+  { value: 'issued', labelKey: 'finance.invoice.status.issued', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await invoiceCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<InvoiceListItem>({
   fetch: async (params) => {
@@ -43,6 +70,9 @@ const list = useListPage<InvoiceListItem>({
       q: searchModel.value.q || undefined,
     }),
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 function fmtAmount(row: Record<string, unknown>, prop: string) {

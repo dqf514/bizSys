@@ -9,6 +9,10 @@ export function listContracts(params: ListQuery) {
   })
 }
 
+export function contractCounts() {
+  return request<Record<string, number>>({ url: '/contract/contracts/counts', method: 'get' })
+}
+
 export function getContract(id: number) {
   return request<Contract>({ url: `/contract/contracts/${id}`, method: 'get' })
 }

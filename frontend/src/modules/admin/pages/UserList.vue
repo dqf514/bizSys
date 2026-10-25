@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -12,6 +12,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
   listUsers,
+  userCounts,
   createUser,
   updateUser,
   deleteUser,
@@ -31,11 +32,31 @@ const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'admin.user.username', width: 200 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'all', labelKey: 'common.action.all' },
-  { value: 'enabled', labelKey: 'common.form.enabled' },
-  { value: 'disabled', labelKey: 'common.form.disabled' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'enabled', labelKey: 'common.form.enabled', count: 0 },
+  { value: 'disabled', labelKey: 'common.form.disabled', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await userCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<AdminUser>({
   fetch: async (params) => {
@@ -46,6 +67,9 @@ const list = useListPage<AdminUser>({
     return { items: data.items ?? [], total: data.total ?? 0 }
   },
   exportFn: (params) => exportUsers({ ...params, q: searchModel.value.q || undefined }),
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [

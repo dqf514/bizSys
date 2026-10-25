@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -14,6 +14,7 @@ import ReportDetailDrawer from '../components/ReportDetailDrawer.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
   listReports,
+  reportCounts,
   submitReport,
   sealReport,
   downloadReport,
@@ -30,14 +31,34 @@ const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'report.report.searchQ', placeholderKey: 'report.report.placeholderQ', width: 260 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'uploaded', labelKey: 'report.report.status.uploaded' },
-  { value: 'approving', labelKey: 'report.report.status.approving' },
-  { value: 'approved', labelKey: 'report.report.status.approved' },
-  { value: 'rejected', labelKey: 'report.report.status.rejected' },
-  { value: 'sealed', labelKey: 'report.report.status.sealed' },
-  { value: 'all', labelKey: 'common.action.all' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'uploaded', labelKey: 'report.report.status.uploaded', count: 0 },
+  { value: 'approving', labelKey: 'report.report.status.approving', count: 0 },
+  { value: 'approved', labelKey: 'report.report.status.approved', count: 0 },
+  { value: 'rejected', labelKey: 'report.report.status.rejected', count: 0 },
+  { value: 'sealed', labelKey: 'report.report.status.sealed', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await reportCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<Report>({
   fetch: async (params) => {
@@ -53,6 +74,9 @@ const list = useListPage<Report>({
       q: searchModel.value.q || undefined,
     }),
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 const columns: ListColumn[] = [

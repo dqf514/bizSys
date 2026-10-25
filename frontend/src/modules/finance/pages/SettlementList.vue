@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -15,6 +15,7 @@ import SettlementDetailDrawer from '../components/SettlementDetailDrawer.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
   listSettlements,
+  settlementCounts,
   settlementTaskOptions,
   createSettlement,
   getSettlement,
@@ -34,15 +35,35 @@ const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'finance.settlement.searchQ', placeholderKey: 'finance.settlement.placeholderQ', width: 260 },
 ]
 
-const statusTabs: StatusTabItem[] = [
-  { value: 'approving', labelKey: 'finance.settlement.status.approving' },
-  { value: 'pending', labelKey: 'finance.settlement.status.pending' },
-  { value: 'invoicing', labelKey: 'finance.settlement.status.invoicing' },
-  { value: 'invoiced', labelKey: 'finance.settlement.status.invoiced' },
-  { value: 'paid', labelKey: 'finance.settlement.status.paid' },
-  { value: 'rejected', labelKey: 'finance.settlement.status.rejected' },
-  { value: 'all', labelKey: 'common.action.all' },
-]
+const statusTabs = ref<StatusTabItem[]>([
+  { value: 'all', labelKey: 'common.action.all', count: 0 },
+  { value: 'approving', labelKey: 'finance.settlement.status.approving', count: 0 },
+  { value: 'pending', labelKey: 'finance.settlement.status.pending', count: 0 },
+  { value: 'invoicing', labelKey: 'finance.settlement.status.invoicing', count: 0 },
+  { value: 'invoiced', labelKey: 'finance.settlement.status.invoiced', count: 0 },
+  { value: 'paid', labelKey: 'finance.settlement.status.paid', count: 0 },
+  { value: 'rejected', labelKey: 'finance.settlement.status.rejected', count: 0 },
+])
+
+const counts = ref<Record<string, number>>({})
+
+async function loadCounts() {
+  try {
+    counts.value = (await settlementCounts()) ?? {}
+    let all = 0
+    for (const tab of statusTabs.value) {
+      if (tab.value === 'all') continue
+      tab.count = counts.value[tab.value] ?? 0
+      all += tab.count
+    }
+    const allTab = statusTabs.value.find((x) => x.value === 'all')
+    if (allTab) allTab.count = all
+  } catch {
+    /* counts optional */
+  }
+}
+
+onMounted(() => void loadCounts())
 
 const list = useListPage<Settlement>({
   fetch: async (params) => {
@@ -58,6 +79,9 @@ const list = useListPage<Settlement>({
       q: searchModel.value.q || undefined,
     }),
   defaultStatus: 'all',
+  onLoaded: () => {
+    void loadCounts()
+  },
 })
 
 function fmtAmount(row: Record<string, unknown>, prop: string) {
