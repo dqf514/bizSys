@@ -89,9 +89,13 @@ const viewOptions = computed(() => [
 ])
 
 const ganttTasks = ref<Task[]>([])
+const ganttTotal = ref(0)
 const ganttLoading = ref(false)
+/** 请求序号：旧响应到达时直接丢弃，避免切 tab/视图竞态覆盖新数据 */
+let ganttSeq = 0
 
 async function loadGantt() {
+  const seq = ++ganttSeq
   ganttLoading.value = true
   try {
     const data = await listTasks({
@@ -101,11 +105,15 @@ async function loadGantt() {
       status: list.query.status as string | undefined,
       filters: { customerName: searchModel.value.customerName || undefined },
     })
+    if (seq !== ganttSeq) return
     ganttTasks.value = data.items ?? []
+    ganttTotal.value = data.total ?? ganttTasks.value.length
   } catch {
+    if (seq !== ganttSeq) return
     ganttTasks.value = []
+    ganttTotal.value = 0
   } finally {
-    ganttLoading.value = false
+    if (seq === ganttSeq) ganttLoading.value = false
   }
 }
 
@@ -244,7 +252,7 @@ function onDetailChanged() {
           </el-table-column>
         </template>
       </ListTable>
-      <TaskGantt v-else :tasks="ganttTasks" :loading="ganttLoading" @open="openDetail" />
+      <TaskGantt v-else :tasks="ganttTasks" :total="ganttTotal" :loading="ganttLoading" @open="openDetail" />
     </template>
 
     <el-drawer v-model="drawerVisible" size="70%" destroy-on-close>

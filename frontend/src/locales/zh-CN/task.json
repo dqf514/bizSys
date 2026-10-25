@@ -113,7 +113,9 @@
     "sectionBasic": "基本信息",
     "sectionRelated": "关联信息",
     "anchorNav": "页面导航",
-    "summary": "摘要"
+    "summary": "摘要",
+    "ganttTruncated": "仅展示前 {shown} 条，共 {total} 条",
+    "ganttNoDate": "{count} 条无日期任务未展示"
   },
   "sample": {
     "title": "样品管理",

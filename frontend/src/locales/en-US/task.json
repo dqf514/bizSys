@@ -113,7 +113,9 @@
     "sectionBasic": "Basic Info",
     "sectionRelated": "Related Info",
     "anchorNav": "Navigation",
-    "summary": "Summary"
+    "summary": "Summary",
+    "ganttTruncated": "Showing first {shown} of {total} tasks",
+    "ganttNoDate": "{count} tasks without dates are hidden"
   },
   "sample": {
     "title": "Samples",

@@ -14,6 +14,8 @@ defineOptions({ name: 'TaskGantt' })
 const props = defineProps<{
   tasks: Task[]
   loading?: boolean
+  /** 后端任务总数：超过 tasks.length 时提示「仅展示前 N 条」 */
+  total?: number
 }>()
 
 const emit = defineEmits<{
@@ -76,6 +78,11 @@ const rows = computed<GanttRow[]>(() => {
   }
   return list.sort((a, b) => a.start - b.start)
 })
+
+/** 无日期（createTime 缺失/非法）被跳过的任务数：提示中明示，不静默消失 */
+const noDateCount = computed(() => props.tasks.length - rows.value.length)
+/** 服务端总数超出本地已加载条数（甘特固定取前 200 条） */
+const truncated = computed(() => (props.total ?? 0) > props.tasks.length)
 
 const legendStatuses = computed(() => {
   const present = new Set(rows.value.map((r) => r.task.status))
@@ -158,33 +165,63 @@ function render() {
   chart.setOption(buildOption(), { notMerge: true })
 }
 
-onMounted(() => {
-  if (!chartEl.value) return
-  chart = echarts.init(chartEl.value)
+/**
+ * chartEl 受 v-if="rows.length" 门控：数据异步到达前容器不存在。
+ * chart 实例必须跟随 chartEl 的出现/消失初始化与销毁，
+ * 否则「先挂载后回数」时 onMounted 拿不到容器，图表永不初始化（甘特空白根因）。
+ */
+function mountChart(el: HTMLDivElement) {
+  if (chart) return
+  chart = echarts.init(el)
   chart.on('click', (p: any) => {
     const row = rows.value[p.dataIndex]
     if (row) emit('open', row.task)
   })
-  resizeObserver = new ResizeObserver(() => chart?.resize())
-  resizeObserver.observe(chartEl.value)
+  resizeObserver = new ResizeObserver(() => {
+    // 容器从隐藏恢复/尺寸变化时重排；宽高为 0 时 resize 无害（EP 内部忽略）
+    chart?.resize()
+  })
+  resizeObserver.observe(el)
   render()
+}
+
+function unmountChart() {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  chart?.dispose()
+  chart = null
+}
+
+onMounted(() => {
+  if (chartEl.value) mountChart(chartEl.value)
 })
+
+watch(
+  chartEl,
+  (el, prev) => {
+    if (prev) unmountChart()
+    if (el) mountChart(el)
+  },
+  { flush: 'post' },
+)
 
 watch(rows, () => render())
 
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  chart?.dispose()
-  chart = null
-})
+onBeforeUnmount(() => unmountChart())
 </script>
 
 <template>
   <div class="task-gantt" v-loading="props.loading">
-    <div v-if="legendStatuses.length" class="gantt-legend">
+    <div v-if="legendStatuses.length || truncated || noDateCount > 0" class="gantt-legend">
       <span v-for="s in legendStatuses" :key="s.value" class="legend-item">
         <i class="legend-dot" :style="{ background: STATUS_COLORS[s.value] }" />
         {{ t(s.labelKey) }}
+      </span>
+      <span v-if="truncated" class="gantt-hint">
+        {{ t('task.task.ganttTruncated', { shown: props.tasks.length, total: props.total }) }}
+      </span>
+      <span v-if="noDateCount > 0" class="gantt-hint">
+        {{ t('task.task.ganttNoDate', { count: noDateCount }) }}
       </span>
     </div>
     <div v-if="rows.length" ref="chartEl" class="gantt-chart" />
@@ -225,6 +262,15 @@ onBeforeUnmount(() => {
   width: 10px;
   height: 10px;
   border-radius: 2px;
+}
+
+.gantt-hint {
+  margin-left: auto;
+  color: var(--bs-color-fg-muted);
+}
+
+.gantt-hint + .gantt-hint {
+  margin-left: 0;
 }
 
 .gantt-chart {
