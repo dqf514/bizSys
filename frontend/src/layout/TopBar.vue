@@ -4,8 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElIcon, ElMessage, ElPopover } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  Fold,
-  Expand,
   Search,
   Sunny,
   Moon,
@@ -30,9 +28,7 @@ import { openNavSort } from './useNavZones'
 
 defineOptions({ name: 'TopBar' })
 
-defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{
-  (e: 'toggle-nav'): void
   (e: 'open-command'): void
 }>()
 
@@ -160,13 +156,6 @@ async function submitPassword() {
 
 <template>
   <div class="topbar">
-    <button class="icon-btn" type="button" :title="t('common.action.collapse')" @click="emit('toggle-nav')">
-      <ElIcon :size="16">
-        <Fold v-if="!collapsed" />
-        <Expand v-else />
-      </ElIcon>
-    </button>
-
     <div class="brand">
       <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="brandText" class="brand-logo" />
       <ElIcon v-else :size="18" class="brand-icon"><Odometer /></ElIcon>

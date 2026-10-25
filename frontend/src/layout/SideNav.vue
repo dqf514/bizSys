@@ -3,65 +3,47 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElIcon, ElMenu, ElPopover } from 'element-plus'
-import { Brush, Operation, Setting, Tools } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import { useThemeStore, type Density, type ThemeMode } from '@/stores/theme'
-import type { Locale } from '@/i18n'
+import { Expand, Fold, Setting } from '@element-plus/icons-vue'
 import SideNavItem from './SideNavItem.vue'
 import NavSortDialog from './NavSortDialog.vue'
-import { openNavSort, useNavZones } from './useNavZones'
+import { useNavZones } from './useNavZones'
+import type { MenuNode } from '@/api/types'
 
 const props = defineProps<{ collapsed: boolean }>()
+const emit = defineEmits<{ (e: 'toggle-nav'): void }>()
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
-const theme = useThemeStore()
 const { t } = useI18n()
 
 const active = computed(() => route.path)
 
-const { topMenus, zones, customOrder, validOrder, zoneDirs, menuTitle, persistOrder } = useNavZones()
+const { topMenus, zones, systemZone, customOrder, validOrder, navZoneDirs, menuTitle, persistOrder } = useNavZones()
 
 // 失效的个人排序一次性静默重置（避免旧 id 永久卡住默认结构）
 const staleResetDone = ref(false)
 watch(
   [customOrder, validOrder],
   ([order, valid]) => {
-    if (staleResetDone.value || !order.length || valid.length || !zoneDirs.value.length) return
+    if (staleResetDone.value || !order.length || valid.length || !navZoneDirs.value.length) return
     staleResetDone.value = true
     void persistOrder('')
   },
   { immediate: true },
 )
 
-// ---- 底部齿轮：设置弹层（系统设置[需权限] / 自定义排序 / 外观 / 语言） ----
-const settingsVisible = ref(false)
+// ---- 底部工具栏：系统管理入口（向上弹层） + 折叠切换 ----
+const sysVisible = ref(false)
 
-const themeModes: { value: ThemeMode; labelKey: string }[] = [
-  { value: 'light', labelKey: 'common.theme.light' },
-  { value: 'dark', labelKey: 'common.theme.dark' },
-  { value: 'brand-smvic', labelKey: 'common.theme.brand' },
-]
-
-const densities: { value: Density; labelKey: string }[] = [
-  { value: 'comfortable', labelKey: 'common.theme.comfortable' },
-  { value: 'compact', labelKey: 'common.theme.compact' },
-]
-
-const locales: { value: Locale; labelKey: string }[] = [
-  { value: 'zh-CN', labelKey: 'common.lang.zhCN' },
-  { value: 'en-US', labelKey: 'common.lang.enUS' },
-]
-
-function openSettings() {
-  settingsVisible.value = false
-  router.push('/admin/settings')
+function gotoSystemItem(node: MenuNode) {
+  if (!node.path) return
+  sysVisible.value = false
+  router.push(node.path)
 }
 
-function openSort() {
-  settingsVisible.value = false
-  openNavSort()
+/** 系统管理弹层内当前路由高亮 */
+function isActivePath(node: MenuNode) {
+  return Boolean(node.path) && route.path === node.path
 }
 </script>
 
@@ -74,89 +56,60 @@ function openSort() {
       class="nav-menu"
       router
     >
-      <SideNavItem v-for="node in topMenus" :key="node.id" :node="node" />
+      <SideNavItem v-for="node in topMenus" :key="node.id" :node="node" :collapsed="props.collapsed" />
       <div v-for="zone in zones" :key="zone.id" class="nav-zone">
         <div class="nav-zone-title">{{ menuTitle(zone) }}</div>
-        <SideNavItem v-for="child in zone.children" :key="child.id" :node="child" />
+        <SideNavItem v-for="child in zone.children" :key="child.id" :node="child" :collapsed="props.collapsed" />
       </div>
     </ElMenu>
     <div class="nav-footer">
       <ElPopover
-        v-model:visible="settingsVisible"
+        v-if="systemZone"
+        v-model:visible="sysVisible"
         trigger="click"
         placement="top-start"
-        :width="280"
-        popper-class="nav-settings-pop"
+        :width="300"
+        popper-class="nav-system-pop"
       >
         <template #reference>
-          <button type="button" class="nav-gear-btn" :title="t('common.nav.settings')">
+          <button
+            type="button"
+            class="nav-system-btn"
+            :title="menuTitle(systemZone)"
+          >
             <ElIcon><Setting /></ElIcon>
-            <span class="nav-label">{{ t('common.nav.settings') }}</span>
+            <span class="nav-label">{{ menuTitle(systemZone) }}</span>
           </button>
         </template>
 
-        <div class="settings-panel">
-          <button
-            v-if="auth.hasPerm('admin:setting:list')"
-            class="panel-item"
-            type="button"
-            @click="openSettings"
-          >
-            <ElIcon><Tools /></ElIcon>{{ t('common.nav.settings') }}
-          </button>
-          <button class="panel-item" type="button" @click="openSort">
-            <ElIcon><Operation /></ElIcon>{{ t('common.nav.customize') }}
-          </button>
-
-          <div class="panel-divider" />
-
-          <div class="panel-section">
-            <div class="panel-label">
-              <ElIcon><Brush /></ElIcon>{{ t('common.theme.appearance') }}
-            </div>
-            <div class="seg-row">
-              <button
-                v-for="m in themeModes"
-                :key="m.value"
-                type="button"
-                class="seg-btn"
-                :class="{ active: theme.theme === m.value }"
-                @click="theme.setTheme(m.value)"
-              >
-                {{ t(m.labelKey) }}
-              </button>
-            </div>
-            <div class="seg-row">
-              <button
-                v-for="d in densities"
-                :key="d.value"
-                type="button"
-                class="seg-btn"
-                :class="{ active: theme.density === d.value }"
-                @click="theme.setDensity(d.value)"
-              >
-                {{ t(d.labelKey) }}
-              </button>
-            </div>
-          </div>
-
-          <div class="panel-section">
-            <div class="panel-label">{{ t('common.lang.switch') }}</div>
-            <div class="seg-row">
-              <button
-                v-for="l in locales"
-                :key="l.value"
-                type="button"
-                class="seg-btn"
-                :class="{ active: theme.locale === l.value }"
-                @click="theme.setAppLocale(l.value)"
-              >
-                {{ t(l.labelKey) }}
-              </button>
-            </div>
+        <div class="system-panel">
+          <div v-for="group in systemZone.children" :key="group.id" class="system-group">
+            <div class="system-group-title">{{ menuTitle(group) }}</div>
+            <button
+              v-for="item in group.children"
+              :key="item.id"
+              type="button"
+              class="panel-item"
+              :class="{ active: isActivePath(item) }"
+              @click="gotoSystemItem(item)"
+            >
+              <span>{{ menuTitle(item) }}</span>
+            </button>
           </div>
         </div>
       </ElPopover>
+
+      <button
+        type="button"
+        class="nav-fold-btn"
+        :title="props.collapsed ? t('common.action.expand') : t('common.action.collapse')"
+        @click="emit('toggle-nav')"
+      >
+        <ElIcon>
+          <Expand v-if="props.collapsed" />
+          <Fold v-else />
+        </ElIcon>
+      </button>
     </div>
 
     <NavSortDialog />
@@ -194,31 +147,31 @@ function openSort() {
   user-select: none;
 }
 
-.side-nav.collapsed .nav-zone-title {
-  display: none;
-}
-
-.nav-label {
-  margin-left: 6px;
-}
-
-.side-nav.collapsed .nav-label {
+/* 折叠态：全导航零文字（区标题 + 菜单项文字 + 底部入口文字全部隐藏，仅留图标） */
+.side-nav.collapsed .nav-zone-title,
+.side-nav.collapsed .nav-label,
+.side-nav.collapsed :deep(.nav-label) {
   display: none;
 }
 
 .nav-footer {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-1);
   border-top: 1px solid var(--bs-color-border-default);
   padding: var(--bs-space-1);
 }
 
-.nav-gear-btn {
+.nav-system-btn {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
-  width: 100%;
   height: var(--bs-density-nav-item-height);
+  padding: 0 var(--bs-space-2);
   border: none;
   border-radius: var(--bs-radius-md);
   background: transparent;
@@ -227,14 +180,55 @@ function openSort() {
   cursor: pointer;
 }
 
-.nav-gear-btn:hover {
+.side-nav.collapsed .nav-system-btn {
+  justify-content: center;
+  padding: 0;
+}
+
+.nav-system-btn:hover {
   background: var(--bs-color-fill-light);
   color: var(--bs-color-primary);
 }
 
-.settings-panel {
+.nav-fold-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: var(--bs-density-nav-item-height);
+  border: none;
+  border-radius: var(--bs-radius-md);
+  background: transparent;
+  color: var(--bs-color-fg-muted);
+  cursor: pointer;
+}
+
+.nav-fold-btn:hover {
+  background: var(--bs-color-fill-light);
+  color: var(--bs-color-primary);
+}
+
+.system-panel {
   display: flex;
   flex-direction: column;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.system-group + .system-group {
+  margin-top: var(--bs-space-1);
+  border-top: 1px solid var(--bs-color-border-subtle);
+  padding-top: var(--bs-space-1);
+}
+
+.system-group-title {
+  padding: var(--bs-space-1) var(--bs-space-2);
+  font-size: var(--bs-typography-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--bs-color-fg-muted);
+  user-select: none;
 }
 
 .panel-item {
@@ -256,46 +250,7 @@ function openSort() {
   background: var(--bs-color-fill-hover);
 }
 
-.panel-divider {
-  height: 1px;
-  margin: var(--bs-space-1) 0;
-  background: var(--bs-color-border-subtle);
-}
-
-.panel-section {
-  padding: var(--bs-space-1) var(--bs-space-2) var(--bs-space-2);
-}
-
-.panel-label {
-  display: flex;
-  align-items: center;
-  gap: var(--bs-space-1);
-  margin-bottom: var(--bs-space-1);
-  font-size: var(--bs-typography-font-size-xs);
-  color: var(--bs-color-fg-muted);
-}
-
-.seg-row {
-  display: flex;
-  gap: var(--bs-space-1);
-  margin-bottom: var(--bs-space-1);
-}
-
-.seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px var(--bs-space-2);
-  border: 1px solid var(--bs-color-border-default);
-  border-radius: var(--bs-radius-sm);
-  background: var(--bs-color-bg-surface);
-  color: var(--bs-color-fg-secondary);
-  font-size: var(--bs-typography-font-size-xs);
-  cursor: pointer;
-}
-
-.seg-btn.active {
-  border-color: var(--bs-color-primary);
+.panel-item.active {
   color: var(--bs-color-primary);
   background: var(--bs-color-brand-primary-soft);
 }

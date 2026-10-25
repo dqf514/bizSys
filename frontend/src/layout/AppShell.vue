@@ -29,11 +29,11 @@ const gridStyle = computed(() => ({
 <template>
   <div class="app-shell">
     <header class="shell-top">
-      <TopBar :collapsed="navCollapsed" @toggle-nav="toggleNav" @open-command="commandVisible = true" />
+      <TopBar @open-command="commandVisible = true" />
     </header>
     <div class="shell-body" :style="gridStyle">
       <aside class="shell-nav">
-        <SideNav :collapsed="navCollapsed" />
+        <SideNav :collapsed="navCollapsed" @toggle-nav="toggleNav" />
       </aside>
       <main class="shell-main">
         <TabWorkspace />

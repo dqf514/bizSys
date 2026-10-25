@@ -39,7 +39,7 @@ Two rules CI enforces:
 - **Search**: every server-paginated list page must have a `SearchBar` with a keyword field (`q`); add `q` support to the backend list endpoint when missing (follow the existing `filters` pattern). Small client-side full lists get at least a local keyword filter input. Tree tables (menus/depts) are exempt.
 - **StatusTabs**: every tab shows a count, including `all`; add a backend `…/counts` endpoint when missing (follow `task counts`). The `all` tab is always leftmost.
 - **Close / back / footer buttons**: drawers and dialogs use the built-in top-right `X` only — no duplicate custom close buttons. Page-level back uses the shared `BackButton` (`src/components/common/BackButton.vue`) placed top-right. Dialog/drawer footer buttons: secondary actions left, primary action right.
-- **Navigation**: the side-nav footer gear opens the settings popover (system settings requires `admin:setting:list`, customize order, appearance, language); nav-zone sorting lives in `NavSortDialog` and is also reachable from the TopBar avatar menu.
+- **Navigation**: the system-admin zone is pinned to a fixed bottom entry in the side nav (icon + label, visible only with at least one permitted admin menu; clicking opens an upward popover with the admin groups and items). The collapse/expand toggle sits in the same bottom toolbar — never top-left. Collapsed mode shows icons only (native `title` tooltip for names; zone titles and all labels hidden); the system-admin entry stays icon-only and its popover still works. Nav-zone sorting lives in `NavSortDialog`, reachable from the TopBar avatar menu (which also hosts appearance/language).
 
 ## Testing Guidelines
 

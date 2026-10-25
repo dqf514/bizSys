@@ -39,9 +39,8 @@ describe('i18n messages wired by namespace', () => {
     expect(i18n.global.locale.value).toBe('zh-CN')
   })
 
-  it('resolves batch-G keys (nav settings menu + oa search)', () => {
+  it('resolves batch-G keys (nav customize + oa search)', () => {
     for (const key of [
-      'common.nav.settings',
       'common.nav.customize',
       'oa.my.searchQ',
       'oa.my.placeholderQ',
@@ -51,7 +50,7 @@ describe('i18n messages wired by namespace', () => {
       expect(resolved(key), key).not.toBe(key)
     }
     setLocale('en-US')
-    for (const key of ['common.nav.settings', 'oa.my.searchQ', 'oa.related.searchQ']) {
+    for (const key of ['common.nav.customize', 'oa.my.searchQ', 'oa.related.searchQ']) {
       expect(resolved(key), key).not.toBe(key)
     }
     setLocale('zh-CN')
