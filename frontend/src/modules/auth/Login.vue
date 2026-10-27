@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -7,7 +7,8 @@ import { useAuthStore } from '@/stores/auth'
 import { registerMenuRoutes } from '@/router'
 import { useThemeStore } from '@/stores/theme'
 import { useBrandingStore } from '@/stores/branding'
-import { wecomQrUrl } from '@/api/auth'
+import { getCaptcha, mfaSend, wecomQrUrl } from '@/api/auth'
+import type { MfaChannel } from '@/api/types'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -19,10 +20,48 @@ const route = useRoute()
 const activeTab = ref('account')
 const loading = ref(false)
 const wecomLoading = ref(false)
-const form = reactive({ username: '', password: '' })
+const form = reactive({ username: '', password: '', captchaText: '' })
 
 const siteName = computed(() => branding.siteName || t('common.app.short'))
 const logoSrc = computed(() => branding.logoUrl || '')
+
+// ---- 图形验证码（一次性，任何登录尝试后即失效，失败必须刷新） ----
+const captchaId = ref('')
+const captchaSvg = ref('')
+
+async function loadCaptcha() {
+  try {
+    const data = await getCaptcha()
+    captchaId.value = data.captchaId
+    captchaSvg.value = data.svg
+  } catch {
+    /* http notifies */
+  }
+}
+
+// ---- MFA 二步验证 ----
+const mfa = reactive({
+  active: false,
+  token: '',
+  channels: [] as MfaChannel[],
+  channel: '' as '' | 'sms' | 'email',
+  code: '',
+  sending: false,
+  countdown: 0,
+  debugCode: '',
+})
+let countdownTimer: number | undefined
+
+function startCountdown(seconds: number) {
+  mfa.countdown = seconds
+  window.clearInterval(countdownTimer)
+  countdownTimer = window.setInterval(() => {
+    mfa.countdown -= 1
+    if (mfa.countdown <= 0) window.clearInterval(countdownTimer)
+  }, 1000)
+}
+
+onUnmounted(() => window.clearInterval(countdownTimer))
 
 async function afterLogin() {
   registerMenuRoutes(auth.menus)
@@ -40,15 +79,73 @@ async function doLogin() {
     ElMessage.warning(t('auth.login.passwordRequired'))
     return
   }
+  if (!form.captchaText.trim()) {
+    ElMessage.warning(t('auth.login.captchaRequired'))
+    return
+  }
   loading.value = true
   try {
-    await auth.doLogin(form.username.trim(), form.password)
+    const data = await auth.doLogin(form.username.trim(), form.password, {
+      captchaId: captchaId.value,
+      captchaText: form.captchaText.trim(),
+    })
+    if ('mfaRequired' in data && data.mfaRequired) {
+      mfa.active = true
+      mfa.token = data.mfaToken
+      mfa.channels = data.channels
+      mfa.channel = data.channels[0]?.channel ?? ''
+      mfa.code = ''
+      mfa.debugCode = ''
+      return
+    }
     await afterLogin()
   } catch {
-    /* http notifies */
+    /* http notifies；验证码一次性，失败后强制刷新 */
+    form.captchaText = ''
+    await loadCaptcha()
   } finally {
     loading.value = false
   }
+}
+
+async function sendMfaCode() {
+  if (!mfa.channel) return
+  mfa.sending = true
+  try {
+    const r = await mfaSend(mfa.token, mfa.channel)
+    mfa.debugCode = r.debugCode ?? ''
+    startCountdown(r.cooldown || 60)
+    ElMessage.success(t('auth.mfa.codeSent'))
+  } catch {
+    /* http notifies */
+  } finally {
+    mfa.sending = false
+  }
+}
+
+async function verifyMfa() {
+  if (!/^\d{6}$/.test(mfa.code)) {
+    ElMessage.warning(t('auth.mfa.codeRequired'))
+    return
+  }
+  loading.value = true
+  try {
+    await auth.doMfaVerify(mfa.token, mfa.code)
+    await afterLogin()
+  } catch {
+    /* http notifies；停留在二步验证 */
+  } finally {
+    loading.value = false
+  }
+}
+
+function backToPassword() {
+  mfa.active = false
+  mfa.token = ''
+  mfa.code = ''
+  mfa.debugCode = ''
+  form.captchaText = ''
+  void loadCaptcha()
 }
 
 async function goWecomQr() {
@@ -83,6 +180,7 @@ async function handleWecomCallback() {
 
 onMounted(async () => {
   await branding.load()
+  await loadCaptcha()
   await handleWecomCallback()
 })
 
@@ -102,7 +200,7 @@ function switchLang() {
         <p class="login-subtitle">{{ t('auth.login.subtitle') }}</p>
       </div>
 
-      <el-tabs v-model="activeTab" class="login-tabs">
+      <el-tabs v-if="!mfa.active" v-model="activeTab" class="login-tabs">
         <el-tab-pane :label="t('auth.login.username')" name="account">
           <el-form class="login-form" @submit.prevent="doLogin">
             <el-form-item>
@@ -123,6 +221,26 @@ function switchLang() {
                 @keyup.enter="doLogin"
               />
             </el-form-item>
+            <el-form-item>
+              <div class="captcha-row">
+                <el-input
+                  v-model="form.captchaText"
+                  :placeholder="t('auth.login.captchaPlaceholder')"
+                  size="large"
+                  maxlength="4"
+                  class="captcha-input"
+                  @keyup.enter="doLogin"
+                />
+                <button
+                  type="button"
+                  class="captcha-img"
+                  :title="t('auth.login.captchaRefresh')"
+                  :aria-label="t('auth.login.captchaRefresh')"
+                  @click="loadCaptcha"
+                  v-html="captchaSvg"
+                ></button>
+              </div>
+            </el-form-item>
             <el-button type="primary" size="large" class="login-btn" :loading="loading" @click="doLogin">
               {{ loading ? t('auth.login.loggingIn') : t('auth.login.submit') }}
             </el-button>
@@ -137,6 +255,46 @@ function switchLang() {
           </div>
         </el-tab-pane>
       </el-tabs>
+
+      <!-- MFA 二步验证：密码通过后进入 -->
+      <div v-else class="mfa-box">
+        <h2 class="mfa-title">{{ t('auth.mfa.title') }}</h2>
+        <p class="mfa-tip">{{ t('auth.mfa.tip') }}</p>
+        <el-radio-group v-model="mfa.channel" class="mfa-channels">
+          <el-radio v-for="c in mfa.channels" :key="c.channel" :value="c.channel">
+            {{ c.channel === 'sms' ? t('auth.mfa.channelSms') : t('auth.mfa.channelEmail') }}（{{ c.target }}）
+          </el-radio>
+        </el-radio-group>
+        <div class="mfa-code-row">
+          <el-input
+            v-model="mfa.code"
+            :placeholder="t('auth.mfa.codePlaceholder')"
+            size="large"
+            maxlength="6"
+            class="mfa-code-input"
+            @keyup.enter="verifyMfa"
+          />
+          <el-button
+            size="large"
+            :loading="mfa.sending"
+            :disabled="!mfa.channel || mfa.countdown > 0"
+            @click="sendMfaCode"
+          >
+            {{ mfa.countdown > 0 ? t('auth.mfa.resendAfter', { s: mfa.countdown }) : t('auth.mfa.sendCode') }}
+          </el-button>
+        </div>
+        <el-alert
+          v-if="mfa.debugCode"
+          type="warning"
+          :closable="false"
+          class="mfa-debug"
+          :title="t('auth.mfa.debugTip', { code: mfa.debugCode })"
+        />
+        <el-button type="primary" size="large" class="login-btn" :loading="loading" @click="verifyMfa">
+          {{ t('auth.mfa.verify') }}
+        </el-button>
+        <el-button link class="mfa-back" @click="backToPassword">{{ t('auth.mfa.back') }}</el-button>
+      </div>
 
       <div v-if="branding.showDemoAccounts" class="demo-box">
         <div class="demo-title">{{ t('auth.login.demoTitle') }}</div>
@@ -207,6 +365,75 @@ function switchLang() {
   flex-direction: column;
   gap: var(--bs-space-2);
   margin-top: var(--bs-space-3);
+}
+
+.captcha-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--bs-space-2);
+  width: 100%;
+}
+
+.captcha-input {
+  flex: 1;
+}
+
+.captcha-img {
+  flex: none;
+  width: 132px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--bs-color-border-default);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-bg-surface);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mfa-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-3);
+  margin-top: var(--bs-space-3);
+}
+
+.mfa-title {
+  margin: 0;
+  font-size: var(--bs-typography-font-size-lg);
+  color: var(--bs-color-fg-default);
+}
+
+.mfa-tip {
+  margin: 0;
+  color: var(--bs-color-fg-muted);
+  font-size: var(--bs-typography-font-size-sm);
+}
+
+.mfa-channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-1);
+  align-items: flex-start;
+}
+
+.mfa-code-row {
+  display: flex;
+  gap: var(--bs-space-2);
+}
+
+.mfa-code-input {
+  flex: 1;
+}
+
+.mfa-debug {
+  font-size: var(--bs-typography-font-size-xs);
+}
+
+.mfa-back {
+  align-self: center;
 }
 
 .login-btn {

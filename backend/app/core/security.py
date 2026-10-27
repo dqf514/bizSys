@@ -61,6 +61,23 @@ def create_step_up_token(user_id: int, minutes: int = 5) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def create_mfa_pending_token(user_id: int, minutes: int = 5) -> tuple[str, str]:
+    """MFA 待验证 token（typ=mfa_pending，仅证明"密码已通过、等待二次验证码"）。
+
+    返回 (token, jti)；jti 存 Redis（mfa:{jti}=user_id），一次性使用、可随验证成功/失败作废。
+    """
+    now = datetime.now(UTC)
+    jti = uuid.uuid4().hex
+    payload = {
+        "sub": str(user_id),
+        "typ": "mfa_pending",
+        "iat": now,
+        "exp": now + timedelta(minutes=minutes),
+        "jti": jti,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), jti
+
+
 def decode_token(token: str, expect_type: str) -> dict:
     """解码并校验；失败抛 jwt 异常由调用方处理。
 

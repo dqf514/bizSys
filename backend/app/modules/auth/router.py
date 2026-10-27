@@ -13,6 +13,9 @@ from app.modules.auth.schemas import (
     BankAccountIn,
     ContactIn,
     LoginIn,
+    MfaSendIn,
+    MfaToggleIn,
+    MfaVerifyIn,
     PasswordIn,
     ProfilePatchIn,
     RefreshIn,
@@ -22,11 +25,44 @@ from app.modules.auth.schemas import (
 router = APIRouter(prefix="/auth", tags=["auth"], route_class=EnvelopeRoute)
 
 
+@router.get("/captcha")
+def captcha():
+    """图形验证码（免登录）：4 位随机字符 SVG，5 分钟有效、一次性。"""
+    return service.create_captcha()
+
+
 @router.post("/login")
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     ip = request.client.host if request.client else ""
     ua = request.headers.get("user-agent", "")
-    return service.login(db, body.username, body.password, ip, ua)
+    return service.login(db, body.username, body.password, body.captcha_id, body.captcha_text, ip, ua)
+
+
+@router.post("/mfa/send")
+def mfa_send(body: MfaSendIn, request: Request, db: Session = Depends(get_db)):
+    """MFA 第二步：发送验证码（短信/邮件），60 秒冷却。"""
+    ip = request.client.host if request.client else ""
+    return service.mfa_send(db, body.mfa_token, body.channel, ip)
+
+
+@router.post("/mfa/verify")
+def mfa_verify(body: MfaVerifyIn, request: Request, db: Session = Depends(get_db)):
+    """MFA 第二步：校验验证码，通过即发正式 token。"""
+    ip = request.client.host if request.client else ""
+    ua = request.headers.get("user-agent", "")
+    return service.mfa_verify(db, body.mfa_token, body.code, ip, ua)
+
+
+@router.post("/mfa/toggle")
+def mfa_toggle(
+    body: MfaToggleIn,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """开关本人二步验证：需 X-Step-Up-Token 二次验证。"""
+    ip = request.client.host if request.client else ""
+    return service.mfa_toggle(db, user, body.enabled, request.headers.get("x-step-up-token", ""), ip)
 
 
 @router.post("/refresh")

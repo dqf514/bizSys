@@ -2,6 +2,7 @@
 
 import uuid
 
+from conftest import post_login
 from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
@@ -83,9 +84,9 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
         db.close()
 
     # manager1 已被删除：登录失败；admin 正常
-    r = client.post("/api/v1/auth/login", json={"username": "manager1", "password": "Test@123456"}).json()
+    r = post_login(client, "manager1", "Test@123456").json()
     assert r["code"] != 0
-    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "Admin@123456"}).json()
+    r = post_login(client, "admin", "Admin@123456").json()
     assert r["code"] == 0
 
     # 收尾：重跑种子补回演示账号（保持测试库可重复运行）

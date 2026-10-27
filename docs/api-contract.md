@@ -13,7 +13,17 @@
 0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户
 
 ## 鉴权 /auth
-- `POST /auth/login` `{username,password}` → `{access_token,refresh_token,token_type,user}`
+- `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
+  验证一次性销毁；同一 captchaId 连续错 3 次作废；非生产环境（ENV≠prod）额外回显 `debugText` 便于自动化测试
+- `POST /auth/login` `{username,password,captchaId,captchaText}` → `{access_token,refresh_token,token_type,user}`
+  （user 含 `mfaEnabled`）；验证码错误或过期 20009（不计入密码失败锁定）；
+  若用户已开启 MFA 则不发 token，改回 `{mfaRequired:true,mfaToken,channels:[{channel:"sms"|"email",target(掩码)}]}`
+- MFA 二步验证（mfaToken 为 5 分钟 typ=mfa_pending JWT + Redis 一次性凭证）：
+  - `POST /auth/mfa/send` `{mfaToken,channel}` → `{sent,cooldown:60,mode}`：6 位数字码存 Redis 5 分钟，
+    每通道 60 秒冷却（429/20013）；通道未配置时非生产走调试通道并回显 `debugCode`（生产绝不回显，未配置报 90001）
+  - `POST /auth/mfa/verify` `{mfaToken,code}` → 与 login 相同结构；错码 20011，连续错 5 次作废本次登录（20010）
+  - `POST /auth/mfa/toggle`（登录）`{enabled}` + `X-Step-Up-Token` 头 → `{mfaEnabled}`；
+    开启前须已登记手机或邮箱（否则 20014）
 - `POST /auth/refresh` `{refresh_token}` → `{access_token,refresh_token,token_type,user}`（旋转：旧 refresh_token 立即吊销）
 - `POST /auth/logout`（可带 `{refresh_token}` 吊销）
 - `POST /auth/password` `{old_password,new_password}`（新密码至少 8 位；原密码错误 20004）
@@ -28,7 +38,7 @@
   - `POST /auth/wecom/callback` `{code,state}` → 与 /auth/login 相同结构；错误码：20005 企微账号未绑定本地用户 / 20006 state 无效或已过期
 
 ### 个人档案（批次B，登录即可，仅本人数据；越权一律 404/403）
-- `GET /auth/profile` → `{id,username,name,mobile,email,employeeNo,hireDate,jobLevel,avatarUrl,deptName,leaderName,roles[]}`
+- `GET /auth/profile` → `{id,username,name,mobile,email,employeeNo,hireDate,jobLevel,avatarUrl,deptName,leaderName,mfaEnabled,roles[]}`
   （employeeNo/hireDate/jobLevel 组织字段由管理员维护、本人只读；leaderName 沿部门负责人链向上取，无则空串）
 - `PATCH /auth/profile` `{mobile,email}`：电话/邮箱任一变更要求 `X-Step-Up-Token` 头，否则 403/20007；
   邮箱格式校验 + 全库唯一（20008，为邮箱验证码登录预留）；电话格式校验（为短信登录预留）
@@ -69,9 +79,15 @@
   `POST /admin/maintenance/retime` `{bizType,id,field,value(YYYY-MM-DD HH:MM:SS 本地时区),reason(必填)}`
   → 白名单字段改值（approval_record.at；report.create_time/seal_time；结算/发票/到账 create_time），
   sys_audit_log 留痕 `{field,old,new,reason}`
-- 系统设置（sys_config，Secret AES-GCM 加密落库、接口只回 secretSet 布尔）：
-  - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl}}`
-  - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{enabled,corpId,agentId,secret?,callbackUrl?}}`（secret 空=不修改）
+- 系统设置（sys_config，Secret AES-GCM 加密落库、接口只回 xxxSet 布尔）：
+  - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl},messaging:{...}}`
+  - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{...},messaging?:{...}}`（各密文字段空=不修改）
+  - 消息通道 messaging：`email:{host,port(0=默认),security:ssl|starttls|none,username,passwordSet,sender}` +
+    `sms:{provider:aliyun|tencent|huawei|custom_http, aliyun/tencent/huawei:{各厂商字段+密钥Set},
+    customHttp:{url,paramTemplate(phone/code 占位),authHeaderSet}}`；
+    发送能力：SMTP 与 custom_http 为真实通道；三家厂商短信已落库预设字段、网关签名未联调（遗留项）
+  - `POST /admin/settings/messaging/test`（admin:setting:edit）`{channel:"sms"|"email",target}` →
+    `{sent,mode:"real"|"debug"}`（非生产调试通道回显 debugCode；审计 settings_messaging_test）
   - `POST /admin/settings/logo`（admin:setting:edit，multipart file；限 png/jpg/svg/webp ≤2MB）→ `{logoUrl}`
 - 免登录公共接口：`GET /public/branding` → `{siteName,logoUrl,wecomEnabled}` · `GET /public/logo` → Logo 文件流
 - 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`

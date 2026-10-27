@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, String
+from sqlalchemy import BigInteger, Date, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.common.models import BaseModel
@@ -26,6 +26,7 @@ class User(BaseModel):
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="入职日期")
     job_level: Mapped[str] = mapped_column(String(32), default="", comment="职级（预留，对接 HR 系统）")
     avatar: Mapped[str] = mapped_column(String(255), default="", comment="头像文件相对路径")
+    mfa_enabled: Mapped[int] = mapped_column(Integer, default=0, server_default="0", comment="二步验证（MFA）开关 0/1")
 
     roles = relationship("Role", secondary="sys_user_role", viewonly=True, lazy="selectin")
 

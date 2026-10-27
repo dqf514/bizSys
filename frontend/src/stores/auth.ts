@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/api/http'
 import * as authApi from '@/api/auth'
-import type { MenuNode, UserProfile } from '@/api/types'
+import type { LoginOutcome, MenuNode, UserProfile } from '@/api/types'
 import { resetRoutes, registerMenuRoutes } from '@/router'
 import { useTabsStore } from './tabs'
 import { useThemeStore } from './theme'
@@ -53,14 +53,31 @@ export const useAuthStore = defineStore('auth', () => {
     loaded.value = true
   }
 
-  async function doLogin(username: string, password: string) {
-    const data = await authApi.login(username, password)
+  async function doLogin(
+    username: string,
+    password: string,
+    captcha: { captchaId: string; captchaText: string },
+  ): Promise<LoginOutcome> {
+    const data = await authApi.login(username, password, captcha)
+    if ('mfaRequired' in data) return data
     applySession({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       user: data.user,
     })
     // menus come from /auth/me
+    await fetchMe()
+    return data
+  }
+
+  /** MFA 第二步：验证码通过后才算真正登录 */
+  async function doMfaVerify(mfaToken: string, code: string) {
+    const data = await authApi.mfaVerify(mfaToken, code)
+    applySession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      user: data.user,
+    })
     await fetchMe()
   }
 
@@ -153,6 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     hasPerm,
     doLogin,
+    doMfaVerify,
     doWecomLogin,
     fetchMe,
     tryRestore,

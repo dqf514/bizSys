@@ -8,6 +8,22 @@ from app.core.schemas import CamelModel
 class LoginIn(CamelModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
+    captcha_id: str = Field(min_length=1, max_length=64)
+    captcha_text: str = Field(min_length=1, max_length=8)
+
+
+class MfaSendIn(CamelModel):
+    mfa_token: str = Field(min_length=1, max_length=1024)
+    channel: str = Field(pattern=r"^(sms|email)$")
+
+
+class MfaVerifyIn(CamelModel):
+    mfa_token: str = Field(min_length=1, max_length=1024)
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class MfaToggleIn(CamelModel):
+    enabled: bool
 
 
 class RefreshIn(CamelModel):

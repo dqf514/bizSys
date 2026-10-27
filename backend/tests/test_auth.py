@@ -2,6 +2,8 @@
 
 import uuid
 
+from conftest import post_login
+
 
 def test_login_envelope_and_me(client, admin_headers):
     r = client.get("/api/v1/auth/me", headers=admin_headers)
@@ -12,7 +14,7 @@ def test_login_envelope_and_me(client, admin_headers):
 
 
 def test_login_wrong_password(client):
-    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "bad-password"})
+    r = post_login(client, "admin", "bad-password")
     data = r.json()
     assert data["code"] == 20001
     assert r.status_code == 401
@@ -27,7 +29,7 @@ def test_unauthorized_without_token(client):
 
 def test_refresh_flow(client, admin_headers):
     # 重新登录拿 refresh_token
-    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "Admin@123456"}).json()
+    r = post_login(client, "admin", "Admin@123456").json()
     refresh = r["data"]["refresh_token"]
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh}).json()
     assert r2["code"] == 0
@@ -51,8 +53,8 @@ def test_locked_after_five_failures(client):
     db.close()
 
     for _ in range(5):
-        client.post("/api/v1/auth/login", json={"username": username, "password": "wrong"})
-    r = client.post("/api/v1/auth/login", json={"username": username, "password": "Right@123456"})
+        post_login(client, username, "wrong")
+    r = post_login(client, username, "Right@123456")
     data = r.json()
     assert data["code"] == 20003
 
@@ -69,7 +71,7 @@ def _make_user(username: str, password: str = "Test@123456", status: str = "enab
 
 
 def _login(client, username: str, password: str) -> dict:
-    r = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    r = post_login(client, username, password)
     data = r.json()
     assert data["code"] == 0, data
     return {"Authorization": f"Bearer {data['data']['access_token']}"}
@@ -77,7 +79,7 @@ def _login(client, username: str, password: str) -> dict:
 
 def test_refresh_rotation(client):
     # 刷新后旧 refresh_token 立即失效（旋转）
-    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "Admin@123456"}).json()
+    r = post_login(client, "admin", "Admin@123456").json()
     old_refresh = r["data"]["refresh_token"]
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh}).json()
     assert r2["code"] == 0
@@ -119,8 +121,8 @@ def test_change_password_endpoint(client):
 def test_login_log_written(client):
     username = f"log_{uuid.uuid4().hex[:8]}"
     _make_user(username, "Right@123456")
-    client.post("/api/v1/auth/login", json={"username": username, "password": "wrong"})
-    client.post("/api/v1/auth/login", json={"username": username, "password": "Right@123456"})
+    post_login(client, username, "wrong")
+    post_login(client, username, "Right@123456")
 
     from sqlalchemy import select
 

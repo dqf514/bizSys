@@ -5,6 +5,7 @@ import json
 import uuid
 from datetime import datetime
 
+from conftest import post_login
 from openpyxl import load_workbook
 from sqlalchemy import select
 
@@ -17,7 +18,7 @@ UUID = uuid.uuid4().hex[:8]
 
 
 def _login(client, username: str, password: str) -> dict:
-    r = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    r = post_login(client, username, password)
     data = r.json()
     assert data["code"] == 0, data
     return {"Authorization": f"Bearer {data['data']['access_token']}"}

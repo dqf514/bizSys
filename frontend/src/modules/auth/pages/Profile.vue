@@ -219,6 +219,28 @@ const rowActions: ActionItem[] = [
   { key: 'delete', tip: 'common.action.delete' },
 ]
 
+// ---- 安全设置：MFA 开关（敏感操作，需 step-up） ----
+const mfaSaving = ref(false)
+
+async function toggleMfa(enabled: boolean) {
+  if (!profile.value) return
+  if (enabled && !profile.value.mobile && !profile.value.email) {
+    ElMessage.warning(t('auth.profile.mfaNoChannelTip'))
+    return
+  }
+  mfaSaving.value = true
+  try {
+    const token = await ensureStepUp()
+    const r = await authApi.mfaToggle(enabled, token)
+    profile.value.mfaEnabled = r.mfaEnabled
+    ElMessage.success(t('auth.profile.saveSuccess'))
+  } catch {
+    /* 取消或失败：开关由 :model-value 驱动，不更新 profile 即回退 */
+  } finally {
+    mfaSaving.value = false
+  }
+}
+
 onMounted(() => {
   void load()
   void loadContacts()
@@ -353,6 +375,21 @@ onMounted(() => {
           <template #empty>{{ t('auth.profile.emptyBanks') }}</template>
         </el-table>
         <p class="section-tip">{{ t('auth.profile.maskedTip') }}</p>
+      </el-tab-pane>
+
+      <!-- 安全设置 -->
+      <el-tab-pane :label="t('auth.profile.tabSecurity')" name="security">
+        <el-form label-width="160px" class="contact-form">
+          <el-form-item :label="t('auth.profile.mfa')">
+            <el-switch
+              :model-value="profile?.mfaEnabled ?? false"
+              :loading="mfaSaving"
+              @change="(v: string | number | boolean) => toggleMfa(Boolean(v))"
+            />
+          </el-form-item>
+        </el-form>
+        <p class="section-tip">{{ t('auth.profile.mfaTip') }}</p>
+        <p class="section-tip">{{ t('auth.profile.mfaStepUpTip') }}</p>
       </el-tab-pane>
     </el-tabs>
 

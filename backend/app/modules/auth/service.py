@@ -1,6 +1,8 @@
-"""鉴权业务：登录/刷新/登出/me。"""
+"""鉴权业务：登录/刷新/登出/me，图形验证码与 MFA 二步验证。"""
 
+import random
 import re
+import secrets
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +17,7 @@ from app.core.exceptions import BizException
 from app.core.redis import get_redis
 from app.core.security import (
     create_access_token,
+    create_mfa_pending_token,
     create_refresh_token,
     create_step_up_token,
     decode_token,
@@ -52,27 +55,151 @@ def _login_log(db: Session, username: str, success: int, reason: str = "", ip: s
     db.add(LoginLog(username=username, success=success, reason=reason, ip=ip or "", ua=(ua or "")[:255]))
 
 
-def login(db: Session, username: str, password: str, ip: str = "", ua: str = "") -> dict:
+# ---------------- 图形验证码 ----------------
+
+CAPTCHA_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 排除易混淆字符 0/O/1/I/L
+CAPTCHA_TTL_SEC = 300
+CAPTCHA_FAIL_LIMIT = 3  # 同一验证码连续错 3 次作废，强制刷新
+
+_CAPTCHA_PALETTE = ["#2f54eb", "#13c2c2", "#eb2f96", "#fa8c16", "#52c41a", "#722ed1"]
+
+
+def _captcha_svg(text: str) -> str:
+    """自绘 SVG 验证码：字符随机旋转/位移 + 干扰曲线 + 噪点（不过度扭曲，保证人眼可读）。"""
+    rnd = random.SystemRandom()
+    width, height = 132, 44
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="#f6f8fa"/>',
+    ]
+    for _ in range(3):
+        x1, y1 = rnd.uniform(0, 20), rnd.uniform(8, height - 8)
+        x2, y2 = rnd.uniform(width - 20, width), rnd.uniform(8, height - 8)
+        c1x, c1y = rnd.uniform(30, 60), rnd.uniform(0, height)
+        c2x, c2y = rnd.uniform(70, 100), rnd.uniform(0, height)
+        color = rnd.choice(_CAPTCHA_PALETTE)
+        parts.append(
+            f'<path d="M{x1:.1f} {y1:.1f} C{c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {x2:.1f} {y2:.1f}" '
+            f'stroke="{color}" stroke-width="1" fill="none" opacity="0.5"/>'
+        )
+    for i, ch in enumerate(text):
+        x = 18 + i * 28 + rnd.uniform(-3, 3)
+        y = 30 + rnd.uniform(-4, 4)
+        rot = rnd.uniform(-25, 25)
+        color = rnd.choice(_CAPTCHA_PALETTE)
+        parts.append(
+            f'<text x="{x:.1f}" y="{y:.1f}" transform="rotate({rot:.1f} {x:.1f} {y:.1f})" '
+            f'font-family="Verdana, Geneva, sans-serif" font-size="24" font-weight="700" fill="{color}">{ch}</text>'
+        )
+    for _ in range(30):
+        parts.append(
+            f'<circle cx="{rnd.uniform(0, width):.1f}" cy="{rnd.uniform(0, height):.1f}" r="1" '
+            f'fill="{rnd.choice(_CAPTCHA_PALETTE)}" opacity="0.4"/>'
+        )
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def create_captcha() -> dict:
+    """生成一次性图形验证码：答案存 Redis（5 分钟），验证即销毁。"""
+    text = "".join(secrets.choice(CAPTCHA_CHARS) for _ in range(4))
+    cid = uuid.uuid4().hex
+    get_redis().setex(f"captcha:{cid}", CAPTCHA_TTL_SEC, text.lower())
+    out = {"captchaId": cid, "svg": _captcha_svg(text)}
+    if settings.is_dev:
+        # 仅 dev/sit/test 回显答案，便于自动化测试；生产（ENV=prod）绝不返回
+        out["debugText"] = text
+    return out
+
+
+def _check_captcha(captcha_id: str, text: str) -> None:
+    """校验并销毁验证码；连续错误达上限同样作废。失败不计入密码锁定计数。"""
+    r = get_redis()
+    key = f"captcha:{captcha_id}"
+    answer = r.get(key)
+    if not answer:
+        raise BizException(R.AUTH_CAPTCHA_INVALID, http_status=400)
+    if answer != text.strip().lower():
+        fail_key = f"captcha_fail:{captcha_id}"
+        n = r.incr(fail_key)
+        r.expire(fail_key, CAPTCHA_TTL_SEC)
+        if n >= CAPTCHA_FAIL_LIMIT:
+            r.delete(key)
+            r.delete(fail_key)
+        raise BizException(R.AUTH_CAPTCHA_INVALID, http_status=400)
+    r.delete(key)
+    r.delete(f"captcha_fail:{captcha_id}")
+
+
+# ---------------- MFA 二步验证 ----------------
+
+MFA_PENDING_TTL_SEC = 5 * 60
+MFA_CODE_TTL_SEC = 5 * 60
+MFA_SEND_COOLDOWN_SEC = 60
+MFA_CODE_FAIL_LIMIT = 5
+
+
+def mask_mobile(mobile: str) -> str:
+    return f"{mobile[:3]}****{mobile[-4:]}" if len(mobile) >= 7 else "****"
+
+
+def mask_email(email: str) -> str:
+    if "@" not in email:
+        return "****"
+    local, domain = email.split("@", 1)
+    return f"{local[:1]}***@{domain}"
+
+
+def _mfa_channels(user: User) -> list[dict]:
+    """可用验证通道（按登记的手机/邮箱，掩码回显；未登记的不出现）。"""
+    channels = []
+    if user.mobile:
+        channels.append({"channel": "sms", "target": mask_mobile(user.mobile)})
+    if user.email:
+        channels.append({"channel": "email", "target": mask_email(user.email)})
+    return channels
+
+
+def _issue_tokens(db: Session, user: User, username: str, ip: str, ua: str) -> dict:
+    """登录最终放行：签发 access/refresh + 审计 + 登录日志。"""
+    user.last_login_at = datetime.now()
+    perms = user.perm_codes
+    roles = user.role_codes
+    access = create_access_token(user.id, roles, perms)
+    refresh, jti = create_refresh_token(user.id)
+    get_redis().setex(f"refresh:{jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
+    audit(db, user_id=user.id, module="auth", action="login", detail={"username": username}, ip=ip)
+    _login_log(db, username, 1, ip=ip, ua=ua)
+    db.commit()
+    return {
+        "access_token": access,
+        "refresh_token": refresh,
+        "token_type": "Bearer",
+        "user": _user_out(db, user),
+    }
+
+
+def _mfa_challenge(db: Session, user: User, username: str, ip: str) -> dict:
+    """密码已通过且用户开启 MFA：不发正式 token，转入二步验证。"""
+    token, jti = create_mfa_pending_token(user.id, minutes=MFA_PENDING_TTL_SEC // 60)
+    get_redis().setex(f"mfa:{jti}", MFA_PENDING_TTL_SEC, str(user.id))
+    audit(db, user_id=user.id, module="auth", action="login_mfa_challenge", detail={"username": username}, ip=ip)
+    db.commit()
+    return {"mfaRequired": True, "mfaToken": token, "channels": _mfa_channels(user)}
+
+
+def login(db: Session, username: str, password: str, captcha_id: str, captcha_text: str,
+          ip: str = "", ua: str = "") -> dict:
+    _check_captcha(captcha_id, captcha_text)
     _fail_guard(username)
     user: User | None = db.query(User).filter(User.username == username, User.deleted == 0).first()
     ok = bool(user) and verify_password(password, user.password_hash)
     if ok and user.status == "enabled":
         _clear_fail(username)
-        user.last_login_at = datetime.now()
-        perms = user.perm_codes
-        roles = user.role_codes
-        access = create_access_token(user.id, roles, perms)
-        refresh, jti = create_refresh_token(user.id)
-        get_redis().setex(f"refresh:{jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
-        audit(db, user_id=user.id, module="auth", action="login", detail={"username": username}, ip=ip)
-        _login_log(db, username, 1, ip=ip, ua=ua)
-        db.commit()
-        return {
-            "access_token": access,
-            "refresh_token": refresh,
-            "token_type": "Bearer",
-            "user": _user_out(db, user),
-        }
+        if user.mfa_enabled:
+            return _mfa_challenge(db, user, username, ip)
+        return _issue_tokens(db, user, username, ip, ua)
 
     if user and user.status in ("disabled", "locked"):
         audit(
@@ -99,6 +226,97 @@ def login(db: Session, username: str, password: str, ip: str = "", ua: str = "")
     _login_log(db, username, 0, reason="用户名或密码错误", ip=ip, ua=ua)
     db.commit()
     raise BizException(R.AUTH_UNAUTHORIZED, "用户名或密码错误", http_status=401)
+
+
+def _mfa_pending_user(db: Session, mfa_token: str) -> tuple[User, str]:
+    """校验 mfa_pending token + Redis 一次性凭证；任何失败一律 20010。"""
+    try:
+        payload = decode_token(mfa_token, "mfa_pending")
+    except Exception:
+        raise BizException(R.AUTH_MFA_TOKEN_INVALID, http_status=401) from None
+    jti = payload.get("jti", "")
+    r = get_redis()
+    if not jti or r.get(f"mfa:{jti}") != payload.get("sub"):
+        raise BizException(R.AUTH_MFA_TOKEN_INVALID, http_status=401)
+    user = db.get(User, int(payload["sub"]))
+    if not user or user.deleted or user.status != "enabled":
+        raise BizException(R.AUTH_MFA_TOKEN_INVALID, http_status=401)
+    return user, jti
+
+
+def mfa_send(db: Session, mfa_token: str, channel: str, ip: str = "") -> dict:
+    """发送二步验证码：60s 冷却；通道未配置时走调试通道（仅非生产回显 debugCode）。"""
+    from app.modules.settings import notify
+
+    user, jti = _mfa_pending_user(db, mfa_token)
+    if channel == "sms" and not user.mobile:
+        raise BizException(R.AUTH_MFA_CHANNEL_UNAVAILABLE)
+    if channel == "email" and not user.email:
+        raise BizException(R.AUTH_MFA_CHANNEL_UNAVAILABLE)
+    r = get_redis()
+    cool_key = f"mfa_send:{jti}:{channel}"
+    if r.get(cool_key):
+        raise BizException(R.AUTH_MFA_SEND_TOO_OFTEN, http_status=429)
+    r.setex(cool_key, MFA_SEND_COOLDOWN_SEC, "1")
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    r.setex(f"mfa_code:{jti}", MFA_CODE_TTL_SEC, code)
+    r.delete(f"mfa_code_fail:{jti}")
+
+    if channel == "sms":
+        mode = notify.send_sms(db, user.mobile, code)
+    else:
+        mode = notify.send_login_code_email(db, user.email, code)
+    audit(
+        db,
+        user_id=user.id,
+        module="auth",
+        action="mfa_send",
+        detail={"channel": channel, "target": mask_mobile(user.mobile) if channel == "sms" else mask_email(user.email)},
+        ip=ip,
+    )
+    db.commit()
+    out: dict = {"sent": True, "cooldown": MFA_SEND_COOLDOWN_SEC, "mode": mode}
+    if settings.is_dev:
+        out["debugCode"] = code  # 仅非生产环境回显，生产（ENV=prod）绝不返回
+    return out
+
+
+def _clear_mfa_keys(r, jti: str) -> None:
+    r.delete(f"mfa:{jti}", f"mfa_code:{jti}", f"mfa_code_fail:{jti}",
+             f"mfa_send:{jti}:sms", f"mfa_send:{jti}:email")
+
+
+def mfa_verify(db: Session, mfa_token: str, code: str, ip: str = "", ua: str = "") -> dict:
+    """校验二步验证码：成功即发正式 token；连续错 5 次作废本次登录。"""
+    user, jti = _mfa_pending_user(db, mfa_token)
+    r = get_redis()
+    stored = r.get(f"mfa_code:{jti}")
+    if not stored:
+        raise BizException(R.AUTH_MFA_CODE_INVALID, "请先获取验证码", http_status=400)
+    if stored != code:
+        fail_key = f"mfa_code_fail:{jti}"
+        n = r.incr(fail_key)
+        r.expire(fail_key, MFA_CODE_TTL_SEC)
+        audit(db, user_id=user.id, module="auth", action="mfa_verify_failed", ip=ip)
+        db.commit()
+        if n >= MFA_CODE_FAIL_LIMIT:
+            _clear_mfa_keys(r, jti)
+            raise BizException(R.AUTH_MFA_CODE_INVALID, "错误次数过多，请重新登录", http_status=400)
+        raise BizException(R.AUTH_MFA_CODE_INVALID, http_status=400)
+    _clear_mfa_keys(r, jti)
+    return _issue_tokens(db, user, user.username, ip, ua)
+
+
+def mfa_toggle(db: Session, user: User, enabled: bool, step_up_token: str, ip: str = "") -> dict:
+    """开关二步验证：需 step-up；开启前须已登记手机或邮箱。"""
+    verify_step_up(user, step_up_token)
+    if enabled and not (user.mobile or user.email):
+        raise BizException(R.AUTH_MFA_NO_CHANNEL_BOUND)
+    user.mfa_enabled = 1 if enabled else 0
+    audit(db, user_id=user.id, module="auth", action="mfa_enable" if enabled else "mfa_disable", ip=ip)
+    db.commit()
+    return {"mfaEnabled": bool(user.mfa_enabled)}
 
 
 def refresh(db: Session, refresh_token: str) -> dict:
@@ -152,6 +370,7 @@ def _user_out(db: Session, user: User) -> dict:
         "email": user.email,
         "mobile": user.mobile,
         "avatar_url": avatar_url(user),
+        "mfaEnabled": bool(user.mfa_enabled),
         "roles": user.role_codes,
         "perms": user.perm_codes,
         "prefs": _prefs(db, user.id),
@@ -258,6 +477,7 @@ def get_profile(db: Session, user: User) -> dict:
         "avatarUrl": avatar_url(user),
         "deptName": user.dept_name,
         "leaderName": _direct_leader(db, user),
+        "mfaEnabled": bool(user.mfa_enabled),
         "roles": user.role_codes,
     }
 

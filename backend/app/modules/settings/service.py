@@ -86,7 +86,109 @@ def settings_out(db: Session) -> dict:
             "secretSet": bool(secret),
             "callbackUrl": get_value(db, KEY_WECOM_CALLBACK),
         },
+        "messaging": messaging_out(db),
     }
+
+
+# ---------------- 消息通道（邮件 SMTP / 短信） ----------------
+
+
+def _secret_set(db: Session, key: str) -> bool:
+    """密文键是否已设置（接口只回布尔，不回明文）。"""
+    return bool(get_value(db, key))
+
+
+def messaging_out(db: Session) -> dict:
+    """消息通道配置回显：密文键只回 xxxSet 布尔。"""
+    from app.modules.settings import notify
+
+    cfg_email = notify.email_config(db)
+    cfg_sms = notify.sms_config(db)
+    return {
+        "email": {
+            "host": cfg_email["host"],
+            "port": cfg_email["port"],
+            "security": cfg_email["security"],
+            "username": cfg_email["username"],
+            "passwordSet": bool(cfg_email["password"]),
+            "sender": cfg_email["sender"],
+        },
+        "sms": {
+            "provider": cfg_sms["provider"],
+            "aliyun": {
+                "accessKeyId": cfg_sms["aliyun"]["access_key_id"],
+                "accessKeySecretSet": bool(cfg_sms["aliyun"]["access_key_secret"]),
+                "signName": cfg_sms["aliyun"]["sign_name"],
+                "templateCode": cfg_sms["aliyun"]["template_code"],
+            },
+            "tencent": {
+                "secretId": cfg_sms["tencent"]["secret_id"],
+                "secretKeySet": bool(cfg_sms["tencent"]["secret_key"]),
+                "sdkAppId": cfg_sms["tencent"]["sdk_app_id"],
+                "signName": cfg_sms["tencent"]["sign_name"],
+                "templateId": cfg_sms["tencent"]["template_id"],
+            },
+            "huawei": {
+                "appKey": cfg_sms["huawei"]["app_key"],
+                "appSecretSet": bool(cfg_sms["huawei"]["app_secret"]),
+                "sender": cfg_sms["huawei"]["sender"],
+                "templateId": cfg_sms["huawei"]["template_id"],
+            },
+            "customHttp": {
+                "url": cfg_sms["custom_http"]["url"],
+                "paramTemplate": cfg_sms["custom_http"]["param_template"],
+                "authHeaderSet": bool(cfg_sms["custom_http"]["auth_header"]),
+            },
+        },
+    }
+
+
+def _update_messaging(db: Session, m, user_id: int) -> None:
+    from app.modules.settings import notify
+
+    if m.email is not None:
+        e = m.email
+        set_value(db, notify.KEY_EMAIL_HOST, e.host.strip(), user_id, "SMTP 主机")
+        set_value(db, notify.KEY_EMAIL_PORT, str(e.port), user_id, "SMTP 端口")
+        set_value(db, notify.KEY_EMAIL_SECURITY, e.security, user_id, "SMTP 安全模式")
+        set_value(db, notify.KEY_EMAIL_USERNAME, e.username.strip(), user_id, "SMTP 用户名")
+        set_value(db, notify.KEY_EMAIL_SENDER, e.sender.strip(), user_id, "邮件发件人")
+        if e.password:  # 空 = 不修改
+            set_value(db, notify.KEY_EMAIL_PASSWORD, encrypt_text(e.password.strip()), user_id, "SMTP 密码（加密）")
+    if m.sms is not None:
+        s = m.sms
+        set_value(db, notify.KEY_SMS_PROVIDER, s.provider, user_id, "短信服务商")
+        if s.aliyun is not None:
+            set_value(db, notify.KEY_SMS_ALIYUN_AK_ID, s.aliyun.access_key_id.strip(), user_id, "阿里云 AK ID")
+            set_value(db, notify.KEY_SMS_ALIYUN_SIGN, s.aliyun.sign_name.strip(), user_id, "阿里云短信签名")
+            set_value(db, notify.KEY_SMS_ALIYUN_TEMPLATE, s.aliyun.template_code.strip(), user_id, "阿里云短信模板")
+            if s.aliyun.access_key_secret:
+                set_value(db, notify.KEY_SMS_ALIYUN_AK_SECRET, encrypt_text(s.aliyun.access_key_secret.strip()),
+                          user_id, "阿里云 AK Secret（加密）")
+        if s.tencent is not None:
+            set_value(db, notify.KEY_SMS_TENCENT_SECRET_ID, s.tencent.secret_id.strip(), user_id, "腾讯云 SecretId")
+            set_value(db, notify.KEY_SMS_TENCENT_APP_ID, s.tencent.sdk_app_id.strip(), user_id, "腾讯云 SdkAppId")
+            set_value(db, notify.KEY_SMS_TENCENT_SIGN, s.tencent.sign_name.strip(), user_id, "腾讯云短信签名")
+            set_value(db, notify.KEY_SMS_TENCENT_TEMPLATE, s.tencent.template_id.strip(), user_id, "腾讯云短信模板")
+            if s.tencent.secret_key:
+                set_value(db, notify.KEY_SMS_TENCENT_SECRET_KEY, encrypt_text(s.tencent.secret_key.strip()),
+                          user_id, "腾讯云 SecretKey（加密）")
+        if s.huawei is not None:
+            set_value(db, notify.KEY_SMS_HUAWEI_APP_KEY, s.huawei.app_key.strip(), user_id, "华为云 AppKey")
+            set_value(db, notify.KEY_SMS_HUAWEI_SENDER, s.huawei.sender.strip(), user_id, "华为云短信通道号")
+            set_value(db, notify.KEY_SMS_HUAWEI_TEMPLATE, s.huawei.template_id.strip(), user_id, "华为云短信模板")
+            if s.huawei.app_secret:
+                set_value(db, notify.KEY_SMS_HUAWEI_APP_SECRET, encrypt_text(s.huawei.app_secret.strip()),
+                          user_id, "华为云 AppSecret（加密）")
+        if s.custom_http is not None:
+            c = s.custom_http
+            if c.url.strip() and not c.url.strip().startswith(("http://", "https://")):
+                raise BizException(R.GENERIC_PARAM, "自定义短信网关 URL 须以 http(s):// 开头")
+            set_value(db, notify.KEY_SMS_CUSTOM_URL, c.url.strip(), user_id, "自定义短信网关 URL")
+            set_value(db, notify.KEY_SMS_CUSTOM_TEMPLATE, c.param_template.strip(), user_id, "自定义短信参数模板")
+            if c.auth_header:
+                set_value(db, notify.KEY_SMS_CUSTOM_AUTH, encrypt_text(c.auth_header.strip()),
+                          user_id, "自定义短信网关鉴权头（加密）")
 
 
 def branding_out(db: Session) -> dict:
@@ -115,6 +217,8 @@ def update_settings(db: Session, body, user_id: int) -> dict:
         set_value(db, KEY_WECOM_CALLBACK, w.callback_url.strip(), user_id, "企微回调 URL")
         if w.secret:  # 空 = 不修改
             set_value(db, KEY_WECOM_SECRET, encrypt_text(w.secret.strip()), user_id, "企微 Secret（加密）")
+    if body.messaging is not None:
+        _update_messaging(db, body.messaging, user_id)
     return settings_out(db)
 
 

@@ -50,6 +50,7 @@ export interface UserProfile {
   mobile?: string
   avatarUrl?: string
   avatar_url?: string
+  mfaEnabled?: boolean
   roles: string[]
   perms: string[]
   prefs?: UserPrefs
@@ -70,6 +71,7 @@ export interface ProfileInfo {
   avatarUrl: string
   deptName: string
   leaderName: string
+  mfaEnabled: boolean
   roles: string[]
 }
 
@@ -101,6 +103,35 @@ export interface LoginResult {
   refresh_token: string
   token_type: string
   user: UserProfile
+}
+
+/** 登录第二步（用户已开启 MFA）：密码通过但未签发 token */
+export interface MfaChannel {
+  channel: 'sms' | 'email'
+  target: string
+}
+
+export interface MfaChallenge {
+  mfaRequired: true
+  mfaToken: string
+  channels: MfaChannel[]
+}
+
+export type LoginOutcome = LoginResult | MfaChallenge
+
+export interface CaptchaResult {
+  captchaId: string
+  svg: string
+  /** 仅非生产环境（ENV != prod）回显，便于自动化测试 */
+  debugText?: string
+}
+
+export interface MfaSendResult {
+  sent: boolean
+  cooldown: number
+  mode: 'real' | 'debug'
+  /** 仅非生产环境（ENV != prod）回显 */
+  debugCode?: string
 }
 
 export interface RefreshResult {

@@ -1,20 +1,44 @@
 import { request, download } from './http'
 import type {
   BankAccount,
+  CaptchaResult,
   EmergencyContact,
+  LoginOutcome,
   LoginResult,
+  MfaSendResult,
   ProfileInfo,
   RefreshResult,
   StepUpResult,
-  UserProfile,
   UserPrefs,
+  UserProfile,
 } from './types'
 
-export function login(username: string, password: string) {
-  return request<LoginResult>({
+export function getCaptcha() {
+  return request<CaptchaResult>({ url: '/auth/captcha', method: 'get' })
+}
+
+export function login(username: string, password: string, captcha: { captchaId: string; captchaText: string }) {
+  return request<LoginOutcome>({
     url: '/auth/login',
     method: 'post',
-    data: { username, password },
+    data: { username, password, captchaId: captcha.captchaId, captchaText: captcha.captchaText },
+  })
+}
+
+export function mfaSend(mfaToken: string, channel: 'sms' | 'email') {
+  return request<MfaSendResult>({ url: '/auth/mfa/send', method: 'post', data: { mfaToken, channel } })
+}
+
+export function mfaVerify(mfaToken: string, code: string) {
+  return request<LoginResult>({ url: '/auth/mfa/verify', method: 'post', data: { mfaToken, code } })
+}
+
+export function mfaToggle(enabled: boolean, stepUpToken: string) {
+  return request<{ mfaEnabled: boolean }>({
+    url: '/auth/mfa/toggle',
+    method: 'post',
+    data: { enabled },
+    headers: { 'X-Step-Up-Token': stepUpToken },
   })
 }
 

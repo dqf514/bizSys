@@ -54,8 +54,25 @@ def admin_headers(client):
     return _login(client, "admin", "Admin@123456")
 
 
+def captcha_fields(client) -> dict:
+    """获取图形验证码并直接从 Redis 读答案（测试与 dev 共用 Redis 实例）。"""
+    from app.core.redis import get_redis
+
+    r = client.get("/api/v1/auth/captcha").json()
+    cid = r["data"]["captchaId"]
+    return {"captchaId": cid, "captchaText": get_redis().get(f"captcha:{cid}")}
+
+
+def post_login(client, username: str, password: str):
+    """带图形验证码的登录请求，返回原始响应（不断言）。"""
+    return client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password, **captcha_fields(client)},
+    )
+
+
 def _login(client, username: str, password: str) -> dict:
-    r = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    r = post_login(client, username, password)
     data = r.json()
     assert data["code"] == 0, data
     return {"Authorization": f"Bearer {data['data']['access_token']}"}
