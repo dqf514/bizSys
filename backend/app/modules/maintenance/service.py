@@ -2,11 +2,11 @@
 
 清空范围（显式表清单，失败整体回滚）：
 - 业务数据：合同+附件、任务+明细+样品+样品流转、报告+文件、结算/开票/收款、客户、OA 表单+实例、
-  采购申请+明细、采购合同、出入库单+明细；
+  采购申请+明细、采购合同、出入库单+明细、招标项目+报名+投标+评标、门户合作方账号；
 - 审批运行数据：实例/待办/时间线/抄送/已读水位；
 - 系统运行数据：通知、审计日志、登录日志、编号序列（归零）；
 - 用户：除 username=admin 外的全部用户及其角色绑定/任职/偏好；
-- 文件：uploads 下 contract/report 业务目录（branding 品牌文件保留）。
+- 文件：uploads 下 contract/report/portal 业务目录（branding 品牌文件保留）。
 保留：流程定义与节点、角色/菜单/权限、字典、编号规则、部门、系统配置（sys_config）、admin 账号。
 """
 
@@ -33,12 +33,17 @@ from app.modules.crm.models import Customer
 from app.modules.finance.models import Invoice, Payment, Settlement
 from app.modules.maintenance import backup as backup_svc
 from app.modules.oa.models import OaForm, OaInstance
+from app.modules.portal.models import PartnerUser
 from app.modules.procurement.models import (
     PurchaseContract,
     PurchaseRequest,
     PurchaseRequestItem,
     StockOrder,
     StockOrderItem,
+    TenderBid,
+    TenderEval,
+    TenderProject,
+    TenderRegistration,
 )
 from app.modules.report.models import Report, ReportFile
 from app.modules.settings.service import get_value, set_value
@@ -63,6 +68,11 @@ _PURGE_TABLES = [
     ApprovalInstance,
     OaInstance,
     OaForm,
+    TenderEval,
+    TenderBid,
+    TenderRegistration,
+    TenderProject,
+    PartnerUser,
     StockOrderItem,
     StockOrder,
     PurchaseContract,
@@ -87,7 +97,7 @@ _PURGE_TABLES = [
 ]
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）
-_PURGE_UPLOAD_DIRS = ("contract", "report")
+_PURGE_UPLOAD_DIRS = ("contract", "report", "portal")
 
 CONFIRM_WORD = "CLEAR"
 

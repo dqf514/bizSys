@@ -94,6 +94,7 @@
       "items": "Items",
       "status": "Status"
     },
-    "bizOa": "OA Request"
+    "bizOa": "OA Request",
+    "bizTenderAward": "Tender Award"
   }
 }

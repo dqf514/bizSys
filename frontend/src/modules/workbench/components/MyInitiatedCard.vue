@@ -37,6 +37,7 @@ onMounted(() => {
 function bizTypeLabel(bt: string) {
   if (bt === 'contract') return t('approval.approval.bizContract')
   if (bt === 'task') return t('approval.approval.bizTask')
+  if (bt === 'tender_award') return t('approval.approval.bizTenderAward')
   return bt
 }
 

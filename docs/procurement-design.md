@@ -153,13 +153,44 @@ CRM 变更：`GET /crm/customers` 过滤白名单 +`partner_type`；`GET /crm/cu
 3. `backend/scripts/migrate_nav_procurement.py`：沿用批次E 幂等模式归一排序后调 `init_data.main()`。
 4. 测试库走 `Base.metadata.create_all`（conftest 导入 app.main 即注册全部模型），无需单独迁移。
 
-## 9. 二期规划（招投标，不在一期实施）
+## 9. 二期实录（招投标 + 合作方门户，已实施）
 
-- **询比价/招投标子流程**：`purchase_method=public_bid` 的申请批准后进入「招标项目」实体（BidProject：标讯发布 → 报名 → 评标 → 定标），定标结果回写生成采购合同；`pur_contract` 预留 `bid_project_id`。
-- **供应商门户**：供应商自维护资料/报价，往来单位表加 `portal_user_id` 绑定。
-- **财务挂接**：采购合同 → 应付结算（复用 finance 结算单模式，方向 reversal），出入库确认驱动暂估应付。
-- **库存台账**：出入库明细聚合出 `pur_stock_balance`（现存量），出库校验库存充足。
-- **Outbox**：事件总线升级为 Outbox 模式支撑跨服务通知（ADR-0002 已预留）。
+> 本节原为二期规划；二期已按下列简化决策落地，接口契约详见 docs/api-contract.md「二期」与「合作方门户 /portal」两节。
+
+**招投标（内部 /procurement/tenders）**
+
+- 模型：`pur_tender`（TenderProject，tender_no 发布时发 ZB）+ `pur_tender_registration`（报名/资质附件/审核）
+  + `pur_tender_bid`（投标报价/投标文件，一项目一合作方一份，重复提交即改标）+ `pur_tender_eval`（评标：评分+评语+推荐，一评标人一投标一条）。
+- 状态机简化为 `draft → published → evaluating → awarding → awarded`（+ `terminated`）：
+  报名中/投标中不单列状态，窗口由 `reg_deadline`/`bid_deadline` 字段控制，门户侧强制截止（96002）；
+  `start-evaluation` 是内部动作，不要求到点，进入评标即关闭门户报名与投标。
+- 评标为简洁版：评分+评语+推荐中标，按投标聚合均分；不做开标大厅/CA 签章/专家库。
+- 定标走审批引擎：`tender_award_approve`（种子单级 leader1），提交即 awarding 并锁 award_bid_id；
+  事件订阅 ApprovalCompleted → awarded 并落 winner_bid_id/winner_name/winner_amount（门户公示口径），
+  Rejected/Withdrawn → 回 evaluating 清 award_bid_id，可重新定标。
+- 定标生成采购合同：供应商=中标门户账号绑定的往来单位（未绑定报 95002 提示先绑定）、金额=中标价、
+  关联原采购申请；`pur_tender.contract_id` 幂等（一项目一合同）。未采用一期规划的 `pur_contract.bid_project_id`
+  反向挂接，互跳以 tender.contractId 为准。
+- 权限码 `procurement:tender:*`（list/create/edit/delete/publish/terminate/review/evaluate/award/list:export）。
+
+**合作方门户（/portal，独立认证）**
+
+- 账号体系独立：`partner_user` 表（username/password_hash/company_name/contact/phone/email/
+  status pending→enabled|rejected|disabled/customer_id 绑定往来单位/review_*），注册即待审核，
+  内部在 /procurement/partners 审核（通过时可绑定供应商往来单位）。
+- 认证隔离：门户 JWT `typ=portal_access` + `aud=portal`（12h，无刷新）。内部 `decode_token` 不指定
+  audience，PyJWT 对带 aud 的门户 token 抛 InvalidAudience → 401；门户 `decode_portal_token` 强制
+  audience="portal"，内部 token 无 aud → 401。双向互拒，任一泄露不可串用。
+  登录锁定与内部同策略（5 次/15 分钟，Redis），登录日志落 sys_login_log（username 带 `portal:` 前缀）。
+- 端点白名单：仅公告口径字段（pur_tender 公开列）+ 本人报名/投标；门户不可见 draft/terminated 项目，
+  详情不含任何他人投标或评标信息；附件下载校验本人归属，存储防目录穿越。
+- 前端独立入口 /portal（独立 axios 实例、token key `bs.portal_token`、路由守卫 /portal 前缀早分支），
+  不进内部菜单/标签页体系。
+
+**未实施（顺延）**
+
+- 财务挂接（采购合同 → 应付结算）、库存台账 `pur_stock_balance`、Outbox 事件升级、
+  开标大厅/CA/专家库、供应商评级自动计算、采购合同附件组件。
 
 ## 10. 一期不做清单（明确边界）
 

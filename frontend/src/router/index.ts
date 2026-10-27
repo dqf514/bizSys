@@ -159,6 +159,46 @@ const router = createRouter({
       component: () => import('@/modules/auth/Login.vue'),
       meta: { public: true },
     },
+    // 合作方门户：独立认证体系（bs.portal_token），守卫见 guards.ts 的 /portal 早分支
+    {
+      path: '/portal/login',
+      name: 'PortalLogin',
+      component: () => import('@/modules/portal/pages/PortalLogin.vue'),
+      meta: { public: true, portalPublic: true, tabless: true },
+    },
+    {
+      path: '/portal/register',
+      name: 'PortalRegister',
+      component: () => import('@/modules/portal/pages/PortalRegister.vue'),
+      meta: { public: true, portalPublic: true, tabless: true },
+    },
+    {
+      path: '/portal',
+      name: 'Portal',
+      component: () => import('@/modules/portal/pages/PortalLayout.vue'),
+      meta: { tabless: true },
+      children: [
+        { path: '', redirect: '/portal/tenders' },
+        {
+          path: 'tenders',
+          name: 'PortalTenders',
+          component: () => import('@/modules/portal/pages/PortalTenderList.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.tenders' },
+        },
+        {
+          path: 'tenders/:id',
+          name: 'PortalTenderDetail',
+          component: () => import('@/modules/portal/pages/PortalTenderDetail.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.tenders' },
+        },
+        {
+          path: 'my',
+          name: 'PortalMy',
+          component: () => import('@/modules/portal/pages/PortalMy.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.my' },
+        },
+      ],
+    },
     {
       path: '/',
       name: 'Shell',

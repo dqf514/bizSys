@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     upload_max_mb: int = 50
     upload_allowed_ext: str = "pdf,doc,docx,xls,xlsx,jpg,jpeg,png,zip"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    portal_token_expire_minutes: int = 720  # 门户 token（无刷新机制），默认 12 小时
 
     @property
     def cors_origin_list(self) -> list[str]:

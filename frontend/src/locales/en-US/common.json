@@ -154,7 +154,10 @@
     "confirmed": "Confirmed",
     "cancelled": "Cancelled",
     "agreed": "Agreed",
-    "registered": "Registered"
+    "registered": "Registered",
+    "evaluating": "Evaluating",
+    "awarding": "Awarding",
+    "awarded": "Awarded"
   },
   "theme": {
     "light": "Light",

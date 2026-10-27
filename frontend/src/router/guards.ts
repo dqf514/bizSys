@@ -2,9 +2,11 @@ import type { Router } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabsStore } from '@/stores/tabs'
 import { clearTokens } from '@/api/http'
+import { getPortalToken } from '@/api/portalHttp'
 import { registerMenuRoutes, isRoutesRegistered } from './index'
 
 const PUBLIC_PATHS = ['/login']
+const PORTAL_PUBLIC = ['/portal/login', '/portal/register']
 
 /** 动态 chunk 加载失败的特征（发版/重启后浏览器仍持有旧模块图时的典型报错） */
 function isChunkLoadError(err: unknown): boolean {
@@ -33,6 +35,15 @@ export function setupGuards(router: Router) {
 
   router.beforeEach(async (to) => {
     const auth = useAuthStore()
+
+    // 合作方门户：独立认证（portal token），不进内部登录/菜单流程
+    if (to.path.startsWith('/portal')) {
+      if (PORTAL_PUBLIC.includes(to.path)) return true
+      if (!getPortalToken()) {
+        return { path: '/portal/login', query: { redirect: to.fullPath } }
+      }
+      return true
+    }
 
     if (PUBLIC_PATHS.includes(to.path)) {
       if (auth.isLoggedIn && auth.loaded) {
@@ -80,7 +91,7 @@ export function setupGuards(router: Router) {
   router.afterEach((to) => {
     // 导航成功即清除该路径的自动刷新标记，下次发版仍可自愈
     sessionStorage.removeItem(`bs.chunkReload:${to.fullPath}`)
-    if (to.path.startsWith('/login')) return
+    if (to.path.startsWith('/login') || to.path.startsWith('/portal')) return
     // redirect / NotFound / Forbidden are transient — never open tabs for them
     if (to.meta?.tabless || to.name === 'NotFound' || to.name === 'Forbidden') return
     const tabs = useTabsStore()

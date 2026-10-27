@@ -112,3 +112,87 @@ class StockOrderItem(BaseModel):
     quantity: Mapped[float] = mapped_column(Numeric(12, 2), comment="数量")
     price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, comment="单价")
     remark: Mapped[str] = mapped_column(String(500), default="")
+
+
+# ---------------- 二期：招投标 ----------------
+
+
+class TenderProject(BaseModel):
+    """招标项目。状态机：draft → published → evaluating → awarding → awarded；terminated（终止）。
+
+    发布时发放 ZB 编号并对外可见（门户公告）；evaluating 起投标关闭；awarding 为定标审批中。
+    """
+
+    __tablename__ = "pur_tender"
+
+    tender_no: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, nullable=True, comment="招标编号 ZB...（发布时发放，draft 为空）"
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True, comment="项目名称")
+    request_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="关联采购申请")
+    request_no: Mapped[str] = mapped_column(String(32), default="", comment="申请编号冗余")
+    tender_method: Mapped[str] = mapped_column(String(16), default="public", comment="字典 tender_method")
+    budget_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, comment="预算金额")
+    reg_deadline: Mapped[datetime | None] = mapped_column(nullable=True, comment="报名截止时间")
+    bid_deadline: Mapped[datetime | None] = mapped_column(nullable=True, comment="投标截止时间")
+    open_time: Mapped[datetime | None] = mapped_column(nullable=True, comment="开标时间")
+    announcement: Mapped[str | None] = mapped_column(Text, nullable=True, comment="公告内容")
+    status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
+    award_bid_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="定标审批中的投标（awarding）")
+    winner_bid_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="中标投标")
+    winner_name: Mapped[str] = mapped_column(String(255), default="", comment="中标单位冗余（公示口径）")
+    winner_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, comment="中标价（公示口径）")
+    contract_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="定标生成的采购合同（幂等）")
+    flow_instance_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+
+
+class TenderRegistration(BaseModel):
+    """合作方报名。状态：pending → approved / rejected（内部审核）。"""
+
+    __tablename__ = "pur_tender_registration"
+
+    tender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pur_tender.id"), index=True)
+    partner_user_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="门户账号 partner_user.id")
+    company_name: Mapped[str] = mapped_column(String(255), comment="公司名（报名时快照）")
+    contact_name: Mapped[str] = mapped_column(String(64), default="")
+    contact_phone: Mapped[str] = mapped_column(String(32), default="")
+    qualification_path: Mapped[str] = mapped_column(String(255), default="", comment="资质附件存储路径")
+    qualification_name: Mapped[str] = mapped_column(String(255), default="", comment="资质附件原始文件名")
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    review_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    review_name: Mapped[str] = mapped_column(String(64), default="")
+    review_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    review_comment: Mapped[str] = mapped_column(String(500), default="")
+
+
+class TenderBid(BaseModel):
+    """投标：通过报名审核的合作方在投标截止前提交；截止/评标后只读。
+
+    一合作方一项目一条有效投标（截止前可覆盖重报）；报价仅内部评标与本人可见。
+    """
+
+    __tablename__ = "pur_tender_bid"
+
+    tender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pur_tender.id"), index=True)
+    partner_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    registration_id: Mapped[int] = mapped_column(BigInteger, default=0, comment="来源报名")
+    company_name: Mapped[str] = mapped_column(String(255), default="")
+    price: Mapped[float] = mapped_column(Numeric(14, 2), comment="报价")
+    proposal_path: Mapped[str] = mapped_column(String(255), default="", comment="方案附件存储路径")
+    proposal_name: Mapped[str] = mapped_column(String(255), default="", comment="方案附件原始文件名")
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True, comment="投标说明")
+    submit_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="最近提交时间")
+
+
+class TenderEval(BaseModel):
+    """评标记录：一评标人对一投标一条（重复提交覆盖）。定标参考用。"""
+
+    __tablename__ = "pur_tender_eval"
+
+    tender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pur_tender.id"), index=True)
+    bid_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pur_tender_bid.id"), index=True)
+    evaluator_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="评标人 sys_user.id")
+    evaluator_name: Mapped[str] = mapped_column(String(64), default="")
+    score: Mapped[float] = mapped_column(Numeric(5, 1), comment="评分 0-100")
+    comment: Mapped[str] = mapped_column(String(500), default="", comment="评语")
+    recommend: Mapped[int] = mapped_column(default=0, comment="推荐中标 0/1")

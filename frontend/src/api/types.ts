@@ -1024,3 +1024,161 @@ export interface StockOrder {
   createTime: string
   updateTime: string
 }
+
+/* ---------- Tender (Phase 2) ---------- */
+
+export type TenderStatus = 'draft' | 'published' | 'evaluating' | 'awarding' | 'awarded' | 'terminated'
+
+export interface TenderProject {
+  id: number
+  tenderNo: string
+  name: string
+  requestId: number | null
+  requestNo: string
+  tenderMethod: string
+  budgetAmount: number | string | null
+  regDeadline: string
+  bidDeadline: string
+  openTime: string
+  announcement: string
+  status: TenderStatus
+  statusText?: string
+  awardBidId: number | null
+  winnerBidId: number | null
+  winnerName: string
+  winnerAmount: number | string | null
+  contractId: number | null
+  flowInstanceId: number | null
+  version?: number | null
+  createTime: string
+  updateTime: string
+}
+
+export interface TenderRegistration {
+  id: number
+  partnerUserId: number
+  companyName: string
+  contactName: string
+  contactPhone: string
+  qualificationName: string
+  hasAttachment: boolean
+  status: 'pending' | 'approved' | 'rejected'
+  statusText?: string
+  reviewName: string
+  reviewAt: string
+  reviewComment: string
+  createTime: string
+}
+
+export interface TenderEval {
+  id: number
+  bidId: number
+  evaluatorId: number
+  evaluatorName: string
+  score: number | string
+  comment: string
+  recommend: boolean
+  createTime: string
+}
+
+export interface TenderBid {
+  id: number
+  partnerUserId: number
+  registrationId: number
+  companyName: string
+  price: number | string
+  comment: string
+  proposalName: string
+  hasProposal: boolean
+  submitAt: string
+  isWinner: boolean
+  evals: TenderEval[]
+  avgScore: number | null
+}
+
+export interface TenderProjectDetail extends TenderProject {
+  registrations: TenderRegistration[]
+  bids: TenderBid[]
+  timeline?: TimelineRecord[]
+  contractNo?: string
+  contractStatus?: string
+}
+
+export interface PartnerAccount {
+  id: number
+  username: string
+  companyName: string
+  contactName: string
+  phone: string
+  email: string
+  status: 'pending' | 'enabled' | 'rejected' | 'disabled'
+  statusText?: string
+  customerId: number | null
+  reviewName: string
+  reviewAt: string
+  reviewComment: string
+  lastLoginAt: string
+  createTime: string
+}
+
+/* ---------- Portal (Phase 2) ---------- */
+
+export interface PortalPartner {
+  id: number
+  username: string
+  companyName: string
+  contactName: string
+  phone: string
+  email: string
+  status: string
+  customerId: number | null
+}
+
+export interface PortalTender {
+  id: number
+  tenderNo: string
+  name: string
+  tenderMethod: string
+  budgetAmount: number | string | null
+  regDeadline: string
+  bidDeadline: string
+  openTime: string
+  announcement: string
+  status: TenderStatus
+  winnerName: string
+  winnerAmount: number | string | null
+  myRegistrationStatus?: string
+  myBidId?: number | null
+  isWinner?: boolean
+}
+
+export interface PortalRegistration {
+  id: number
+  tenderId: number
+  tenderNo: string
+  tenderName: string
+  companyName: string
+  contactName: string
+  contactPhone: string
+  qualificationName: string
+  status: 'pending' | 'approved' | 'rejected'
+  reviewComment: string
+  createTime: string
+}
+
+export interface PortalBid {
+  id: number
+  tenderId: number
+  tenderNo: string
+  tenderName: string
+  price: number | string
+  comment: string
+  proposalName: string
+  submitAt: string
+  isWinner: boolean
+}
+
+export interface PortalTenderDetail extends PortalTender {
+  myRegistration: PortalRegistration | null
+  myBid: PortalBid | null
+}

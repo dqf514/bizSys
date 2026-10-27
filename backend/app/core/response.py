@@ -4,7 +4,7 @@ from typing import Any
 
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
-# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购
+# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购；96xxx 招投标/门户
 OK = 0
 
 GENERIC_PARAM = 10001
@@ -58,6 +58,14 @@ PROCUREMENT_INVALID_STATE = 95001
 PROCUREMENT_SUPPLIER_INVALID = 95002
 PROCUREMENT_REQUEST_NOT_APPROVED = 95003
 
+# 96xxx 招投标/合作方门户
+TENDER_INVALID_STATE = 96001
+TENDER_DEADLINE_PASSED = 96002
+TENDER_REGISTRATION_NOT_APPROVED = 96003
+PORTAL_ACCOUNT_PENDING = 96004
+PORTAL_ACCOUNT_EXISTS = 96005
+TENDER_NOT_AWARDED = 96006
+
 DEFAULT_MESSAGES: dict[int, str] = {
     OK: "ok",
     GENERIC_PARAM: "参数校验失败",
@@ -99,6 +107,12 @@ DEFAULT_MESSAGES: dict[int, str] = {
     PROCUREMENT_INVALID_STATE: "当前采购单据状态不允许该操作",
     PROCUREMENT_SUPPLIER_INVALID: "供应商不存在或非供应商往来单位",
     PROCUREMENT_REQUEST_NOT_APPROVED: "采购申请未审批通过，不能生成采购合同",
+    TENDER_INVALID_STATE: "当前招标项目状态不允许该操作",
+    TENDER_DEADLINE_PASSED: "已超过截止时间",
+    TENDER_REGISTRATION_NOT_APPROVED: "报名未通过审核，不能投标",
+    PORTAL_ACCOUNT_PENDING: "账号待审核或已停用，请联系采购方",
+    PORTAL_ACCOUNT_EXISTS: "账号已存在",
+    TENDER_NOT_AWARDED: "项目尚未定标",
 }
 
 

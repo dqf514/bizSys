@@ -36,5 +36,7 @@
   "procurement": "采购管理",
   "purchaseRequest": "采购申请",
   "purchaseContract": "采购合同",
-  "stockOrder": "出入库"
+  "stockOrder": "出入库",
+  "tender": "招标管理",
+  "partnerAccount": "合作方账号"
 }

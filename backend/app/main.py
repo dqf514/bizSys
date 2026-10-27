@@ -97,7 +97,9 @@ from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F40
 from app.modules.integration.router import router as integration_router  # noqa: E402
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
 from app.modules.oa.router import router as oa_router  # noqa: E402  导入即订阅 OA 流程事件回写
+from app.modules.portal.router import router as portal_router  # noqa: E402  合作方门户（独立认证）
 from app.modules.procurement.router import router as procurement_router  # noqa: E402  导入即订阅采购审批事件回写
+from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
 from app.modules.report.router import router as report_router  # noqa: E402
 from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
@@ -116,6 +118,8 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
+app.include_router(tender_router, prefix="/api/v1")
+app.include_router(portal_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 app.include_router(maintenance_router, prefix="/api/v1")
 

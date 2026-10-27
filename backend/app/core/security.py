@@ -62,8 +62,36 @@ def create_step_up_token(user_id: int, minutes: int = 5) -> str:
 
 
 def decode_token(token: str, expect_type: str) -> dict:
-    """解码并校验；失败抛 jwt 异常由调用方处理。"""
+    """解码并校验；失败抛 jwt 异常由调用方处理。
+
+    带 aud 的 token（如门户 portal）在本函数下必然校验失败：PyJWT 在 token 含 aud
+    而 decode 未给 audience 时抛 InvalidAudienceError —— 门户 token 无法混入内部体系。
+    """
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     if payload.get("typ") != expect_type:
+        raise jwt.InvalidTokenError("token type mismatch")
+    return payload
+
+
+def create_portal_token(partner_id: int) -> str:
+    """门户合作方 token：typ=portal_access + aud=portal，与内部 access token 双向隔离。"""
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(partner_id),
+        "typ": "portal_access",
+        "aud": "portal",
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.portal_token_expire_minutes),
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_portal_token(token: str) -> dict:
+    """门户 token 专用解码：强制 audience=portal + typ 校验；内部 token（无 aud）在此同样失败。"""
+    payload = jwt.decode(
+        token, settings.jwt_secret, algorithms=[settings.jwt_algorithm], audience="portal"
+    )
+    if payload.get("typ") != "portal_access":
         raise jwt.InvalidTokenError("token type mismatch")
     return payload

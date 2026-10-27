@@ -82,3 +82,37 @@ class StockOrderIn(CamelModel):
 
 class SubmitIn(CamelModel):
     comment: str = Field("", max_length=255)
+
+
+# ---------------- 二期：招投标 ----------------
+
+OptionalDateTime = str | None  # "YYYY-MM-DD HH:MM" / ISO，路由层解析
+
+
+class TenderProjectIn(CamelModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    request_id: int | None = None
+    tender_method: str = Field("public", pattern="^(public|invite)$")
+    budget_amount: float | None = Field(None, gt=0, le=999999999999.99)
+    reg_deadline: OptionalDateTime = None
+    bid_deadline: OptionalDateTime = None
+    open_time: OptionalDateTime = None
+    announcement: str = Field("", max_length=8000)
+    version: int | None = None
+
+
+class RegistrationReviewIn(CamelModel):
+    approve: bool
+    comment: str = Field("", max_length=500)
+
+
+class TenderEvalIn(CamelModel):
+    bid_id: int
+    score: float = Field(..., ge=0, le=100)
+    comment: str = Field("", max_length=500)
+    recommend: bool = False
+
+
+class TenderAwardIn(CamelModel):
+    bid_id: int
+    comment: str = Field("", max_length=255)

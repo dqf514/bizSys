@@ -36,5 +36,7 @@
   "procurement": "Procurement",
   "purchaseRequest": "Purchase Requests",
   "purchaseContract": "Purchase Contracts",
-  "stockOrder": "Stock In/Out"
+  "stockOrder": "Stock In/Out",
+  "tender": "Tenders",
+  "partnerAccount": "Partner Accounts"
 }

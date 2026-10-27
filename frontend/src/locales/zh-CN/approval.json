@@ -94,6 +94,7 @@
       "items": "明细",
       "status": "状态"
     },
-    "bizOa": "OA申请"
+    "bizOa": "OA申请",
+    "bizTenderAward": "定标审批"
   }
 }

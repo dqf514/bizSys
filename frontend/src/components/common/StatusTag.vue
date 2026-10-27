@@ -36,6 +36,11 @@ const typeMap: Record<string, string> = {
   withdrawn: 'info',
   uploaded: '',
   sealed: 'success',
+  published: 'primary',
+  evaluating: 'warning',
+  awarding: 'warning',
+  awarded: 'success',
+  terminated: 'danger',
 }
 
 const type = computed(() => (typeMap[props.status] ?? 'info') as '' | 'success' | 'warning' | 'info' | 'danger')

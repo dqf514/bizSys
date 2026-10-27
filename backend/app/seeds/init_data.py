@@ -213,6 +213,36 @@ MENU_TREE = [
                             (None, "so-export", "", "", "", "procurement:stock:list:export", []),
                         ],
                     ),
+                    (
+                        "menu.tender",
+                        "Tenders",
+                        "/procurement/tenders",
+                        "procurement/TenderList",
+                        "Flag",
+                        "procurement:tender:list",
+                        [
+                            (None, "td-create", "", "", "", "procurement:tender:create", []),
+                            (None, "td-edit", "", "", "", "procurement:tender:edit", []),
+                            (None, "td-delete", "", "", "", "procurement:tender:delete", []),
+                            (None, "td-publish", "", "", "", "procurement:tender:publish", []),
+                            (None, "td-terminate", "", "", "", "procurement:tender:terminate", []),
+                            (None, "td-review", "", "", "", "procurement:tender:review", []),
+                            (None, "td-evaluate", "", "", "", "procurement:tender:evaluate", []),
+                            (None, "td-award", "", "", "", "procurement:tender:award", []),
+                            (None, "td-export", "", "", "", "procurement:tender:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.partnerAccount",
+                        "PartnerAccounts",
+                        "/procurement/partners",
+                        "procurement/PartnerAccountList",
+                        "User",
+                        "procurement:partner:list",
+                        [
+                            (None, "pa-review", "", "", "", "procurement:partner:review", []),
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -512,6 +542,10 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         "仓库",
         [("一号仓库", "Warehouse 1", "wh1"), ("二号仓库", "Warehouse 2", "wh2")],
     ),
+    "tender_method": (
+        "招标方式",
+        [("公开招标", "Public Tender", "public"), ("邀请招标", "Invited Tender", "invite")],
+    ),
 }
 
 NUMBER_RULES = [
@@ -529,6 +563,7 @@ NUMBER_RULES = [
     ("purchase_contract", "", "CG", 4, 2, 2, 4, 1, "", "daily", "CG202610090001"),
     ("stock_in", "", "RK", 4, 2, 2, 4, 1, "", "daily", "RK202610090001"),
     ("stock_out", "", "CK", 4, 2, 2, 4, 1, "", "daily", "CK202610090001"),
+    ("tender", "", "ZB", 4, 2, 2, 4, 1, "", "daily", "ZB202610090001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -668,6 +703,18 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "procurement:stock:confirm",
         "procurement:stock:delete",
         "procurement:stock:list:export",
+        "procurement:tender:list",
+        "procurement:tender:create",
+        "procurement:tender:edit",
+        "procurement:tender:delete",
+        "procurement:tender:publish",
+        "procurement:tender:terminate",
+        "procurement:tender:review",
+        "procurement:tender:evaluate",
+        "procurement:tender:award",
+        "procurement:tender:list:export",
+        "procurement:partner:list",
+        "procurement:partner:review",
     ]
     for p in biz_perms:
         if p in perm_to_id:
@@ -804,6 +851,15 @@ def _seed_flows(db: Session) -> None:
             {"seq": 1, "name": "采购会签", "users": ["manager1", "leader1"], "sign_mode": "and"},
             (2, "分管领导终审", "leader1"),
         ),
+    )
+    # 招标定标：分管领导单级审批
+    _seed_flow(
+        db,
+        code="tender_award_approve",
+        name="招标定标审批",
+        biz_type="tender_award",
+        remark="定标默认单级审批（分管领导）",
+        nodes=((1, "分管领导审批", "leader1"),),
     )
     # OA 示例流程：请假=组织多级（本部门负责人 → 上级部门负责人）；报销/用章=固定人两级
     _seed_flow(

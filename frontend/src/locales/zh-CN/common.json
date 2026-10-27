@@ -154,7 +154,10 @@
     "confirmed": "已确认",
     "cancelled": "已取消",
     "agreed": "已同意",
-    "registered": "已登记"
+    "registered": "已登记",
+    "evaluating": "评标中",
+    "awarding": "定标审批中",
+    "awarded": "已定标"
   },
   "theme": {
     "light": "亮色",

@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户
 
 ## 鉴权 /auth
 - `POST /auth/login` `{username,password}` → `{access_token,refresh_token,token_type,user}`
@@ -118,6 +118,44 @@
   （CSV 会签节点同规则）
 - 菜单：业务系统 → 采购管理（Procurement）→ 采购申请/采购合同/出入库；存量库归位靠
   `backend/scripts/migrate_nav_procurement.py`（幂等，沿用批次E 模式）
+
+### 二期：招投标 + 合作方门户（/procurement/tenders、/procurement/partners、/portal）
+- 招标状态机（简化）：`draft → published → evaluating → awarding → awarded`，另 `terminated`；
+  报名/投标窗口由 `reg_deadline`/`bid_deadline` 控制（发布时仅校验 reg≤bid，门户侧强制截止 96002）；
+  `start-evaluation` 为内部动作，进入评标即关闭门户报名/投标。
+- `GET /procurement/tenders` 分页（q=名称/编号/申请号；filters[status,tender_method]；sort 白名单）
+  · counts → `{draft,published,evaluating,awarding,awarded,terminated,all}`
+  · `GET /{id}` 详情（registrations + bids(evals/avgScore/isWinner) + 定标 timeline + contractId/No/Status）
+- `POST /procurement/tenders` · `PUT /{id}`（仅 draft，乐观锁）· `DELETE`（仅 draft）
+  · `POST /{id}/publish`（发 ZB 编号）· `POST /{id}/terminate`（awarding 需先撤回审批）
+  · `POST /{id}/start-evaluation` · `POST /{id}/registrations/{rid}/review` `{approve,comment?}`
+  · `POST /{id}/evals` `{bidId,score(0-100),comment?,recommend?}`（仅 evaluating，一评标人一投标一条，重复覆盖）
+  · `POST /{id}/award` `{bidId}`（→ awarding + tender_award_approve 单级审批；通过自动 awarded 落 winner_*，驳回/撤回回 evaluating）
+  · `POST /{id}/generate-contract`（awarded → 采购合同草稿：供应商=中标账号绑定往来单位、金额=中标价；幂等一项目一合同；未绑定往来单位 95002）
+  · `POST /tenders/export` · 附件下载 `GET /tenders/registrations/{rid}/attachment`、`GET /tenders/bids/{bid}/proposal`
+- 合作方账号审核：`GET /procurement/partners`（q=账号/公司/联系人/电话）· counts
+  · `POST /partners/{pid}/review` `{approve,comment?,customerId?}`（通过可绑供应商往来单位；对 enabled 账号 approve=false 即停用）
+- 权限码：`procurement:tender:list/create/edit/delete/publish/terminate/review/evaluate/award/list:export`、
+  `procurement:partner:list/review`
+- 编号规则：tender=ZB（发布时发放）；字典：tender_method（public 公开招标 / invite 邀请招标）
+
+### 合作方门户 /portal（独立认证，与内部账号体系完全隔离）
+- 账号：partner_user 独立表（注册即 pending，内部审核 enabled 后方可登录；rejected/disabled 不可登录）。
+- 认证：`POST /portal/auth/register` · `POST /portal/auth/login`（登录锁定同内部：5 次/15 分钟）
+  · `GET /portal/auth/me` · `POST /portal/auth/logout`；
+  token 为独立 JWT（`typ=portal_access`、`aud=portal`，12h 无刷新）：内部 `decode_token` 不校验 audience，
+  带 aud 的门户 token 直接 InvalidAudience → 401；门户 `decode_portal_token` 强制 audience=portal，内部 token（无 aud）→ 401，双向隔离。
+- 白名单能力（仅公告口径 + 本人数据，任何内部单据/他人投标不暴露）：
+  `GET /portal/tenders`（仅 published/evaluating/awarding/awarded，附 myRegistrationStatus/myBidId/isWinner）
+  · `GET /portal/tenders/{id}`（含 myRegistration/myBid；awarded 时公开 winnerName/winnerAmount 中标公示）
+  · `POST /portal/tenders/{id}/register`（multipart：contact_name/contact_phone/file；行锁+报名截止+防重复）
+  · `GET /portal/registrations` · `POST /portal/tenders/{id}/bid`（multipart：price/comment/file；报名审核通过前置 96003，截止 96002，同项目重复提交即改标覆盖）
+  · `GET /portal/bids` · 本人附件下载 `GET /portal/registrations/{rid}/attachment`、`GET /portal/bids/{bid}/proposal`
+- 门户附件落 `uploads/portal/`（扩展名白名单 + 50MB 上限同内部）；purge 清单含 pur_tender* / partner_user / uploads/portal。
+- 前端入口 `/portal`（PortalLogin/PortalRegister/PortalLayout/PortalTenderList/PortalTenderDetail/PortalMy），
+  独立 axios 实例（token key `bs.portal_token`，401 回 /portal/login，无 refresh），路由守卫对 /portal 前缀走独立分支。
+- 错误码（96xxx）：96001 招标状态不允许该操作 / 96002 已超过截止时间 / 96003 报名未通过审核不能投标 /
+  96004 账号待审核或已停用 / 96005 账号已存在 / 96006 项目尚未定标
 
 ## 合同 /contract
 - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。
@@ -268,7 +306,7 @@
   前端侧栏将四个顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
 - 业务系统子级顺序：往来单位（Customers，`/crm/customers`）/ 合同管理 / 任务管理 / 报告管理 /
   样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
-  采购申请→采购合同→出入库）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
+  采购申请→采购合同→出入库→招标管理→合作方账号）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
 - 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
   去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；种子只保证新库直接产出目标结构
   （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
@@ -305,6 +343,7 @@
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
 finance/SettlementList  finance/InvoiceList  finance/PaymentList
 procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/StockOrderList
+procurement/TenderList  procurement/PartnerAccountList
 report/ReportList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
@@ -312,7 +351,7 @@ admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
 ```
 
 ## 字典（sys_dict）
-`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type / purchase_method / supply_category / warehouse`
+`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type / purchase_method / supply_category / warehouse / tender_method`
 读取：`GET /admin/dict/items?type={code}`（仅 enabled，按 sort 排序）
 
 ## 种子账号

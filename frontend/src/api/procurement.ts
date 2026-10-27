@@ -2,11 +2,16 @@ import { request, download, toQuery } from './http'
 import type {
   ListQuery,
   PageResult,
+  PartnerAccount,
   PurchaseContract,
   PurchaseContractDetail,
   PurchaseRequest,
   PurchaseRequestDetail,
   StockOrder,
+  TenderEval,
+  TenderProject,
+  TenderProjectDetail,
+  TenderRegistration,
 } from './types'
 
 // ---- 采购申请 ----
@@ -149,4 +154,111 @@ export function exportStockOrders(params: ListQuery) {
     { url: '/procurement/stock-orders/export', method: 'post', data: toQuery(params as Record<string, unknown>) },
     'stock-orders.xlsx',
   )
+}
+
+// ---- 招投标（二期） ----
+
+export interface TenderPayload {
+  name?: string
+  requestId?: number | null
+  tenderMethod?: string
+  budgetAmount?: number | null
+  regDeadline?: string | null
+  bidDeadline?: string | null
+  openTime?: string | null
+  announcement?: string
+  version?: number | null
+}
+
+export function listTenders(params: ListQuery) {
+  return request<PageResult<TenderProject>>({
+    url: '/procurement/tenders',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function tenderCounts() {
+  return request<Record<string, number>>({ url: '/procurement/tenders/counts', method: 'get' })
+}
+
+export function getTender(id: number) {
+  return request<TenderProjectDetail>({ url: `/procurement/tenders/${id}`, method: 'get' })
+}
+
+export function createTender(data: TenderPayload) {
+  return request<TenderProject>({ url: '/procurement/tenders', method: 'post', data })
+}
+
+export function updateTender(id: number, data: TenderPayload) {
+  return request<TenderProject>({ url: `/procurement/tenders/${id}`, method: 'put', data })
+}
+
+export function deleteTender(id: number) {
+  return request<void>({ url: `/procurement/tenders/${id}`, method: 'delete' })
+}
+
+export function publishTender(id: number) {
+  return request<TenderProject>({ url: `/procurement/tenders/${id}/publish`, method: 'post' })
+}
+
+export function terminateTender(id: number) {
+  return request<TenderProject>({ url: `/procurement/tenders/${id}/terminate`, method: 'post' })
+}
+
+export function startEvaluation(id: number) {
+  return request<TenderProject>({ url: `/procurement/tenders/${id}/start-evaluation`, method: 'post' })
+}
+
+export function reviewRegistration(tenderId: number, regId: number, data: { approve: boolean; comment?: string }) {
+  return request<TenderRegistration>({
+    url: `/procurement/tenders/${tenderId}/registrations/${regId}/review`,
+    method: 'post',
+    data,
+  })
+}
+
+export function upsertTenderEval(tenderId: number, data: { bidId: number; score: number; comment?: string; recommend?: boolean }) {
+  return request<TenderEval>({ url: `/procurement/tenders/${tenderId}/evals`, method: 'post', data })
+}
+
+export function awardTender(tenderId: number, bidId: number) {
+  return request<TenderProject>({ url: `/procurement/tenders/${tenderId}/award`, method: 'post', data: { bidId } })
+}
+
+export function generateTenderContract(tenderId: number) {
+  return request<PurchaseContract>({ url: `/procurement/tenders/${tenderId}/generate-contract`, method: 'post' })
+}
+
+export function exportTenders(params: ListQuery) {
+  return download(
+    { url: '/procurement/tenders/export', method: 'post', data: toQuery(params as Record<string, unknown>) },
+    'tenders.xlsx',
+  )
+}
+
+export function downloadRegistrationAttachment(regId: number) {
+  return download({ url: `/procurement/tenders/registrations/${regId}/attachment`, method: 'get' }, 'qualification')
+}
+
+export function downloadBidProposal(bidId: number) {
+  return download({ url: `/procurement/tenders/bids/${bidId}/proposal`, method: 'get' }, 'proposal')
+}
+
+// ---- 合作方账号（二期） ----
+
+export function listPartnerAccounts(params: ListQuery) {
+  return request<PageResult<PartnerAccount>>({
+    url: '/procurement/partners',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function partnerAccountCounts() {
+  return request<Record<string, number>>({ url: '/procurement/partners/counts', method: 'get' })
+}
+
+export function reviewPartnerAccount(id: number, data: { approve: boolean; comment?: string; customerId?: number | null }) {
+  return request<PartnerAccount>({ url: `/procurement/partners/${id}/review`, method: 'post', data })
 }
