@@ -14,6 +14,7 @@ import logging
 import smtplib
 import urllib.request
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
 
 from sqlalchemy.orm import Session
 
@@ -138,11 +139,21 @@ def send_email(db: Session, to: str, subject: str, body: str) -> str:
             if cfg["username"]:
                 server.login(cfg["username"], cfg["password"])
             msg = EmailMessage()
-            msg["From"] = cfg["sender"] or cfg["username"]
+            # 发件人字段兼容三种写法：纯邮箱 / 纯显示名 / RFC标准 "Name <addr>"。
+            # MAIL FROM（信封）强制使用认证账号：腾讯企业邮等要求与认证用户一致，
+            # 仅靠 From 头放显示名（头与信封可不同，属标准做法）。
+            sender = (cfg["sender"] or "").strip()
+            disp, saddr = parseaddr(sender)
+            if not saddr or "@" not in saddr:
+                disp, saddr = sender, (cfg["username"] or "")
+            if not saddr:
+                raise BizException(R.ADAPTER_NOT_CONFIGURED, "邮件发件人/用户名均未配置")
+            msg["From"] = formataddr((disp, saddr)) if disp and disp != saddr else saddr
             msg["To"] = to
             msg["Subject"] = subject
             msg.set_content(body)
-            server.send_message(msg)
+            envelope_from = cfg["username"] or saddr
+            server.send_message(msg, from_addr=envelope_from)
     except BizException:
         raise
     except Exception as exc:
