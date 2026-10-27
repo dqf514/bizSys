@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -12,17 +12,30 @@ import {
   downloadMyRegistrationAttachment,
   downloadMyBidProposal,
 } from '@/api/portal'
+import { getPortalToken } from '@/api/portalHttp'
+import { useDeadline } from '../useDeadline'
 import type { PortalTenderDetail } from '@/api/types'
 
 defineOptions({ name: 'PortalTenderDetail' })
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
+const { deadlineText, isUrgent } = useDeadline()
 
 const loading = ref(false)
 const detail = ref<PortalTenderDetail | null>(null)
+const loggedIn = ref(Boolean(getPortalToken()))
 
 const tenderId = computed(() => Number(route.params.id))
+
+function goLogin() {
+  router.push({ path: '/portal/login', query: { redirect: route.fullPath } })
+}
+
+function goRegister() {
+  router.push('/portal/register')
+}
 
 async function load() {
   loading.value = true
@@ -120,8 +133,26 @@ function fmtAmount(v: unknown) {
           {{ detail.tenderMethod === 'invite' ? t('portal.portal.methodInvite') : t('portal.portal.methodPublic') }}
         </el-descriptions-item>
         <el-descriptions-item :label="t('portal.portal.budgetAmount')">{{ fmtAmount(detail.budgetAmount) }}</el-descriptions-item>
-        <el-descriptions-item :label="t('portal.portal.regDeadline')">{{ detail.regDeadline || '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="t('portal.portal.bidDeadline')">{{ detail.bidDeadline || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="t('portal.portal.regDeadline')">
+          <span>{{ detail.regDeadline || '-' }}</span>
+          <span
+            v-if="detail.status === 'published' && deadlineText(detail.regDeadline)"
+            class="deadline"
+            :class="{ urgent: isUrgent(detail.regDeadline) }"
+          >
+            （{{ deadlineText(detail.regDeadline) }}）
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('portal.portal.bidDeadline')">
+          <span>{{ detail.bidDeadline || '-' }}</span>
+          <span
+            v-if="detail.status === 'published' && deadlineText(detail.bidDeadline)"
+            class="deadline"
+            :class="{ urgent: isUrgent(detail.bidDeadline) }"
+          >
+            （{{ deadlineText(detail.bidDeadline) }}）
+          </span>
+        </el-descriptions-item>
         <el-descriptions-item :label="t('portal.portal.announcement')" :span="2">
           <span class="pre-wrap">{{ detail.announcement || '-' }}</span>
         </el-descriptions-item>
@@ -135,6 +166,17 @@ function fmtAmount(v: unknown) {
         :title="`${t('portal.portal.winner')}: ${detail.winnerName} · ${t('portal.portal.winnerAmount')}: ${fmtAmount(detail.winnerAmount)}`"
       />
 
+      <!-- 未登录：引导登录/注册（公告本身公开可见） -->
+      <div v-if="!loggedIn" class="guide-card">
+        <p class="guide-title">{{ t('portal.portal.loginGuideTitle') }}</p>
+        <p class="muted">{{ t('portal.portal.loginGuideTip') }}</p>
+        <div class="guide-actions">
+          <el-button type="primary" @click="goLogin">{{ t('portal.portal.goLogin') }}</el-button>
+          <el-button @click="goRegister">{{ t('portal.portal.goRegister') }}</el-button>
+        </div>
+      </div>
+
+      <template v-else>
       <!-- 我的报名 -->
       <div class="section-title">{{ t('portal.portal.myRegistrations') }}</div>
       <template v-if="detail.myRegistration">
@@ -211,6 +253,7 @@ function fmtAmount(v: unknown) {
           </el-button>
         </el-form-item>
       </el-form>
+      </template>
     </template>
   </div>
 </template>
@@ -263,5 +306,36 @@ function fmtAmount(v: unknown) {
 
 .pre-wrap {
   white-space: pre-wrap;
+}
+
+.deadline {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+}
+
+.deadline.urgent {
+  color: var(--bs-color-semantic-danger);
+  font-weight: 600;
+}
+
+.guide-card {
+  padding: var(--bs-space-5);
+  border: 1px dashed var(--bs-color-border-default);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-bg-inset);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+}
+
+.guide-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+}
+
+.guide-actions {
+  display: flex;
+  gap: var(--bs-space-2);
 }
 </style>

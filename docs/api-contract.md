@@ -150,13 +150,17 @@
   · `POST /{id}/award` `{bidId}`（→ awarding + tender_award_approve 单级审批；通过自动 awarded 落 winner_*，驳回/撤回回 evaluating）
   · `POST /{id}/generate-contract`（awarded → 采购合同草稿：供应商=中标账号绑定往来单位、金额=中标价；幂等一项目一合同；未绑定往来单位 95002）
   · `POST /tenders/export` · 附件下载 `GET /tenders/registrations/{rid}/attachment`、`GET /tenders/bids/{bid}/proposal`
-- 合作方账号审核：`GET /procurement/partners`（q=账号/公司/联系人/电话；filters[status,customer_id]——customer_id
-  供往来单位详情"门户账号"tab 查绑定账号）· counts
+- 合作方账号审核与 CRUD：`GET /procurement/partners`（q=账号/公司/联系人/电话；filters[status,customer_id]——customer_id
+  供往来单位详情"门户账号"tab 查绑定账号；返回含 customerName）· counts
   · `POST /partners/{pid}/review` `{approve,comment?,customerId?}`（通过可绑供应商往来单位；对 enabled 账号 approve=false 即停用）
+  · `POST /partners`（201，管理侧新建：username/password(≥8)/companyName/contactName/phone/email/customerId?，直接 enabled，无需审核；重名 96005，绑非供应商 95002）
+  · `PUT /partners/{pid}`（编辑资料；payload 显式带 customerId 时改绑(int)/解绑(null)，缺省不动；解绑后不能投标/生成合同）
+  · `POST /partners/{pid}/password`（重置密码：缺省服务端生成 12 位随机密码，仅本次响应返回一次；也可指定 8-64 位）
+  · `DELETE /partners/{pid}`（软删；已有报名/投标记录 → 96007 只能停用；删除后用户名加 `#del{id}` 后缀释放唯一索引）
   · 前端入口已并入往来单位（/crm/customers 的"合作方账号"视图 + 详情抽屉"门户账号"tab），
     采购管理菜单 PartnerAccounts 隐藏保留（visible=0，权限载体），旧深链 /procurement/partners → /crm/customers?tab=accounts
 - 权限码：`procurement:tender:list/create/edit/delete/publish/terminate/review/evaluate/award/list:export`、
-  `procurement:partner:list/review`
+  `procurement:partner:list/create/edit/review/delete`
 - 编号规则：tender=ZB（发布时发放）；字典：tender_method（public 公开招标 / invite 邀请招标）
 
 ### 合作方门户 /portal（独立认证，与内部账号体系完全隔离）
@@ -168,14 +172,17 @@
 - 白名单能力（仅公告口径 + 本人数据，任何内部单据/他人投标不暴露）：
   `GET /portal/tenders`（仅 published/evaluating/awarding/awarded，附 myRegistrationStatus/myBidId/isWinner）
   · `GET /portal/tenders/{id}`（含 myRegistration/myBid；awarded 时公开 winnerName/winnerAmount 中标公示）
+  —— 以上两个公告端点**免登录公开**（可选 token：匿名时 my* 字段为空），路由守卫仅 /portal/my 强制登录；
   · `POST /portal/tenders/{id}/register`（multipart：contact_name/contact_phone/file；行锁+报名截止+防重复）
   · `GET /portal/registrations` · `POST /portal/tenders/{id}/bid`（multipart：price/comment/file；报名审核通过前置 96003，截止 96002，同项目重复提交即改标覆盖）
-  · `GET /portal/bids` · 本人附件下载 `GET /portal/registrations/{rid}/attachment`、`GET /portal/bids/{bid}/proposal`
+  · `GET /portal/bids`（列表含 tenderStatus/regDeadline/bidDeadline 供工作台倒计时）· 本人附件下载 `GET /portal/registrations/{rid}/attachment`、`GET /portal/bids/{bid}/proposal`
 - 门户附件落 `uploads/portal/`（扩展名白名单 + 50MB 上限同内部）；purge 清单含 pur_tender* / partner_user / uploads/portal。
 - 前端入口 `/portal`（PortalLogin/PortalRegister/PortalLayout/PortalTenderList/PortalTenderDetail/PortalMy），
   独立 axios 实例（token key `bs.portal_token`，401 回 /portal/login，无 refresh），路由守卫对 /portal 前缀走独立分支。
+  PortalLayout 接品牌设置（站点名/Logo）+ 语言切换；公告列表/详情匿名可看，报名/投标区匿名时显示登录/注册引导卡；
+  内部招标详情抽屉提供"对外公告链接"复制，内部登录页 ↔ 门户登录页互跳。
 - 错误码（96xxx）：96001 招标状态不允许该操作 / 96002 已超过截止时间 / 96003 报名未通过审核不能投标 /
-  96004 账号待审核或已停用 / 96005 账号已存在 / 96006 项目尚未定标
+  96004 账号待审核或已停用 / 96005 账号已存在 / 96006 项目尚未定标 / 96007 账号已有报名/投标记录不能删除
 
 ## 合同 /contract
 - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。

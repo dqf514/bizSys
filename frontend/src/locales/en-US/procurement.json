@@ -116,6 +116,8 @@
     "bidDeadline": "Bid Deadline",
     "openTime": "Opening Time",
     "announcement": "Announcement",
+    "portalUrl": "Public Notice URL",
+    "portalUrlTip": "A public notice URL is generated after publishing and is accessible on the partner portal",
     "status": "Status",
     "createTime": "Created At",
     "publish": "Publish",

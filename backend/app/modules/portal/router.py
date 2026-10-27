@@ -11,7 +11,7 @@ from app.core.db import get_db
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.portal import service as svc
-from app.modules.portal.deps import get_current_partner
+from app.modules.portal.deps import get_current_partner, get_optional_partner
 from app.modules.portal.models import PartnerUser
 from app.modules.portal.schemas import PortalLoginIn, PortalRegisterIn
 
@@ -49,12 +49,16 @@ def logout(partner: PartnerUser = Depends(get_current_partner), db: Session = De
 
 
 @router.get("/tenders")
-def list_tenders(partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
+def list_tenders(partner: PartnerUser | None = Depends(get_optional_partner), db: Session = Depends(get_db)):
+    """公告列表：免登录公开；登录后追加我的报名/投标/中标标记。"""
     return {"items": svc.list_tenders(db, partner)}
 
 
 @router.get("/tenders/{tender_id}")
-def tender_detail(tender_id: int, partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
+def tender_detail(
+    tender_id: int, partner: PartnerUser | None = Depends(get_optional_partner), db: Session = Depends(get_db)
+):
+    """公告详情：免登录公开；登录后追加我的报名/投标。"""
     return svc.tender_detail(db, tender_id, partner)
 
 

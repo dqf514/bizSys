@@ -63,6 +63,16 @@
     "notWinner": "Not awarded",
     "needRegister": "Register and get approved before bidding",
     "download": "Download",
-    "accountTip": "Accounts are reviewed by the purchaser; sign-in is unavailable before approval"
+    "accountTip": "Accounts are reviewed by the purchaser; sign-in is unavailable before approval",
+    "browseTenders": "Browse tenders",
+    "internalEntry": "Staff sign-in",
+    "registerFlowTip": "How it works: submit your company profile → purchaser review → once approved, sign in to register and bid",
+    "loginGuideTitle": "Sign in to register and bid",
+    "loginGuideTip": "Tender notices are public. Registering and bidding require a partner account (subject to purchaser approval)",
+    "goLogin": "Sign in",
+    "goRegister": "Register",
+    "daysLeft": "{n} days left",
+    "deadlinePassed": "Closed",
+    "myResults": "Award Results"
   }
 }

@@ -63,6 +63,16 @@
     "notWinner": "未中标",
     "needRegister": "请先报名并通过审核后再投标",
     "download": "下载",
-    "accountTip": "账号由采购方审核，审核通过前无法登录"
+    "accountTip": "账号由采购方审核，审核通过前无法登录",
+    "browseTenders": "浏览招标公告",
+    "internalEntry": "内部员工入口",
+    "registerFlowTip": "注册流程：提交公司资料 → 采购方审核 → 审核通过后即可登录、报名与投标",
+    "loginGuideTitle": "登录后参与报名与投标",
+    "loginGuideTip": "招标公告公开浏览；报名与投标需要合作方账号（注册后需采购方审核通过）",
+    "goLogin": "去登录",
+    "goRegister": "去注册",
+    "daysLeft": "距截止 {n} 天",
+    "deadlinePassed": "已截止",
+    "myResults": "中标结果"
   }
 }

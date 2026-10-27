@@ -145,3 +145,34 @@ export function reviewPartnerAccount(
 ) {
   return request<PartnerAccount>({ url: `/procurement/partners/${id}/review`, method: 'post', data })
 }
+
+export interface PartnerAccountPayload {
+  username?: string
+  password?: string
+  companyName: string
+  contactName?: string
+  phone?: string
+  email?: string
+  /** 编辑时始终显式发送：number=改绑，null=解绑；新建时可省略 */
+  customerId?: number | null
+}
+
+export function createPartnerAccount(data: PartnerAccountPayload & { username: string; password: string }) {
+  return request<PartnerAccount>({ url: '/procurement/partners', method: 'post', data })
+}
+
+export function updatePartnerAccount(id: number, data: PartnerAccountPayload) {
+  return request<PartnerAccount>({ url: `/procurement/partners/${id}`, method: 'put', data })
+}
+
+export function resetPartnerAccountPassword(id: number, password?: string) {
+  return request<{ id: number; username: string; password: string }>({
+    url: `/procurement/partners/${id}/password`,
+    method: 'post',
+    data: { password: password || undefined },
+  })
+}
+
+export function deletePartnerAccount(id: number) {
+  return request<null>({ url: `/procurement/partners/${id}`, method: 'delete' })
+}

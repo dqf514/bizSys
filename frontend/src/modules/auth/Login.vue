@@ -148,6 +148,9 @@ function switchLang() {
       <button class="lang-switch" type="button" @click="switchLang">
         {{ theme.locale === 'zh-CN' ? t('common.lang.enUS') : t('common.lang.zhCN') }}
       </button>
+      <el-button link class="portal-entry" @click="router.push('/portal')">
+        {{ t('auth.login.portalEntry') }}
+      </el-button>
     </div>
   </div>
 </template>
@@ -248,5 +251,10 @@ function switchLang() {
   color: var(--bs-color-fg-link);
   cursor: pointer;
   font-size: var(--bs-typography-font-size-sm);
+}
+
+.portal-entry {
+  align-self: center;
+  color: var(--bs-color-fg-muted);
 }
 </style>

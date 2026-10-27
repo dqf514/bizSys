@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { updatePrefs } from '@/api/auth'
+import { getAccessToken } from '@/api/http'
 import { setLocale, type Locale } from '@/i18n'
 import elZhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import elEn from 'element-plus/dist/locale/en.mjs'
@@ -45,6 +46,8 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function persistServer() {
+    // 未登录（门户/登录页等公开页）不同步服务端偏好，避免 401 被拦截器重定向
+    if (!getAccessToken()) return
     void updatePrefs({
       theme: theme.value,
       density: density.value,

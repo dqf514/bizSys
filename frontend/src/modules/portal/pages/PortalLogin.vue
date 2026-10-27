@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { portalLogin, portalMe } from '@/api/portal'
+import { useBrandingStore } from '@/stores/branding'
 
 defineOptions({ name: 'PortalLogin' })
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const branding = useBrandingStore()
+
+const siteName = computed(() => branding.siteName || t('portal.portal.title'))
+const logoSrc = computed(() => branding.logoUrl || '')
 
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
+
+onMounted(() => void branding.load())
 
 async function doLogin() {
   if (!form.username.trim() || !form.password) {
@@ -36,7 +43,10 @@ async function doLogin() {
 <template>
   <div class="portal-auth-page">
     <div class="portal-auth-card">
-      <h1 class="portal-auth-title">{{ t('portal.portal.title') }}</h1>
+      <div class="portal-auth-brand">
+        <img v-if="logoSrc" :src="logoSrc" :alt="siteName" class="portal-auth-logo" />
+        <h1 class="portal-auth-title">{{ siteName }}</h1>
+      </div>
       <p class="portal-auth-sub">{{ t('portal.portal.accountTip') }}</p>
       <el-form class="portal-auth-form" @submit.prevent="doLogin">
         <el-form-item>
@@ -56,9 +66,15 @@ async function doLogin() {
           {{ t('portal.portal.loginBtn') }}
         </el-button>
       </el-form>
-      <el-button link type="primary" @click="router.push('/portal/register')">
-        {{ t('portal.portal.noAccount') }}
-      </el-button>
+      <div class="portal-auth-links">
+        <el-button link type="primary" @click="router.push('/portal/register')">
+          {{ t('portal.portal.noAccount') }}
+        </el-button>
+        <el-button link @click="router.push('/portal/tenders')">{{ t('portal.portal.browseTenders') }}</el-button>
+        <el-button link class="muted-link" @click="router.push('/login')">
+          {{ t('portal.portal.internalEntry') }}
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -84,6 +100,35 @@ async function doLogin() {
   display: flex;
   flex-direction: column;
   gap: var(--bs-space-3);
+}
+
+.portal-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.portal-auth-logo {
+  max-width: 36px;
+  max-height: 36px;
+  object-fit: contain;
+}
+
+.portal-auth-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.muted-link {
+  color: var(--bs-color-fg-muted);
+}
+
+@media (max-width: 768px) {
+  .portal-auth-card {
+    width: calc(100vw - 2 * var(--bs-space-6));
+    padding: var(--bs-space-5);
+  }
 }
 
 .portal-auth-title {

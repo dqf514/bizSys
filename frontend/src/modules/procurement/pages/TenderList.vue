@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -288,6 +288,23 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref<TenderProjectDetail | null>(null)
 
+/* 对外公告链接：发布后对门户公开（draft/terminated 不可见） */
+const PORTAL_VISIBLE_STATUSES = ['published', 'evaluating', 'awarding', 'awarded']
+const portalPublicUrl = computed(() => {
+  const d = detail.value
+  if (!d || !PORTAL_VISIBLE_STATUSES.includes(d.status)) return ''
+  return `${window.location.origin}/portal/tenders/${d.id}`
+})
+
+async function copyPortalUrl() {
+  try {
+    await navigator.clipboard.writeText(portalPublicUrl.value)
+    ElMessage.success(t('common.message.copySuccess'))
+  } catch {
+    ElMessage.warning(t('common.message.copyFail'))
+  }
+}
+
 async function openDetail(id: number) {
   detailVisible.value = true
   detailLoading.value = true
@@ -560,6 +577,13 @@ function fmtAmount(v: unknown) {
           <el-descriptions-item :label="t('procurement.tender.announcement')" :span="2">
             <span class="pre-wrap">{{ detail.announcement || '-' }}</span>
           </el-descriptions-item>
+          <el-descriptions-item :label="t('procurement.tender.portalUrl')" :span="2">
+            <div v-if="portalPublicUrl" class="portal-url-row">
+              <span class="portal-url-text">{{ portalPublicUrl }}</span>
+              <el-button size="small" @click="copyPortalUrl">{{ t('common.action.copy') }}</el-button>
+            </div>
+            <span v-else class="muted">{{ t('procurement.tender.portalUrlTip') }}</span>
+          </el-descriptions-item>
         </el-descriptions>
 
         <div class="section-title">{{ t('procurement.tender.registrations') }}</div>
@@ -721,6 +745,17 @@ function fmtAmount(v: unknown) {
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);
+}
+
+.portal-url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.portal-url-text {
+  word-break: break-all;
+  color: var(--bs-color-fg-link);
 }
 
 .bid-list {

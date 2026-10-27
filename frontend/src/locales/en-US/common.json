@@ -101,6 +101,7 @@
     "exportSuccess": "Exported",
     "importSuccess": "Imported",
     "copySuccess": "Copied to clipboard",
+    "copyFail": "Copy failed, please copy manually",
     "deleteConfirm": "Delete this record?",
     "operationFailed": "Operation failed",
     "networkError": "Network error, please retry",

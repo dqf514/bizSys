@@ -101,6 +101,7 @@
     "exportSuccess": "导出成功",
     "importSuccess": "导入成功",
     "copySuccess": "已复制到剪贴板",
+    "copyFail": "复制失败，请手动复制",
     "deleteConfirm": "确认删除该记录？",
     "operationFailed": "操作失败",
     "networkError": "网络异常，请稍后重试",

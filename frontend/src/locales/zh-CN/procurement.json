@@ -116,6 +116,8 @@
     "bidDeadline": "投标截止",
     "openTime": "开标时间",
     "announcement": "招标公告",
+    "portalUrl": "对外公告链接",
+    "portalUrlTip": "发布后生成对外公告链接，可在合作方门户公开访问",
     "status": "状态",
     "createTime": "创建时间",
     "publish": "发布",

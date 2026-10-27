@@ -16,11 +16,17 @@ from app.core.db import get_db
 from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.core.security import hash_password
 from app.modules.approval import service as approval_svc
 from app.modules.auth.models import User
 from app.modules.portal import service as portal_svc
 from app.modules.portal.models import PartnerUser
-from app.modules.portal.schemas import PartnerReviewIn
+from app.modules.portal.schemas import (
+    PartnerCreateIn,
+    PartnerPasswordResetIn,
+    PartnerReviewIn,
+    PartnerUpdateIn,
+)
 from app.modules.procurement import schemas as S
 from app.modules.procurement import service as svc
 from app.modules.procurement.models import (
@@ -564,7 +570,13 @@ def bid_proposal(
 # ---------------- 合作方账号审核 ----------------
 
 
-def _partner_out(p: PartnerUser) -> dict:
+def _partner_out(p: PartnerUser, db: Session | None = None) -> dict:
+    customer_name = ""
+    if db is not None and p.customer_id:
+        from app.modules.crm.models import Customer
+
+        c = db.get(Customer, p.customer_id)
+        customer_name = c.name if c else ""
     return {
         "id": p.id,
         "username": p.username,
@@ -575,6 +587,7 @@ def _partner_out(p: PartnerUser) -> dict:
         "status": p.status,
         "statusText": PARTNER_STATUS_CN.get(p.status, p.status),
         "customerId": p.customer_id,
+        "customerName": customer_name,
         "reviewName": p.review_name,
         "reviewAt": _t(p.review_at),
         "reviewComment": p.review_comment,
@@ -603,7 +616,7 @@ def list_partners(
         sort_cols={"create_time", "id", "username", "company_name", "status"},
     )
     rows = db.scalars(stmt).all()
-    return {"items": [_partner_out(p) for p in rows], "total": total, "page": page, "size": size}
+    return {"items": [_partner_out(p, db) for p in rows], "total": total, "page": page, "size": size}
 
 
 @router.get("/partners/counts")
@@ -647,4 +660,134 @@ def review_partner(
           biz_type="partner_user", biz_id=pid,
           detail={"username": p.username, "customerId": p.customer_id, "comment": body.comment})
     db.commit()
-    return _partner_out(p)
+    return _partner_out(p, db)
+
+
+# ---------------- 合作方账号 CRUD（管理侧） ----------------
+
+
+def _gen_password() -> str:
+    """生成一次性初始密码：12 位，含大小写字母+数字（与注册/重置同策略 ≥8 位）。"""
+    import secrets
+    import string
+
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        pwd = "".join(secrets.choice(alphabet) for _ in range(12))
+        if any(c.islower() for c in pwd) and any(c.isupper() for c in pwd) and any(c.isdigit() for c in pwd):
+            return pwd
+
+
+@router.post("/partners", status_code=201)
+def create_partner(
+    body: PartnerCreateIn,
+    current: User = Depends(require_perm("procurement:partner:create")),
+    db: Session = Depends(get_db),
+):
+    """新建门户账号：管理侧直接启用（无需审核），可指定绑定往来单位。"""
+    exists = db.scalar(select(PartnerUser).where(PartnerUser.username == body.username, PartnerUser.deleted == 0))
+    if exists:
+        raise BizException(R.PORTAL_ACCOUNT_EXISTS)
+    if body.customer_id:
+        svc.load_supplier_name(db, body.customer_id)
+    p = PartnerUser(
+        username=body.username,
+        password_hash=hash_password(body.password),
+        company_name=body.company_name,
+        contact_name=body.contact_name,
+        phone=body.phone,
+        email=body.email,
+        status="enabled",
+        customer_id=body.customer_id,
+        review_by=current.id,
+        review_name=current.name or current.username,
+        review_at=datetime.now(),
+        review_comment="管理侧新建",
+    )
+    db.add(p)
+    db.flush()
+    audit(db, user_id=current.id, module="procurement", action="partner_create",
+          biz_type="partner_user", biz_id=p.id,
+          detail={"username": p.username, "companyName": p.company_name, "customerId": p.customer_id})
+    db.commit()
+    return _partner_out(p, db)
+
+
+@router.put("/partners/{pid}")
+def update_partner(
+    pid: int,
+    body: PartnerUpdateIn,
+    current: User = Depends(require_perm("procurement:partner:edit")),
+    db: Session = Depends(get_db),
+):
+    """编辑资料；payload 含 customer_id 时改绑（int）/解绑（null，解绑后不能参与投标/生成合同）。"""
+    p = db.get(PartnerUser, pid)
+    if not p or p.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    p.company_name = body.company_name
+    p.contact_name = body.contact_name
+    p.phone = body.phone
+    p.email = body.email
+    bind_change: int | None | str = "keep"
+    if "customer_id" in body.model_fields_set:
+        if body.customer_id:
+            svc.load_supplier_name(db, body.customer_id)
+            p.customer_id = body.customer_id
+            bind_change = body.customer_id
+        else:
+            p.customer_id = None
+            bind_change = None
+    audit(db, user_id=current.id, module="procurement", action="partner_update",
+          biz_type="partner_user", biz_id=pid,
+          detail={"username": p.username, "bindChange": bind_change})
+    db.commit()
+    return _partner_out(p, db)
+
+
+@router.post("/partners/{pid}/password")
+def reset_partner_password(
+    pid: int,
+    body: PartnerPasswordResetIn,
+    current: User = Depends(require_perm("procurement:partner:edit")),
+    db: Session = Depends(get_db),
+):
+    """重置密码：缺省生成随机密码并仅返回一次（告知合作方后不再可见）。"""
+    p = db.get(PartnerUser, pid)
+    if not p or p.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    new_pwd = body.password or _gen_password()
+    p.password_hash = hash_password(new_pwd)
+    audit(db, user_id=current.id, module="procurement", action="partner_reset_pwd",
+          biz_type="partner_user", biz_id=pid, detail={"username": p.username})
+    db.commit()
+    return {"id": p.id, "username": p.username, "password": new_pwd}
+
+
+@router.delete("/partners/{pid}")
+def delete_partner(
+    pid: int,
+    current: User = Depends(require_perm("procurement:partner:delete")),
+    db: Session = Depends(get_db),
+):
+    """软删账号；已有报名/投标记录的账号禁止删除（只能停用）。登录名加后缀释放唯一索引。"""
+    p = db.get(PartnerUser, pid)
+    if not p or p.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    has_reg = db.scalar(
+        select(func.count()).select_from(TenderRegistration).where(
+            TenderRegistration.partner_user_id == pid, TenderRegistration.deleted == 0
+        )
+    )
+    has_bid = db.scalar(
+        select(func.count()).select_from(TenderBid).where(
+            TenderBid.partner_user_id == pid, TenderBid.deleted == 0
+        )
+    )
+    if has_reg or has_bid:
+        raise BizException(R.PORTAL_ACCOUNT_HAS_RECORDS)
+    p.deleted = 1
+    p.username = f"{p.username[:50]}#del{p.id}"
+    audit(db, user_id=current.id, module="procurement", action="partner_delete",
+          biz_type="partner_user", biz_id=pid, detail={"username": p.username})
+    db.commit()
+    return None

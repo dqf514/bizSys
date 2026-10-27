@@ -217,6 +217,7 @@ function openDetail(row: Customer) {
 }
 
 // 从任务/合同等详情的"关联客户"链接跳入：/crm/customers?detail=<id> 直接打开详情抽屉
+// （immediate 会在子组件挂载前打开抽屉导致子 watch 不触发，故首跳在 onMounted 里处理）
 watch(
   () => route.query.detail,
   (v) => {
@@ -226,8 +227,15 @@ watch(
     detailVisible.value = true
     router.replace({ query: { ...route.query, detail: undefined } })
   },
-  { immediate: true },
 )
+
+onMounted(() => {
+  const id = Number(route.query.detail)
+  if (!id) return
+  detailId.value = id
+  detailVisible.value = true
+  router.replace({ query: { ...route.query, detail: undefined } })
+})
 
 const importVisible = ref(false)
 const importFile = ref<File | null>(null)

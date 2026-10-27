@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { portalRegister } from '@/api/portal'
+import { useBrandingStore } from '@/stores/branding'
 
 defineOptions({ name: 'PortalRegister' })
 
 const { t } = useI18n()
 const router = useRouter()
+const branding = useBrandingStore()
+
+const siteName = computed(() => branding.siteName || t('portal.portal.title'))
+
+onMounted(() => void branding.load())
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -62,7 +68,8 @@ async function doRegister() {
 <template>
   <div class="portal-auth-page">
     <div class="portal-auth-card wide">
-      <h1 class="portal-auth-title">{{ t('portal.portal.register') }}</h1>
+      <h1 class="portal-auth-title">{{ siteName }} · {{ t('portal.portal.register') }}</h1>
+      <el-alert type="info" :closable="false" show-icon :title="t('portal.portal.registerFlowTip')" />
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="portal-auth-form">
         <el-form-item :label="t('portal.portal.username')" prop="username">
           <el-input v-model="form.username" :maxlength="64" />
@@ -89,9 +96,12 @@ async function doRegister() {
           {{ t('portal.portal.registerBtn') }}
         </el-button>
       </el-form>
-      <el-button link type="primary" @click="router.push('/portal/login')">
-        {{ t('portal.portal.hasAccount') }}
-      </el-button>
+      <div class="portal-auth-links">
+        <el-button link type="primary" @click="router.push('/portal/login')">
+          {{ t('portal.portal.hasAccount') }}
+        </el-button>
+        <el-button link @click="router.push('/portal/tenders')">{{ t('portal.portal.browseTenders') }}</el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -122,6 +132,20 @@ async function doRegister() {
 
 .portal-auth-card.wide {
   width: 480px;
+}
+
+.portal-auth-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .portal-auth-card,
+  .portal-auth-card.wide {
+    width: calc(100vw - 2 * var(--bs-space-6));
+    padding: var(--bs-space-5);
+  }
 }
 
 .portal-auth-title {

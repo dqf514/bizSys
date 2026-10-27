@@ -32,3 +32,23 @@ def get_current_partner(
     if not partner or partner.deleted or partner.status != "enabled":
         raise BizException(R.AUTH_UNAUTHORIZED, http_status=401) from None
     return partner
+
+
+def get_optional_partner(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> PartnerUser | None:
+    """公开页面（公告列表/详情）可选登录：无/无效 token 一律按匿名处理，不抛 401。"""
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    try:
+        payload = decode_portal_token(token)
+    except (pyjwt.ExpiredSignatureError, pyjwt.InvalidTokenError):
+        return None
+    partner = db.get(PartnerUser, int(payload["sub"]))
+    if not partner or partner.deleted or partner.status != "enabled":
+        return None
+    return partner

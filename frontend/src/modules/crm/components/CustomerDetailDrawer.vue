@@ -7,6 +7,8 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import CountUp from '@/components/common/CountUp.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import SettlementDetailDrawer from '@/modules/finance/components/SettlementDetailDrawer.vue'
+import PartnerAccountFormDialog from './PartnerAccountFormDialog.vue'
+import PartnerAccountResetDialog from './PartnerAccountResetDialog.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -22,6 +24,7 @@ import {
   customerProcurement,
   listPartnerAccounts,
   reviewPartnerAccount,
+  deletePartnerAccount,
 } from '@/api/crm'
 import { listContracts } from '@/api/contract'
 import { listTasks } from '@/api/task'
@@ -411,6 +414,9 @@ function accountRowActions(row: PartnerAccount): ActionItem[] {
   if (row.status === 'enabled') {
     acts.push({ key: 'disable', tip: 'crm.account.disable', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
   }
+  acts.push({ key: 'edit', tip: 'crm.account.edit', icon: 'EditPen', perm: 'procurement:partner:edit' })
+  acts.push({ key: 'resetPwd', tip: 'crm.account.resetPwd', icon: 'Key', perm: 'procurement:partner:edit' })
+  acts.push({ key: 'delete', tip: 'crm.account.delete', icon: 'Delete', danger: true, perm: 'procurement:partner:delete' })
   return acts
 }
 
@@ -418,6 +424,56 @@ function onAccountAction(key: string, row: PartnerAccount) {
   if (key === 'approve') void approveAccount(row)
   else if (key === 'reject') void rejectAccount(row)
   else if (key === 'disable') void disableAccount(row)
+  else if (key === 'edit') openAccountForm(row)
+  else if (key === 'resetPwd') openAccountReset(row)
+  else if (key === 'delete') void deleteAccount(row)
+}
+
+/* ---------- 门户账号：编辑/重置密码/删除 ---------- */
+const accountFormVisible = ref(false)
+const accountFormTarget = ref<PartnerAccount | null>(null)
+const accountResetVisible = ref(false)
+const accountResetTarget = ref<PartnerAccount | null>(null)
+
+function openAccountForm(row: PartnerAccount) {
+  accountFormTarget.value = row
+  accountFormVisible.value = true
+}
+
+function openAccountReset(row: PartnerAccount) {
+  accountResetTarget.value = row
+  accountResetVisible.value = true
+}
+
+async function deleteAccount(row: PartnerAccount) {
+  try {
+    await ElMessageBox.confirm(
+      t('crm.account.deleteConfirm', { name: row.companyName || row.username }),
+      t('common.action.confirm'),
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await deletePartnerAccount(row.id)
+    ElMessage.success(t('common.message.deleteSuccess'))
+    void loadAccounts()
+  } catch {
+    /* http notifies */
+  }
+}
+
+/* ---------- 门户注册地址（空态引导） ---------- */
+const portalRegisterUrl = `${window.location.origin}/portal/register`
+
+async function copyPortalUrl() {
+  try {
+    await navigator.clipboard.writeText(portalRegisterUrl)
+    ElMessage.success(t('common.message.copySuccess'))
+  } catch {
+    ElMessage.warning(t('common.message.copyFail'))
+  }
 }
 
 async function approveAccount(row: PartnerAccount) {
@@ -776,13 +832,32 @@ async function disableAccount(row: PartnerAccount) {
                 </template>
               </el-table-column>
               <template #empty>
-                <div class="account-empty">{{ t('crm.account.emptyTip') }}</div>
+                <div class="account-empty">
+                  <p>{{ t('crm.account.emptyTip') }}</p>
+                  <p class="portal-url-row">
+                    <span>{{ t('crm.account.portalRegisterTip') }}：{{ portalRegisterUrl }}</span>
+                    <el-button size="small" text type="primary" @click="copyPortalUrl">
+                      {{ t('common.action.copy') }}
+                    </el-button>
+                  </p>
+                </div>
               </template>
             </el-table>
           </el-tab-pane>
         </el-tabs>
       </template>
     </div>
+
+    <PartnerAccountFormDialog
+      v-model="accountFormVisible"
+      :account="accountFormTarget"
+      @saved="loadAccounts"
+    />
+    <PartnerAccountResetDialog
+      v-model="accountResetVisible"
+      :account="accountResetTarget"
+      @saved="loadAccounts"
+    />
 
     <el-dialog
       v-model="contactDialogVisible"
@@ -932,5 +1007,16 @@ async function disableAccount(row: PartnerAccount) {
   color: var(--bs-color-fg-muted);
   font-size: var(--bs-typography-font-size-sm);
   text-align: center;
+}
+
+.account-empty p {
+  margin: 0 0 var(--bs-space-2);
+}
+
+.portal-url-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bs-space-1);
+  word-break: break-all;
 }
 </style>

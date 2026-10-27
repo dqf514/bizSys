@@ -188,12 +188,25 @@ def _my_bid(db: Session, tender_id: int, partner_id: int) -> TenderBid | None:
     )
 
 
-def _reg_out(r: TenderRegistration, tender: TenderProject | None = None) -> dict:
+def _tender_brief(tender: TenderProject | None) -> dict:
     return {
-        "id": r.id,
-        "tenderId": r.tender_id,
         "tenderNo": (tender.tender_no or "") if tender else "",
         "tenderName": tender.name if tender else "",
+        "tenderStatus": tender.status if tender else "",
+        "regDeadline": (
+            tender.reg_deadline.strftime("%Y-%m-%d %H:%M:%S") if tender and tender.reg_deadline else ""
+        ),
+        "bidDeadline": (
+            tender.bid_deadline.strftime("%Y-%m-%d %H:%M:%S") if tender and tender.bid_deadline else ""
+        ),
+    }
+
+
+def _reg_out(r: TenderRegistration, tender: TenderProject | None = None) -> dict:
+    return {
+        **_tender_brief(tender),
+        "id": r.id,
+        "tenderId": r.tender_id,
         "companyName": r.company_name,
         "contactName": r.contact_name,
         "contactPhone": r.contact_phone,
@@ -206,10 +219,9 @@ def _reg_out(r: TenderRegistration, tender: TenderProject | None = None) -> dict
 
 def _bid_out(b: TenderBid, tender: TenderProject | None = None) -> dict:
     return {
+        **_tender_brief(tender),
         "id": b.id,
         "tenderId": b.tender_id,
-        "tenderNo": (tender.tender_no or "") if tender else "",
-        "tenderName": tender.name if tender else "",
         "price": float(b.price),
         "comment": b.comment or "",
         "proposalName": b.proposal_name,
@@ -218,7 +230,7 @@ def _bid_out(b: TenderBid, tender: TenderProject | None = None) -> dict:
     }
 
 
-def list_tenders(db: Session, partner: PartnerUser) -> list[dict]:
+def list_tenders(db: Session, partner: PartnerUser | None) -> list[dict]:
     rows = db.scalars(
         select(TenderProject)
         .where(TenderProject.deleted == 0, TenderProject.status.in_(PORTAL_VISIBLE))
@@ -227,21 +239,21 @@ def list_tenders(db: Session, partner: PartnerUser) -> list[dict]:
     out = []
     for t in rows:
         item = _tender_public_out(t)
-        reg = _my_registration(db, t.id, partner.id)
+        reg = _my_registration(db, t.id, partner.id) if partner else None
         item["myRegistrationStatus"] = reg.status if reg else ""
-        bid = _my_bid(db, t.id, partner.id)
+        bid = _my_bid(db, t.id, partner.id) if partner else None
         item["myBidId"] = bid.id if bid else None
         item["isWinner"] = bool(t.status == "awarded" and bid and t.winner_bid_id == bid.id)
         out.append(item)
     return out
 
 
-def tender_detail(db: Session, tender_id: int, partner: PartnerUser) -> dict:
+def tender_detail(db: Session, tender_id: int, partner: PartnerUser | None) -> dict:
     t = _get_visible_tender(db, tender_id)
     data = _tender_public_out(t)
-    reg = _my_registration(db, t.id, partner.id)
+    reg = _my_registration(db, t.id, partner.id) if partner else None
     data["myRegistration"] = _reg_out(reg, t) if reg else None
-    bid = _my_bid(db, t.id, partner.id)
+    bid = _my_bid(db, t.id, partner.id) if partner else None
     data["myBid"] = _bid_out(bid, t) if bid else None
     return data
 

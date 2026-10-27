@@ -6,7 +6,8 @@ import { getPortalToken } from '@/api/portalHttp'
 import { registerMenuRoutes, isRoutesRegistered } from './index'
 
 const PUBLIC_PATHS = ['/login']
-const PORTAL_PUBLIC = ['/portal/login', '/portal/register']
+// 门户公告对外公开：仅「我的参与」需要门户 token，其余 /portal 页面免登录可浏览
+const PORTAL_AUTH_REQUIRED = ['/portal/my']
 
 /** 动态 chunk 加载失败的特征（发版/重启后浏览器仍持有旧模块图时的典型报错） */
 function isChunkLoadError(err: unknown): boolean {
@@ -36,10 +37,9 @@ export function setupGuards(router: Router) {
   router.beforeEach(async (to) => {
     const auth = useAuthStore()
 
-    // 合作方门户：独立认证（portal token），不进内部登录/菜单流程
+    // 合作方门户：公告公开浏览，仅个人工作台需要门户 token
     if (to.path.startsWith('/portal')) {
-      if (PORTAL_PUBLIC.includes(to.path)) return true
-      if (!getPortalToken()) {
+      if (PORTAL_AUTH_REQUIRED.some((p) => to.path.startsWith(p)) && !getPortalToken()) {
         return { path: '/portal/login', query: { redirect: to.fullPath } }
       }
       return true

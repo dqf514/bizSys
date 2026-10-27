@@ -416,7 +416,12 @@ def test_cross_auth_isolation(client, admin_headers):
     # 双向隔离
     r = client.get("/api/v1/procurement/tenders", headers=ha)
     assert r.status_code == 401
+    # 门户公告为公开数据：内部 token 不被门户识别时降级为匿名浏览（my* 字段为空）
     r = client.get("/api/v1/portal/tenders", headers=admin_headers)
+    assert r.status_code == 200 and r.json()["code"] == 0
+    assert all(not i["myRegistrationStatus"] and i["myBidId"] is None for i in r.json()["data"]["items"])
+    # 个人数据仍需门户 token
+    r = client.get("/api/v1/portal/registrations", headers=admin_headers)
     assert r.status_code == 401
 
     # A 报名+投标；B 看不到 A 的数据
@@ -451,3 +456,170 @@ def test_cross_auth_isolation(client, admin_headers):
     # 门户详情不泄露他人投标
     d = client.get(f"/api/v1/portal/tenders/{tid}", headers=hb).json()["data"]
     assert d["myBid"] is None and d["myRegistration"] is None and "bids" not in d
+
+
+def test_partner_admin_crud(client, admin_headers):
+    """管理侧账号 CRUD：新建/编辑(改绑解绑)/重置密码/删除约束。"""
+    suf = uuid.uuid4().hex[:8]
+    supplier = _mk_supplier(client, admin_headers, f"pt_管理绑定{suf}")
+    supplier2 = _mk_supplier(client, admin_headers, f"pt_管理改绑{suf}")
+
+    # ---- 新建（直接启用 + 绑定供应商）----
+    username = f"pt_admin_{suf}"
+    r = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={
+            "username": username,
+            "password": "Admin@12345",
+            "company_name": f"pt_管理建公司{suf}",
+            "contact_name": "李四",
+            "phone": "13700000000",
+            "customer_id": supplier["id"],
+        },
+    ).json()
+    assert r["code"] == 0, r
+    p = r["data"]
+    assert p["status"] == "enabled" and p["customerId"] == supplier["id"]
+    pid = p["id"]
+
+    # 重名 → 96005；弱密码 → 422
+    r = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={"username": username, "password": "Admin@12345", "company_name": "另一家公司"},
+    ).json()
+    assert r["code"] == 96005
+    r = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={"username": f"pt_weak_{suf}", "password": "short", "company_name": "弱密码公司"},
+    )
+    assert r.status_code == 422
+
+    # 绑定非供应商往来单位 → 95002
+    cust = client.post(
+        "/api/v1/crm/customers",
+        headers=admin_headers,
+        json={"name": f"pt_纯客户{suf}", "partner_type": "customer", "tax_no": f"913401CU{suf}"},
+    ).json()["data"]
+    r = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={
+            "username": f"pt_badcust_{suf}",
+            "password": "Admin@12345",
+            "company_name": "绑错类型",
+            "customer_id": cust["id"],
+        },
+    ).json()
+    assert r["code"] == 95002
+
+    # 管理侧新建的账号可直接登录
+    headers = _portal_login_raw(client, username, "Admin@12345")
+
+    # ---- 编辑：改资料 + 改绑 ----
+    r = client.put(
+        f"/api/v1/procurement/partners/{pid}",
+        headers=admin_headers,
+        json={
+            "company_name": f"pt_管理改公司{suf}",
+            "contact_name": "王五",
+            "phone": "13600000000",
+            "email": "a@b.com",
+            "customer_id": supplier2["id"],
+        },
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["companyName"].startswith("pt_管理改公司") and r["data"]["customerId"] == supplier2["id"]
+
+    # 显式 null 解绑
+    r = client.put(
+        f"/api/v1/procurement/partners/{pid}",
+        headers=admin_headers,
+        json={"company_name": f"pt_管理改公司{suf}", "customer_id": None},
+    ).json()
+    assert r["code"] == 0 and r["data"]["customerId"] is None
+
+    # ---- 重置密码：服务端生成（仅返回一次）→ 新密码可登录 ----
+    r = client.post(f"/api/v1/procurement/partners/{pid}/password", headers=admin_headers, json={}).json()
+    assert r["code"] == 0, r
+    gen_pwd = r["data"]["password"]
+    assert len(gen_pwd) >= 8
+    _portal_login_raw(client, username, gen_pwd)
+
+    # 指定密码重置 → 旧密码失效
+    r = client.post(
+        f"/api/v1/procurement/partners/{pid}/password", headers=admin_headers, json={"password": "NewPass@123"}
+    ).json()
+    assert r["code"] == 0 and r["data"]["password"] == "NewPass@123"
+    r = client.post("/api/v1/portal/auth/login", json={"username": username, "password": gen_pwd})
+    assert r.status_code == 401
+    _portal_login_raw(client, username, "NewPass@123")
+
+    # ---- 删除约束：有报名记录 → 96007 ----
+    t = _mk_tender(client, admin_headers, f"pt_删除约束{suf}")
+    _publish(client, admin_headers, t["id"])
+    reg = client.post(
+        f"/api/v1/portal/tenders/{t['id']}/register", headers=headers, data={"contact_name": "李四"}
+    ).json()
+    assert reg["code"] == 0, reg
+    r = client.delete(f"/api/v1/procurement/partners/{pid}", headers=admin_headers).json()
+    assert r["code"] == 96007
+
+    # ---- 无记录账号：可软删；删除后不可登录；用户名释放可再注册 ----
+    username2 = f"pt_del_{suf}"
+    p2 = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={"username": username2, "password": "Admin@12345", "company_name": f"pt_待删公司{suf}"},
+    ).json()["data"]
+    r = client.delete(f"/api/v1/procurement/partners/{p2['id']}", headers=admin_headers).json()
+    assert r["code"] == 0
+    r = client.post("/api/v1/portal/auth/login", json={"username": username2, "password": "Admin@12345"})
+    assert r.status_code == 401
+    r = client.post(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        json={"username": username2, "password": "Admin@12345", "company_name": f"pt_重建公司{suf}"},
+    ).json()
+    assert r["code"] == 0
+
+
+def _portal_login_raw(client, username: str, password: str) -> dict:
+    r = client.post("/api/v1/portal/auth/login", json={"username": username, "password": password}).json()
+    assert r["code"] == 0, r
+    return {"Authorization": f"Bearer {r['data']['access_token']}"}
+
+
+def test_portal_public_anonymous(client, admin_headers):
+    """公开公告：无 token 可浏览列表/详情（草稿不可见、my* 字段为空）；操作类端点仍需登录。"""
+    suf = uuid.uuid4().hex[:8]
+    draft = client.post("/api/v1/procurement/tenders", headers=admin_headers, json={"name": f"pt_草稿{suf}"}).json()[
+        "data"
+    ]
+    t = _mk_tender(client, admin_headers, f"pt_公开{suf}")
+    _publish(client, admin_headers, t["id"])
+
+    # 匿名列表：不含草稿；my* 字段为空
+    r = client.get("/api/v1/portal/tenders")
+    assert r.status_code == 200 and r.json()["code"] == 0
+    items = r.json()["data"]["items"]
+    ids = [i["id"] for i in items]
+    assert t["id"] in ids and draft["id"] not in ids
+    mine = [i for i in items if i["id"] == t["id"]][0]
+    assert mine["myRegistrationStatus"] == "" and mine["myBidId"] is None and mine["isWinner"] is False
+
+    # 匿名详情：草稿 404；已发布 200 且 my* 为 None
+    r = client.get(f"/api/v1/portal/tenders/{draft['id']}").json()
+    assert r["code"] == 10002
+    r = client.get(f"/api/v1/portal/tenders/{t['id']}")
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["myRegistration"] is None and d["myBid"] is None and d["announcement"]
+
+    # 匿名不可报名/投标/查个人数据
+    assert client.post(f"/api/v1/portal/tenders/{t['id']}/register", data={}).status_code == 401
+    assert client.post(f"/api/v1/portal/tenders/{t['id']}/bid", data={"price": "1"}).status_code == 401
+    assert client.get("/api/v1/portal/registrations").status_code == 401
+    assert client.get("/api/v1/portal/bids").status_code == 401

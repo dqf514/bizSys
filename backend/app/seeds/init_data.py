@@ -241,7 +241,10 @@ MENU_TREE = [
                         "User",
                         "procurement:partner:list",
                         [
+                            (None, "pa-create", "", "", "", "procurement:partner:create", []),
+                            (None, "pa-edit", "", "", "", "procurement:partner:edit", []),
                             (None, "pa-review", "", "", "", "procurement:partner:review", []),
+                            (None, "pa-delete", "", "", "", "procurement:partner:delete", []),
                         ],
                     ),
                 ],
@@ -724,7 +727,10 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "procurement:tender:award",
         "procurement:tender:list:export",
         "procurement:partner:list",
+        "procurement:partner:create",
+        "procurement:partner:edit",
         "procurement:partner:review",
+        "procurement:partner:delete",
     ]
     for p in biz_perms:
         if p in perm_to_id:

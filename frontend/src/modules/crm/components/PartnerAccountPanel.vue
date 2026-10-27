@@ -11,8 +11,16 @@ import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import PartnerAccountFormDialog from './PartnerAccountFormDialog.vue'
+import PartnerAccountResetDialog from './PartnerAccountResetDialog.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listPartnerAccounts, partnerAccountCounts, reviewPartnerAccount, customerOptions } from '@/api/crm'
+import {
+  deletePartnerAccount,
+  listPartnerAccounts,
+  partnerAccountCounts,
+  reviewPartnerAccount,
+  customerOptions,
+} from '@/api/crm'
 import type { CustomerOption, PartnerAccount } from '@/api/types'
 
 defineOptions({ name: 'PartnerAccountPanel' })
@@ -66,6 +74,7 @@ const columns: ListColumn[] = [
   { prop: 'contactName', labelKey: 'crm.account.contactName', width: 100 },
   { prop: 'phone', labelKey: 'crm.account.phone', width: 130 },
   { prop: 'email', labelKey: 'crm.account.email', minWidth: 160 },
+  { prop: 'customerName', labelKey: 'crm.account.boundCustomer', minWidth: 160 },
   { prop: 'status', labelKey: 'crm.account.status', width: 100, sortable: 'status' },
   { prop: 'reviewName', labelKey: 'crm.account.reviewName', width: 100 },
   { prop: 'lastLoginAt', labelKey: 'crm.account.lastLoginAt', width: 160 },
@@ -83,6 +92,9 @@ function rowActions(row: PartnerAccount): ActionItem[] {
   if (row.status === 'enabled') {
     acts.push({ key: 'disable', tip: 'crm.account.disable', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
   }
+  acts.push({ key: 'edit', tip: 'crm.account.edit', icon: 'EditPen', perm: 'procurement:partner:edit' })
+  acts.push({ key: 'resetPwd', tip: 'crm.account.resetPwd', icon: 'Key', perm: 'procurement:partner:edit' })
+  acts.push({ key: 'delete', tip: 'crm.account.delete', icon: 'Delete', danger: true, perm: 'procurement:partner:delete' })
   return acts
 }
 
@@ -90,11 +102,49 @@ function onRowAction(key: string, row: PartnerAccount) {
   if (key === 'approve') openReview(row)
   else if (key === 'reject') void doReject(row)
   else if (key === 'disable') void doDisable(row)
+  else if (key === 'edit') openForm(row)
+  else if (key === 'resetPwd') openReset(row)
+  else if (key === 'delete') void doDelete(row)
 }
 
 function afterMutation() {
   list.refresh()
   emit('changed')
+}
+
+/* ---------- 新建/编辑/重置密码/删除 ---------- */
+const formVisible = ref(false)
+const formTarget = ref<PartnerAccount | null>(null)
+const resetVisible = ref(false)
+const resetTarget = ref<PartnerAccount | null>(null)
+
+function openForm(row: PartnerAccount | null) {
+  formTarget.value = row
+  formVisible.value = true
+}
+
+function openReset(row: PartnerAccount) {
+  resetTarget.value = row
+  resetVisible.value = true
+}
+
+async function doDelete(row: PartnerAccount) {
+  try {
+    await ElMessageBox.confirm(
+      t('crm.account.deleteConfirm', { name: row.companyName || row.username }),
+      t('common.action.confirm'),
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await deletePartnerAccount(row.id)
+    ElMessage.success(t('common.message.deleteSuccess'))
+    afterMutation()
+  } catch {
+    /* http notifies */
+  }
 }
 
 /* ---------- review dialog（通过 + 绑定供应商往来单位） ---------- */
@@ -187,7 +237,11 @@ async function doDisable(row: PartnerAccount) {
         :fields="searchFields"
         @search="list.search()"
         @reset="searchModel = { q: '' }; list.reset()"
-      />
+      >
+        <el-button v-permission="'procurement:partner:create'" type="primary" @click="openForm(null)">
+          {{ t('crm.account.create') }}
+        </el-button>
+      </SearchBar>
     </div>
 
     <StatusTabs
@@ -214,6 +268,7 @@ async function doDisable(row: PartnerAccount) {
         </template>
         <template #lastLoginAt="{ row }">{{ row.lastLoginAt || '-' }}</template>
         <template #reviewName="{ row }">{{ row.reviewName || '-' }}</template>
+        <template #customerName="{ row }">{{ row.customerName || '-' }}</template>
         <template #extraColumns>
           <el-table-column :label="t('common.action.operate')" width="140" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
@@ -255,6 +310,9 @@ async function doDisable(row: PartnerAccount) {
       <el-button type="primary" :loading="reviewSaving" @click="doApprove">{{ t('crm.account.approve') }}</el-button>
     </template>
   </el-dialog>
+
+  <PartnerAccountFormDialog v-model="formVisible" :account="formTarget" @saved="afterMutation" />
+  <PartnerAccountResetDialog v-model="resetVisible" :account="resetTarget" @saved="afterMutation" />
 </template>
 
 <style scoped>

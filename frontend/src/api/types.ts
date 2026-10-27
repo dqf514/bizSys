@@ -1174,6 +1174,7 @@ export interface PartnerAccount {
   status: 'pending' | 'enabled' | 'rejected' | 'disabled'
   statusText?: string
   customerId: number | null
+  customerName?: string
   reviewName: string
   reviewAt: string
   reviewComment: string
@@ -1217,6 +1218,9 @@ export interface PortalRegistration {
   tenderId: number
   tenderNo: string
   tenderName: string
+  tenderStatus?: string
+  regDeadline?: string
+  bidDeadline?: string
   companyName: string
   contactName: string
   contactPhone: string
@@ -1231,6 +1235,9 @@ export interface PortalBid {
   tenderId: number
   tenderNo: string
   tenderName: string
+  tenderStatus?: string
+  regDeadline?: string
+  bidDeadline?: string
   price: number | string
   comment: string
   proposalName: string
