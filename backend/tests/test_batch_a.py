@@ -117,7 +117,8 @@ def test_menu_tree_biz_group(client, admin_headers):
     biz = find(tree, "BizSystem")
     assert biz and biz["menuType"] == "dir", biz
     child_names = [c["name"] for c in biz["children"]]
-    assert child_names == ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Finance"], child_names
+    expected = ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Procurement", "Finance"]
+    assert child_names == expected, child_names
     sample = find(tree, "Samples")
     assert sample["path"] == "/task/samples" and sample["permission"] == "task:sample:list"
     finance = find(tree, "Finance")

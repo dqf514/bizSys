@@ -1,6 +1,6 @@
 {
   "workbench": "工作台",
-  "customer": "客户管理",
+  "customer": "往来单位",
   "contract": "合同管理",
   "task": "任务管理",
   "finance": "财务管理",
@@ -32,5 +32,9 @@
   "oaFlowStats": "流程统计",
   "oaFlowHandle": "流程处理",
   "bizSystem": "业务系统",
-  "sample": "样品管理"
+  "sample": "样品管理",
+  "procurement": "采购管理",
+  "purchaseRequest": "采购申请",
+  "purchaseContract": "采购合同",
+  "stockOrder": "出入库"
 }

@@ -9,7 +9,7 @@ _seed_menus 不回写 parent_id/sort；局部执行/别的库/中文名匹配都
 2. 残留归位：路径与目标子项相同但 name 不同/位置不对的菜单，改名并挂到目标父目录；
    目标子项的同路径重复行软删；
 3. 按 TARGET_TREE 归一 parent_id/sort（工作台→业务系统→OA系统→系统管理，
-   业务区内 客户/合同/任务/报告/样品/财务，财务内 开票→结算→到账）；
+   业务区内 客户/合同/任务/报告/样品/采购/财务，财务内 开票→结算→到账）；
 4. ApprovalCenter 强制隐藏（深链 /approval 可用，权限点仍由它承载）；
 5. 跑 init_data.main() 补齐缺失菜单与角色权限绑定。
 
@@ -26,7 +26,7 @@ from app.seeds import init_data
 # 目标结构：父目录 name → [子项 name 按 sort 顺序]；None 表示顶层
 TARGET_TREE: dict[str | None, list[str]] = {
     None: ["Workbench", "BizSystem", "OaSystem", "System", "ApprovalCenter"],
-    "BizSystem": ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Finance"],
+    "BizSystem": ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Procurement", "Finance"],
     "Finance": ["FinanceInvoices", "FinanceSettlements", "FinancePayments"],
     "OaSystem": ["OaApply", "OaMy", "OaRelated", "OaStats"],
     "System": ["SysOrg", "SysData", "OaAdmin", "SysOps"],

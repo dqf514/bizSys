@@ -30,6 +30,7 @@ router = APIRouter(prefix="/crm", tags=["crm"], route_class=EnvelopeRoute)
 EXPORT_COLS = [
     {"key": "customerNo", "label": "客户编号", "width": 14},
     {"key": "name", "label": "客户名称", "width": 32},
+    {"key": "partnerType", "label": "单位类型", "width": 12},
     {"key": "code", "label": "客户代码", "width": 14},
     {"key": "customerType", "label": "客户类型", "width": 12},
     {"key": "taxNo", "label": "纳税识别号", "width": 22},
@@ -47,6 +48,7 @@ EXPORT_COLS = [
 ]
 
 STATUS_CN = {"enabled": "启用", "disabled": "停用"}
+PARTNER_TYPE_CN = {"customer": "客户", "supplier": "供应商", "both": "客户+供应商"}
 
 
 def _t(v) -> str:
@@ -60,6 +62,7 @@ def _out(c: Customer) -> dict:
         "id": c.id,
         "customerNo": c.customer_no,
         "name": c.name,
+        "partnerType": c.partner_type,
         "code": c.code,
         "customerType": c.customer_type,
         "taxNo": c.tax_no,
@@ -75,6 +78,8 @@ def _out(c: Customer) -> dict:
         "contactPerson": c.contact_person or "",
         "contactPhone": c.contact_phone or "",
         "licenseFileId": c.license_file_id,
+        "supplyCategory": c.supply_category,
+        "supplierRating": c.supplier_rating,
         "remark": c.remark or "",
         "createTime": _t(c.create_time),
         "updateTime": _t(c.update_time),
@@ -93,6 +98,7 @@ def _check_tax_no(db: Session, tax_no: str, exclude_id: int | None = None) -> No
 
 def _apply(c: Customer, body: S.CustomerIn) -> None:
     c.name = body.name
+    c.partner_type = body.partner_type
     c.code = body.code
     c.customer_type = body.customer_type
     c.tax_no = body.tax_no
@@ -108,6 +114,8 @@ def _apply(c: Customer, body: S.CustomerIn) -> None:
     c.contact_person = body.contact_person
     c.contact_phone = body.contact_phone
     c.license_file_id = body.license_file_id
+    c.supply_category = body.supply_category
+    c.supplier_rating = body.supplier_rating
     c.remark = body.remark
 
 
@@ -120,9 +128,12 @@ def _filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["name", "customer_no", "tax_no", "code"],
-        filter_cols={"status", "customer_type", "grade"},
+        filter_cols={"status", "customer_type", "grade", "partner_type"},
         range_cols={"create_time"},
-        sort_cols={"update_time", "create_time", "id", "customer_no", "name", "customer_type", "grade", "status"},
+        sort_cols={
+            "update_time", "create_time", "id", "customer_no", "name",
+            "customer_type", "grade", "status", "partner_type",
+        },
     )
 
 
@@ -157,12 +168,20 @@ def customer_counts(
 @router.get("/customers/options")
 def customer_options(
     q: str = Query("", max_length=64),
+    partner_type: str = Query("", pattern="^(|customer|supplier|both)$"),
     limit: int = Query(20, ge=1, le=100),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """远程模糊选择器专用（合同/任务复用）。"""
+    """远程模糊选择器专用（合同/任务/采购复用）。
+
+    partner_type：supplier → 仅供应商（含 both）；customer → 仅客户（含 both）；缺省不过滤。
+    """
     stmt = select(Customer).where(Customer.deleted == 0, Customer.status == "enabled")
+    if partner_type == "supplier":
+        stmt = stmt.where(Customer.partner_type.in_(["supplier", "both"]))
+    elif partner_type == "customer":
+        stmt = stmt.where(Customer.partner_type.in_(["customer", "both"]))
     if q.strip():
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(Customer.name.like(like), Customer.customer_no.like(like)))
@@ -172,6 +191,7 @@ def customer_options(
             "id": c.id,
             "label": c.name,
             "sub": c.customer_no,
+            "partnerType": c.partner_type,
             "payOrg": c.pay_org,
             "taxNo": c.tax_no,
             "contactPerson": c.contact_person or "",
@@ -248,6 +268,7 @@ def export_customers(
     for c in db.scalars(stmt).all():
         item = _out(c)
         item["status"] = STATUS_CN.get(c.status, c.status)
+        item["partnerType"] = PARTNER_TYPE_CN.get(c.partner_type, c.partner_type)
         rows.append(item)
     payload = export_xlsx_styled(rows, EXPORT_COLS, "customers")
     audit(
@@ -304,6 +325,10 @@ def import_customers(
     created, skipped = 0, []
     for idx, row in enumerate(ok_rows, start=2):
         tax_no = str(row.get("taxNo") or "").strip()
+        partner_raw = str(row.get("partnerType") or "").strip()
+        partner_type = {v: k for k, v in PARTNER_TYPE_CN.items()}.get(partner_raw, partner_raw) or "customer"
+        if partner_type not in PARTNER_TYPE_CN:
+            partner_type = "customer"
         try:
             _check_tax_no(db, tax_no)
             c = Customer(customer_no=next_no(db, "customer"), create_by=current.id)
@@ -311,6 +336,7 @@ def import_customers(
                 c,
                 S.CustomerIn(
                     name=str(row.get("name") or "").strip(),
+                    partner_type=partner_type,
                     code=str(row.get("code") or "").strip(),
                     customer_type=str(row.get("customerType") or "").strip(),
                     tax_no=tax_no,

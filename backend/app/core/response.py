@@ -4,7 +4,7 @@ from typing import Any
 
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
-# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位
+# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购
 OK = 0
 
 GENERIC_PARAM = 10001
@@ -54,6 +54,10 @@ FINANCE_NOT_TASK_CREATOR = 80003
 
 ADAPTER_NOT_CONFIGURED = 90001
 
+PROCUREMENT_INVALID_STATE = 95001
+PROCUREMENT_SUPPLIER_INVALID = 95002
+PROCUREMENT_REQUEST_NOT_APPROVED = 95003
+
 DEFAULT_MESSAGES: dict[int, str] = {
     OK: "ok",
     GENERIC_PARAM: "参数校验失败",
@@ -92,6 +96,9 @@ DEFAULT_MESSAGES: dict[int, str] = {
     FINANCE_SETTLEMENT_EXISTS: "该任务已存在结算单",
     FINANCE_NOT_TASK_CREATOR: "仅任务创建人可发起结算",
     ADAPTER_NOT_CONFIGURED: "适配器未配置/未启用",
+    PROCUREMENT_INVALID_STATE: "当前采购单据状态不允许该操作",
+    PROCUREMENT_SUPPLIER_INVALID: "供应商不存在或非供应商往来单位",
+    PROCUREMENT_REQUEST_NOT_APPROVED: "采购申请未审批通过，不能生成采购合同",
 }
 
 

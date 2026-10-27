@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购
 
 ## 鉴权 /auth
 - `POST /auth/login` `{username,password}` → `{access_token,refresh_token,token_type,user}`
@@ -77,15 +77,47 @@
 - 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`
   `GET /admin/notifies/unread-count` → `{count}` · `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
 
-## CRM 客户 /crm
+## CRM 往来单位 /crm（客户/供应商统一档案，partner_type ∈ customer/supplier/both）
 - `GET /crm/customers` 分页：字段
-  `{id,customerNo,name,code,customerType,taxNo,grade,status,address,country,province,city,bankName,bankAccount,payOrg,licenseFileId,remark,createTime,updateTime}`
-  检索：`q`（name/customerNo/taxNo）、`status`（enabled/disabled/all）
+  `{id,customerNo,name,partnerType,code,customerType,taxNo,grade,status,address,country,province,city,bankName,bankAccount,payOrg,licenseFileId,supplyCategory,supplierRating,remark,createTime,updateTime}`
+  检索：`q`（name/customerNo/taxNo）、`status`（enabled/disabled/all）、`filters[partner_type]`（customer/supplier/both）
 - `POST /crm/customers` · `PUT /crm/customers/{id}` · `DELETE /crm/customers/{id}`
-- `POST /crm/customers/export` · `GET /crm/customers/template` · `POST /crm/customers/import`（multipart file）
-- `GET /crm/customers/options?q=&limit=20` → `[{id,label,sub}]`（模糊选择器专用，label=客户名，sub=客户编号）
+  （partner_type 默认 customer；供应商附加 supplyCategory（字典 supply_category）/supplierRating（复用 customer_grade））
+- `POST /crm/customers/export` · `GET /crm/customers/template` · `POST /crm/customers/import`（multipart file；导出/模板含 partnerType 列）
+- `GET /crm/customers/options?q=&limit=20&partner_type=` → `[{id,label,sub,partnerType,payOrg,taxNo,...}]`
+  （模糊选择器专用；partner_type=supplier 仅供应商含 both，=customer 仅客户含 both，缺省不过滤）
 - `GET /crm/customers/counts`（沿用 crm:customer:list）→ `{enabled,disabled,all}`（状态页签计数）
 - 权限码：`crm:customer:list/create/edit/delete/list:export/import`
+
+## 采购 /procurement（一期：申请→合同会签→出入库；设计见 docs/procurement-design.md）
+- 申请/合同状态机同销售合同：`draft → approving → approved / rejected / voided`，审批中禁编辑；
+  编号提交审批时发放（PR…/CG…）；出入库登记即发放（RK…/CK…），`registered → confirmed`（确认后只读）。
+- `GET /procurement/requests` 分页（q=标题/编号/任务号/任务名；filters[task_id,purchase_method]；sort 白名单）
+  · `GET /procurement/requests/counts` → `{draft,approving,approved,rejected,voided,all}`
+  · `GET /procurement/requests/{id}` 详情（items + 审批 timeline + contractId/contractNo/contractStatus 互跳字段）
+- `POST /procurement/requests` · `PUT /procurement/requests/{id}`（仅 draft/rejected，乐观锁 version）
+  · `DELETE`（仅 draft）· `POST /{id}/submit`（发 PR 编号 + 启动 purchase_request_approve 两级顺序审批）
+  · `POST /{id}/void` · `POST /requests/export`
+- `POST /procurement/requests/{id}/generate-contract` `{supplierId,name?,amount?,payCycle?,delivery?,remark?}`
+  （仅 approved 申请，否则 95003；供应商须为启用的 supplier/both 往来单位，否则 95002；幂等：一申请一合同）
+- `GET /procurement/contracts` · counts · `GET /{id}`（含 timeline + stockOrders 互跳）
+  · POST/PUT/DELETE · `POST /{id}/submit`（发 CG 编号 + purchase_contract_approve：节点1 会签 sign_mode=and
+  （manager1+leader1 全员通过）→ 节点2 分管领导终审）· `POST /{id}/void` · `POST /contracts/export`
+- `GET /procurement/stock-orders` 分页（q=单号/合同号/合同名；filters[order_type,contract_id,warehouse]）
+  · counts → `{registered,confirmed,all}` · `GET /{id}`
+  · `POST`（items 至少一行；contractId 仅可挂已通过的采购合同，否则 95001）
+  · `PUT /{id}`（仅 registered，orderType 不可改）· `POST /{id}/confirm`（行锁，确认后只读）
+  · `DELETE`（仅 registered）· `POST /stock-orders/export`
+- 权限码：`procurement:request:list/create/edit/submit/delete/list:export`、
+  `procurement:contract:list/create/edit/submit/delete/list:export`、
+  `procurement:stock:list/create/edit/confirm/delete/list:export`
+- 错误码：95001 当前采购单据状态不允许该操作 / 95002 供应商不存在或非供应商往来单位 / 95003 采购申请未审批通过
+- 编号规则：purchase_request=PR、purchase_contract=CG、stock_in=RK、stock_out=CK（yyyymmdd+4 位，按日重置）
+- 字典：purchase_method（询价/单一来源/竞争性谈判/公开招标）、supply_category、warehouse
+- 种子流程 USER 节点按用户 id 引用：一键清空重建用户后由 tests/test_zz_purge.py 收尾按 approver_name 同位映射修复
+  （CSV 会签节点同规则）
+- 菜单：业务系统 → 采购管理（Procurement）→ 采购申请/采购合同/出入库；存量库归位靠
+  `backend/scripts/migrate_nav_procurement.py`（幂等，沿用批次E 模式）
 
 ## 合同 /contract
 - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。
@@ -234,8 +266,9 @@
 - 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
   前端侧栏将四个顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
-- 业务系统子级顺序：客户管理 / 合同管理 / 任务管理 / 报告管理 / 样品管理（Samples，`/task/samples`，
-  componentKey `task/SampleList`）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
+- 业务系统子级顺序：往来单位（Customers，`/crm/customers`）/ 合同管理 / 任务管理 / 报告管理 /
+  样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
+  采购申请→采购合同→出入库）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
 - 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
   去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；种子只保证新库直接产出目标结构
   （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
@@ -271,6 +304,7 @@
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
 finance/SettlementList  finance/InvoiceList  finance/PaymentList
+procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/StockOrderList
 report/ReportList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
@@ -278,7 +312,7 @@ admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
 ```
 
 ## 字典（sys_dict）
-`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type`
+`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type / purchase_method / supply_category / warehouse`
 读取：`GET /admin/dict/items?type={code}`（仅 enabled，按 sort 排序）
 
 ## 种子账号

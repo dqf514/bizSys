@@ -73,7 +73,7 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
     approval = _find(tree, "ApprovalCenter")
     assert approval and approval["visible"] == 0
 
-    # 业务区：客户/合同/任务/报告/样品/财务；财务内 开票→结算→到账
+    # 业务区：客户/合同/任务/报告/样品/采购/财务；财务内 开票→结算→到账
     biz = _find(tree, "BizSystem")
     assert [c["name"] for c in biz["children"]] == [
         "Customers",
@@ -81,6 +81,7 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "Tasks",
         "Reports",
         "Samples",
+        "Procurement",
         "Finance",
     ]
     finance = _find(tree, "Finance")

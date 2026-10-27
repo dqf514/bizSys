@@ -95,18 +95,28 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
     db = SessionLocal()
     try:
         # purge 删除用户后种子以新 id 重建，需把种子流程 USER 节点的 approver_value 重指到新 id
+        # （会签节点为 CSV：approver_name/approver_value 同位映射）
         name_to_username = {"部门负责人": "manager1", "分管领导": "leader1", "系统管理员": "admin"}
         from app.modules.approval.models import ApprovalNode
 
-        for uname, username in name_to_username.items():
-            uid = db.scalar(select(User.id).where(User.username == username, User.deleted == 0))
-            if uid:
-                for n in db.scalars(
-                    select(ApprovalNode).where(
-                        ApprovalNode.approver_type == "USER", ApprovalNode.approver_name == uname
-                    )
-                ):
-                    n.approver_value = str(uid)
+        for n in db.scalars(select(ApprovalNode).where(ApprovalNode.approver_type == "USER")):
+            names = [s.strip() for s in (n.approver_name or "").split(",") if s.strip()]
+            values = [s.strip() for s in (n.approver_value or "").split(",") if s.strip()]
+            if not names or len(names) != len(values):
+                continue
+            new_values = []
+            for uname in names:
+                username = name_to_username.get(uname)
+                uid = (
+                    db.scalar(select(User.id).where(User.username == username, User.deleted == 0))
+                    if username
+                    else None
+                )
+                if not uid:
+                    break
+                new_values.append(str(uid))
+            else:
+                n.approver_value = ",".join(new_values)
         db.commit()
         assert db.scalar(select(User).where(User.username == "manager1", User.deleted == 0))
     finally:

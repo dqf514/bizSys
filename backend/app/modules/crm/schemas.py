@@ -7,6 +7,7 @@ from app.core.schemas import CamelModel
 
 class CustomerIn(CamelModel):
     name: str = Field(..., min_length=1, max_length=128)
+    partner_type: str = Field("customer", pattern="^(customer|supplier|both)$")
     code: str = Field("", max_length=64)
     customer_type: str = Field("", max_length=32)
     tax_no: str = Field("", max_length=64)
@@ -22,4 +23,6 @@ class CustomerIn(CamelModel):
     contact_person: str = Field("", max_length=64)
     contact_phone: str = Field("", max_length=32)
     license_file_id: str | None = None
+    supply_category: str = Field("", max_length=32)
+    supplier_rating: str = Field("", max_length=8)
     remark: str = Field("", max_length=2000)

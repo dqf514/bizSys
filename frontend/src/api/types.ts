@@ -290,6 +290,7 @@ export interface Customer {
   id: number
   customerNo: string
   name: string
+  partnerType: 'customer' | 'supplier' | 'both'
   code: string
   customerType: string
   taxNo: string
@@ -305,6 +306,8 @@ export interface Customer {
   contactPerson: string
   contactPhone: string
   licenseFileId: string | number | null
+  supplyCategory: string
+  supplierRating: string
   remark: string
   createTime: string
   updateTime: string
@@ -318,6 +321,7 @@ export interface OptionItem {
 
 /** /crm/customers/options carries extra payload for form auto-fill */
 export interface CustomerOption extends OptionItem {
+  partnerType?: string
   payOrg?: string
   taxNo?: string
   contactPerson?: string
@@ -907,4 +911,116 @@ export interface OaFlowDefOption {
   name: string
   bizType: string
   version?: number
+}
+
+/* ---------- Procurement ---------- */
+
+export type PurchaseStatus = 'draft' | 'approving' | 'approved' | 'rejected' | 'voided'
+
+export interface PurchaseRequestItem {
+  id?: number
+  itemName: string
+  spec: string
+  unit: string
+  quantity: number | string
+  estimatePrice?: number | string | null
+  remark?: string
+}
+
+export interface PurchaseRequest {
+  id: number
+  requestNo: string
+  title: string
+  taskId: number | null
+  taskNo: string
+  taskName: string
+  purchaseMethod: string
+  budgetAmount: number | string | null
+  expectDate: string
+  reason: string
+  remark: string
+  status: PurchaseStatus
+  statusText?: string
+  flowInstanceId: number | null
+  items: PurchaseRequestItem[]
+  version?: number | null
+  createTime: string
+  updateTime: string
+}
+
+export interface PurchaseRequestDetail extends PurchaseRequest {
+  timeline?: TimelineRecord[]
+  contractId?: number | null
+  contractNo?: string
+  contractStatus?: string
+}
+
+export interface PurchaseContract {
+  id: number
+  contractNo: string
+  name: string
+  requestId: number | null
+  requestNo: string
+  supplierId: number
+  supplierName: string
+  amount: number | string | null
+  signDate: string
+  startDate: string
+  endDate: string
+  payCycle: string
+  delivery: string
+  handlerId: number | null
+  handlerName: string
+  remark: string
+  status: PurchaseStatus
+  statusText?: string
+  flowInstanceId: number | null
+  version?: number | null
+  createTime: string
+  updateTime: string
+}
+
+export interface StockOrderRef {
+  id: number
+  orderNo: string
+  orderType: 'in' | 'out'
+  status: string
+}
+
+export interface PurchaseContractDetail extends PurchaseContract {
+  timeline?: TimelineRecord[]
+  stockOrders?: StockOrderRef[]
+}
+
+export type StockOrderStatus = 'registered' | 'confirmed'
+
+export interface StockOrderItem {
+  id?: number
+  itemName: string
+  spec: string
+  unit: string
+  quantity: number | string
+  price?: number | string | null
+  remark?: string
+}
+
+export interface StockOrder {
+  id: number
+  orderNo: string
+  orderType: 'in' | 'out'
+  orderTypeText?: string
+  contractId: number | null
+  contractNo: string
+  contractName: string
+  warehouse: string
+  handlerId: number | null
+  handlerName: string
+  orderDate: string
+  remark: string
+  status: StockOrderStatus
+  statusText?: string
+  items: StockOrderItem[]
+  version?: number | null
+  createTime: string
+  updateTime: string
 }

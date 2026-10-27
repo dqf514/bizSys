@@ -213,6 +213,8 @@ function bizTypeLabel(bt: string) {
   if (bt === 'report') return t('approval.approval.bizReport')
   if (bt === 'invoice') return t('approval.approval.bizInvoice')
   if (bt === 'oa') return t('approval.approval.bizOa')
+  if (bt === 'purchase_request') return t('approval.approval.bizPurchaseRequest')
+  if (bt === 'purchase_contract') return t('approval.approval.bizPurchaseContract')
   return bt
 }
 

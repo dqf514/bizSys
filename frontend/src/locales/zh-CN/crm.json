@@ -1,6 +1,6 @@
 {
   "customer": {
-    "title": "客户管理",
+    "title": "往来单位",
     "customerNo": "客户编号",
     "name": "客户名称",
     "code": "客户代码",
@@ -21,9 +21,9 @@
     "remark": "备注",
     "createTime": "创建时间",
     "updateTime": "更新时间",
-    "create": "新增客户",
-    "edit": "编辑客户",
-    "detail": "客户详情",
+    "create": "新增往来单位",
+    "edit": "编辑往来单位",
+    "detail": "往来单位详情",
     "searchName": "客户名称",
     "searchNo": "客户编号",
     "searchTaxNo": "纳税识别码",
@@ -35,7 +35,13 @@
     "enabled": "启用",
     "disabled": "停用",
     "importTitle": "导入客户",
-    "importTip": "仅支持 xlsx 文件，可先下载模板"
+    "importTip": "仅支持 xlsx 文件，可先下载模板",
+    "partnerType": "单位类型",
+    "partnerTypeCustomer": "客户",
+    "partnerTypeSupplier": "供应商",
+    "partnerTypeBoth": "客户+供应商",
+    "supplyCategory": "供应分类",
+    "supplierRating": "供应商评级"
   },
   "detail": {
     "basicInfo": "基本信息",

@@ -54,7 +54,9 @@ export function setupGuards(router: Router) {
         // retry navigation so newly added routes can match.
         // NOTE: must be path-only — spreading `to` carries name:'NotFound' (catch-all
         // matched first) and named resolution would land on NotFound again.
-        return { path: to.fullPath, replace: true }
+        // path 字符串里的 query 不会被解析（vue-router 只在 resolve 字符串 fullPath 时才拆），
+        // 必须显式带上 query/hash，否则 ?detail= 深链在整页刷新后丢失。
+        return { path: to.path, query: to.query, hash: to.hash, replace: true }
       } catch {
         clearTokens()
         auth.token = ''

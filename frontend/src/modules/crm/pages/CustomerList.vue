@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type UploadFile } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -31,11 +31,22 @@ defineOptions({ name: 'CustomerList' })
 
 const { t } = useI18n()
 
-const searchModel = ref<Record<string, any>>({ q: '' })
-const searchFields: SearchField[] = [
+const searchModel = ref<Record<string, any>>({ q: '', taxNo: '', partnerType: '' })
+const searchFields = computed<SearchField[]>(() => [
   { key: 'q', labelKey: 'crm.customer.searchName', placeholderKey: 'crm.customer.placeholderName', width: 220 },
   { key: 'taxNo', labelKey: 'crm.customer.searchTaxNo', placeholderKey: 'crm.customer.placeholderTaxNo', width: 200 },
-]
+  {
+    key: 'partnerType',
+    labelKey: 'crm.customer.partnerType',
+    type: 'select',
+    width: 150,
+    options: [
+      { label: t('crm.customer.partnerTypeCustomer'), value: 'customer' },
+      { label: t('crm.customer.partnerTypeSupplier'), value: 'supplier' },
+      { label: t('crm.customer.partnerTypeBoth'), value: 'both' },
+    ],
+  },
+])
 
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'all', labelKey: 'common.action.all', count: 0 },
@@ -68,7 +79,10 @@ const list = useListPage<Customer>({
     const data = await listCustomers({
       ...params,
       q: searchModel.value.q || undefined,
-      filters: { taxNo: searchModel.value.taxNo || undefined },
+      filters: {
+        taxNo: searchModel.value.taxNo || undefined,
+        partner_type: searchModel.value.partnerType || undefined,
+      },
     })
     return { items: data.items ?? [], total: data.total ?? 0 }
   },
@@ -76,7 +90,10 @@ const list = useListPage<Customer>({
     exportCustomers({
       ...params,
       q: searchModel.value.q || undefined,
-      filters: { taxNo: searchModel.value.taxNo || undefined },
+      filters: {
+        taxNo: searchModel.value.taxNo || undefined,
+        partner_type: searchModel.value.partnerType || undefined,
+      },
     }),
   defaultStatus: 'enabled',
   onLoaded: () => {
@@ -87,6 +104,7 @@ const list = useListPage<Customer>({
 const columns: ListColumn[] = [
   { prop: 'customerNo', labelKey: 'crm.customer.customerNo', width: 130, fixed: 'left', sortable: 'customer_no' },
   { prop: 'name', labelKey: 'crm.customer.name', minWidth: 180, fixed: 'left', sortable: 'name' },
+  { prop: 'partnerType', labelKey: 'crm.customer.partnerType', width: 110, sortable: 'partner_type' },
   { prop: 'customerType', labelKey: 'crm.customer.customerType', width: 110, sortable: 'customer_type' },
   { prop: 'contactPerson', labelKey: 'crm.customer.contactPerson', width: 110 },
   { prop: 'taxNo', labelKey: 'crm.customer.taxNo', width: 170 },
@@ -112,6 +130,7 @@ function onRowAction(key: string, row: Customer) {
 
 const typeOpts = useDictOptions('customer_type')
 const gradeOpts = useDictOptions('customer_grade')
+const supplyOpts = useDictOptions('supply_category')
 
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
@@ -120,6 +139,7 @@ const saving = ref(false)
 const editingId = ref<number | null>(null)
 const form = reactive({
   name: '',
+  partnerType: 'customer' as 'customer' | 'supplier' | 'both',
   code: '',
   customerType: '',
   taxNo: '',
@@ -134,6 +154,8 @@ const form = reactive({
   payOrg: '',
   contactPerson: '',
   contactPhone: '',
+  supplyCategory: '',
+  supplierRating: '',
   remark: '',
 })
 
@@ -168,6 +190,7 @@ function openCreate() {
   dialogTitle.value = t('crm.customer.create')
   Object.assign(form, {
     name: '',
+    partnerType: 'customer',
     code: '',
     customerType: '',
     taxNo: '',
@@ -182,6 +205,8 @@ function openCreate() {
     payOrg: '',
     contactPerson: '',
     contactPhone: '',
+    supplyCategory: '',
+    supplierRating: '',
     remark: '',
   })
   dialogVisible.value = true
@@ -192,6 +217,7 @@ function openEdit(row: Customer) {
   dialogTitle.value = t('crm.customer.edit')
   Object.assign(form, {
     name: row.name,
+    partnerType: row.partnerType ?? 'customer',
     code: row.code ?? '',
     customerType: row.customerType ?? '',
     taxNo: row.taxNo ?? '',
@@ -206,6 +232,8 @@ function openEdit(row: Customer) {
     payOrg: row.payOrg ?? '',
     contactPerson: row.contactPerson ?? '',
     contactPhone: row.contactPhone ?? '',
+    supplyCategory: row.supplyCategory ?? '',
+    supplierRating: row.supplierRating ?? '',
     remark: row.remark ?? '',
   })
   dialogVisible.value = true
@@ -287,7 +315,7 @@ async function doImport() {
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
-        @reset="searchModel = { q: '', taxNo: '' }; list.reset()"
+        @reset="searchModel = { q: '', taxNo: '', partnerType: '' }; list.reset()"
       />
     </template>
 
@@ -321,6 +349,9 @@ async function doImport() {
         <template #customerType="{ row }">
           {{ typeOpts.opts.value.find((x) => x.value === row.customerType)?.label || row.customerType || '-' }}
         </template>
+        <template #partnerType="{ row }">
+          <el-tag size="small" effect="plain">{{ t(`crm.customer.partnerType${String(row.partnerType || 'customer').charAt(0).toUpperCase()}${String(row.partnerType || 'customer').slice(1)}`) }}</el-tag>
+        </template>
         <template #grade="{ row }">
           {{ gradeOpts.opts.value.find((x) => x.value === row.grade)?.label || row.grade || '-' }}
         </template>
@@ -341,6 +372,15 @@ async function doImport() {
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
             <el-input v-model="form.name" :placeholder="t('crm.customer.placeholderName')" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('crm.customer.partnerType')" prop="partnerType" :rules="[{ required: true, message: t('common.form.required') }]">
+            <el-radio-group v-model="form.partnerType">
+              <el-radio value="customer">{{ t('crm.customer.partnerTypeCustomer') }}</el-radio>
+              <el-radio value="supplier">{{ t('crm.customer.partnerTypeSupplier') }}</el-radio>
+              <el-radio value="both">{{ t('crm.customer.partnerTypeBoth') }}</el-radio>
+            </el-radio-group>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -430,6 +470,31 @@ async function doImport() {
         <el-col :span="12">
           <el-form-item :label="t('crm.customer.contactPhone')">
             <el-input v-model="form.contactPhone" :maxlength="32" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12" v-if="form.partnerType !== 'customer'">
+          <el-form-item :label="t('crm.customer.supplyCategory')">
+            <el-select
+              v-model="form.supplyCategory"
+              clearable
+              filterable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
+              <el-option v-for="o in supplyOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12" v-if="form.partnerType !== 'customer'">
+          <el-form-item :label="t('crm.customer.supplierRating')">
+            <el-select
+              v-model="form.supplierRating"
+              clearable
+              :placeholder="t('common.form.placeholderSelect')"
+              style="width: 100%"
+            >
+              <el-option v-for="o in gradeOpts.opts.value" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="24">

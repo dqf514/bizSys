@@ -1,6 +1,6 @@
 {
   "customer": {
-    "title": "Customers",
+    "title": "Partners",
     "customerNo": "Customer No.",
     "name": "Customer Name",
     "code": "Customer Code",
@@ -21,9 +21,9 @@
     "remark": "Remark",
     "createTime": "Created at",
     "updateTime": "Updated at",
-    "create": "New Customer",
-    "edit": "Edit Customer",
-    "detail": "Customer Detail",
+    "create": "New Partner",
+    "edit": "Edit Partner",
+    "detail": "Partner Detail",
     "searchName": "Customer Name",
     "searchNo": "Customer No.",
     "searchTaxNo": "Tax ID",
@@ -35,7 +35,13 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "importTitle": "Import Customers",
-    "importTip": "xlsx files only, download the template first"
+    "importTip": "xlsx files only, download the template first",
+    "partnerType": "Partner Type",
+    "partnerTypeCustomer": "Customer",
+    "partnerTypeSupplier": "Supplier",
+    "partnerTypeBoth": "Customer+Supplier",
+    "supplyCategory": "Supply Category",
+    "supplierRating": "Supplier Rating"
   },
   "detail": {
     "basicInfo": "Basic Info",

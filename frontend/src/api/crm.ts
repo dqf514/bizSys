@@ -50,10 +50,10 @@ export function importCustomers(file: File) {
   return request<void>({ url: '/crm/customers/import', method: 'post', data: form })
 }
 
-export function customerOptions(q: string, limit = 20) {
+export function customerOptions(q: string, limit = 20, partnerType = '') {
   return request<CustomerOption[]>({
     url: '/crm/customers/options',
     method: 'get',
-    params: { q, limit },
+    params: { q, limit, partner_type: partnerType || undefined },
   })
 }

@@ -159,6 +159,62 @@ MENU_TREE = [
                     ),
                 ],
             ),
+            # 采购管理：申请 →(审批)→ 合同 →(会签)→ 出入库
+            (
+                "menu.procurement",
+                "Procurement",
+                "",
+                "",
+                "ShoppingCart",
+                "",
+                [
+                    (
+                        "menu.purchaseRequest",
+                        "PurchaseRequests",
+                        "/procurement/requests",
+                        "procurement/PurchaseRequestList",
+                        "ShoppingCart",
+                        "procurement:request:list",
+                        [
+                            (None, "pr-create", "", "", "", "procurement:request:create", []),
+                            (None, "pr-edit", "", "", "", "procurement:request:edit", []),
+                            (None, "pr-submit", "", "", "", "procurement:request:submit", []),
+                            (None, "pr-delete", "", "", "", "procurement:request:delete", []),
+                            (None, "pr-export", "", "", "", "procurement:request:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.purchaseContract",
+                        "PurchaseContracts",
+                        "/procurement/contracts",
+                        "procurement/PurchaseContractList",
+                        "Document",
+                        "procurement:contract:list",
+                        [
+                            (None, "pc-create", "", "", "", "procurement:contract:create", []),
+                            (None, "pc-edit", "", "", "", "procurement:contract:edit", []),
+                            (None, "pc-submit", "", "", "", "procurement:contract:submit", []),
+                            (None, "pc-delete", "", "", "", "procurement:contract:delete", []),
+                            (None, "pc-export", "", "", "", "procurement:contract:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.stockOrder",
+                        "StockOrders",
+                        "/procurement/stock",
+                        "procurement/StockOrderList",
+                        "Box",
+                        "procurement:stock:list",
+                        [
+                            (None, "so-create", "", "", "", "procurement:stock:create", []),
+                            (None, "so-edit", "", "", "", "procurement:stock:edit", []),
+                            (None, "so-confirm", "", "", "", "procurement:stock:confirm", []),
+                            (None, "so-delete", "", "", "", "procurement:stock:delete", []),
+                            (None, "so-export", "", "", "", "procurement:stock:list:export", []),
+                        ],
+                    ),
+                ],
+            ),
         ],
     ),
     (
@@ -434,6 +490,28 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("其他", "Other", "other"),
         ],
     ),
+    "purchase_method": (
+        "采购方式",
+        [
+            ("询价", "Inquiry", "inquiry"),
+            ("单一来源", "Single Source", "single_source"),
+            ("竞争性谈判", "Competitive Negotiation", "negotiation"),
+            ("公开招标", "Public Bidding", "public_bid"),
+        ],
+    ),
+    "supply_category": (
+        "供应分类",
+        [
+            ("设备", "Equipment", "equipment"),
+            ("耗材", "Consumable", "consumable"),
+            ("服务", "Service", "service"),
+            ("其他", "Other", "other"),
+        ],
+    ),
+    "warehouse": (
+        "仓库",
+        [("一号仓库", "Warehouse 1", "wh1"), ("二号仓库", "Warehouse 2", "wh2")],
+    ),
 }
 
 NUMBER_RULES = [
@@ -447,6 +525,10 @@ NUMBER_RULES = [
     ("settlement", "", "HK", 4, 2, 2, 4, 1, "", "daily", "HK202610090001"),
     ("payment", "", "DZ", 4, 2, 2, 4, 1, "", "daily", "DZ202610090001"),
     ("oa", "", "OA", 4, 2, 2, 4, 1, "", "daily", "OA202610090001"),
+    ("purchase_request", "", "PR", 4, 2, 2, 4, 1, "", "daily", "PR202610090001"),
+    ("purchase_contract", "", "CG", 4, 2, 2, 4, 1, "", "daily", "CG202610090001"),
+    ("stock_in", "", "RK", 4, 2, 2, 4, 1, "", "daily", "RK202610090001"),
+    ("stock_out", "", "CK", 4, 2, 2, 4, 1, "", "daily", "CK202610090001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -568,6 +650,24 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "oa:apply",
         "oa:my",
         "oa:related",
+        "procurement:request:list",
+        "procurement:request:create",
+        "procurement:request:edit",
+        "procurement:request:submit",
+        "procurement:request:delete",
+        "procurement:request:list:export",
+        "procurement:contract:list",
+        "procurement:contract:create",
+        "procurement:contract:edit",
+        "procurement:contract:submit",
+        "procurement:contract:delete",
+        "procurement:contract:list:export",
+        "procurement:stock:list",
+        "procurement:stock:create",
+        "procurement:stock:edit",
+        "procurement:stock:confirm",
+        "procurement:stock:delete",
+        "procurement:stock:list:export",
     ]
     for p in biz_perms:
         if p in perm_to_id:
@@ -685,6 +785,26 @@ def _seed_flows(db: Session) -> None:
         remark="报告签批默认一级审批",
         nodes=((1, "部门负责人审批", "manager1"),),
     )
+    # 采购申请：两级顺序；采购合同：双人同时会签(and) → 分管领导终审
+    _seed_flow(
+        db,
+        code="purchase_request_approve",
+        name="采购申请审批",
+        biz_type="purchase_request",
+        remark="默认两级顺序审批",
+        nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
+    )
+    _seed_flow(
+        db,
+        code="purchase_contract_approve",
+        name="采购合同会签",
+        biz_type="purchase_contract",
+        remark="会签节点 sign_mode=and（全员通过）+ 分管领导终审",
+        nodes=(
+            {"seq": 1, "name": "采购会签", "users": ["manager1", "leader1"], "sign_mode": "and"},
+            (2, "分管领导终审", "leader1"),
+        ),
+    )
     # OA 示例流程：请假=组织多级（本部门负责人 → 上级部门负责人）；报销/用章=固定人两级
     _seed_flow(
         db,
@@ -709,9 +829,11 @@ def _seed_flows(db: Session) -> None:
 
 
 def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
-    """节点条目两种形态：
+    """节点条目三种形态：
     - (seq, 节点名, 用户名)：固定人 USER 节点；
-    - (seq, 节点名, approver_type, approver_value[, chain_levels])：角色/组织类型节点。
+    - (seq, 节点名, approver_type, approver_value[, chain_levels])：角色/组织类型节点；
+    - dict：{"seq","name","users":[用户名...],"sign_mode":"and"} 多固定人会签节点，
+      或 {"seq","name","approver_type","approver_value"[,"chain_levels"][,"sign_mode"]}。
     """
     if db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)):
         return
@@ -719,21 +841,53 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
     db.add(d)
     db.flush()
     for entry in nodes:
-        seq, node_name = entry[0], entry[1]
-        if len(entry) == 3:
-            u = db.scalar(select(User).where(User.username == entry[2], User.deleted == 0))
-            if not u:
+        sign_mode = "or"
+        if isinstance(entry, dict):
+            seq, node_name = entry["seq"], entry["name"]
+            sign_mode = entry.get("sign_mode", "or")
+            if "users" in entry:
+                ids, names = [], []
+                for username in entry["users"]:
+                    u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+                    if not u:
+                        break
+                    ids.append(str(u.id))
+                    names.append(u.name or u.username)
+                else:
+                    approver_type, approver_value = "USER", ",".join(ids)
+                    approver_name, chain_levels = ",".join(names), None
+                    db.add(
+                        ApprovalNode(
+                            definition_id=d.id,
+                            seq=seq,
+                            node_name=node_name,
+                            approver_type=approver_type,
+                            approver_value=approver_value,
+                            approver_name=approver_name,
+                            chain_levels=chain_levels,
+                            sign_mode=sign_mode,
+                        )
+                    )
                 continue
-            approver_type, approver_value, approver_name, chain_levels = (
-                "USER",
-                str(u.id),
-                u.name or u.username,
-                None,
-            )
-        else:
-            approver_type, approver_value = entry[2], entry[3]
+            approver_type, approver_value = entry["approver_type"], entry.get("approver_value", "")
             approver_name = node_name
-            chain_levels = entry[4] if len(entry) > 4 else None
+            chain_levels = entry.get("chain_levels")
+        else:
+            seq, node_name = entry[0], entry[1]
+            if len(entry) == 3:
+                u = db.scalar(select(User).where(User.username == entry[2], User.deleted == 0))
+                if not u:
+                    continue
+                approver_type, approver_value, approver_name, chain_levels = (
+                    "USER",
+                    str(u.id),
+                    u.name or u.username,
+                    None,
+                )
+            else:
+                approver_type, approver_value = entry[2], entry[3]
+                approver_name = node_name
+                chain_levels = entry[4] if len(entry) > 4 else None
         db.add(
             ApprovalNode(
                 definition_id=d.id,
@@ -743,6 +897,7 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
                 approver_value=approver_value,
                 approver_name=approver_name,
                 chain_levels=chain_levels,
+                sign_mode=sign_mode,
             )
         )
     db.flush()

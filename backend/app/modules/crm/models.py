@@ -7,10 +7,15 @@ from app.common.models import BaseModel
 
 
 class Customer(BaseModel):
+    """往来单位：客户/供应商统一档案（partner_type 区分，默认 customer）。"""
+
     __tablename__ = "crm_customer"
 
     customer_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="客户编号 CCxxxxx")
     name: Mapped[str] = mapped_column(String(128), index=True, comment="客户名称")
+    partner_type: Mapped[str] = mapped_column(
+        String(16), default="customer", index=True, comment="customer/supplier/both"
+    )
     code: Mapped[str] = mapped_column(String(64), default="", comment="客户代码")
     customer_type: Mapped[str] = mapped_column(String(32), default="", comment="字典 customer_type")
     tax_no: Mapped[str] = mapped_column(String(64), default="", index=True, comment="纳税识别号")
@@ -26,4 +31,6 @@ class Customer(BaseModel):
     contact_person: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="联系人")
     contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True, comment="联系电话")
     license_file_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="营业执照附件ID")
+    supply_category: Mapped[str] = mapped_column(String(32), default="", comment="字典 supply_category（供应商）")
+    supplier_rating: Mapped[str] = mapped_column(String(8), default="", comment="复用字典 customer_grade（供应商评级）")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -50,6 +50,8 @@
     "bizTask": "任务",
     "bizReport": "报告",
     "bizInvoice": "开票申请",
+    "bizPurchaseRequest": "采购申请",
+    "bizPurchaseContract": "采购合同",
     "formSnapshot": "业务快照",
     "operator": "操作人",
     "node": "节点",
@@ -74,7 +76,23 @@
       "formKey": "表单标识",
       "formName": "表单名称",
       "category": "表单分类",
-      "data": "表单数据"
+      "data": "表单数据",
+      "title": "标题",
+      "taskNo": "任务编号",
+      "taskName": "任务名称",
+      "requestNo": "申请编号",
+      "contractNo": "合同编号",
+      "requestId": "申请ID",
+      "name": "名称",
+      "supplierId": "供应商ID",
+      "supplierName": "供应商",
+      "amount": "金额",
+      "handlerName": "经办人",
+      "purchaseMethod": "采购方式",
+      "budgetAmount": "预算金额",
+      "expectDate": "期望到货",
+      "items": "明细",
+      "status": "状态"
     },
     "bizOa": "OA申请"
   }

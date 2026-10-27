@@ -153,7 +153,8 @@
     "terminated": "Terminated",
     "confirmed": "Confirmed",
     "cancelled": "Cancelled",
-    "agreed": "Agreed"
+    "agreed": "Agreed",
+    "registered": "Registered"
   },
   "theme": {
     "light": "Light",

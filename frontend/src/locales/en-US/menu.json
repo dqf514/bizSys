@@ -1,6 +1,6 @@
 {
   "workbench": "Workbench",
-  "customer": "Customers",
+  "customer": "Partners",
   "contract": "Contracts",
   "task": "Tasks",
   "finance": "Finance",
@@ -32,5 +32,9 @@
   "oaFlowStats": "Flow Statistics",
   "oaFlowHandle": "Flow Handling",
   "bizSystem": "Business",
-  "sample": "Samples"
+  "sample": "Samples",
+  "procurement": "Procurement",
+  "purchaseRequest": "Purchase Requests",
+  "purchaseContract": "Purchase Contracts",
+  "stockOrder": "Stock In/Out"
 }

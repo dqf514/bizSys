@@ -31,6 +31,12 @@ const detail = ref<CustomerDetail | null>(null)
 
 const typeOpts = useDictOptions('customer_type')
 const gradeOpts = useDictOptions('customer_grade')
+const supplyOpts = useDictOptions('supply_category')
+
+function supplyLabel(value: unknown) {
+  const v = String(value ?? '')
+  return supplyOpts.opts.value.find((x) => x.value === v)?.label || v || '-'
+}
 
 function typeLabel(value: unknown) {
   const v = String(value ?? '')
@@ -159,6 +165,9 @@ function openSettlement(row: Settlement) {
         <span class="drawer-title">{{ detail?.name || t('crm.customer.detail') }}</span>
         <template v-if="detail">
           <el-tag size="small" effect="plain">{{ gradeLabel(detail.grade) }}</el-tag>
+          <el-tag size="small" type="warning" effect="plain">
+            {{ t(`crm.customer.partnerType${(detail.partnerType || 'customer').charAt(0).toUpperCase()}${(detail.partnerType || 'customer').slice(1)}`) }}
+          </el-tag>
           <StatusTag :status="detail.status" i18n-prefix="common.status" />
         </template>
       </div>
@@ -176,6 +185,14 @@ function openSettlement(row: Settlement) {
           <el-descriptions-item :label="t('crm.customer.payOrg')">{{ detail.payOrg || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('crm.customer.bankName')">{{ detail.bankName || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('crm.customer.bankAccount')">{{ detail.bankAccount || '-' }}</el-descriptions-item>
+          <template v-if="detail.partnerType !== 'customer'">
+            <el-descriptions-item :label="t('crm.customer.supplyCategory')">
+              {{ supplyLabel(detail.supplyCategory) }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="t('crm.customer.supplierRating')">
+              {{ detail.supplierRating || '-' }}
+            </el-descriptions-item>
+          </template>
           <el-descriptions-item :label="t('crm.customer.address')" :span="2">
             {{ [detail.country, detail.province, detail.city, detail.address].filter(Boolean).join(' ') || '-' }}
           </el-descriptions-item>

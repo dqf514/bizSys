@@ -50,6 +50,8 @@
     "bizTask": "Task",
     "bizReport": "Report",
     "bizInvoice": "Invoice",
+    "bizPurchaseRequest": "Purchase Request",
+    "bizPurchaseContract": "Purchase Contract",
     "formSnapshot": "Business Snapshot",
     "operator": "Operator",
     "node": "Node",
@@ -74,7 +76,23 @@
       "formKey": "Form Key",
       "formName": "Form Name",
       "category": "Category",
-      "data": "Form Data"
+      "data": "Form Data",
+      "title": "Title",
+      "taskNo": "Task No.",
+      "taskName": "Task Name",
+      "requestNo": "Request No.",
+      "contractNo": "Contract No.",
+      "requestId": "Request ID",
+      "name": "Name",
+      "supplierId": "Supplier ID",
+      "supplierName": "Supplier",
+      "amount": "Amount",
+      "handlerName": "Handler",
+      "purchaseMethod": "Purchase Method",
+      "budgetAmount": "Budget",
+      "expectDate": "Expected Delivery",
+      "items": "Items",
+      "status": "Status"
     },
     "bizOa": "OA Request"
   }
