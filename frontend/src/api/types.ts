@@ -341,10 +341,58 @@ export interface CustomerSummary {
   taskCount: number
   settledTotal: number | string
   paidTotal: number | string
+  purchaseContractCount: number
+  purchaseTotal: number | string
 }
 
 export interface CustomerDetail extends Customer {
   summary?: CustomerSummary
+}
+
+/** 往来单位联系人（crm_partner_contact） */
+export interface PartnerContact {
+  id?: number
+  customerId?: number
+  name: string
+  position: string
+  phone: string
+  email: string
+  isPrimary: boolean
+  remark: string
+  createTime?: string
+}
+
+/** 往来单位附件（crm_partner_attachment） */
+export interface PartnerAttachment {
+  id: number
+  customerId: number
+  category: string
+  fileName: string
+  size: number
+  contentType: string
+  remark: string
+  uploaderName: string
+  createTime: string
+}
+
+/** GET /crm/customers/{id}/procurement：供应商采购清单 */
+export interface PartnerProcurement {
+  contracts: {
+    id: number
+    contractNo: string
+    name: string
+    amount: number | null
+    status: string
+    signDate: string
+    createTime: string
+  }[]
+  requests: {
+    id: number
+    requestNo: string
+    title: string
+    status: string
+    createTime: string
+  }[]
 }
 
 export interface Attachment {

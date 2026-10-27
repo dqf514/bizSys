@@ -546,6 +546,15 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         "招标方式",
         [("公开招标", "Public Tender", "public"), ("邀请招标", "Invited Tender", "invite")],
     ),
+    "partner_attachment_category": (
+        "往来单位附件分类",
+        [
+            ("营业执照", "Business License", "license"),
+            ("资质证明", "Qualification", "qualification"),
+            ("合同文件", "Contract File", "contract"),
+            ("其他", "Other", "other"),
+        ],
+    ),
 }
 
 NUMBER_RULES = [

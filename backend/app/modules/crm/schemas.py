@@ -26,3 +26,12 @@ class CustomerIn(CamelModel):
     supply_category: str = Field("", max_length=32)
     supplier_rating: str = Field("", max_length=8)
     remark: str = Field("", max_length=2000)
+
+
+class ContactIn(CamelModel):
+    name: str = Field(..., min_length=1, max_length=64)
+    position: str = Field("", max_length=64)
+    phone: str = Field("", max_length=32)
+    email: str = Field("", max_length=128)
+    is_primary: bool = False
+    remark: str = Field("", max_length=500)

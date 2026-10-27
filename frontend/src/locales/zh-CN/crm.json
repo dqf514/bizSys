@@ -52,6 +52,38 @@
     "contractTotal": "合同总额",
     "taskCount": "任务数",
     "settledTotal": "累计结算",
-    "paidTotal": "累计到账"
+    "paidTotal": "累计到账",
+    "procurement": "采购",
+    "purchaseContracts": "采购合同",
+    "purchaseRequests": "关联采购申请",
+    "contacts": "联系人",
+    "attachments": "附件",
+    "purchaseContractCount": "采购合同数",
+    "purchaseTotal": "采购总额"
+  },
+  "contact": {
+    "add": "添加联系人",
+    "edit": "编辑联系人",
+    "name": "姓名",
+    "position": "职务",
+    "phone": "电话",
+    "email": "邮箱",
+    "isPrimary": "主要联系人",
+    "primaryTag": "主要",
+    "remark": "备注",
+    "deleteConfirm": "确认删除该联系人？"
+  },
+  "attachment": {
+    "upload": "上传附件",
+    "category": "分类",
+    "fileName": "文件名",
+    "size": "大小",
+    "uploader": "上传人",
+    "uploadTime": "上传时间",
+    "remark": "说明",
+    "pickFile": "选择文件",
+    "noFile": "未选择文件",
+    "deleteConfirm": "确认删除该附件？文件将一并移除。",
+    "uploadSuccess": "上传成功"
   }
 }

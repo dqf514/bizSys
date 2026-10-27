@@ -1,6 +1,6 @@
 """CRM 客户表。"""
 
-from sqlalchemy import String, Text
+from sqlalchemy import BigInteger, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.models import BaseModel
@@ -34,3 +34,31 @@ class Customer(BaseModel):
     supply_category: Mapped[str] = mapped_column(String(32), default="", comment="字典 supply_category（供应商）")
     supplier_rating: Mapped[str] = mapped_column(String(8), default="", comment="复用字典 customer_grade（供应商评级）")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PartnerContact(BaseModel):
+    """往来单位联系人。is_primary 每单位最多一个（置主时同事务清除其他）。"""
+
+    __tablename__ = "crm_partner_contact"
+
+    customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("crm_customer.id"), index=True)
+    name: Mapped[str] = mapped_column(String(64), comment="姓名")
+    position: Mapped[str] = mapped_column(String(64), default="", comment="职务")
+    phone: Mapped[str] = mapped_column(String(32), default="", comment="电话")
+    email: Mapped[str] = mapped_column(String(128), default="", comment="邮箱")
+    is_primary: Mapped[int] = mapped_column(default=0, comment="主要联系人 0/1")
+    remark: Mapped[str] = mapped_column(String(500), default="")
+
+
+class PartnerAttachment(BaseModel):
+    """往来单位附件（营业执照/资质证明等集中管理，字典 partner_attachment_category）。"""
+
+    __tablename__ = "crm_partner_attachment"
+
+    customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("crm_customer.id"), index=True)
+    category: Mapped[str] = mapped_column(String(32), default="other", comment="字典 partner_attachment_category")
+    file_name: Mapped[str] = mapped_column(String(255))
+    size: Mapped[int] = mapped_column(BigInteger, default=0)
+    content_type: Mapped[str] = mapped_column(String(128), default="")
+    path: Mapped[str] = mapped_column(String(255), comment="相对 upload_dir 的路径")
+    remark: Mapped[str] = mapped_column(String(500), default="", comment="说明")

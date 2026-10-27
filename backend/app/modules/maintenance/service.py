@@ -29,7 +29,7 @@ from app.modules.approval.models import (
 )
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract, ContractAttachment
-from app.modules.crm.models import Customer
+from app.modules.crm.models import Customer, PartnerAttachment, PartnerContact
 from app.modules.finance.models import Invoice, Payment, Settlement
 from app.modules.maintenance import backup as backup_svc
 from app.modules.oa.models import OaForm, OaInstance
@@ -89,6 +89,8 @@ _PURGE_TABLES = [
     Invoice,
     Payment,
     Settlement,
+    PartnerAttachment,
+    PartnerContact,
     Customer,
     Notify,
     AuditLog,
@@ -97,7 +99,7 @@ _PURGE_TABLES = [
 ]
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）
-_PURGE_UPLOAD_DIRS = ("contract", "report", "portal")
+_PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner")
 
 CONFIRM_WORD = "CLEAR"
 

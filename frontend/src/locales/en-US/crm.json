@@ -52,6 +52,38 @@
     "contractTotal": "Contract Total",
     "taskCount": "Tasks",
     "settledTotal": "Settled Total",
-    "paidTotal": "Paid Total"
+    "paidTotal": "Paid Total",
+    "procurement": "Procurement",
+    "purchaseContracts": "Purchase Contracts",
+    "purchaseRequests": "Linked Requests",
+    "contacts": "Contacts",
+    "attachments": "Attachments",
+    "purchaseContractCount": "Purchase Contracts",
+    "purchaseTotal": "Purchase Total"
+  },
+  "contact": {
+    "add": "Add Contact",
+    "edit": "Edit Contact",
+    "name": "Name",
+    "position": "Position",
+    "phone": "Phone",
+    "email": "Email",
+    "isPrimary": "Primary Contact",
+    "primaryTag": "Primary",
+    "remark": "Remark",
+    "deleteConfirm": "Delete this contact?"
+  },
+  "attachment": {
+    "upload": "Upload",
+    "category": "Category",
+    "fileName": "File Name",
+    "size": "Size",
+    "uploader": "Uploader",
+    "uploadTime": "Uploaded At",
+    "remark": "Note",
+    "pickFile": "Choose File",
+    "noFile": "No file selected",
+    "deleteConfirm": "Delete this attachment? The file will be removed.",
+    "uploadSuccess": "Uploaded"
   }
 }

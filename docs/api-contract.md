@@ -87,6 +87,18 @@
 - `GET /crm/customers/options?q=&limit=20&partner_type=` → `[{id,label,sub,partnerType,payOrg,taxNo,...}]`
   （模糊选择器专用；partner_type=supplier 仅供应商含 both，=customer 仅客户含 both，缺省不过滤）
 - `GET /crm/customers/counts`（沿用 crm:customer:list）→ `{enabled,disabled,all}`（状态页签计数）
+- `GET /crm/customers/{id}` 详情：summary 含 `{contractCount,contractTotal,taskCount,settledTotal,paidTotal,purchaseContractCount,purchaseTotal}`（后两项为供应商指标）
+- 联系人（表 crm_partner_contact，读 `crm:customer:list`、写 `crm:customer:edit`）：
+  `GET/POST /crm/customers/{id}/contacts` · `PUT/DELETE /crm/contacts/{cid}`
+  字段 `{id,name,position,phone,email,isPrimary,remark}`；isPrimary 每单位唯一（置主同事务清其他），列表按 isPrimary desc, id asc
+- 附件（表 crm_partner_attachment，读 `crm:customer:list`、写 `crm:customer:edit`）：
+  `GET /crm/customers/{id}/attachments?category=` · `POST /crm/customers/{id}/attachments`（multipart file+category+remark）
+  · `GET /crm/attachments/{aid}` 下载 · `DELETE /crm/attachments/{aid}`（逻辑删+磁盘移除）
+  category ∈ 字典 partner_attachment_category（license 营业执照/qualification 资质证明/contract 合同文件/other 其他）；
+  扩展名白名单沿用 upload_ext_set 且校验魔数（pdf/jpg/png/zip/docx/xlsx/doc/xls），存 uploads/partner/
+- `GET /crm/customers/{id}/procurement`（权限 `procurement:contract:list`）
+  → `{contracts:[{id,contractNo,name,amount,status,signDate,createTime}],requests:[{id,requestNo,title,status,createTime}]}`（requests 为合同关联申请去重）
+- 审计：partner_contact_create/update/delete、partner_attachment_upload/delete（module=crm）
 - 权限码：`crm:customer:list/create/edit/delete/list:export/import`
 
 ## 采购 /procurement（一期：申请→合同会签→出入库；设计见 docs/procurement-design.md）

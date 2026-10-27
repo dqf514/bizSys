@@ -1,5 +1,14 @@
 import { request, download, toQuery } from './http'
-import type { Customer, CustomerDetail, CustomerOption, ListQuery, PageResult } from './types'
+import type {
+  Customer,
+  CustomerDetail,
+  CustomerOption,
+  ListQuery,
+  PageResult,
+  PartnerAttachment,
+  PartnerContact,
+  PartnerProcurement,
+} from './types'
 
 export function listCustomers(params: ListQuery) {
   return request<PageResult<Customer>>({
@@ -56,4 +65,61 @@ export function customerOptions(q: string, limit = 20, partnerType = '') {
     method: 'get',
     params: { q, limit, partner_type: partnerType || undefined },
   })
+}
+
+/* ---------- 联系人 ---------- */
+
+export function listPartnerContacts(customerId: number) {
+  return request<{ items: PartnerContact[]; total: number }>({
+    url: `/crm/customers/${customerId}/contacts`,
+    method: 'get',
+  })
+}
+
+export function createPartnerContact(customerId: number, data: Partial<PartnerContact>) {
+  return request<PartnerContact>({ url: `/crm/customers/${customerId}/contacts`, method: 'post', data })
+}
+
+export function updatePartnerContact(id: number, data: Partial<PartnerContact>) {
+  return request<PartnerContact>({ url: `/crm/contacts/${id}`, method: 'put', data })
+}
+
+export function deletePartnerContact(id: number) {
+  return request<void>({ url: `/crm/contacts/${id}`, method: 'delete' })
+}
+
+/* ---------- 附件 ---------- */
+
+export function listPartnerAttachments(customerId: number, category = '') {
+  return request<{ items: PartnerAttachment[]; total: number }>({
+    url: `/crm/customers/${customerId}/attachments`,
+    method: 'get',
+    params: { category: category || undefined },
+  })
+}
+
+export function uploadPartnerAttachment(customerId: number, file: File, category: string, remark = '') {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('category', category)
+  form.append('remark', remark)
+  return request<PartnerAttachment>({
+    url: `/crm/customers/${customerId}/attachments`,
+    method: 'post',
+    data: form,
+  })
+}
+
+export function downloadPartnerAttachment(id: number, fileName = 'attachment') {
+  return download({ url: `/crm/attachments/${id}`, method: 'get' }, fileName)
+}
+
+export function deletePartnerAttachment(id: number) {
+  return request<void>({ url: `/crm/attachments/${id}`, method: 'delete' })
+}
+
+/* ---------- 供应商采购清单 ---------- */
+
+export function customerProcurement(customerId: number) {
+  return request<PartnerProcurement>({ url: `/crm/customers/${customerId}/procurement`, method: 'get' })
 }
