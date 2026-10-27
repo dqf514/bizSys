@@ -458,6 +458,8 @@ export interface TaskSample {
   vehicleType: string
   sampleDate: string
   inStock: 'in' | 'out'
+  /** 未确认（registered）的出入库单；存在时样品处于「确认中」 */
+  pendingOrder?: StockOrderRef | null
 }
 
 /** 跨任务样品列表行（GET /task/samples） */
@@ -1009,6 +1011,16 @@ export interface StockOrder {
   orderNo: string
   orderType: 'in' | 'out'
   orderTypeText?: string
+  sourceType?: string
+  sourceTypeText?: string
+  sourceId?: number | null
+  /** sourceType=sample 时后端补挂的来源信息 */
+  sampleNo?: string
+  sampleName?: string
+  vin?: string
+  taskId?: number
+  taskNo?: string
+  taskName?: string
   contractId: number | null
   contractNo: string
   contractName: string

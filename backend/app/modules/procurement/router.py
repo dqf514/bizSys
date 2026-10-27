@@ -40,6 +40,7 @@ STATUS_CN = {
 }
 STOCK_STATUS_CN = {"registered": "已登记", "confirmed": "已确认"}
 ORDER_TYPE_CN = {"in": "入库", "out": "出库"}
+SOURCE_TYPE_CN = {"": "采购", "purchase": "采购", "sample": "样品"}
 
 REQUEST_EXPORT_COLS = [
     {"key": "requestNo", "label": "申请编号", "width": 18},
@@ -67,6 +68,8 @@ CONTRACT_EXPORT_COLS = [
 STOCK_EXPORT_COLS = [
     {"key": "orderNo", "label": "单号", "width": 18},
     {"key": "orderType", "label": "类型", "width": 8},
+    {"key": "sourceType", "label": "来源", "width": 8},
+    {"key": "sourceRef", "label": "来源单据", "width": 26},
     {"key": "contractNo", "label": "采购合同", "width": 18},
     {"key": "warehouse", "label": "仓库", "width": 12},
     {"key": "orderDate", "label": "出入库日期", "width": 12},
@@ -735,12 +738,39 @@ def export_contracts(
 # ---------------- 出入库 ----------------
 
 
-def _stock_out(o: StockOrder) -> dict:
+def _stock_source_info(db: Session, orders: list[StockOrder]) -> dict[int, dict]:
+    """order_id -> 样品来源信息（样品编号/名称/VIN + 所属任务）；仅 source_type=sample 的单据。"""
+    ids = [o.source_id for o in orders if o.source_type == "sample" and o.source_id]
+    if not ids:
+        return {}
+    from app.modules.task.models import Task, TaskSample
+
+    rows = db.execute(
+        select(TaskSample, Task).join(Task, Task.id == TaskSample.task_id).where(TaskSample.id.in_(ids))
+    ).all()
+    by_sample = {
+        s.id: {
+            "sampleNo": s.sample_no or "",
+            "sampleName": s.name,
+            "vin": s.vin or "",
+            "taskId": t.id,
+            "taskNo": t.task_no or "",
+            "taskName": t.task_name,
+        }
+        for s, t in rows
+    }
+    return {o.id: by_sample.get(o.source_id, {}) for o in orders if o.source_type == "sample" and o.source_id}
+
+
+def _stock_out(o: StockOrder, source: dict | None = None) -> dict:
     return {
         "id": o.id,
         "orderNo": o.order_no,
         "orderType": o.order_type,
         "orderTypeText": ORDER_TYPE_CN.get(o.order_type, o.order_type),
+        "sourceType": o.source_type or "purchase",
+        "sourceTypeText": SOURCE_TYPE_CN.get(o.source_type or "purchase", o.source_type),
+        "sourceId": o.source_id,
         "contractId": o.contract_id,
         "contractNo": o.contract_no,
         "contractName": o.contract_name,
@@ -767,6 +797,7 @@ def _stock_out(o: StockOrder) -> dict:
         "version": o.version,
         "createTime": _t(o.create_time),
         "updateTime": _t(o.update_time),
+        **(source or {}),
     }
 
 
@@ -804,6 +835,13 @@ def _stock_apply(o: StockOrder, body: S.StockOrderIn, db: Session) -> None:
 
 def _stock_filtered(db: Session, request: Request, page: PageParams):
     stmt = select(StockOrder)
+    # 来源筛选：purchase 含历史空值；sample 等其余取值精确匹配（样品单挂在任务样品上）
+    src = (request.query_params.get("filters[source_type]") or "").strip()
+    extra_where = []
+    if src == "purchase":
+        extra_where.append(StockOrder.source_type.in_(["", "purchase"]))
+    elif src:
+        extra_where.append(StockOrder.source_type == src)
     return apply_list_filters(
         stmt,
         StockOrder,
@@ -814,6 +852,7 @@ def _stock_filtered(db: Session, request: Request, page: PageParams):
         filter_cols={"status", "order_type", "contract_id", "warehouse"},
         range_cols={"order_date", "create_time"},
         sort_cols={"update_time", "create_time", "id", "order_no", "order_date", "status", "order_type"},
+        extra_where=extra_where,
     )
 
 
@@ -827,7 +866,8 @@ def list_stock_orders(
 ):
     stmt, total = _stock_filtered(db, request, PageParams(page=page, size=size))
     rows = db.scalars(stmt).all()
-    return {"items": [_stock_out(o) for o in rows], "total": total, "page": page, "size": size}
+    info = _stock_source_info(db, rows)
+    return {"items": [_stock_out(o, info.get(o.id)) for o in rows], "total": total, "page": page, "size": size}
 
 
 @router.get("/stock-orders/counts")
@@ -853,7 +893,7 @@ def get_stock_order(
     o = db.get(StockOrder, oid)
     if not o or o.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    return _stock_out(o)
+    return _stock_out(o, _stock_source_info(db, [o]).get(o.id))
 
 
 @router.post("/stock-orders", status_code=201)
@@ -920,6 +960,9 @@ def confirm_stock_order(
         raise BizException(R.GENERIC_NOT_FOUND)
     if o.status != "registered":
         raise BizException(R.PROCUREMENT_INVALID_STATE, "仅已登记单据可确认")
+    if o.source_type == svc.SOURCE_SAMPLE and o.source_id:
+        # 样品出入库单：确认时回写样品 in_stock 并补写样品流水（同事务，失败整体回滚）
+        svc.confirm_sample_stock(db, o, current)
     o.status = "confirmed"
     o.version += 1
     o.update_by = current.id
@@ -929,7 +972,7 @@ def confirm_stock_order(
         biz_type="stock_order", biz_id=oid, detail={"orderNo": o.order_no},
     )
     db.commit()
-    return _stock_out(o)
+    return _stock_out(o, _stock_source_info(db, [o]).get(o.id))
 
 
 @router.delete("/stock-orders/{oid}")
@@ -960,13 +1003,20 @@ def export_stock_orders(
     db: Session = Depends(get_db),
 ):
     stmt, _ = _stock_filtered(db, request, SimpleNamespace(page=1, size=100_000))
-    rows = []
-    for o in db.scalars(stmt).all():
-        item = _stock_out(o)
+    rows = db.scalars(stmt).all()
+    info = _stock_source_info(db, rows)
+    payload_rows = []
+    for o in rows:
+        item = _stock_out(o, info.get(o.id))
         item["status"] = STOCK_STATUS_CN.get(o.status, o.status)
         item["orderType"] = ORDER_TYPE_CN.get(o.order_type, o.order_type)
-        rows.append(item)
-    payload = export_xlsx_styled(rows, STOCK_EXPORT_COLS, "stock_orders")
+        item["sourceType"] = SOURCE_TYPE_CN.get(o.source_type or "purchase", o.source_type)
+        src = info.get(o.id) or {}
+        item["sourceRef"] = (
+            f"{src.get('sampleNo', '')} {src.get('sampleName', '')}".strip() if o.source_type == "sample" else ""
+        )
+        payload_rows.append(item)
+    payload = export_xlsx_styled(payload_rows, STOCK_EXPORT_COLS, "stock_orders")
     audit(
         db,
         user_id=current.id,

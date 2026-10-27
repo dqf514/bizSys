@@ -1,15 +1,24 @@
 """采购服务：状态机约束 + 审批事件订阅 + 关联档案装载。"""
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.audit import record as audit
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.core import response as R
 from app.core.exceptions import BizException
-from app.modules.procurement.models import PurchaseContract, PurchaseRequest, TenderBid, TenderProject
+from app.modules.procurement.models import (
+    PurchaseContract,
+    PurchaseRequest,
+    StockOrder,
+    StockOrderItem,
+    TenderBid,
+    TenderProject,
+)
+from app.services.numbering import next_no
 
 EDITABLE = ("draft", "rejected")
 
@@ -181,3 +190,120 @@ def tender_snapshot(t: TenderProject, bid: TenderBid | None) -> dict:
 subscribe(ApprovalCompleted, _handle_completed)
 subscribe(ApprovalRejected, _handle_rejected)
 subscribe(ApprovalWithdrawn, _handle_withdrawn)
+
+
+# ---------------- 样品出入库（统一走 StockOrder 登记→确认流程） ----------------
+
+SOURCE_SAMPLE = "sample"
+
+
+def pending_sample_stock_map(db: Session, sample_ids: list[int]) -> dict[int, "StockOrder"]:
+    """sample_id -> 最新一张未确认（registered）样品出入库单；用于派生「确认中」徽标与防重。"""
+    if not sample_ids:
+        return {}
+    rows = db.scalars(
+        select(StockOrder)
+        .where(
+            StockOrder.source_type == SOURCE_SAMPLE,
+            StockOrder.source_id.in_(sample_ids),
+            StockOrder.status == "registered",
+            StockOrder.deleted == 0,
+        )
+        .order_by(StockOrder.id.desc())
+    ).all()
+    result: dict[int, StockOrder] = {}
+    for o in rows:
+        result.setdefault(o.source_id, o)
+    return result
+
+
+def register_sample_stock(db: Session, sample, order_type: str, user) -> "StockOrder":
+    """样品入/出库登记：生成待确认 StockOrder（source_type=sample），in_stock 确认前不变。"""
+    from app.modules.task.models import Task
+
+    if order_type not in ("in", "out"):
+        raise BizException(R.GENERIC_PARAM, "非法出入库类型")
+    if sample.id in pending_sample_stock_map(db, [sample.id]):
+        raise BizException(R.TASK_INVALID_STATE, "存在待确认的出入库单，请先确认或取消")
+    if sample.in_stock == order_type:
+        raise BizException(R.TASK_INVALID_STATE, "样品已在该状态")
+    task = db.get(Task, sample.task_id)
+    remark_bits = []
+    if sample.vin:
+        remark_bits.append(f"VIN:{sample.vin}")
+    if sample.sample_no:
+        remark_bits.append(f"编号:{sample.sample_no}")
+    order = StockOrder(
+        order_no=next_no(db, "stock_in" if order_type == "in" else "stock_out"),
+        order_type=order_type,
+        status="registered",
+        handler_id=user.id,
+        handler_name=user.name or user.username,
+        order_date=date.today(),
+        remark=f"样品出入库 任务:{task.task_name if task else sample.task_id}",
+        source_type=SOURCE_SAMPLE,
+        source_id=sample.id,
+        create_by=user.id,
+        items=[
+            StockOrderItem(
+                item_name=sample.name,
+                spec=sample.model or "",
+                unit="",
+                quantity=1,
+                price=None,
+                remark=" ".join(remark_bits),
+            )
+        ],
+    )
+    db.add(order)
+    db.flush()
+    audit(
+        db,
+        user_id=user.id,
+        module="procurement",
+        action="stock_order_create",
+        biz_type="stock_order",
+        biz_id=order.id,
+        detail={"orderType": order_type, "sourceType": SOURCE_SAMPLE, "sampleId": sample.id, "taskId": sample.task_id},
+    )
+    return order
+
+
+def confirm_sample_stock(db: Session, order: "StockOrder", user) -> None:
+    """样品出入库单确认回写：翻转样品 in_stock 并补写样品流水（在确认事务内调用）。"""
+    from app.modules.task.models import TaskSample, TaskSampleFlow
+
+    sample = db.get(TaskSample, order.source_id, with_for_update=True)
+    if not sample or sample.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND, "关联样品不存在，无法确认")
+    if sample.in_stock == order.order_type:
+        raise BizException(R.TASK_INVALID_STATE, "样品已在目标状态，无法确认")
+    sample.in_stock = order.order_type
+    sample.update_time = datetime.now()
+    db.add(
+        TaskSampleFlow(
+            sample_id=sample.id,
+            task_id=sample.task_id,
+            action=order.order_type,
+            operator_id=user.id,
+            operator_name=user.name or user.username,
+            remark=f"出入库单 {order.order_no} 确认",
+        )
+    )
+
+
+def cancel_sample_stock(db: Session, order: "StockOrder", user) -> None:
+    """取消未确认的样品出入库登记（逻辑删）；样品 in_stock 未动，无需回写。"""
+    if order.status != "registered":
+        raise BizException(R.PROCUREMENT_INVALID_STATE, "仅已登记单据可取消")
+    order.deleted = 1
+    order.update_time = datetime.now()
+    audit(
+        db,
+        user_id=user.id,
+        module="procurement",
+        action="stock_order_delete",
+        biz_type="stock_order",
+        biz_id=order.id,
+        detail={"sourceType": SOURCE_SAMPLE, "sampleId": order.source_id},
+    )

@@ -98,6 +98,8 @@
 
 明细 `pur_stock_item`：order_id(FK)、item_name、spec、unit、quantity、price nullable、remark。确认（confirm）为幂等动作：行锁 + 状态校验，确认后单据与明细只读。预留 `source_type/source_id` 扩展位（二期接招投标结果/资产台账）。
 
+**样品出入库统一进本流程（source_type=sample）**：任务样品的入/出库动作不再直接翻转 `task_sample.in_stock`，而是登记生成 StockOrder（明细 item_name=样品名、spec=型号、remark 带 VIN/样品编号，source_id=样品 id，RK/CK 编号登记即发）。确认前样品在样品管理页/任务详情显示「入库确认中/出库确认中」徽标（由查询派生 `pendingOrder`：source_type=sample + status=registered 的最新单，不落字段）；采购侧 confirm 同事务回写 `in_stock` 并补写 `task_sample_flow` 流水（样品已删/已在目标状态则整体回滚）；确认前可经 `POST /task/samples/{sid}/stock-cancel` 取消登记（逻辑删单，样品状态不变）。防重：同一样品仅允许一张未确认单（60001）；有待确认单时 `PUT /task/samples/{sid}` 与任务整体编辑均禁止直改 in_stock、禁止删除样品。出入库列表 `filters[source_type]=purchase|sample` 按来源筛选（purchase 含历史空来源），样品单输出补挂 sampleNo/sampleName/vin/taskId/taskNo/taskName 支持互跳；导出含来源/来源单据列。历史样品数据不动（旧 in_stock 原样保留）。
+
 ## 4. 与平台能力的整合点
 
 | 能力 | 接入方式 |
@@ -135,7 +137,7 @@
 | POST /requests/{id}/generate-contract | procurement:contract:create | 已批准申请 → 生成采购合同草稿（幂等：一申请一合同） |
 | POST /requests/export | list:export | xlsx |
 | GET /contracts · counts · {id}；POST/PUT/DELETE；POST /{id}/submit · /void；POST /export | procurement:contract:* | 同构；会签定义 purchase_contract_approve |
-| GET /stock-orders · counts · {id}；POST/PUT/DELETE；POST /{id}/confirm；POST /export | procurement:stock:* | confirm 后只读；删除仅 registered |
+| GET /stock-orders · counts · {id}；POST/PUT/DELETE；POST /{id}/confirm；POST /export | procurement:stock:* | confirm 后只读；删除仅 registered；filters[source_type] 按来源筛选；样品单 confirm 回写 task_sample |
 
 CRM 变更：`GET /crm/customers` 过滤白名单 +`partner_type`；`GET /crm/customers/options?partner_type=supplier|customer`；`CustomerIn`/`_out` +3 字段；导出模板 +`partnerType` 列。
 

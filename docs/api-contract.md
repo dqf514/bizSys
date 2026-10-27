@@ -103,11 +103,14 @@
 - `GET /procurement/contracts` · counts · `GET /{id}`（含 timeline + stockOrders 互跳）
   · POST/PUT/DELETE · `POST /{id}/submit`（发 CG 编号 + purchase_contract_approve：节点1 会签 sign_mode=and
   （manager1+leader1 全员通过）→ 节点2 分管领导终审）· `POST /{id}/void` · `POST /contracts/export`
-- `GET /procurement/stock-orders` 分页（q=单号/合同号/合同名；filters[order_type,contract_id,warehouse]）
-  · counts → `{registered,confirmed,all}` · `GET /{id}`
+- `GET /procurement/stock-orders` 分页（q=单号/合同号/合同名；filters[order_type,contract_id,warehouse,source_type]；
+  source_type：purchase=采购（含历史空来源）/sample=样品；样品单行补挂 sampleNo/sampleName/vin/taskId/taskNo/taskName）
+  · counts → `{registered,confirmed,all}` · `GET /{id}`（含 sourceType/sourceId 及样品来源信息）
   · `POST`（items 至少一行；contractId 仅可挂已通过的采购合同，否则 95001）
-  · `PUT /{id}`（仅 registered，orderType 不可改）· `POST /{id}/confirm`（行锁，确认后只读）
-  · `DELETE`（仅 registered）· `POST /stock-orders/export`
+  · `PUT /{id}`（仅 registered，orderType 不可改）
+  · `POST /{id}/confirm`（行锁，确认后只读；source_type=sample 时同事务回写样品 in_stock + 写 task_sample_flow 流水，
+    样品已删/已在目标状态则 10002/60001 整体回滚）
+  · `DELETE`（仅 registered）· `POST /stock-orders/export`（含来源/来源单据列）
 - 权限码：`procurement:request:list/create/edit/submit/delete/list:export`、
   `procurement:contract:list/create/edit/submit/delete/list:export`、
   `procurement:stock:list/create/edit/confirm/delete/list:export`
@@ -243,9 +246,18 @@
 - 子条目 `task_item`：`{id,itemCode,name,std,dept,inspector,qty,settleType,needReport,reportNo,reportStatus}`
   嵌套路由 `POST /task/tasks/{id}/items` · `PUT /task/items/{itemId}` · `DELETE /task/items/{itemId}`
   `needReport=true` → 自动分配 `reportNo`（BG 规则）
-- 样品 `task_sample`：`{id,sampleNo,name,model,vin,vehicleType,sampleDate,inStock:"in"|"out"}`
-  `POST /task/tasks/{id}/samples`（sampleNo 自动 `任务号-01`）· `PUT /task/samples/{sid}` · `DELETE`
-  `POST /task/samples/{sid}/in` `/out`（写 `task_sample_flow` 流水）
+- 样品 `task_sample`：`{id,sampleNo,name,model,vin,vehicleType,sampleDate,inStock:"in"|"out",pendingOrder}`
+  `POST /task/tasks/{id}/samples`（sampleNo 自动 `任务号-01`）
+  · `PUT /task/samples/{sid}`（存在未确认出入库单时禁止改 in_stock，60001）
+  · `DELETE`（存在未确认出入库单时禁止，60001）
+  · `POST /task/samples/{sid}/in` `/out` —— 统一走采购出入库流程：登记生成 StockOrder
+    （order_type=in/out、source_type=sample、source_id=样品 id，明细带样品名/型号/VIN/编号，RK/CK 编号登记即发，
+    审计 stock_order_create），返回样品带 `pendingOrder:{id,orderNo,orderType,status}`；样品 `in_stock`
+    在采购侧 `POST /procurement/stock-orders/{oid}/confirm` 确认后才翻转并写 `task_sample_flow` 流水；
+    有未确认单时重复登记 60001
+  · `POST /task/samples/{sid}/stock-cancel` —— 取消未确认登记（单据逻辑删，样品状态不变）
+  · `pendingOrder` 由查询派生（source_type=sample + status=registered），不落 task_sample 字段；
+    详情 `samples[]` 与样品列表/导出行均带
 - 跨任务样品列表（样品管理页，批次A）：
   `GET /task/samples` 分页（`task:sample:list`），行 = 样品字段 + `{taskId,taskNo,taskName,customerName,createTime}`；
   检索：`q`（样品编号/名称/VIN/任务名/客户名）、`status=in|out` 页签、`sort=create_time|sample_date|id:asc|desc`

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
-import ActionBar from '@/components/list/ActionBar.vue'
+import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
@@ -16,9 +16,11 @@ import type { SampleRow } from '@/api/types'
 defineOptions({ name: 'SampleList' })
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 
-const searchModel = ref<Record<string, any>>({ q: '' })
+// 深链互跳：/task/samples?q=<样品编号>（出入库单详情跳转过来）
+const searchModel = ref<Record<string, any>>({ q: String(route.query.q || '') })
 const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'task.sample.searchQ', placeholderKey: 'task.sample.placeholderQ', width: 260 },
 ]
@@ -67,6 +69,26 @@ const columns: ListColumn[] = [
 function openTask(row: SampleRow) {
   router.push(`/task/tasks/${row.taskId}`)
 }
+
+function openStockOrder(row: SampleRow) {
+  if (!row.pendingOrder) return
+  router.push({ path: '/procurement/stock', query: { detail: row.pendingOrder.id } })
+}
+
+function pendingLabel(row: SampleRow) {
+  return row.pendingOrder?.orderType === 'in' ? t('task.sample.pendingIn') : t('task.sample.pendingOut')
+}
+
+function rowActions(row: SampleRow): ActionItem[] {
+  const acts: ActionItem[] = [{ key: 'goTask', tip: 'task.sample.goTask', icon: 'Position' }]
+  if (row.pendingOrder) acts.push({ key: 'goStockOrder', tip: 'task.sample.goStockOrder', icon: 'Tickets' })
+  return acts
+}
+
+function onRowAction(key: string, row: SampleRow) {
+  if (key === 'goStockOrder') openStockOrder(row)
+  else openTask(row)
+}
 </script>
 
 <template>
@@ -107,6 +129,9 @@ function openTask(row: SampleRow) {
       >
         <template #inStock="{ row }">
           <StatusTag :status="String(row.inStock)" i18n-prefix="task.sample.stock" />
+          <el-tag v-if="row.pendingOrder" size="small" type="warning" class="pending-tag">
+            {{ pendingLabel(row as unknown as SampleRow) }}
+          </el-tag>
         </template>
         <template #taskNo="{ row }">
           <el-button link type="primary" @click="openTask(row as unknown as SampleRow)">
@@ -117,8 +142,8 @@ function openTask(row: SampleRow) {
           <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
               <ActionBar
-                :actions="[{ key: 'goTask', tip: 'task.sample.goTask', icon: 'Position' }]"
-                @select="openTask(row as unknown as SampleRow)"
+                :actions="rowActions(row as unknown as SampleRow)"
+                @select="(k) => onRowAction(k, row as unknown as SampleRow)"
               />
             </template>
           </el-table-column>
@@ -127,3 +152,9 @@ function openTask(row: SampleRow) {
     </template>
   </ListPage>
 </template>
+
+<style scoped>
+.pending-tag {
+  margin-left: var(--bs-space-1);
+}
+</style>

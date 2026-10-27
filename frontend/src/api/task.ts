@@ -68,7 +68,11 @@ export function deleteTaskSample(sampleId: number) {
 }
 
 export function sampleFlow(sampleId: number, action: 'in' | 'out') {
-  return request<void>({ url: `/task/samples/${sampleId}/${action}`, method: 'post' })
+  return request<TaskSample>({ url: `/task/samples/${sampleId}/${action}`, method: 'post' })
+}
+
+export function cancelSampleStock(sampleId: number) {
+  return request<TaskSample>({ url: `/task/samples/${sampleId}/stock-cancel`, method: 'post' })
 }
 
 export function listSamples(params: ListQuery) {

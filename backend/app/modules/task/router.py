@@ -149,7 +149,8 @@ def _item_out(i: TaskItem) -> dict:
     }
 
 
-def _sample_out(s: TaskSample) -> dict:
+def _sample_out(s: TaskSample, pending=None) -> dict:
+    """pending：未确认（registered）的样品出入库单，驱动前端「确认中」徽标。"""
     return {
         "id": s.id,
         "sampleNo": s.sample_no or "",
@@ -159,7 +160,18 @@ def _sample_out(s: TaskSample) -> dict:
         "vehicleType": s.vehicle_type,
         "sampleDate": _d(s.sample_date),
         "inStock": s.in_stock,
+        "pendingOrder": (
+            {"id": pending.id, "orderNo": pending.order_no, "orderType": pending.order_type, "status": pending.status}
+            if pending
+            else None
+        ),
     }
+
+
+def _pending_map(db: Session, sample_ids: list[int]) -> dict:
+    from app.modules.procurement import service as proc_svc
+
+    return proc_svc.pending_sample_stock_map(db, sample_ids)
 
 
 def _filtered(db: Session, request: Request, page: PageParams):
@@ -280,7 +292,9 @@ def _detail(db: Session, t: Task) -> dict:
     cnts = _counts_for(db, [t.id])
     data = _out(t, labels, cnts.get(t.id, (0, 0)), _settle_map(db, [t.id]).get(t.id, ""))
     data["items"] = [_item_out(i) for i in t.items if not i.deleted]
-    data["samples"] = [_sample_out(s) for s in t.samples if not s.deleted]
+    samples = [s for s in t.samples if not s.deleted]
+    pending = _pending_map(db, [s.id for s in samples])
+    data["samples"] = [_sample_out(s, pending.get(s.id)) for s in samples]
     flow_rows = db.execute(
         select(TaskSampleFlow, TaskSample.sample_no)
         .outerjoin(TaskSample, TaskSample.id == TaskSampleFlow.sample_id)
@@ -517,9 +531,9 @@ SAMPLE_EXPORT_COLS = [
 ]
 
 
-def _sample_row(s: TaskSample, t: Task | None) -> dict:
+def _sample_row(s: TaskSample, t: Task | None, pending=None) -> dict:
     return {
-        **_sample_out(s),
+        **_sample_out(s, pending),
         "taskId": s.task_id,
         "taskNo": (t.task_no or "") if t else "",
         "taskName": t.task_name if t else "",
@@ -585,8 +599,9 @@ def list_samples(
 ):
     stmt, total = _filtered_samples(db, request, PageParams(page=page, size=size))
     rows = db.execute(stmt).all()
+    pending = _pending_map(db, [s.id for s, _ in rows])
     return {
-        "items": [_sample_row(s, t) for s, t in rows],
+        "items": [_sample_row(s, t, pending.get(s.id)) for s, t in rows],
         "total": total,
         "page": page,
         "size": size,
@@ -618,9 +633,10 @@ def export_samples(
 ):
     stmt, _ = _filtered_samples(db, request, SimpleNamespace(page=1, size=100_000))
     rows = db.execute(stmt).all()
+    pending = _pending_map(db, [s.id for s, _ in rows])
     payload_rows = []
     for s, t in rows:
-        item = _sample_row(s, t)
+        item = _sample_row(s, t, pending.get(s.id))
         item["inStockText"] = SAMPLE_STATUS_CN.get(s.in_stock, s.in_stock)
         payload_rows.append(item)
     payload = export_xlsx_styled(payload_rows, SAMPLE_EXPORT_COLS, "samples")
@@ -691,6 +707,9 @@ def update_sample(
     row.vehicle_type = body.vehicle_type
     row.sample_date = body.sample_date
     if body.in_stock != row.in_stock:
+        pending = _pending_map(db, [row.id]).get(row.id)
+        if pending:
+            raise BizException(R.TASK_INVALID_STATE, "样品存在待确认的出入库单，禁止直接调整库存状态")
         row.in_stock = body.in_stock
         db.add(
             TaskSampleFlow(
@@ -701,7 +720,7 @@ def update_sample(
         )
     row.update_time = datetime.now()
     db.commit()
-    return _sample_out(row)
+    return _sample_out(row, _pending_map(db, [row.id]).get(row.id))
 
 
 @router.delete("/samples/{sid}")
@@ -713,27 +732,23 @@ def delete_sample(
     row = db.get(TaskSample, sid)
     if not row or row.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
+    if _pending_map(db, [sid]):
+        raise BizException(R.TASK_INVALID_STATE, "样品存在待确认的出入库单，请先确认或取消")
     row.deleted = 1
     db.commit()
     return None
 
 
 def _stock(sid: int, flag: str, current: User, db: Session) -> dict:
+    """样品入/出库：统一生成采购模块待确认 StockOrder，确认后才回写 in_stock。"""
+    from app.modules.procurement import service as proc_svc
+
     row = db.get(TaskSample, sid)
     if not row or row.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    if row.in_stock == flag:
-        raise BizException(R.TASK_INVALID_STATE, "样品已在该状态")
-    row.in_stock = flag
-    row.update_time = datetime.now()
-    db.add(
-        TaskSampleFlow(
-            sample_id=row.id, task_id=row.task_id, action=flag,
-            operator_id=current.id, operator_name=current.name or current.username,
-        )
-    )
+    order = proc_svc.register_sample_stock(db, row, flag, current)
     db.commit()
-    return _sample_out(row)
+    return _sample_out(row, order)
 
 
 @router.post("/samples/{sid}/in")
@@ -752,6 +767,26 @@ def sample_out(
     db: Session = Depends(get_db),
 ):
     return _stock(sid, "out", current, db)
+
+
+@router.post("/samples/{sid}/stock-cancel")
+def sample_stock_cancel(
+    sid: int,
+    current: User = Depends(require_perm("task:edit")),
+    db: Session = Depends(get_db),
+):
+    """取消待确认的样品出入库登记（逻辑删单）；样品 in_stock 未动，保持原状态。"""
+    from app.modules.procurement import service as proc_svc
+
+    row = db.get(TaskSample, sid)
+    if not row or row.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    order = proc_svc.pending_sample_stock_map(db, [sid]).get(sid)
+    if not order:
+        raise BizException(R.TASK_INVALID_STATE, "无待确认的出入库单")
+    proc_svc.cancel_sample_stock(db, order, current)
+    db.commit()
+    return _sample_out(row)
 
 
 # ---------------- 导出 ----------------

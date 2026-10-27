@@ -91,7 +91,13 @@
     "items": "物资明细",
     "confirm": "确认",
     "confirmTip": "确认后单据只读，是否继续？",
-    "createTime": "创建时间"
+    "createTime": "创建时间",
+    "sourceType": "来源",
+    "sourcePurchase": "采购",
+    "sourceSample": "样品",
+    "linkedSample": "关联样品",
+    "linkedTask": "关联任务",
+    "goTask": "查看任务"
   },
   "tender": {
     "title": "招标管理",

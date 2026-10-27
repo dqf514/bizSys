@@ -257,8 +257,16 @@ def test_task_detail_logs(client, admin_headers):
     sid = r["data"]["id"]
     sno = r["data"]["sampleNo"]
 
-    assert client.post(f"/api/v1/task/samples/{sid}/out", headers=headers).json()["code"] == 0
-    assert client.post(f"/api/v1/task/samples/{sid}/in", headers=headers).json()["code"] == 0
+    # 出入库统一走采购 StockOrder：登记生成待确认单 → 采购侧确认后才翻转 in_stock 并写流水
+    r = client.post(f"/api/v1/task/samples/{sid}/out", headers=headers).json()
+    assert r["code"] == 0, r
+    assert r["data"]["inStock"] == "in"  # 确认前不变
+    oid = r["data"]["pendingOrder"]["id"]
+    assert client.post(f"/api/v1/procurement/stock-orders/{oid}/confirm", headers=headers).json()["code"] == 0
+    r = client.post(f"/api/v1/task/samples/{sid}/in", headers=headers).json()
+    assert r["code"] == 0, r
+    oid = r["data"]["pendingOrder"]["id"]
+    assert client.post(f"/api/v1/procurement/stock-orders/{oid}/confirm", headers=headers).json()["code"] == 0
 
     r = client.get(f"/api/v1/task/tasks/{tid}", headers=headers).json()
     assert r["code"] == 0, r

@@ -32,7 +32,7 @@ const route = useRoute()
 const router = useRouter()
 const warehouseOpts = useDictOptions('warehouse')
 
-const searchModel = ref<Record<string, any>>({ q: '', orderType: '' })
+const searchModel = ref<Record<string, any>>({ q: '', orderType: '', sourceType: '' })
 const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'procurement.stock.searchNo', placeholderKey: 'procurement.stock.placeholderNo', width: 220 },
   {
@@ -43,6 +43,16 @@ const searchFields: SearchField[] = [
     options: [
       { label: t('procurement.stock.typeIn'), value: 'in' },
       { label: t('procurement.stock.typeOut'), value: 'out' },
+    ],
+  },
+  {
+    key: 'sourceType',
+    labelKey: 'procurement.stock.sourceType',
+    type: 'select',
+    width: 120,
+    options: [
+      { label: t('procurement.stock.sourcePurchase'), value: 'purchase' },
+      { label: t('procurement.stock.sourceSample'), value: 'sample' },
     ],
   },
 ]
@@ -78,7 +88,10 @@ const list = useListPage<StockOrder>({
     const data = await listStockOrders({
       ...params,
       q: searchModel.value.q || undefined,
-      filters: { order_type: searchModel.value.orderType || undefined },
+      filters: {
+        order_type: searchModel.value.orderType || undefined,
+        source_type: searchModel.value.sourceType || undefined,
+      },
     })
     return { items: data.items ?? [], total: data.total ?? 0 }
   },
@@ -86,7 +99,10 @@ const list = useListPage<StockOrder>({
     exportStockOrders({
       ...params,
       q: searchModel.value.q || undefined,
-      filters: { order_type: searchModel.value.orderType || undefined },
+      filters: {
+        order_type: searchModel.value.orderType || undefined,
+        source_type: searchModel.value.sourceType || undefined,
+      },
     }),
   defaultStatus: 'all',
   onLoaded: () => {
@@ -97,6 +113,7 @@ const list = useListPage<StockOrder>({
 const columns: ListColumn[] = [
   { prop: 'orderNo', labelKey: 'procurement.stock.orderNo', width: 150, fixed: 'left', sortable: 'order_no' },
   { prop: 'orderType', labelKey: 'procurement.stock.orderType', width: 90, sortable: 'order_type' },
+  { prop: 'sourceType', labelKey: 'procurement.stock.sourceType', width: 90 },
   { prop: 'contractNo', labelKey: 'procurement.stock.contract', width: 160 },
   { prop: 'warehouse', labelKey: 'procurement.stock.warehouse', width: 110 },
   { prop: 'orderDate', labelKey: 'procurement.stock.orderDate', width: 120, sortable: 'order_date' },
@@ -289,6 +306,21 @@ function openLinkedContract() {
   router.push({ path: '/procurement/contracts', query: { detail: detail.value.contractId } })
 }
 
+function openLinkedTask() {
+  if (!detail.value?.taskId) return
+  router.push(`/task/tasks/${detail.value.taskId}`)
+}
+
+function openLinkedSample() {
+  if (!detail.value?.sampleNo) return
+  router.push({ path: '/task/samples', query: { q: detail.value.sampleNo } })
+}
+
+function sourceTypeLabel(value: unknown) {
+  const v = String(value || 'purchase')
+  return v === 'sample' ? t('procurement.stock.sourceSample') : t('procurement.stock.sourcePurchase')
+}
+
 function warehouseLabel(value: unknown) {
   const v = String(value ?? '')
   return warehouseOpts.opts.value.find((x) => x.value === v)?.label || v || '-'
@@ -314,7 +346,7 @@ function fmtAmount(v: unknown) {
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
-        @reset="searchModel = { q: '', orderType: '' }; list.reset()"
+        @reset="searchModel = { q: '', orderType: '', sourceType: '' }; list.reset()"
       />
     </template>
 
@@ -344,6 +376,9 @@ function fmtAmount(v: unknown) {
         </template>
         <template #orderType="{ row }">
           <StatusTag :status="String(row.orderType)" i18n-prefix="procurement.stock.type" />
+        </template>
+        <template #sourceType="{ row }">
+          {{ sourceTypeLabel(row.sourceType) }}
         </template>
         <template #contractNo="{ row }">{{ row.contractNo || '-' }}</template>
         <template #warehouse="{ row }">{{ warehouseLabel(row.warehouse) }}</template>
@@ -467,6 +502,21 @@ function fmtAmount(v: unknown) {
           <el-descriptions-item :label="t('procurement.stock.contract')" :span="2">
             <el-button v-if="detail.contractId" link type="primary" @click="openLinkedContract">
               {{ detail.contractNo }} {{ detail.contractName }}
+            </el-button>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('procurement.stock.sourceType')">
+            {{ sourceTypeLabel(detail.sourceType) }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detail.sourceType === 'sample'" :label="t('procurement.stock.linkedSample')">
+            <el-button v-if="detail.sampleNo" link type="primary" @click="openLinkedSample">
+              {{ detail.sampleNo }} {{ detail.sampleName }}
+            </el-button>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detail.sourceType === 'sample'" :label="t('procurement.stock.linkedTask')" :span="2">
+            <el-button v-if="detail.taskId" link type="primary" @click="openLinkedTask">
+              {{ detail.taskNo }} {{ detail.taskName }}
             </el-button>
             <span v-else>-</span>
           </el-descriptions-item>

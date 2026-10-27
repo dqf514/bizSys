@@ -91,7 +91,13 @@
     "items": "Items",
     "confirm": "Confirm",
     "confirmTip": "The order becomes read-only after confirmation. Continue?",
-    "createTime": "Created At"
+    "createTime": "Created At",
+    "sourceType": "Source",
+    "sourcePurchase": "Purchase",
+    "sourceSample": "Sample",
+    "linkedSample": "Linked Sample",
+    "linkedTask": "Linked Task",
+    "goTask": "View Task"
   },
   "tender": {
     "title": "Tenders",

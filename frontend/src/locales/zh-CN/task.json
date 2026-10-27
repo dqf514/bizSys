@@ -98,8 +98,8 @@
     "editSample": "编辑样品",
     "removeSample": "删除样品",
     "deleteSampleConfirm": "确认删除该样品？",
-    "inConfirm": "确认该样品入库？",
-    "outConfirm": "确认该样品出库？",
+    "inConfirm": "登记该样品的入库单？确认后库存状态才更新",
+    "outConfirm": "登记该样品的出库单？确认后库存状态才更新",
     "logAction": "动作",
     "logOperator": "操作人",
     "logTime": "时间",
@@ -115,7 +115,11 @@
     "anchorNav": "页面导航",
     "summary": "摘要",
     "ganttTruncated": "仅展示前 {shown} 条，共 {total} 条",
-    "ganttNoDate": "{count} 条无日期任务未展示"
+    "ganttNoDate": "{count} 条无日期任务未展示",
+    "cancelStock": "取消登记",
+    "cancelStockTip": "确认取消该出入库登记？对应单据将被删除，样品保持当前状态。",
+    "stockRegisterSuccess": "已登记，待出入库确认",
+    "stockPendingTip": "存在待确认的出入库单，库存状态由单据确认后自动更新"
   },
   "sample": {
     "title": "样品管理",
@@ -137,6 +141,9 @@
     "stock": {
       "in": "在库",
       "out": "出库"
-    }
+    },
+    "pendingIn": "入库确认中",
+    "pendingOut": "出库确认中",
+    "goStockOrder": "查看出入库单"
   }
 }

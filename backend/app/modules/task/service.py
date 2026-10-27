@@ -287,6 +287,12 @@ def sync_samples(db: Session, task: Task, samples) -> None:
         row.vin = body.vin
         row.vehicle_type = body.vehicle_type
         row.sample_date = body.sample_date
+        if row.id and body.in_stock != row.in_stock:
+            # 库存状态统一走出入库单确认回写；有待确认单时禁止随任务编辑直接翻转
+            from app.modules.procurement import service as proc_svc
+
+            if proc_svc.pending_sample_stock_map(db, [row.id]):
+                raise BizException(R.TASK_INVALID_STATE, "样品存在待确认的出入库单，禁止直接调整库存状态")
         row.in_stock = body.in_stock
     db.flush()
 

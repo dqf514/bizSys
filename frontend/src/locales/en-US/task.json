@@ -98,8 +98,8 @@
     "editSample": "Edit Sample",
     "removeSample": "Remove Sample",
     "deleteSampleConfirm": "Delete this sample?",
-    "inConfirm": "Stock this sample in?",
-    "outConfirm": "Stock this sample out?",
+    "inConfirm": "Register a stock-in order for this sample? Stock status updates upon confirmation",
+    "outConfirm": "Register a stock-out order for this sample? Stock status updates upon confirmation",
     "logAction": "Action",
     "logOperator": "Operator",
     "logTime": "Time",
@@ -115,7 +115,11 @@
     "anchorNav": "Navigation",
     "summary": "Summary",
     "ganttTruncated": "Showing first {shown} of {total} tasks",
-    "ganttNoDate": "{count} tasks without dates are hidden"
+    "ganttNoDate": "{count} tasks without dates are hidden",
+    "cancelStock": "Cancel Registration",
+    "cancelStockTip": "Cancel this stock registration? The order will be deleted and the sample keeps its current state.",
+    "stockRegisterSuccess": "Registered, pending stock confirmation",
+    "stockPendingTip": "A stock order is pending confirmation; stock status updates automatically upon confirmation"
   },
   "sample": {
     "title": "Samples",
@@ -137,6 +141,9 @@
     "stock": {
       "in": "In Stock",
       "out": "Checked Out"
-    }
+    },
+    "pendingIn": "Stock-In Pending",
+    "pendingOut": "Stock-Out Pending",
+    "goStockOrder": "View Stock Order"
   }
 }

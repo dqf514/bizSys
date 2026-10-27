@@ -15,6 +15,7 @@ import {
   deleteTask,
   taskAction,
   sampleFlow,
+  cancelSampleStock,
   addTaskItem,
   updateTaskItem,
   deleteTaskItem,
@@ -244,9 +245,10 @@ async function doSampleFlow(row: TaskSample, action: 'in' | 'out') {
     return
   }
   try {
-    await sampleFlow(row.id, action)
-    row.inStock = action === 'in' ? 'in' : 'out'
-    ElMessage.success(t('common.message.submitSuccess'))
+    // 登记生成待确认出入库单；inStock 由采购侧确认后回写
+    const data = await sampleFlow(row.id, action)
+    row.pendingOrder = data.pendingOrder ?? null
+    ElMessage.success(t('task.task.stockRegisterSuccess'))
     void load()
     emit('changed')
   } catch {
@@ -351,6 +353,8 @@ const sampleVisible = ref(false)
 const sampleSaving = ref(false)
 const sampleFormRef = ref<FormInstance>()
 const editingSampleId = ref<number | null>(null)
+/** 编辑中的样品有待确认出入库单 → 库存状态只读（只能由单据确认回写） */
+const editingSamplePending = ref(false)
 const sampleForm = reactive({
   name: '',
   model: '',
@@ -362,12 +366,14 @@ const sampleForm = reactive({
 
 function openSampleCreate() {
   editingSampleId.value = null
+  editingSamplePending.value = false
   Object.assign(sampleForm, { name: '', model: '', vin: '', vehicleType: '', sampleDate: '', inStock: 'in' })
   sampleVisible.value = true
 }
 
 function openSampleEdit(row: TaskSample) {
   editingSampleId.value = row.id ?? null
+  editingSamplePending.value = !!row.pendingOrder
   Object.assign(sampleForm, {
     name: row.name ?? '',
     model: row.model ?? '',
@@ -460,10 +466,16 @@ function onItemRowAction(key: string, row: Record<string, unknown>) {
 
 function sampleRowActions(row: Record<string, unknown>): ActionItem[] {
   const acts: ActionItem[] = []
-  if (row.inStock !== 'in') acts.push({ key: 'sampleIn', tip: 'task.task.sampleIn', icon: 'Download' })
-  if (row.inStock === 'in') acts.push({ key: 'sampleOut', tip: 'task.task.sampleOut', icon: 'Upload' })
+  const pending = row.pendingOrder as TaskSample['pendingOrder']
+  if (pending) {
+    acts.push({ key: 'goStockOrder', tip: 'task.sample.goStockOrder', icon: 'Tickets' })
+    acts.push({ key: 'cancelStock', tip: 'task.task.cancelStock', icon: 'CircleClose', perm: 'task:edit' })
+  } else {
+    if (row.inStock !== 'in') acts.push({ key: 'sampleIn', tip: 'task.task.sampleIn', icon: 'Download' })
+    if (row.inStock === 'in') acts.push({ key: 'sampleOut', tip: 'task.task.sampleOut', icon: 'Upload' })
+  }
   if (canMaintainSamples.value) acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'task:edit' })
-  if (isDraft.value) acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'task:edit' })
+  if (isDraft.value && !pending) acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'task:edit' })
   return acts
 }
 
@@ -471,8 +483,33 @@ function onSampleRowAction(key: string, row: Record<string, unknown>) {
   const sample = row as unknown as TaskSample
   if (key === 'sampleIn') void doSampleFlow(sample, 'in')
   else if (key === 'sampleOut') void doSampleFlow(sample, 'out')
+  else if (key === 'goStockOrder') openSampleStockOrder(sample)
+  else if (key === 'cancelStock') void cancelSampleStockReg(sample)
   else if (key === 'edit') openSampleEdit(sample)
   else if (key === 'delete') void removeSample(sample)
+}
+
+function openSampleStockOrder(row: TaskSample) {
+  if (!row.pendingOrder) return
+  router.push({ path: '/procurement/stock', query: { detail: row.pendingOrder.id } })
+}
+
+async function cancelSampleStockReg(row: TaskSample) {
+  if (!row.id || !row.pendingOrder) return
+  try {
+    await ElMessageBox.confirm(t('task.task.cancelStockTip'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await cancelSampleStock(row.id)
+    row.pendingOrder = null
+    ElMessage.success(t('common.message.deleteSuccess'))
+    void load()
+    emit('changed')
+  } catch {
+    /* http notifies */
+  }
 }
 
 const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
@@ -589,9 +626,12 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
           <el-table-column :label="t('task.task.sampleVin')" prop="vin" width="140" sortable />
           <el-table-column :label="t('task.task.sampleVehicleType')" prop="vehicleType" width="110" />
           <el-table-column :label="t('task.task.sampleDate')" prop="sampleDate" width="110" sortable />
-          <el-table-column :label="t('task.task.sampleInStock')" width="90">
+          <el-table-column :label="t('task.task.sampleInStock')" width="150">
             <template #default="{ row }">
               <StatusTag :status="String(row.inStock)" i18n-prefix="task.task.sampleStatus" />
+              <el-tag v-if="row.pendingOrder" size="small" type="warning" class="pending-tag">
+                {{ row.pendingOrder.orderType === 'in' ? t('task.sample.pendingIn') : t('task.sample.pendingOut') }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
@@ -772,10 +812,11 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('task.task.sampleInStock')" prop="inStock">
-              <el-radio-group v-model="sampleForm.inStock">
+              <el-radio-group v-model="sampleForm.inStock" :disabled="editingSamplePending">
                 <el-radio value="in">{{ t('task.task.sampleStatusIn') }}</el-radio>
                 <el-radio value="out">{{ t('task.task.sampleStatusOut') }}</el-radio>
               </el-radio-group>
+              <div v-if="editingSamplePending" class="form-tip">{{ t('task.task.stockPendingTip') }}</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -823,6 +864,10 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
   display: flex;
   justify-content: flex-end;
   margin-bottom: var(--bs-space-2);
+}
+
+.pending-tag {
+  margin-left: var(--bs-space-1);
 }
 
 .flow-summary {
