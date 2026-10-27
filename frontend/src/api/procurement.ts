@@ -2,7 +2,6 @@ import { request, download, toQuery } from './http'
 import type {
   ListQuery,
   PageResult,
-  PartnerAccount,
   PurchaseContract,
   PurchaseContractDetail,
   PurchaseRequest,
@@ -243,22 +242,4 @@ export function downloadRegistrationAttachment(regId: number) {
 
 export function downloadBidProposal(bidId: number) {
   return download({ url: `/procurement/tenders/bids/${bidId}/proposal`, method: 'get' }, 'proposal')
-}
-
-// ---- 合作方账号（二期） ----
-
-export function listPartnerAccounts(params: ListQuery) {
-  return request<PageResult<PartnerAccount>>({
-    url: '/procurement/partners',
-    method: 'get',
-    params: toQuery(params as Record<string, unknown>),
-  })
-}
-
-export function partnerAccountCounts() {
-  return request<Record<string, number>>({ url: '/procurement/partners/counts', method: 'get' })
-}
-
-export function reviewPartnerAccount(id: number, data: { approve: boolean; comment?: string; customerId?: number | null }) {
-  return request<PartnerAccount>({ url: `/procurement/partners/${id}/review`, method: 'post', data })
 }

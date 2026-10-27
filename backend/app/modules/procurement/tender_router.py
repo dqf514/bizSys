@@ -598,7 +598,7 @@ def list_partners(
         db,
         PageParams(page=page, size=size),
         search_cols=["username", "company_name", "contact_name", "phone"],
-        filter_cols={"status"},
+        filter_cols={"status", "customer_id"},
         range_cols={"create_time"},
         sort_cols={"create_time", "id", "username", "company_name", "status"},
     )

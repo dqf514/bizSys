@@ -41,7 +41,9 @@
     "partnerTypeSupplier": "供应商",
     "partnerTypeBoth": "客户+供应商",
     "supplyCategory": "供应分类",
-    "supplierRating": "供应商评级"
+    "supplierRating": "供应商评级",
+    "viewUnits": "往来单位",
+    "viewAccounts": "合作方账号"
   },
   "detail": {
     "basicInfo": "基本信息",
@@ -59,7 +61,8 @@
     "contacts": "联系人",
     "attachments": "附件",
     "purchaseContractCount": "采购合同数",
-    "purchaseTotal": "采购总额"
+    "purchaseTotal": "采购总额",
+    "portalAccounts": "门户账号"
   },
   "contact": {
     "add": "添加联系人",
@@ -85,5 +88,33 @@
     "noFile": "未选择文件",
     "deleteConfirm": "确认删除该附件？文件将一并移除。",
     "uploadSuccess": "上传成功"
+  },
+  "account": {
+    "title": "合作方账号",
+    "search": "账号/公司",
+    "placeholder": "搜索账号/公司/联系人/电话",
+    "username": "账号",
+    "companyName": "公司名称",
+    "contactName": "联系人",
+    "phone": "电话",
+    "email": "邮箱",
+    "status": "状态",
+    "bindPartner": "绑定往来单位",
+    "bindPartnerTip": "审核通过时可绑定供应商往来单位，用于定标后生成采购合同",
+    "review": "审核",
+    "approve": "通过",
+    "reject": "拒绝",
+    "disable": "停用",
+    "reviewComment": "审核意见",
+    "reviewName": "审核人",
+    "reviewAt": "审核时间",
+    "reviewInfo": "审核信息",
+    "lastLoginAt": "最近登录",
+    "createTime": "注册时间",
+    "approveConfirm": "确认通过该账号？",
+    "approveBindConfirm": "确认通过「{name}」的审核并绑定到当前单位？",
+    "rejectConfirm": "确认拒绝该账号？",
+    "disableConfirm": "确认停用该账号？停用后不可登录门户",
+    "emptyTip": "暂无绑定的门户账号。合作方可从门户注册后，在往来单位「合作方账号」视图中审核并绑定。"
   }
 }

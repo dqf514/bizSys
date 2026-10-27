@@ -12,9 +12,11 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import SmartInput from '@/components/form/SmartInput.vue'
 import CustomerDetailDrawer from '../components/CustomerDetailDrawer.vue'
+import PartnerAccountPanel from '../components/PartnerAccountPanel.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
+import { useAuthStore } from '@/stores/auth'
 import {
   listCustomers,
   customerCounts,
@@ -24,12 +26,58 @@ import {
   exportCustomers,
   downloadCustomerTemplate,
   importCustomers,
+  partnerAccountCounts,
 } from '@/api/crm'
 import type { Customer } from '@/api/types'
 
 defineOptions({ name: 'CustomerList' })
 
 const { t } = useI18n()
+const auth = useAuthStore()
+
+/* ---------- 页面级视图：往来单位 / 合作方账号（原采购管理合作方账号并入） ---------- */
+const route = useRoute()
+const router = useRouter()
+const canViewAccounts = computed(() => auth.hasPerm('procurement:partner:list'))
+const view = ref<'units' | 'accounts'>(
+  route.query.tab === 'accounts' && canViewAccounts.value ? 'accounts' : 'units',
+)
+const accountTotal = ref(0)
+
+async function loadAccountCount() {
+  if (!canViewAccounts.value) return
+  try {
+    const data = await partnerAccountCounts()
+    accountTotal.value = data?.all ?? 0
+  } catch {
+    /* badge optional */
+  }
+}
+
+onMounted(() => void loadAccountCount())
+
+const unitAll = ref(0)
+const viewTabs = computed<StatusTabItem[]>(() => {
+  const tabs: StatusTabItem[] = [{ value: 'units', labelKey: 'crm.customer.viewUnits', count: unitAll.value }]
+  if (canViewAccounts.value) {
+    tabs.push({ value: 'accounts', labelKey: 'crm.customer.viewAccounts', count: accountTotal.value })
+  }
+  return tabs
+})
+
+function switchView(v: string) {
+  view.value = v as 'units' | 'accounts'
+  router.replace({ query: { ...route.query, tab: v === 'units' ? undefined : v } })
+}
+
+// 深链（含旧 /procurement/partners 重定向）：keep-alive 下同一组件复用，需响应 query.tab 变化
+watch(
+  () => route.query.tab,
+  (v) => {
+    if (v === 'accounts' && canViewAccounts.value) view.value = 'accounts'
+    else if (!v) view.value = 'units'
+  },
+)
 
 const searchModel = ref<Record<string, any>>({ q: '', taxNo: '', partnerType: '' })
 const searchFields = computed<SearchField[]>(() => [
@@ -67,6 +115,7 @@ async function loadCounts() {
     }
     const allTab = statusTabs.value.find((x) => x.value === 'all')
     if (allTab) allTab.count = all
+    unitAll.value = all
   } catch {
     /* counts optional */
   }
@@ -168,8 +217,6 @@ function openDetail(row: Customer) {
 }
 
 // 从任务/合同等详情的"关联客户"链接跳入：/crm/customers?detail=<id> 直接打开详情抽屉
-const route = useRoute()
-const router = useRouter()
 watch(
   () => route.query.detail,
   (v) => {
@@ -296,75 +343,83 @@ async function doImport() {
 </script>
 
 <template>
-  <ListPage :title="t('crm.customer.title')" :loading="list.loading.value">
-    <template #actions>
-      <el-button v-permission="'crm:customer:create'" type="primary" @click="openCreate">
-        {{ t('crm.customer.create') }}
-      </el-button>
-      <ExportButton v-permission="'crm:customer:list:export'" :export-fn="() => list.exportList()" />
-      <el-button v-permission="'crm:customer:import'" @click="importVisible = true">
-        {{ t('common.action.import') }}
-      </el-button>
-      <el-button v-permission="'crm:customer:import'" @click="downloadCustomerTemplate()">
-        {{ t('common.action.downloadTemplate') }}
-      </el-button>
-    </template>
+  <div class="customer-page">
+    <div class="view-tabs-row">
+      <StatusTabs :tabs="viewTabs" :model-value="view" @update:model-value="switchView" />
+    </div>
 
-    <template #searchBar>
-      <SearchBar
-        v-model="searchModel"
-        :fields="searchFields"
-        @search="list.search()"
-        @reset="searchModel = { q: '', taxNo: '', partnerType: '' }; list.reset()"
-      />
-    </template>
+    <ListPage v-if="view === 'units'" class="page-body" :title="t('crm.customer.title')" :loading="list.loading.value">
+      <template #actions>
+        <el-button v-permission="'crm:customer:create'" type="primary" @click="openCreate">
+          {{ t('crm.customer.create') }}
+        </el-button>
+        <ExportButton v-permission="'crm:customer:list:export'" :export-fn="() => list.exportList()" />
+        <el-button v-permission="'crm:customer:import'" @click="importVisible = true">
+          {{ t('common.action.import') }}
+        </el-button>
+        <el-button v-permission="'crm:customer:import'" @click="downloadCustomerTemplate()">
+          {{ t('common.action.downloadTemplate') }}
+        </el-button>
+      </template>
 
-    <template #statusTabs>
-      <StatusTabs
-        :tabs="statusTabs"
-        :model-value="String(list.query.status)"
-        @update:model-value="list.setStatus($event)"
-      />
-    </template>
+      <template #searchBar>
+        <SearchBar
+          v-model="searchModel"
+          :fields="searchFields"
+          @search="list.search()"
+          @reset="searchModel = { q: '', taxNo: '', partnerType: '' }; list.reset()"
+        />
+      </template>
 
-    <template #table>
-      <ListTable
-        :columns="columns"
-        :data="list.items.value as unknown as Record<string, unknown>[]"
-        :loading="list.loading.value"
-        :total="list.total.value"
-        :page="Number(list.query.page)"
-        :size="Number(list.query.size)"
-        row-key="id"
-        @update:page="list.setPage"
-        @update:size="list.setSize"
-        @sort-change="list.onSortChange"
-      >
-        <template #status="{ row }">
-          <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
-        </template>
-        <template #name="{ row }">
-          <el-button link type="primary" @click="openDetail(row as unknown as Customer)">{{ row.name }}</el-button>
-        </template>
-        <template #customerType="{ row }">
-          {{ typeOpts.opts.value.find((x) => x.value === row.customerType)?.label || row.customerType || '-' }}
-        </template>
-        <template #partnerType="{ row }">
-          <el-tag size="small" effect="plain">{{ t(`crm.customer.partnerType${String(row.partnerType || 'customer').charAt(0).toUpperCase()}${String(row.partnerType || 'customer').slice(1)}`) }}</el-tag>
-        </template>
-        <template #grade="{ row }">
-          {{ gradeOpts.opts.value.find((x) => x.value === row.grade)?.label || row.grade || '-' }}
-        </template>
-        <template #extraColumns>
-          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
-            <template #default="{ row }">
-              <ActionBar :actions="rowActions" @select="(k) => onRowAction(k, row as unknown as Customer)" />
-            </template>
-          </el-table-column>
-        </template>
-      </ListTable>
-    </template>
-  </ListPage>
+      <template #statusTabs>
+        <StatusTabs
+          :tabs="statusTabs"
+          :model-value="String(list.query.status)"
+          @update:model-value="list.setStatus($event)"
+        />
+      </template>
+
+      <template #table>
+        <ListTable
+          :columns="columns"
+          :data="list.items.value as unknown as Record<string, unknown>[]"
+          :loading="list.loading.value"
+          :total="list.total.value"
+          :page="Number(list.query.page)"
+          :size="Number(list.query.size)"
+          row-key="id"
+          @update:page="list.setPage"
+          @update:size="list.setSize"
+          @sort-change="list.onSortChange"
+        >
+          <template #status="{ row }">
+            <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
+          </template>
+          <template #name="{ row }">
+            <el-button link type="primary" @click="openDetail(row as unknown as Customer)">{{ row.name }}</el-button>
+          </template>
+          <template #customerType="{ row }">
+            {{ typeOpts.opts.value.find((x) => x.value === row.customerType)?.label || row.customerType || '-' }}
+          </template>
+          <template #partnerType="{ row }">
+            <el-tag size="small" effect="plain">{{ t(`crm.customer.partnerType${String(row.partnerType || 'customer').charAt(0).toUpperCase()}${String(row.partnerType || 'customer').slice(1)}`) }}</el-tag>
+          </template>
+          <template #grade="{ row }">
+            {{ gradeOpts.opts.value.find((x) => x.value === row.grade)?.label || row.grade || '-' }}
+          </template>
+          <template #extraColumns>
+            <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
+              <template #default="{ row }">
+                <ActionBar :actions="rowActions" @select="(k) => onRowAction(k, row as unknown as Customer)" />
+              </template>
+            </el-table-column>
+          </template>
+        </ListTable>
+      </template>
+    </ListPage>
+
+    <PartnerAccountPanel v-else class="page-body account-body" @changed="loadAccountCount" />
+  </div>
 
   <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" append-to-body>
     <el-form ref="formRef" :model="form" label-width="120px">
@@ -525,6 +580,31 @@ async function doImport() {
 </template>
 
 <style scoped>
+.customer-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.view-tabs-row {
+  flex-shrink: 0;
+  padding: var(--bs-space-3) var(--bs-space-3) 0;
+}
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.page-body.list-page {
+  height: auto;
+}
+
+.account-body {
+  padding: var(--bs-space-2) var(--bs-space-3) var(--bs-space-3);
+}
+
 .import-tip {
   margin-bottom: var(--bs-space-2);
   color: var(--bs-color-fg-muted);

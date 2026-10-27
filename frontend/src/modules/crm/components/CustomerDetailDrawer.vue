@@ -20,6 +20,8 @@ import {
   downloadPartnerAttachment,
   deletePartnerAttachment,
   customerProcurement,
+  listPartnerAccounts,
+  reviewPartnerAccount,
 } from '@/api/crm'
 import { listContracts } from '@/api/contract'
 import { listTasks } from '@/api/task'
@@ -27,6 +29,7 @@ import { listSettlements } from '@/api/finance'
 import type {
   Contract,
   CustomerDetail,
+  PartnerAccount,
   PartnerAttachment,
   PartnerContact,
   PartnerProcurement,
@@ -60,6 +63,8 @@ const attCatOpts = useDictOptions('partner_attachment_category')
 const isSupplier = computed(() => (detail.value?.partnerType ?? 'customer') !== 'customer')
 // 采购 tab 需要采购合同列表权限，无权限隐藏
 const canViewProcurement = computed(() => auth.hasPerm('procurement:contract:list'))
+// 门户账号 tab 沿用合作方账号管理权限
+const canViewAccounts = computed(() => auth.hasPerm('procurement:partner:list'))
 
 function attCatLabel(value: unknown) {
   const v = String(value ?? '')
@@ -171,6 +176,7 @@ watch(
       contacts.value = []
       attachments.value = []
       attCategory.value = ''
+      portalAccounts.value = []
       loadedTabs.clear()
       activeTab.value = 'contracts'
       void load().then(() => {
@@ -179,6 +185,7 @@ watch(
       void loadSettlementCount()
       void loadContacts()
       void loadAttachments()
+      void loadAccounts()
     }
   },
 )
@@ -377,6 +384,95 @@ function attachmentRowActions(): ActionItem[] {
 function onAttachmentAction(key: string, row: PartnerAttachment) {
   if (key === 'download') void downloadPartnerAttachment(row.id, row.fileName)
   else if (key === 'delete') void removeAttachment(row)
+}
+
+/* ---------- 门户账号（绑定到本单位的合作方账号） ---------- */
+const portalAccounts = ref<PartnerAccount[]>([])
+const accountTotal = computed(() => portalAccounts.value.length)
+
+async function loadAccounts() {
+  if (!props.customerId || !canViewAccounts.value) return
+  try {
+    const data = await listPartnerAccounts({ page: 1, size: 100, filters: { customer_id: props.customerId } })
+    portalAccounts.value = data.items ?? []
+  } catch {
+    portalAccounts.value = []
+  }
+}
+
+function accountRowActions(row: PartnerAccount): ActionItem[] {
+  const acts: ActionItem[] = []
+  if (row.status === 'pending' || row.status === 'rejected' || row.status === 'disabled') {
+    acts.push({ key: 'approve', tip: 'crm.account.approve', icon: 'CircleCheck', perm: 'procurement:partner:review' })
+  }
+  if (row.status === 'pending') {
+    acts.push({ key: 'reject', tip: 'crm.account.reject', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
+  }
+  if (row.status === 'enabled') {
+    acts.push({ key: 'disable', tip: 'crm.account.disable', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
+  }
+  return acts
+}
+
+function onAccountAction(key: string, row: PartnerAccount) {
+  if (key === 'approve') void approveAccount(row)
+  else if (key === 'reject') void rejectAccount(row)
+  else if (key === 'disable') void disableAccount(row)
+}
+
+async function approveAccount(row: PartnerAccount) {
+  try {
+    await ElMessageBox.confirm(
+      t('crm.account.approveBindConfirm', { name: row.companyName || row.username }),
+      t('common.action.confirm'),
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await reviewPartnerAccount(row.id, { approve: true, customerId: props.customerId })
+    ElMessage.success(t('common.message.saveSuccess'))
+    void loadAccounts()
+  } catch {
+    /* http notifies */
+  }
+}
+
+async function rejectAccount(row: PartnerAccount) {
+  let comment = ''
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('crm.account.rejectConfirm'),
+      t('crm.account.reject'),
+      { inputPlaceholder: t('crm.account.reviewComment'), confirmButtonText: t('common.action.confirm'), cancelButtonText: t('common.action.cancel') },
+    )
+    comment = value ?? ''
+  } catch {
+    return
+  }
+  try {
+    await reviewPartnerAccount(row.id, { approve: false, comment })
+    ElMessage.success(t('common.message.saveSuccess'))
+    void loadAccounts()
+  } catch {
+    /* http notifies */
+  }
+}
+
+async function disableAccount(row: PartnerAccount) {
+  try {
+    await ElMessageBox.confirm(t('crm.account.disableConfirm'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await reviewPartnerAccount(row.id, { approve: false })
+    ElMessage.success(t('common.message.saveSuccess'))
+    void loadAccounts()
+  } catch {
+    /* http notifies */
+  }
 }
 
 </script>
@@ -650,6 +746,40 @@ function onAttachmentAction(key: string, row: PartnerAttachment) {
               </el-table-column>
             </el-table>
           </el-tab-pane>
+          <el-tab-pane v-if="canViewAccounts" name="accounts">
+            <template #label>
+              {{ t('crm.detail.portalAccounts') }}
+              <span v-if="accountTotal" class="bs-tab-count">({{ accountTotal }})</span>
+            </template>
+            <el-table :data="portalAccounts" border stripe size="small">
+              <el-table-column :label="t('crm.account.username')" prop="username" width="130" />
+              <el-table-column :label="t('crm.account.contactName')" prop="contactName" width="100" />
+              <el-table-column :label="t('crm.account.phone')" prop="phone" width="130" />
+              <el-table-column :label="t('crm.account.email')" prop="email" min-width="140" show-overflow-tooltip />
+              <el-table-column :label="t('crm.account.status')" width="90">
+                <template #default="{ row }">
+                  <StatusTag :status="String(row.status)" i18n-prefix="common.status" />
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('crm.account.createTime')" prop="createTime" width="150" />
+              <el-table-column :label="t('crm.account.reviewInfo')" min-width="150">
+                <template #default="{ row }">
+                  {{ [row.reviewName, row.reviewAt].filter(Boolean).join(' · ') || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
+                <template #default="{ row }">
+                  <ActionBar
+                    :actions="accountRowActions(row as unknown as PartnerAccount)"
+                    @select="(key: string) => onAccountAction(key, row as unknown as PartnerAccount)"
+                  />
+                </template>
+              </el-table-column>
+              <template #empty>
+                <div class="account-empty">{{ t('crm.account.emptyTip') }}</div>
+              </template>
+            </el-table>
+          </el-tab-pane>
         </el-tabs>
       </template>
     </div>
@@ -795,5 +925,12 @@ function onAttachmentAction(key: string, row: PartnerAttachment) {
 
 .picked-empty {
   color: var(--bs-color-fg-secondary);
+}
+
+.account-empty {
+  padding: var(--bs-space-4) var(--bs-space-3);
+  color: var(--bs-color-fg-muted);
+  font-size: var(--bs-typography-font-size-sm);
+  text-align: center;
 }
 </style>

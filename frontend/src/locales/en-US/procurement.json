@@ -155,28 +155,8 @@
     "timeline": "Approval Timeline"
   },
   "partner": {
-    "title": "Partner Accounts",
-    "search": "Account/Company",
-    "placeholder": "Search account / company / contact / phone",
-    "username": "Username",
     "companyName": "Company",
     "contactName": "Contact",
-    "phone": "Phone",
-    "email": "Email",
-    "status": "Status",
-    "bindSupplier": "Bind Supplier",
-    "bindSupplierTip": "Optionally bind a supplier partner on approval; used to generate the purchase contract after awarding",
-    "review": "Review",
-    "approve": "Approve",
-    "reject": "Reject",
-    "disable": "Disable",
-    "reviewComment": "Review Comment",
-    "reviewName": "Reviewer",
-    "reviewAt": "Reviewed At",
-    "lastLoginAt": "Last Login",
-    "createTime": "Registered At",
-    "approveConfirm": "Approve this account?",
-    "rejectConfirm": "Reject this account?",
-    "disableConfirm": "Disable this account? It can no longer sign in to the portal"
+    "phone": "Phone"
   }
 }

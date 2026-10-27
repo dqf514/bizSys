@@ -5,6 +5,7 @@ import type {
   CustomerOption,
   ListQuery,
   PageResult,
+  PartnerAccount,
   PartnerAttachment,
   PartnerContact,
   PartnerProcurement,
@@ -122,4 +123,25 @@ export function deletePartnerAttachment(id: number) {
 
 export function customerProcurement(customerId: number) {
   return request<PartnerProcurement>({ url: `/crm/customers/${customerId}/procurement`, method: 'get' })
+}
+
+/* ---------- 门户合作方账号（后端端点保留在 /procurement/partners，入口并入往来单位） ---------- */
+
+export function listPartnerAccounts(params: ListQuery) {
+  return request<PageResult<PartnerAccount>>({
+    url: '/procurement/partners',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function partnerAccountCounts() {
+  return request<Record<string, number>>({ url: '/procurement/partners/counts', method: 'get' })
+}
+
+export function reviewPartnerAccount(
+  id: number,
+  data: { approve: boolean; comment?: string; customerId?: number | null },
+) {
+  return request<PartnerAccount>({ url: `/procurement/partners/${id}/review`, method: 'post', data })
 }

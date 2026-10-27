@@ -98,6 +98,8 @@
   扩展名白名单沿用 upload_ext_set 且校验魔数（pdf/jpg/png/zip/docx/xlsx/doc/xls），存 uploads/partner/
 - `GET /crm/customers/{id}/procurement`（权限 `procurement:contract:list`）
   → `{contracts:[{id,contractNo,name,amount,status,signDate,createTime}],requests:[{id,requestNo,title,status,createTime}]}`（requests 为合同关联申请去重）
+- 门户账号：详情抽屉"门户账号"tab 用 `GET /procurement/partners?filters[customer_id]={id}`（权限 `procurement:partner:list`）；
+  列表页"合作方账号"视图（`?tab=accounts`）承载全部账号审核管理，沿用 `procurement:partner:list/review`
 - 审计：partner_contact_create/update/delete、partner_attachment_upload/delete（module=crm）
 - 权限码：`crm:customer:list/create/edit/delete/list:export/import`
 
@@ -148,8 +150,11 @@
   · `POST /{id}/award` `{bidId}`（→ awarding + tender_award_approve 单级审批；通过自动 awarded 落 winner_*，驳回/撤回回 evaluating）
   · `POST /{id}/generate-contract`（awarded → 采购合同草稿：供应商=中标账号绑定往来单位、金额=中标价；幂等一项目一合同；未绑定往来单位 95002）
   · `POST /tenders/export` · 附件下载 `GET /tenders/registrations/{rid}/attachment`、`GET /tenders/bids/{bid}/proposal`
-- 合作方账号审核：`GET /procurement/partners`（q=账号/公司/联系人/电话）· counts
+- 合作方账号审核：`GET /procurement/partners`（q=账号/公司/联系人/电话；filters[status,customer_id]——customer_id
+  供往来单位详情"门户账号"tab 查绑定账号）· counts
   · `POST /partners/{pid}/review` `{approve,comment?,customerId?}`（通过可绑供应商往来单位；对 enabled 账号 approve=false 即停用）
+  · 前端入口已并入往来单位（/crm/customers 的"合作方账号"视图 + 详情抽屉"门户账号"tab），
+    采购管理菜单 PartnerAccounts 隐藏保留（visible=0，权限载体），旧深链 /procurement/partners → /crm/customers?tab=accounts
 - 权限码：`procurement:tender:list/create/edit/delete/publish/terminate/review/evaluate/award/list:export`、
   `procurement:partner:list/review`
 - 编号规则：tender=ZB（发布时发放）；字典：tender_method（public 公开招标 / invite 邀请招标）
@@ -328,9 +333,10 @@
 - 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
   前端侧栏将四个顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
-- 业务系统子级顺序：往来单位（Customers，`/crm/customers`）/ 合同管理 / 任务管理 / 报告管理 /
+- 业务系统子级顺序：往来单位（Customers，`/crm/customers`，页面级视图：往来单位/合作方账号）/ 合同管理 / 任务管理 / 报告管理 /
   样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
-  采购申请→采购合同→出入库→招标管理→合作方账号）/ 财务管理（子级 开票申请→结算信息→到账信息 不变）。
+  采购申请→采购合同→出入库→招标管理；合作方账号 PartnerAccounts visible=0 隐藏保留作权限载体）/
+  财务管理（子级 开票申请→结算信息→到账信息 不变）。
 - 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
   去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；种子只保证新库直接产出目标结构
   （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。

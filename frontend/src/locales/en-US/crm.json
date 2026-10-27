@@ -41,7 +41,9 @@
     "partnerTypeSupplier": "Supplier",
     "partnerTypeBoth": "Customer+Supplier",
     "supplyCategory": "Supply Category",
-    "supplierRating": "Supplier Rating"
+    "supplierRating": "Supplier Rating",
+    "viewUnits": "Partners",
+    "viewAccounts": "Portal Accounts"
   },
   "detail": {
     "basicInfo": "Basic Info",
@@ -59,7 +61,8 @@
     "contacts": "Contacts",
     "attachments": "Attachments",
     "purchaseContractCount": "Purchase Contracts",
-    "purchaseTotal": "Purchase Total"
+    "purchaseTotal": "Purchase Total",
+    "portalAccounts": "Portal Accounts"
   },
   "contact": {
     "add": "Add Contact",
@@ -85,5 +88,33 @@
     "noFile": "No file selected",
     "deleteConfirm": "Delete this attachment? The file will be removed.",
     "uploadSuccess": "Uploaded"
+  },
+  "account": {
+    "title": "Portal Accounts",
+    "search": "Account/Company",
+    "placeholder": "Search account / company / contact / phone",
+    "username": "Username",
+    "companyName": "Company",
+    "contactName": "Contact",
+    "phone": "Phone",
+    "email": "Email",
+    "status": "Status",
+    "bindPartner": "Link Partner",
+    "bindPartnerTip": "Optionally link a supplier partner on approval; used to generate the purchase contract after awarding",
+    "review": "Review",
+    "approve": "Approve",
+    "reject": "Reject",
+    "disable": "Disable",
+    "reviewComment": "Review Comment",
+    "reviewName": "Reviewer",
+    "reviewAt": "Reviewed At",
+    "reviewInfo": "Review Info",
+    "lastLoginAt": "Last Login",
+    "createTime": "Registered At",
+    "approveConfirm": "Approve this account?",
+    "approveBindConfirm": "Approve \"{name}\" and link it to the current partner?",
+    "rejectConfirm": "Reject this account?",
+    "disableConfirm": "Disable this account? It can no longer sign in to the portal",
+    "emptyTip": "No linked portal accounts. Partners register on the portal and are reviewed & linked under the Portal Accounts view."
   }
 }

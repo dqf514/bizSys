@@ -155,28 +155,8 @@
     "timeline": "审批时间线"
   },
   "partner": {
-    "title": "合作方账号",
-    "search": "账号/公司",
-    "placeholder": "搜索账号/公司/联系人/电话",
-    "username": "账号",
     "companyName": "公司名称",
     "contactName": "联系人",
-    "phone": "电话",
-    "email": "邮箱",
-    "status": "状态",
-    "bindSupplier": "绑定供应商",
-    "bindSupplierTip": "审核通过时可绑定供应商往来单位，用于定标后生成采购合同",
-    "review": "审核",
-    "approve": "通过",
-    "reject": "拒绝",
-    "disable": "停用",
-    "reviewComment": "审核意见",
-    "reviewName": "审核人",
-    "reviewAt": "审核时间",
-    "lastLoginAt": "最近登录",
-    "createTime": "注册时间",
-    "approveConfirm": "确认通过该账号？",
-    "rejectConfirm": "确认拒绝该账号？",
-    "disableConfirm": "确认停用该账号？停用后不可登录门户"
+    "phone": "电话"
   }
 }

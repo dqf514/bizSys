@@ -50,6 +50,12 @@ function menuToRoutes(nodes: MenuNode[], out: RouteRecordRaw[] = []) {
 
 /** Detail / edit routes opened from list pages (not menu nodes) */
 export const extraRoutes: RouteRecordRaw[] = [
+  // 合作方账号并入往来单位（/crm/customers?tab=accounts），旧深链重定向
+  {
+    path: '/procurement/partners',
+    name: 'PartnerAccountsRedirect',
+    redirect: { path: '/crm/customers', query: { tab: 'accounts' } },
+  },
   // 个人档案（批次B）：头像菜单"我的信息"进入，不占菜单
   {
     path: '/profile',

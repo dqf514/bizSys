@@ -1,25 +1,29 @@
 <script setup lang="ts">
+/**
+ * 合作方账号管理面板：嵌在往来单位列表页"合作方账号"视图（原采购管理 PartnerAccountList 迁入）。
+ * 后端端点沿用 /procurement/partners，权限沿用 procurement:partner:list / procurement:partner:review。
+ */
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listPartnerAccounts, partnerAccountCounts, reviewPartnerAccount } from '@/api/procurement'
-import { customerOptions } from '@/api/crm'
+import { listPartnerAccounts, partnerAccountCounts, reviewPartnerAccount, customerOptions } from '@/api/crm'
 import type { CustomerOption, PartnerAccount } from '@/api/types'
 
-defineOptions({ name: 'PartnerAccountList' })
+defineOptions({ name: 'PartnerAccountPanel' })
+
+const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const { t } = useI18n()
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
-  { key: 'q', labelKey: 'procurement.partner.search', placeholderKey: 'procurement.partner.placeholder', width: 240 },
+  { key: 'q', labelKey: 'crm.account.search', placeholderKey: 'crm.account.placeholder', width: 240 },
 ]
 
 const statusTabs = ref<StatusTabItem[]>([
@@ -57,27 +61,27 @@ const list = useListPage<PartnerAccount>({
 })
 
 const columns: ListColumn[] = [
-  { prop: 'username', labelKey: 'procurement.partner.username', width: 150, fixed: 'left', sortable: 'username' },
-  { prop: 'companyName', labelKey: 'procurement.partner.companyName', minWidth: 200, sortable: 'company_name' },
-  { prop: 'contactName', labelKey: 'procurement.partner.contactName', width: 100 },
-  { prop: 'phone', labelKey: 'procurement.partner.phone', width: 130 },
-  { prop: 'email', labelKey: 'procurement.partner.email', minWidth: 160 },
-  { prop: 'status', labelKey: 'procurement.partner.status', width: 100, sortable: 'status' },
-  { prop: 'reviewName', labelKey: 'procurement.partner.reviewName', width: 100 },
-  { prop: 'lastLoginAt', labelKey: 'procurement.partner.lastLoginAt', width: 160 },
-  { prop: 'createTime', labelKey: 'procurement.partner.createTime', width: 160, sortable: 'create_time' },
+  { prop: 'username', labelKey: 'crm.account.username', width: 150, fixed: 'left', sortable: 'username' },
+  { prop: 'companyName', labelKey: 'crm.account.companyName', minWidth: 200, sortable: 'company_name' },
+  { prop: 'contactName', labelKey: 'crm.account.contactName', width: 100 },
+  { prop: 'phone', labelKey: 'crm.account.phone', width: 130 },
+  { prop: 'email', labelKey: 'crm.account.email', minWidth: 160 },
+  { prop: 'status', labelKey: 'crm.account.status', width: 100, sortable: 'status' },
+  { prop: 'reviewName', labelKey: 'crm.account.reviewName', width: 100 },
+  { prop: 'lastLoginAt', labelKey: 'crm.account.lastLoginAt', width: 160 },
+  { prop: 'createTime', labelKey: 'crm.account.createTime', width: 160, sortable: 'create_time' },
 ]
 
 function rowActions(row: PartnerAccount): ActionItem[] {
   const acts: ActionItem[] = []
   if (row.status === 'pending' || row.status === 'rejected' || row.status === 'disabled') {
-    acts.push({ key: 'approve', tip: 'procurement.partner.approve', icon: 'CircleCheck', perm: 'procurement:partner:review' })
+    acts.push({ key: 'approve', tip: 'crm.account.approve', icon: 'CircleCheck', perm: 'procurement:partner:review' })
   }
   if (row.status === 'pending') {
-    acts.push({ key: 'reject', tip: 'procurement.partner.reject', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
+    acts.push({ key: 'reject', tip: 'crm.account.reject', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
   }
   if (row.status === 'enabled') {
-    acts.push({ key: 'disable', tip: 'procurement.partner.disable', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
+    acts.push({ key: 'disable', tip: 'crm.account.disable', icon: 'CircleClose', danger: true, perm: 'procurement:partner:review' })
   }
   return acts
 }
@@ -88,7 +92,12 @@ function onRowAction(key: string, row: PartnerAccount) {
   else if (key === 'disable') void doDisable(row)
 }
 
-/* ---------- review dialog（通过 + 绑定供应商） ---------- */
+function afterMutation() {
+  list.refresh()
+  emit('changed')
+}
+
+/* ---------- review dialog（通过 + 绑定供应商往来单位） ---------- */
 const reviewVisible = ref(false)
 const reviewSaving = ref(false)
 const reviewTarget = ref<PartnerAccount | null>(null)
@@ -125,7 +134,7 @@ async function doApprove() {
     })
     ElMessage.success(t('common.message.saveSuccess'))
     reviewVisible.value = false
-    list.refresh()
+    afterMutation()
   } catch {
     /* http notifies */
   } finally {
@@ -137,9 +146,9 @@ async function doReject(row: PartnerAccount) {
   let comment = ''
   try {
     const { value } = await ElMessageBox.prompt(
-      t('procurement.partner.rejectConfirm'),
-      t('procurement.partner.reject'),
-      { inputPlaceholder: t('procurement.partner.reviewComment'), confirmButtonText: t('common.action.confirm'), cancelButtonText: t('common.action.cancel') },
+      t('crm.account.rejectConfirm'),
+      t('crm.account.reject'),
+      { inputPlaceholder: t('crm.account.reviewComment'), confirmButtonText: t('common.action.confirm'), cancelButtonText: t('common.action.cancel') },
     )
     comment = value ?? ''
   } catch {
@@ -148,7 +157,7 @@ async function doReject(row: PartnerAccount) {
   try {
     await reviewPartnerAccount(row.id, { approve: false, comment })
     ElMessage.success(t('common.message.saveSuccess'))
-    list.refresh()
+    afterMutation()
   } catch {
     /* http notifies */
   }
@@ -156,14 +165,14 @@ async function doReject(row: PartnerAccount) {
 
 async function doDisable(row: PartnerAccount) {
   try {
-    await ElMessageBox.confirm(t('procurement.partner.disableConfirm'), t('common.action.confirm'), { type: 'warning' })
+    await ElMessageBox.confirm(t('crm.account.disableConfirm'), t('common.action.confirm'), { type: 'warning' })
   } catch {
     return
   }
   try {
     await reviewPartnerAccount(row.id, { approve: false })
     ElMessage.success(t('common.message.saveSuccess'))
-    list.refresh()
+    afterMutation()
   } catch {
     /* http notifies */
   }
@@ -171,25 +180,23 @@ async function doDisable(row: PartnerAccount) {
 </script>
 
 <template>
-  <ListPage :title="t('procurement.partner.title')" :loading="list.loading.value">
-    <template #searchBar>
+  <div class="partner-account-panel">
+    <div class="panel-search">
       <SearchBar
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
         @reset="searchModel = { q: '' }; list.reset()"
       />
-    </template>
+    </div>
 
-    <template #statusTabs>
-      <StatusTabs
-        :tabs="statusTabs"
-        :model-value="String(list.query.status)"
-        @update:model-value="list.setStatus($event)"
-      />
-    </template>
+    <StatusTabs
+      :tabs="statusTabs"
+      :model-value="String(list.query.status)"
+      @update:model-value="list.setStatus($event)"
+    />
 
-    <template #table>
+    <div class="panel-table">
       <ListTable
         :columns="columns"
         :data="list.items.value as unknown as Record<string, unknown>[]"
@@ -215,16 +222,16 @@ async function doDisable(row: PartnerAccount) {
           </el-table-column>
         </template>
       </ListTable>
-    </template>
-  </ListPage>
+    </div>
+  </div>
 
-  <el-dialog v-model="reviewVisible" :title="t('procurement.partner.review')" width="520px" append-to-body>
-    <p class="muted review-tip">{{ t('procurement.partner.bindSupplierTip') }}</p>
+  <el-dialog v-model="reviewVisible" :title="t('crm.account.review')" width="520px" append-to-body>
+    <p class="muted review-tip">{{ t('crm.account.bindPartnerTip') }}</p>
     <el-form :model="reviewForm" label-width="100px">
-      <el-form-item :label="t('procurement.partner.companyName')">
+      <el-form-item :label="t('crm.account.companyName')">
         <span>{{ reviewTarget?.companyName }}</span>
       </el-form-item>
-      <el-form-item :label="t('procurement.partner.bindSupplier')">
+      <el-form-item :label="t('crm.account.bindPartner')">
         <el-select
           v-model="reviewForm.customerId"
           clearable
@@ -239,18 +246,42 @@ async function doDisable(row: PartnerAccount) {
           <el-option v-for="o in supplierOpts" :key="o.id" :label="o.label" :value="Number(o.id)" />
         </el-select>
       </el-form-item>
-      <el-form-item :label="t('procurement.partner.reviewComment')">
+      <el-form-item :label="t('crm.account.reviewComment')">
         <el-input v-model="reviewForm.comment" :maxlength="500" />
       </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="reviewVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="reviewSaving" @click="doApprove">{{ t('procurement.partner.approve') }}</el-button>
+      <el-button type="primary" :loading="reviewSaving" @click="doApprove">{{ t('crm.account.approve') }}</el-button>
     </template>
   </el-dialog>
 </template>
 
 <style scoped>
+.partner-account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+  height: 100%;
+  min-height: 0;
+}
+
+.panel-search {
+  flex-shrink: 0;
+  padding: var(--bs-space-2) var(--bs-space-3);
+  border: 1px solid var(--bs-color-border-subtle);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-bg-surface);
+}
+
+.panel-table {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .muted {
   color: var(--bs-color-fg-muted);
   font-size: var(--bs-typography-font-size-sm);

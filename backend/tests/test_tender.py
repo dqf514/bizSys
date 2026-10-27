@@ -148,6 +148,26 @@ def test_portal_account_lifecycle(client, admin_headers):
     _account_lifecycle(client, admin_headers, UUID)
 
 
+def test_partner_list_filter_by_customer(client, admin_headers):
+    """往来单位详情"门户账号"tab：/procurement/partners 支持 filters[customer_id] 查绑定账号。"""
+    suf = uuid.uuid4().hex[:8]
+    supplier = _mk_supplier(client, admin_headers, f"pt_过滤供应商{suf}")
+    p = _portal_register(client, f"pt_filter_{suf}", f"pt_过滤公司{suf}")
+    _approve_partner(client, admin_headers, p["id"], supplier["id"])
+
+    r = client.get(
+        "/api/v1/procurement/partners",
+        headers=admin_headers,
+        params={"filters[customer_id]": supplier["id"], "size": 50},
+    ).json()
+    assert r["code"] == 0
+    ids = [i["id"] for i in r["data"]["items"]]
+    assert p["id"] in ids and r["data"]["total"] == len(ids)
+    # 未绑定账号不出现在该单位下
+    p2 = _portal_register(client, f"pt_filter2_{suf}", f"pt_过滤公司2_{suf}")
+    assert p2["id"] not in ids
+
+
 def test_tender_full_flow(client, admin_headers, leader_headers):
     """全状态机：建→发布(ZB)→门户报名→审核→投标→评标→定标审批(驳回一次)→通过→生成合同(幂等)→公示。"""
     suf = uuid.uuid4().hex[:8]

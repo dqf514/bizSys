@@ -28,7 +28,8 @@ from app.modules.auth.models import User
 # (title_key, name, path, component_key, icon, permission, children)
 # children 中 permission 为空串表示纯目录
 # 入口并入他页、仅作权限载体的隐藏菜单（种子里强制 visible=0）
-HIDDEN_MENUS = {"ApprovalCenter"}
+# ApprovalCenter：并入工作台；PartnerAccounts：并入往来单位（CRM）
+HIDDEN_MENUS = {"ApprovalCenter", "PartnerAccounts"}
 
 MENU_TREE = [
     ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
