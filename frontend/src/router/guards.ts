@@ -37,16 +37,17 @@ export function setupGuards(router: Router) {
   router.beforeEach(async (to) => {
     const auth = useAuthStore()
 
-    // 合作方门户：公告公开浏览，仅个人工作台需要门户 token
+    // 合作方门户：公告公开浏览，仅个人工作台需要门户 token；登录已并入主登录页合作方 tab
     if (to.path.startsWith('/portal')) {
       if (PORTAL_AUTH_REQUIRED.some((p) => to.path.startsWith(p)) && !getPortalToken()) {
-        return { path: '/portal/login', query: { redirect: to.fullPath } }
+        return { path: '/login', query: { redirect: to.fullPath, tab: 'partner' } }
       }
       return true
     }
 
     if (PUBLIC_PATHS.includes(to.path)) {
-      if (auth.isLoggedIn && auth.loaded) {
+      // 合作方 tab 独立于员工会话，已登录员工仍可切换过去登录门户账号
+      if (auth.isLoggedIn && auth.loaded && to.query.tab !== 'partner') {
         return { path: '/' }
       }
       return true

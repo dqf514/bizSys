@@ -56,7 +56,7 @@ async function doRegister() {
       email: form.email.trim(),
     })
     ElMessage.success(t('portal.portal.registerSuccess'))
-    router.replace('/portal/login')
+    router.replace({ path: '/login', query: { tab: 'partner' } })
   } catch {
     /* portalHttp notifies */
   } finally {
@@ -97,7 +97,7 @@ async function doRegister() {
         </el-button>
       </el-form>
       <div class="portal-auth-links">
-        <el-button link type="primary" @click="router.push('/portal/login')">
+        <el-button link type="primary" @click="router.push({ path: '/login', query: { tab: 'partner' } })">
           {{ t('portal.portal.hasAccount') }}
         </el-button>
         <el-button link @click="router.push('/portal/tenders')">{{ t('portal.portal.browseTenders') }}</el-button>

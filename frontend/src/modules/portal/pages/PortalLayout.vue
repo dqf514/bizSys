@@ -36,7 +36,7 @@ function switchLang() {
 }
 
 function goLogin() {
-  router.push({ path: '/portal/login', query: { redirect: route.fullPath } })
+  router.push({ path: '/login', query: { redirect: route.fullPath, tab: 'partner' } })
 }
 
 async function doLogout() {

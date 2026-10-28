@@ -73,6 +73,7 @@
     "goRegister": "Register",
     "daysLeft": "{n} days left",
     "deadlinePassed": "Closed",
-    "myResults": "Award Results"
+    "myResults": "Award Results",
+    "selectHint": "Select an announcement on the left to view details"
   }
 }

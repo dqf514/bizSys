@@ -8,6 +8,7 @@ import { registerMenuRoutes } from '@/router'
 import { useThemeStore } from '@/stores/theme'
 import { useBrandingStore } from '@/stores/branding'
 import { getCaptcha, mfaSend, wecomQrUrl } from '@/api/auth'
+import { portalLogin, portalMe } from '@/api/portal'
 import type { MfaChannel } from '@/api/types'
 
 const { t, locale } = useI18n()
@@ -17,10 +18,32 @@ const branding = useBrandingStore()
 const router = useRouter()
 const route = useRoute()
 
+/** 员工 / 合作方 分段（合作方登录内嵌本页，走独立 portal token） */
+const kind = ref<'staff' | 'partner'>(route.query.tab === 'partner' ? 'partner' : 'staff')
 const activeTab = ref('account')
 const loading = ref(false)
 const wecomLoading = ref(false)
 const form = reactive({ username: '', password: '', captchaText: '' })
+const partnerForm = reactive({ username: '', password: '' })
+const partnerLoading = ref(false)
+
+async function doPartnerLogin() {
+  if (!partnerForm.username.trim() || !partnerForm.password) {
+    ElMessage.warning(t('common.form.required'))
+    return
+  }
+  partnerLoading.value = true
+  try {
+    await portalLogin(partnerForm.username.trim(), partnerForm.password)
+    await portalMe()
+    const redirect = (route.query.redirect as string) || '/portal/tenders'
+    router.replace(redirect)
+  } catch {
+    /* portalHttp notifies */
+  } finally {
+    partnerLoading.value = false
+  }
+}
 
 const siteName = computed(() => branding.siteName || t('common.app.short'))
 const logoSrc = computed(() => branding.logoUrl || '')
@@ -208,12 +231,12 @@ function switchLang() {
             <line v-for="x in 9" :key="`gx${x}`" :x1="x * 90 - 40" y1="330" :x2="x * 90 - 40" y2="620" />
             <line v-for="y in 4" :key="`gy${y}`" x1="0" :y1="330 + y * 70" x2="820" :y2="330 + y * 70" />
           </g>
-          <!-- 风洞流线 -->
-          <g fill="none" stroke="url(#streamFade)" stroke-width="1.5">
-            <path class="streamline" d="M-40 360 C 180 330, 420 392, 840 350" />
-            <path class="streamline slow" d="M-40 420 C 200 386, 460 448, 840 404" />
-            <path class="streamline" d="M-40 480 C 220 448, 500 506, 840 458" />
-            <path class="streamline slow" d="M-40 540 C 240 508, 540 566, 840 512" />
+          <!-- 风洞流线（静态，压低至网格区，避开文案） -->
+          <g fill="none" stroke="url(#streamFade)" stroke-width="1.2">
+            <path d="M-40 400 C 180 372, 420 428, 840 386" />
+            <path d="M-40 448 C 200 418, 460 474, 840 432" />
+            <path d="M-40 496 C 220 466, 500 520, 840 476" />
+            <path d="M-40 544 C 240 514, 540 564, 840 522" />
           </g>
           <!-- 仪表刻度环（右侧，精密仪器意象） -->
           <g class="deco-gauge" transform="translate(640 190)">
@@ -267,6 +290,27 @@ function switchLang() {
         </div>
 
         <div class="login-card">
+          <!-- 员工 / 合作方 分段切换（MFA 二步期间锁定在员工侧） -->
+          <div v-if="!mfa.active" class="kind-switch" role="tablist">
+            <button
+              type="button"
+              class="kind-btn"
+              :class="{ active: kind === 'staff' }"
+              @click="kind = 'staff'"
+            >
+              {{ t('auth.login.tabStaff') }}
+            </button>
+            <button
+              type="button"
+              class="kind-btn"
+              :class="{ active: kind === 'partner' }"
+              @click="kind = 'partner'"
+            >
+              {{ t('auth.login.tabPartner') }}
+            </button>
+          </div>
+
+          <template v-if="kind === 'staff'">
           <el-tabs v-if="!mfa.active" v-model="activeTab" class="login-tabs">
             <el-tab-pane :label="t('auth.login.username')" name="account">
               <el-form class="login-form" @submit.prevent="doLogin">
@@ -369,14 +413,59 @@ function switchLang() {
             <div class="demo-line">{{ t('auth.login.demoManager') }}</div>
             <div class="demo-line">{{ t('auth.login.demoLeader') }}</div>
           </div>
+          </template>
+
+          <!-- 合作方登录（内嵌，独立 token，无图形码/MFA） -->
+          <template v-else>
+            <p class="partner-tip">{{ t('portal.portal.accountTip') }}</p>
+            <el-form class="login-form partner-form" @submit.prevent="doPartnerLogin">
+              <el-form-item>
+                <el-input
+                  v-model="partnerForm.username"
+                  :placeholder="t('portal.portal.username')"
+                  size="large"
+                  @keyup.enter="doPartnerLogin"
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-input
+                  v-model="partnerForm.password"
+                  type="password"
+                  show-password
+                  :placeholder="t('portal.portal.password')"
+                  size="large"
+                  @keyup.enter="doPartnerLogin"
+                />
+              </el-form-item>
+              <el-button type="primary" size="large" class="login-btn" :loading="partnerLoading" @click="doPartnerLogin">
+                {{ t('portal.portal.loginBtn') }}
+              </el-button>
+            </el-form>
+            <div class="partner-links">
+              <el-button link type="primary" @click="router.push('/portal/register')">
+                {{ t('portal.portal.register') }}
+              </el-button>
+              <el-button link @click="router.push('/portal/tenders')">
+                {{ t('portal.portal.browseTenders') }}
+              </el-button>
+            </div>
+          </template>
         </div>
 
         <div class="form-links">
           <button class="lang-switch" type="button" @click="switchLang">
             {{ theme.locale === 'zh-CN' ? t('common.lang.enUS') : t('common.lang.zhCN') }}
           </button>
-          <el-button link class="portal-entry" @click="router.push('/portal')">
+          <el-button
+            v-if="kind === 'staff'"
+            link
+            class="portal-entry"
+            @click="kind = 'partner'"
+          >
             {{ t('auth.login.portalEntry') }}
+          </el-button>
+          <el-button v-else link class="portal-entry" @click="kind = 'staff'">
+            {{ t('portal.portal.internalEntry') }}
           </el-button>
         </div>
       </section>
@@ -439,33 +528,12 @@ function switchLang() {
   pointer-events: none;
 }
 
-.streamline {
-  stroke-dasharray: 5 9;
-  animation: stream-flow 7s linear infinite;
-}
-
-.streamline.slow {
-  animation-duration: 11s;
-}
-
-@keyframes stream-flow {
-  to {
-    stroke-dashoffset: -140;
-  }
-}
-
+/* 仪表读数弧：固定在 -18°（静态；旧版动画的 transform-origin 落在整个 viewBox
+   中心导致弧线绕页漂移，已去除全部装饰动效，reduced-motion 下天然静止） */
 .gauge-arc {
+  transform-box: fill-box;
   transform-origin: center;
-  animation: gauge-swing 9s var(--bs-ease) infinite alternate;
-}
-
-@keyframes gauge-swing {
-  from {
-    transform: rotate(-24deg);
-  }
-  to {
-    transform: rotate(24deg);
-  }
+  transform: rotate(-18deg);
 }
 
 .brand-top {
@@ -705,6 +773,49 @@ function switchLang() {
   color: var(--bs-color-fg-muted);
 }
 
+/* ---- 员工/合作方分段切换 ---- */
+.kind-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-fill-lighter);
+}
+
+.kind-btn {
+  height: 32px;
+  border: none;
+  border-radius: var(--bs-radius-sm);
+  background: transparent;
+  color: var(--bs-color-fg-secondary);
+  font-size: var(--bs-typography-font-size-sm);
+  cursor: pointer;
+}
+
+.kind-btn.active {
+  background: var(--bs-color-bg-surface);
+  color: var(--bs-color-primary);
+  font-weight: 600;
+  box-shadow: var(--bs-shadow-elevation1);
+}
+
+.partner-tip {
+  margin: 0;
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+}
+
+.partner-form {
+  margin-top: 0;
+}
+
+.partner-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* ---- 页脚 ---- */
 .login-footer {
   display: flex;
@@ -773,14 +884,6 @@ function switchLang() {
   .login-footer {
     flex-direction: column;
     gap: var(--bs-space-1);
-  }
-}
-
-/* ---- 减少动效偏好 ---- */
-@media (prefers-reduced-motion: reduce) {
-  .streamline,
-  .gauge-arc {
-    animation: none;
   }
 }
 </style>

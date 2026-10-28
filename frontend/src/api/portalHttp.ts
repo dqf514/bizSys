@@ -1,4 +1,4 @@
-/** 合作方门户独立 http 实例：独立 token（bs.portal_token）、无刷新机制、401 回 /portal/login。 */
+/** 合作方门户独立 http 实例：独立 token（bs.portal_token）、无刷新机制、401 回主登录页合作方 tab。 */
 
 import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
@@ -22,8 +22,9 @@ function notify(message: string) {
 
 function toLogin() {
   clearPortalToken()
-  if (!location.pathname.startsWith('/portal/login')) {
-    location.href = '/portal/login'
+  if (!location.pathname.startsWith('/login')) {
+    const redirect = encodeURIComponent(location.pathname + location.search)
+    location.href = `/login?tab=partner&redirect=${redirect}`
   }
 }
 

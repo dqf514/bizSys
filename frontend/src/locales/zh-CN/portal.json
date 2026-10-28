@@ -73,6 +73,7 @@
     "goRegister": "去注册",
     "daysLeft": "距截止 {n} 天",
     "deadlinePassed": "已截止",
-    "myResults": "中标结果"
+    "myResults": "中标结果",
+    "selectHint": "请选择左侧公告查看详情"
   }
 }

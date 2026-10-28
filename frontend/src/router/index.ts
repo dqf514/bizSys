@@ -166,11 +166,10 @@ const router = createRouter({
       meta: { public: true },
     },
     // 合作方门户：独立认证体系（bs.portal_token），守卫见 guards.ts 的 /portal 早分支
+    // 旧独立登录页废弃：重定向到主登录页合作方 tab（保留 redirect 参数）
     {
       path: '/portal/login',
-      name: 'PortalLogin',
-      component: () => import('@/modules/portal/pages/PortalLogin.vue'),
-      meta: { public: true, portalPublic: true, tabless: true },
+      redirect: (to) => ({ path: '/login', query: { ...to.query, tab: 'partner' } }),
     },
     {
       path: '/portal/register',
@@ -191,11 +190,10 @@ const router = createRouter({
           component: () => import('@/modules/portal/pages/PortalTenderList.vue'),
           meta: { tabless: true, titleKey: 'portal.portal.tenders' },
         },
+        // 旧详情深链（分享链接/我的参与）重定向为单页内选中
         {
           path: 'tenders/:id',
-          name: 'PortalTenderDetail',
-          component: () => import('@/modules/portal/pages/PortalTenderDetail.vue'),
-          meta: { tabless: true, titleKey: 'portal.portal.tenders' },
+          redirect: (to) => ({ path: '/portal/tenders', query: { id: String(to.params.id) } }),
         },
         {
           path: 'my',

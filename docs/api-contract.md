@@ -193,10 +193,13 @@
   · `GET /portal/registrations` · `POST /portal/tenders/{id}/bid`（multipart：price/comment/file；报名审核通过前置 96003，截止 96002，同项目重复提交即改标覆盖）
   · `GET /portal/bids`（列表含 tenderStatus/regDeadline/bidDeadline 供工作台倒计时）· 本人附件下载 `GET /portal/registrations/{rid}/attachment`、`GET /portal/bids/{bid}/proposal`
 - 门户附件落 `uploads/portal/`（扩展名白名单 + 50MB 上限同内部）；purge 清单含 pur_tender* / partner_user / uploads/portal。
-- 前端入口 `/portal`（PortalLogin/PortalRegister/PortalLayout/PortalTenderList/PortalTenderDetail/PortalMy），
-  独立 axios 实例（token key `bs.portal_token`，401 回 /portal/login，无 refresh），路由守卫对 /portal 前缀走独立分支。
-  PortalLayout 接品牌设置（站点名/Logo）+ 语言切换；公告列表/详情匿名可看，报名/投标区匿名时显示登录/注册引导卡；
-  内部招标详情抽屉提供"对外公告链接"复制，内部登录页 ↔ 门户登录页互跳。
+- 前端入口 `/portal`（PortalRegister/PortalLayout/PortalTenderList/PortalTenderDetailPanel/PortalMy），
+  独立 axios 实例（token key `bs.portal_token`，401 回 `/login?tab=partner&redirect=...`，无 refresh），路由守卫对 /portal 前缀走独立分支。
+  合作方登录已内嵌主登录页 `/login` 的分段切换（员工/合作方，无图形码、无 MFA），旧路由 `/portal/login` → 重定向 `/login?tab=partner`（保留 redirect），
+  `/portal/tenders/:id` → 重定向 `/portal/tenders?id=N`；门户"内部员工入口"与内部登录页"合作方登录"分段互跳。
+  PortalLayout 接品牌设置（站点名/Logo）+ 语言切换；招标公告为单页左右布局（左清单支持本地检索/状态筛选，右详情面板，`?id=` 与地址栏同步，
+  移动端单栏清单→详情带返回），公告匿名可看，报名/投标区匿名时显示登录/注册引导卡；
+  内部招标详情抽屉提供"对外公告链接"复制（`/portal/tenders?id=N`）。
 - 错误码（96xxx）：96001 招标状态不允许该操作 / 96002 已超过截止时间 / 96003 报名未通过审核不能投标 /
   96004 账号待审核或已停用 / 96005 账号已存在 / 96006 项目尚未定标 / 96007 账号已有报名/投标记录不能删除
 

@@ -293,7 +293,7 @@ const PORTAL_VISIBLE_STATUSES = ['published', 'evaluating', 'awarding', 'awarded
 const portalPublicUrl = computed(() => {
   const d = detail.value
   if (!d || !PORTAL_VISIBLE_STATUSES.includes(d.status)) return ''
-  return `${window.location.origin}/portal/tenders/${d.id}`
+  return `${window.location.origin}/portal/tenders?id=${d.id}`
 })
 
 async function copyPortalUrl() {
