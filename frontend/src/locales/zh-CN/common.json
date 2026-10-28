@@ -60,7 +60,9 @@
     "all": "全部",
     "yes": "是",
     "no": "否",
-    "ok": "好的"
+    "ok": "好的",
+    "moveUp": "上移",
+    "moveDown": "下移"
   },
   "table": {
     "total": "共 {total} 条",
@@ -221,5 +223,15 @@
   },
   "nav": {
     "customize": "自定义排序"
+  },
+  "dock": {
+    "settings": "快捷导航设置",
+    "hint": "选择最多 4 个常用页面，显示在底部导航栏中央工作台按钮两侧（仅移动端生效）",
+    "selected": "已选",
+    "available": "可选页面",
+    "resetDefault": "恢复默认",
+    "limitTip": "最多选择 4 个",
+    "emptySelected": "未选择页面，底部将只保留工作台按钮",
+    "emptyAvailable": "暂无可选页面"
   }
 }

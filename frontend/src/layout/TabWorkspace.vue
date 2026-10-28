@@ -73,4 +73,11 @@ watch(
   overflow: auto;
   background: var(--bs-color-bg-app);
 }
+
+/* 移动端：底部 Dock（56px + 安全区）遮挡留白 */
+@media (max-width: 767px) {
+  .tab-content {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
 </style>

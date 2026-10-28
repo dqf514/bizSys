@@ -413,6 +413,13 @@ defineExpose({ validate })
   flex: 0 0 calc(50% - var(--bs-space-2));
 }
 
+/* 移动端：双列表单项降为单列 */
+@media (max-width: 767px) {
+  .fr-item.fr-half {
+    flex: 0 0 100%;
+  }
+}
+
 .fr-divider {
   margin: var(--bs-space-2) 0 var(--bs-space-4);
 }

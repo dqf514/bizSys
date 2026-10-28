@@ -1,0 +1,44 @@
+/* 移动端（<768px）全局适配：弹层/抽屉/对话框近全宽。
+   组件级布局见 AppShell / MobileDock / MobileNavDrawer / ContextPanel / TopBar。 */
+
+@media (max-width: 767px) {
+  /* 对话框与确认框近全宽 */
+  .el-dialog {
+    width: 94vw !important;
+    margin-top: 8vh !important;
+  }
+
+  .el-message-box {
+    width: 92vw !important;
+  }
+
+  /* 左右抽屉默认近全宽（导航抽屉 82vw / 关联面板 88vw 由组件内更高优先级规则覆盖） */
+  div.el-drawer.rtl,
+  div.el-drawer.ltr {
+    width: 94vw !important;
+  }
+
+  /* 顶栏弹层全宽适配 */
+  .el-popover.account-pop,
+  .el-popover.notify-pop {
+    width: 92vw !important;
+    max-width: none;
+  }
+
+  /* 下拉选择/日期面板不超出视口 */
+  .el-select__popper.el-popper,
+  .el-picker__popper.el-popper {
+    max-width: 96vw;
+  }
+
+  /* 状态页签：横向滚动，标签不换行（避免竖排单字） */
+  .status-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .status-tab {
+    flex: none;
+    white-space: nowrap;
+  }
+}

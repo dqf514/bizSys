@@ -15,6 +15,8 @@ import {
   Star,
   StarFilled,
   Brush,
+  Menu,
+  Iphone,
 } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -25,11 +27,14 @@ import { useShortcuts } from '@/composables/useShortcuts'
 import type { Locale } from '@/i18n'
 import NotifyBell from './NotifyBell.vue'
 import { openNavSort } from './useNavZones'
+import { openDockSettings } from './useDock'
+import { useIsMobile } from '@/composables/useIsMobile'
 
 defineOptions({ name: 'TopBar' })
 
 const emit = defineEmits<{
   (e: 'open-command'): void
+  (e: 'open-nav'): void
 }>()
 
 const route = useRoute()
@@ -39,6 +44,7 @@ const branding = useBrandingStore()
 const theme = useThemeStore()
 const { t } = useI18n()
 const { isEligible, isFavorite, toggleFavorite } = useShortcuts()
+const { isMobile } = useIsMobile()
 const accountVisible = ref(false)
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
@@ -52,6 +58,9 @@ const breadcrumbs = computed(() => {
     title: r.meta?.titleKey ? t(String(r.meta.titleKey)) : String(r.meta?.title ?? ''),
   }))
 })
+
+/** 移动端顶栏中部显示当前页名（面包屑末级） */
+const currentPageTitle = computed(() => breadcrumbs.value[breadcrumbs.value.length - 1]?.title ?? '')
 
 const themeModes: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'common.theme.light' },
@@ -86,6 +95,11 @@ function openChangePassword() {
 function openCustomize() {
   closeAccount()
   openNavSort()
+}
+
+function openDockCustomize() {
+  closeAccount()
+  openDockSettings()
 }
 
 async function doLogout() {
@@ -156,13 +170,25 @@ async function submitPassword() {
 
 <template>
   <div class="topbar">
+    <button
+      v-if="isMobile"
+      class="icon-btn nav-burger"
+      type="button"
+      :aria-label="t('common.action.expand')"
+      @click="emit('open-nav')"
+    >
+      <ElIcon :size="20"><Menu /></ElIcon>
+    </button>
+
     <div class="brand">
       <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="brandText" class="brand-logo" />
       <ElIcon v-else :size="18" class="brand-icon"><Odometer /></ElIcon>
       <span class="brand-text">{{ brandText }}</span>
     </div>
 
-    <el-breadcrumb separator="/" class="crumb">
+    <span v-if="isMobile" class="page-title">{{ currentPageTitle }}</span>
+
+    <el-breadcrumb v-else separator="/" class="crumb">
       <el-breadcrumb-item v-for="(item, i) in breadcrumbs" :key="i" :to="i < breadcrumbs.length - 1 ? { path: item.path } : undefined">
         {{ item.title }}
       </el-breadcrumb-item>
@@ -171,7 +197,7 @@ async function submitPassword() {
     <div class="spacer" />
 
     <button
-      v-if="isEligible"
+      v-if="!isMobile && isEligible"
       class="icon-btn star-btn"
       :class="{ favored: isFavorite }"
       type="button"
@@ -184,7 +210,7 @@ async function submitPassword() {
       </ElIcon>
     </button>
 
-    <button class="cmd-trigger" type="button" @click="emit('open-command')">
+    <button v-if="!isMobile" class="cmd-trigger" type="button" @click="emit('open-command')">
       <ElIcon :size="14"><Search /></ElIcon>
       <span>{{ t('common.command.placeholder') }}</span>
       <kbd>Ctrl K</kbd>
@@ -206,7 +232,7 @@ async function submitPassword() {
               <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" class="avatar-img" alt="" />
               <template v-else>{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</template>
             </span>
-            <span class="account-name">{{ auth.user?.name || auth.user?.username }}</span>
+            <span v-if="!isMobile" class="account-name">{{ auth.user?.name || auth.user?.username }}</span>
           </button>
         </template>
 
@@ -230,6 +256,9 @@ async function submitPassword() {
           </button>
           <button class="panel-item" type="button" @click="openCustomize">
             <ElIcon><Operation /></ElIcon>{{ t('common.nav.customize') }}
+          </button>
+          <button v-if="isMobile" class="panel-item" type="button" @click="openDockCustomize">
+            <ElIcon><Iphone /></ElIcon>{{ t('common.dock.settings') }}
           </button>
 
           <div class="panel-divider" />
@@ -362,6 +391,30 @@ async function submitPassword() {
   gap: var(--bs-space-1);
   font-weight: 600;
   color: var(--bs-color-fg-default);
+}
+
+.page-title {
+  margin-left: var(--bs-space-2);
+  font-size: var(--bs-typography-font-size-sm);
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    padding: 0 var(--bs-space-2);
+  }
+
+  .brand-text {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .brand-icon {

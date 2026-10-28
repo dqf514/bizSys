@@ -60,7 +60,9 @@
     "all": "All",
     "yes": "Yes",
     "no": "No",
-    "ok": "OK"
+    "ok": "OK",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "table": {
     "total": "Total {total}",
@@ -221,5 +223,15 @@
   },
   "nav": {
     "customize": "Customize Order"
+  },
+  "dock": {
+    "settings": "Dock Shortcuts",
+    "hint": "Pick up to 4 frequent pages shown on both sides of the center Workbench button in the bottom dock (mobile only)",
+    "selected": "Selected",
+    "available": "Available pages",
+    "resetDefault": "Reset to default",
+    "limitTip": "Up to 4 items",
+    "emptySelected": "Nothing selected; only the Workbench button stays in the dock",
+    "emptyAvailable": "No pages available"
   }
 }

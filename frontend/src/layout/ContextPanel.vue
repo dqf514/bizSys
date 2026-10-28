@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DArrowLeft, DArrowRight, Right } from '@element-plus/icons-vue'
-import { useContextStore, type ContextSection } from '@/stores/context'
+import { DArrowLeft, DArrowRight, InfoFilled } from '@element-plus/icons-vue'
+import { ElDrawer } from 'element-plus'
+import { useContextStore } from '@/stores/context'
+import { useIsMobile } from '@/composables/useIsMobile'
+import ContextSections from './ContextSections.vue'
 
 const PANEL_WIDTH = 320
 const HANDLE_WIDTH = 28
 
 const context = useContextStore()
-const router = useRouter()
 const { t, te } = useI18n()
+const { isMobile } = useIsMobile()
 
 /** Labels/titles may be i18n keys or plain text */
 function tr(s: string | undefined) {
@@ -23,17 +25,25 @@ const width = computed(() => {
   return context.visible ? PANEL_WIDTH : HANDLE_WIDTH
 })
 
-function go(to?: string) {
-  if (to) router.push(to)
-}
+// ---- 移动端：独立悬浮按钮弹出抽屉（不随 publish 自动展开，避免遮挡内容） ----
+const mobileOpen = ref(false)
 
-function statColumns(section: ContextSection) {
-  return Math.min(3, Math.max(2, section.items.length >= 4 ? 2 : section.items.length || 2))
-}
+// 切换记录/切换端时收起，避免陈旧内容占屏
+watch(
+  () => [context.recordKey, isMobile.value],
+  () => {
+    mobileOpen.value = false
+  },
+)
 </script>
 
 <template>
-  <aside class="context-panel" :style="{ width: `${width}px` }" :class="{ open: context.hasContent && context.visible }">
+  <aside
+    v-if="!isMobile"
+    class="context-panel"
+    :style="{ width: `${width}px` }"
+    :class="{ open: context.hasContent && context.visible }"
+  >
     <div v-if="context.hasContent && context.visible" class="panel-inner">
       <header class="panel-header">
         <div class="panel-heading">
@@ -50,37 +60,7 @@ function statColumns(section: ContextSection) {
       </header>
 
       <div class="panel-body">
-        <section v-for="section in context.sections" :key="section.key" class="ctx-section">
-          <div class="section-title">{{ tr(section.title) }}</div>
-
-          <div v-if="section.type === 'fields'" class="field-rows">
-            <div v-for="(item, i) in section.items" :key="i" class="field-row">
-              <span class="field-label">{{ tr(item.label) }}</span>
-              <span class="field-value" :class="{ emphasize: item.emphasize }">{{ item.value ?? '-' }}</span>
-            </div>
-          </div>
-
-          <div v-else-if="section.type === 'links'" class="link-rows">
-            <button
-              v-for="(item, i) in section.items"
-              :key="i"
-              class="link-row"
-              type="button"
-              @click="go(item.to)"
-            >
-              <span class="link-label">{{ tr(item.label) }}</span>
-              <span v-if="item.value !== undefined" class="link-value">{{ item.value }}</span>
-              <el-icon class="link-arrow"><Right /></el-icon>
-            </button>
-          </div>
-
-          <div v-else class="stat-grid" :style="{ gridTemplateColumns: `repeat(${statColumns(section)}, 1fr)` }">
-            <div v-for="(item, i) in section.items" :key="i" class="stat-cell" :class="{ emphasize: item.emphasize }">
-              <div class="stat-value">{{ item.value ?? '-' }}</div>
-              <div class="stat-label">{{ tr(item.label) }}</div>
-            </div>
-          </div>
-        </section>
+        <ContextSections />
       </div>
     </div>
 
@@ -90,6 +70,29 @@ function statColumns(section: ContextSection) {
       </button>
     </el-tooltip>
   </aside>
+
+  <template v-else>
+    <button
+      v-if="context.hasContent && !mobileOpen"
+      class="ctx-fab"
+      type="button"
+      :aria-label="t('common.context.expand')"
+      @click="mobileOpen = true"
+    >
+      <el-icon :size="20"><InfoFilled /></el-icon>
+    </button>
+
+    <ElDrawer
+      v-model="mobileOpen"
+      direction="rtl"
+      size="88%"
+      class="mobile-context-drawer"
+      :title="tr(context.title) || t('common.context.title')"
+    >
+      <div v-if="context.subtitle" class="drawer-subtitle">{{ tr(context.subtitle) }}</div>
+      <ContextSections />
+    </ElDrawer>
+  </template>
 </template>
 
 <style scoped>
@@ -167,128 +170,6 @@ function statColumns(section: ContextSection) {
   min-height: 0;
   overflow-y: auto;
   padding: var(--bs-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-4);
-}
-
-.ctx-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-2);
-}
-
-.section-title {
-  font-size: var(--bs-typography-font-size-xs);
-  font-weight: 600;
-  color: var(--bs-color-fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.field-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-1);
-}
-
-.field-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--bs-space-2);
-  font-size: var(--bs-typography-font-size-sm);
-}
-
-.field-label {
-  flex-shrink: 0;
-  color: var(--bs-color-fg-secondary);
-}
-
-.field-value {
-  color: var(--bs-color-fg-default);
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.field-value.emphasize {
-  font-weight: 600;
-  color: var(--bs-color-semantic-warning);
-}
-
-.link-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.link-row {
-  display: flex;
-  align-items: center;
-  gap: var(--bs-space-2);
-  width: 100%;
-  padding: 6px 8px;
-  border: none;
-  border-radius: var(--bs-radius-sm);
-  background: transparent;
-  font-size: var(--bs-typography-font-size-sm);
-  color: var(--bs-color-fg-default);
-  cursor: pointer;
-  text-align: left;
-}
-
-.link-row:hover {
-  background: var(--bs-color-fill-hover);
-  color: var(--bs-color-primary);
-}
-
-.link-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.link-value {
-  flex-shrink: 0;
-  color: var(--bs-color-fg-muted);
-}
-
-.link-arrow {
-  flex-shrink: 0;
-  color: var(--bs-color-fg-muted);
-}
-
-.stat-grid {
-  display: grid;
-  gap: var(--bs-space-2);
-}
-
-.stat-cell {
-  padding: var(--bs-space-2);
-  border: 1px solid var(--bs-color-border-subtle);
-  border-radius: var(--bs-radius-sm);
-  background: var(--bs-color-bg-app);
-}
-
-.stat-cell .stat-value {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--bs-color-fg-default);
-}
-
-.stat-cell.emphasize .stat-value {
-  color: var(--bs-color-semantic-warning);
-}
-
-.stat-cell .stat-label {
-  margin-top: 2px;
-  font-size: var(--bs-typography-font-size-xs);
-  color: var(--bs-color-fg-secondary);
 }
 
 .reopen-handle {
@@ -307,5 +188,39 @@ function statColumns(section: ContextSection) {
 .reopen-handle:hover {
   color: var(--bs-color-primary);
   background: var(--bs-color-fill-hover);
+}
+
+/* 移动端悬浮入口：右缘、底部 Dock 上方 */
+.ctx-fab {
+  position: fixed;
+  right: var(--bs-space-2);
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 2050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--bs-radius-full);
+  background: var(--bs-color-bg-elevated);
+  color: var(--bs-color-primary);
+  box-shadow: var(--bs-shadow-elevation3);
+  cursor: pointer;
+}
+
+.drawer-subtitle {
+  margin: calc(-1 * var(--bs-space-2)) 0 var(--bs-space-3);
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+}
+</style>
+
+<!-- 非 scoped：覆盖全局 mobile.css 的近全宽抽屉规则，关联面板保持较窄宽度 -->
+<style>
+@media (max-width: 767px) {
+  div.el-drawer.rtl.mobile-context-drawer {
+    width: min(340px, 88vw) !important;
+  }
 }
 </style>
