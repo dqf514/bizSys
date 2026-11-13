@@ -6,7 +6,14 @@ import type { AiCapabilities, AiFeatureKey } from '@/api/types'
 const EMPTY: AiCapabilities = {
   enabled: false,
   visionModel: '',
-  features: { quote: false, contract_ocr: false, task_photo: false, report_summary: false },
+  features: {
+    quote: false,
+    contract_ocr: false,
+    task_photo: false,
+    report_summary: false,
+    approval_assist: false,
+    contract_risk: false,
+  },
 }
 
 const caps = ref<AiCapabilities>({ ...EMPTY, features: { ...EMPTY.features } })

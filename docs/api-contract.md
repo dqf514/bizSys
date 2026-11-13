@@ -236,6 +236,10 @@
 - `POST /contract/contracts/ai-parse`（contract:create，multipart file；pdf/docx/txt 文本提取，jpg/png 走多模态视觉模型）
   → `{fields:{name,customerName,amount,startDate,endDate,payCycle,delivery,sealType,paymentOrg,contactPerson,contactPhone,remark},customerCandidates:[{id,name}],source:"ai"}`；
   仅返回草稿不落库，客户候选由人工选择绑定；未配置/停用 65001，解析失败 65004
+- `POST /contract/contracts/ai-risk-review`（contract:create，multipart：`payload`=表单字段 JSON 字符串，
+  `file`/`attachment_id` 二选一可选作合同原文——file 限 pdf/docx/txt/jpg/png，attachment_id 取已上传附件）
+  → `{risks:[{level:"high|mid|low",clause,issue,suggestion}],missingClauses:[],summary,withText}`；
+  仅展示不落库（前端可复制/追加到备注由人工保存）；未配置 65001，停用 65002，解析失败 65004
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
 ## 销售 /sales（AI 报价：模板 → 报价单 → 审批 → 发送 → 反馈 → 转合同；设计见 docs/sales-quotation-design.md）
@@ -290,6 +294,10 @@
 - `POST /approval/tasks/{taskId}/approve` `{comment}` · `/reject` `{comment}`（意见必填）
 - `POST /approval/tasks/{taskId}/transfer` `{toUserId,comment}` · `/add-sign` `{approverId,comment}`
 - `POST /approval/instances/{instanceId}/withdraw`
+- `POST /approval/instances/{instanceId}/ai-assist`（登录可用，但限实例相关人：发起人/节点审批人/被抄送人，或持 approval:view；否则 20002）
+  → `{summary,highlights:[],risks:[{level:"high|mid|low",text}],opinion,customerHistory?}`：
+  上下文=单据快照（值截断）+提交说明+合同类单据按权限附客户历史统计（合同数/均价/偏离/近90天相近单/累计到账）；
+  建议不落库，意见草稿由人工引用到审批意见框修改后随审批动作提交；未配置 65001，停用 65002，解析失败 65004
 - 管理端：`GET /approval/definitions` · `POST /approval/definitions` · `PUT /approval/definitions/{id}`
   · `DELETE /approval/definitions/{id}`（admin:flow:edit；有运行中实例时拒绝，逻辑删）
   定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`

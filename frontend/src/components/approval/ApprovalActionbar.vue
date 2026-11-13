@@ -133,6 +133,13 @@ async function openAddSign() {
   targetUserId.value = null
   addSignVisible.value = true
 }
+
+/** AI 审批助手引用意见草稿：填入意见框供人工修改后提交 */
+function setComment(text: string) {
+  comment.value = text
+}
+
+defineExpose({ setComment })
 </script>
 
 <template>

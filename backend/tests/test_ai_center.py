@@ -393,3 +393,227 @@ def test_admin_ai_perm_guard(client, manager_headers):
     # 能力探测登录即可
     cap = client.get("/api/v1/ai/capabilities", headers=manager_headers).json()
     assert cap["code"] == 0 and "features" in cap["data"] and "quote" in cap["data"]["features"]
+
+
+# ---------------- AI 审批助手 ----------------
+
+
+def _submit_contract_instance(client, headers, name=None, customer_id=None) -> tuple[int, int, int]:
+    """建客户（或复用）+合同并提交审批，返回 (合同 id, 审批实例 id, 客户 id)。"""
+    suf = uuid.uuid4().hex[:8]
+    if customer_id:
+        cust = {"data": {"id": customer_id}}
+    else:
+        cust = client.post(
+            "/api/v1/crm/customers",
+            headers=headers,
+            json={"name": name or f"助手客户_{suf}", "tax_no": f"913401AS{suf}", "status": "enabled"},
+        ).json()
+    con = client.post(
+        "/api/v1/contract/contracts",
+        headers=headers,
+        json={"name": f"助手合同_{suf}", "customer_id": cust["data"]["id"], "amount": 100000},
+    ).json()
+    cid = con["data"]["id"]
+    r = client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=headers, json={}).json()
+    assert r["code"] == 0, r
+
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.approval.models import ApprovalInstance
+
+    db = SessionLocal()
+    try:
+        iid = db.scalar(
+            select(ApprovalInstance.id).where(
+                ApprovalInstance.biz_type == "contract",
+                ApprovalInstance.biz_id == cid,
+                ApprovalInstance.deleted == 0,
+            )
+        )
+    finally:
+        db.close()
+    assert iid
+    return cid, iid, cust["data"]["id"]
+
+
+ASSIST_MOCK = json.dumps(
+    {
+        "summary": "助手合同，金额 10 万，客户为助手客户",
+        "highlights": ["金额 100000", "新客户首单"],
+        "risks": [
+            {"level": "high", "text": "金额偏离该客户历史均价"},
+            {"level": "weird", "text": "非法级别应归一为 low"},
+            {"level": "low"},  # 无 text 应丢弃
+        ],
+        "opinion": "建议核实价格偏离原因后审批",
+    },
+    ensure_ascii=False,
+)
+
+
+def test_approval_ai_assist(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    cid, iid, cust_id = _submit_contract_instance(client, admin_headers)
+    # 同客户再补两单历史合同（approving 计入统计）
+    _submit_contract_instance(client, admin_headers, customer_id=cust_id)
+    _submit_contract_instance(client, admin_headers, customer_id=cust_id)
+    _mock_chat(monkeypatch, ASSIST_MOCK)
+
+    r = client.post(f"/api/v1/approval/instances/{iid}/ai-assist", headers=admin_headers).json()
+    assert r["code"] == 0, r
+    d = r["data"]
+    assert d["summary"] and d["highlights"] and d["opinion"]
+    # 风险级别白名单归一 + 无 text 项丢弃
+    assert [x["level"] for x in d["risks"]] == ["high", "low"]
+    # 合同类单据回显客户历史统计（管理员有 contract:list / finance 权限）
+    h = d["customerHistory"]
+    assert h["contractCount"] >= 1 and h["thisAmount"] == 100000 and "paidTotal" in h
+
+    # 用量日志：feature=approval_assist、biz 关联该合同
+    lst = client.get(
+        "/api/v1/admin/ai/usage", headers=admin_headers, params={"feature": "approval_assist"}
+    ).json()
+    row = lst["data"]["items"][0]
+    assert row["status"] == "success" and row["bizType"] == "contract" and row["bizId"] == cid
+
+    # 建议不落库：时间线里没有 AI 意见
+    tl = client.get(f"/api/v1/approval/instances/{iid}", headers=admin_headers).json()["data"]["timeline"]
+    assert all("建议核实价格偏离原因后审批" not in (rec.get("comment") or "") for rec in tl)
+    _disable_ai(client, admin_headers)
+
+
+def test_approval_ai_assist_bad_json(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    _, iid, _ = _submit_contract_instance(client, admin_headers)
+    _mock_chat(monkeypatch, "不是 JSON")
+    r = client.post(f"/api/v1/approval/instances/{iid}/ai-assist", headers=admin_headers).json()
+    assert r["code"] == 65004, r
+    _disable_ai(client, admin_headers)
+
+
+def test_approval_ai_assist_not_configured(client, admin_headers):
+    _disable_ai(client, admin_headers)
+    _, iid, _ = _submit_contract_instance(client, admin_headers)
+    r = client.post(f"/api/v1/approval/instances/{iid}/ai-assist", headers=admin_headers).json()
+    assert r["code"] == 65001, r
+
+
+def test_approval_ai_assist_feature_switch(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, ASSIST_MOCK)
+    _set_center(client, admin_headers, {"features": {"approval_assist": False}})
+    _, iid, _ = _submit_contract_instance(client, admin_headers)
+    r = client.post(f"/api/v1/approval/instances/{iid}/ai-assist", headers=admin_headers).json()
+    assert r["code"] == 65002, r
+    _set_center(client, admin_headers, {"features": {"approval_assist": True}})
+    _disable_ai(client, admin_headers)
+
+
+def test_approval_ai_assist_forbidden_for_outsider(client, admin_headers, monkeypatch):
+    """非实例相关人（非发起/审批/抄送，无 approval:view）调用助手 → 20002。"""
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, ASSIST_MOCK)
+    _, iid, _ = _submit_contract_instance(client, admin_headers)
+
+    suf = uuid.uuid4().hex[:8]
+    role = client.post(
+        "/api/v1/admin/roles", headers=admin_headers, json={"code": f"pa1_out_{suf}", "name": "无权限角色"}
+    ).json()
+    assert role["code"] == 0, role
+    uname = f"outsider_{suf}"
+    r = client.post(
+        "/api/v1/admin/users",
+        headers=admin_headers,
+        json={"username": uname, "password": "Test@123456", "name": "无关用户", "roleIds": [role["data"]["id"]]},
+    ).json()
+    assert r["code"] == 0, r
+    cap = client.get("/api/v1/auth/captcha").json()["data"]
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": uname, "password": "Test@123456",
+              "captchaId": cap["captchaId"], "captchaText": cap.get("debugText", "")},
+    ).json()
+    headers = {"Authorization": f"Bearer {login['data']['access_token']}"}
+    r = client.post(f"/api/v1/approval/instances/{iid}/ai-assist", headers=headers).json()
+    assert r["code"] == 20002, r
+    _disable_ai(client, admin_headers)
+
+
+# ---------------- AI 合同风险审查 ----------------
+
+
+RISK_MOCK = json.dumps(
+    {
+        "risks": [
+            {"level": "high", "clause": "付款条款", "issue": "未约定付款节点", "suggestion": "补充分期比例与账期"},
+            {"level": "MID", "clause": "违约责任", "issue": "仅约定乙方责任", "suggestion": "增加对等条款"},
+            {"level": "low", "clause": "其他", "issue": "", "suggestion": "无 issue 应丢弃"},
+        ],
+        "missingClauses": ["验收条款", "保密条款"],
+        "summary": "存在付款与违约责任风险",
+    },
+    ensure_ascii=False,
+)
+
+_RISK_FIELDS = json.dumps(
+    {"name": "风险合同", "customerName": "某客户", "amount": 88000, "payCycle": "月结"},
+    ensure_ascii=False,
+)
+
+
+def _risk_review(client, headers, with_file=True):
+    files = {"file": ("合同.txt", "甲方乙方合同正文，金额捌万捌仟元整".encode(), "text/plain")} if with_file else None
+    return client.post(
+        "/api/v1/contract/contracts/ai-risk-review",
+        headers=headers,
+        data={"payload": _RISK_FIELDS},
+        files=files,
+    ).json()
+
+
+def test_contract_risk_review(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, RISK_MOCK)
+    r = _risk_review(client, admin_headers)
+    assert r["code"] == 0, r
+    d = r["data"]
+    assert d["withText"] is True
+    assert [x["level"] for x in d["risks"]] == ["high", "mid"]  # 级别大小写归一 + 无 issue 丢弃
+    assert d["risks"][0]["clause"] == "付款条款" and d["risks"][0]["suggestion"]
+    assert d["missingClauses"] == ["验收条款", "保密条款"] and d["summary"]
+
+    # 用量日志 feature=contract_risk
+    lst = client.get(
+        "/api/v1/admin/ai/usage", headers=admin_headers, params={"feature": "contract_risk"}
+    ).json()
+    assert lst["data"]["items"][0]["status"] == "success"
+    _disable_ai(client, admin_headers)
+
+
+def test_contract_risk_review_without_text(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, RISK_MOCK)
+    r = _risk_review(client, admin_headers, with_file=False)
+    assert r["code"] == 0 and r["data"]["withText"] is False, r
+    _disable_ai(client, admin_headers)
+
+
+def test_contract_risk_review_guards(client, admin_headers, monkeypatch):
+    # 未配置 → 65001
+    _disable_ai(client, admin_headers)
+    assert _risk_review(client, admin_headers)["code"] == 65001
+    # 功能停用 → 65002
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, RISK_MOCK)
+    _set_center(client, admin_headers, {"features": {"contract_risk": False}})
+    assert _risk_review(client, admin_headers)["code"] == 65002
+    _set_center(client, admin_headers, {"features": {"contract_risk": True}})
+    # AI 输出非法 → 65004
+    _mock_chat(monkeypatch, "无法解析")
+    assert _risk_review(client, admin_headers)["code"] == 65004
+    # 未登录 → 401
+    r = client.post("/api/v1/contract/contracts/ai-risk-review", data={"payload": _RISK_FIELDS})
+    assert r.status_code == 401 or r.json()["code"] == 20001
+    _disable_ai(client, admin_headers)

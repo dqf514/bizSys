@@ -4,7 +4,9 @@ import type {
   AiCenterSettings,
   AiUsageRow,
   AiUsageStats,
+  ApprovalAssistResult,
   ContractParseResult,
+  ContractRiskResult,
   ListQuery,
   PageResult,
   ReportSummaryDraft,
@@ -84,6 +86,26 @@ export function aiReportSummary(reportId: number) {
     method: 'post',
     data: {},
   })
+}
+
+export function aiApprovalAssist(instanceId: number) {
+  return request<ApprovalAssistResult>({
+    url: `/approval/instances/${instanceId}/ai-assist`,
+    method: 'post',
+    data: {},
+  })
+}
+
+export function aiContractRiskReview(
+  fields: Record<string, unknown>,
+  file?: File,
+  attachmentId?: number,
+) {
+  const form = new FormData()
+  form.append('payload', JSON.stringify(fields))
+  if (file) form.append('file', file)
+  if (attachmentId) form.append('attachment_id', String(attachmentId))
+  return request<ContractRiskResult>({ url: '/contract/contracts/ai-risk-review', method: 'post', data: form })
 }
 
 export function updateReportRemark(reportId: number, remark: string) {

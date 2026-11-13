@@ -10,7 +10,7 @@ import UploadFiles from '@/components/form/UploadFiles.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
 import { useAiCapabilities } from '@/composables/useAiCapabilities'
-import { aiParseContract } from '@/api/ai'
+import { aiParseContract, aiContractRiskReview } from '@/api/ai'
 import {
   getContract,
   createContract,
@@ -21,7 +21,7 @@ import {
   deleteAttachment,
   frameworkContractOptions,
 } from '@/api/contract'
-import type { Attachment, Contract, ContractParseResult, CustomerOption } from '@/api/types'
+import type { Attachment, Contract, ContractParseResult, ContractRiskResult, CustomerOption } from '@/api/types'
 
 defineOptions({ name: 'ContractEdit' })
 
@@ -328,6 +328,111 @@ function applyParse() {
   parseDialogVisible.value = false
   ElMessage.success(t('ai.contractParse.applied'))
 }
+
+// ---------------- AI 风险审查（已填字段 + 可选原文 → 风险清单，仅展示/可复制/可加入备注） ----------------
+
+const riskDialogVisible = ref(false)
+const reviewing = ref(false)
+const reviewResult = ref<ContractRiskResult | null>(null)
+const reviewFileInput = ref<HTMLInputElement | null>(null)
+const reviewFile = ref<File | null>(null)
+const reviewAttachmentId = ref<number | undefined>(undefined)
+
+// 已落库的合同电子版附件可作为原文来源（待上传的本地附件没有服务端 id，不可用）
+const reviewAttachments = computed(() =>
+  econtractFiles.value.filter((a) => typeof a.id === 'number'),
+)
+
+async function openRiskReview() {
+  await aiCaps.ensureLoaded()
+  if (!aiCaps.featureOn('contract_risk')) {
+    ElMessage.warning(t(aiCaps.caps.value.enabled ? 'ai.common.featureDisabled' : 'ai.common.notConfigured'))
+    return
+  }
+  reviewResult.value = null
+  reviewFile.value = null
+  reviewAttachmentId.value = reviewAttachments.value[0]?.id as number | undefined
+  riskDialogVisible.value = true
+}
+
+function onReviewFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  reviewFile.value = input.files?.[0] ?? null
+  input.value = ''
+  if (reviewFile.value) reviewAttachmentId.value = undefined
+}
+
+function onReviewAttachmentChange(v: number | undefined) {
+  reviewAttachmentId.value = v
+  if (v) reviewFile.value = null
+}
+
+function pickReviewFile() {
+  reviewFileInput.value?.click()
+}
+
+async function startReview() {
+  reviewing.value = true
+  reviewResult.value = null
+  try {
+    reviewResult.value = await aiContractRiskReview(
+      {
+        id: contractId.value || undefined,
+        name: form.name,
+        customerName: form.customerName,
+        amount: form.amount,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        payCycle: form.payCycle,
+        delivery: form.delivery,
+        sealType: form.sealType,
+        paymentOrg: form.paymentOrg,
+        remark: form.remark,
+      },
+      reviewFile.value ?? undefined,
+      reviewAttachmentId.value,
+    )
+  } catch {
+    /* http notifies */
+  } finally {
+    reviewing.value = false
+  }
+}
+
+function riskLevelTag(level: string): 'danger' | 'warning' | 'info' {
+  return level === 'high' ? 'danger' : level === 'mid' ? 'warning' : 'info'
+}
+
+function riskLevelLabel(level: string): string {
+  return t(`ai.contractRisk.level${level === 'high' ? 'High' : level === 'mid' ? 'Mid' : 'Low'}`)
+}
+
+function reviewText(): string {
+  const r = reviewResult.value
+  if (!r) return ''
+  const lines = [r.summary]
+  for (const x of r.risks) {
+    lines.push(`[${riskLevelLabel(x.level)}] ${x.clause}: ${x.issue} → ${x.suggestion}`)
+  }
+  if (r.missingClauses.length) lines.push(`${t('ai.contractRisk.missing')}: ${r.missingClauses.join('、')}`)
+  return lines.filter(Boolean).join('\n')
+}
+
+async function copyReview() {
+  try {
+    await navigator.clipboard.writeText(reviewText())
+    ElMessage.success(t('ai.contractRisk.copied'))
+  } catch {
+    ElMessage.warning(t('ai.contractRisk.copyFailed'))
+  }
+}
+
+function appendReviewToRemark() {
+  const text = reviewText()
+  if (!text) return
+  form.remark = form.remark ? `${form.remark}\n${text}` : text
+  ElMessage.success(t('ai.contractRisk.remarkAppended'))
+}
 </script>
 
 <template>
@@ -337,6 +442,9 @@ function applyParse() {
       <div>
         <el-button v-permission="'contract:create'" class="ai-parse-btn" @click="openAiParse">
           {{ t('ai.contractParse.button') }}
+        </el-button>
+        <el-button v-permission="'contract:create'" class="ai-review-btn" @click="openRiskReview">
+          {{ t('ai.contractRisk.button') }}
         </el-button>
         <el-button @click="cancel">{{ t('common.action.cancel') }}</el-button>
         <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
@@ -559,6 +667,81 @@ function applyParse() {
         </el-button>
       </template>
     </el-dialog>
+
+    <input
+      ref="reviewFileInput"
+      type="file"
+      accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+      style="display: none"
+      @change="onReviewFileChange"
+    />
+
+    <el-dialog v-model="riskDialogVisible" :title="t('ai.contractRisk.dialogTitle')" width="720px" append-to-body>
+      <div v-loading="reviewing" class="risk-review">
+        <el-alert type="info" :closable="false" :title="t('ai.contractRisk.onlyShowTip')" />
+        <el-form label-width="130px" class="review-source">
+          <el-form-item :label="t('ai.contractRisk.fileLabel')">
+            <div class="review-source-row">
+              <el-button size="small" @click="pickReviewFile">
+                {{ t('ai.contractParse.selectFile') }}
+              </el-button>
+              <span v-if="reviewFile" class="review-file-name">{{ reviewFile.name }}</span>
+              <el-select
+                v-if="reviewAttachments.length"
+                :model-value="reviewAttachmentId"
+                size="small"
+                clearable
+                :placeholder="t('ai.contractRisk.useAttachment')"
+                class="review-attach-select"
+                @update:model-value="onReviewAttachmentChange($event as number | undefined)"
+              >
+                <el-option v-for="a in reviewAttachments" :key="a.id" :label="a.fileName" :value="a.id" />
+              </el-select>
+            </div>
+            <div class="review-file-tip">{{ t('ai.contractRisk.fileTip') }}</div>
+          </el-form-item>
+        </el-form>
+
+        <template v-if="reviewing">
+          <div class="review-loading">{{ t('ai.contractRisk.reviewing') }}</div>
+        </template>
+        <template v-else-if="reviewResult">
+          <template v-if="reviewResult.summary">
+            <div class="review-section">{{ t('ai.contractRisk.summary') }}</div>
+            <p class="review-text">{{ reviewResult.summary }}</p>
+          </template>
+          <div class="review-section">{{ t('ai.contractRisk.risks') }}</div>
+          <el-table v-if="reviewResult.risks.length" :data="reviewResult.risks" size="small" border>
+            <el-table-column :label="t('ai.contractRisk.level')" width="70" align="center">
+              <template #default="{ row }">
+                <el-tag :type="riskLevelTag(row.level)" size="small">{{ riskLevelLabel(row.level) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="clause" :label="t('ai.contractRisk.clause')" width="110" />
+            <el-table-column prop="issue" :label="t('ai.contractRisk.risks')" min-width="180" />
+            <el-table-column prop="suggestion" :label="t('ai.contractRisk.suggestion')" min-width="180" />
+          </el-table>
+          <p v-else class="review-text review-muted">{{ t('ai.contractRisk.noRisks') }}</p>
+          <div class="review-section">{{ t('ai.contractRisk.missing') }}</div>
+          <template v-if="reviewResult.missingClauses.length">
+            <el-tag v-for="(m, i) in reviewResult.missingClauses" :key="i" size="small" type="warning" class="missing-tag">
+              {{ m }}
+            </el-tag>
+          </template>
+          <p v-else class="review-text review-muted">{{ t('ai.contractRisk.noMissing') }}</p>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="riskDialogVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="reviewing" @click="startReview">
+          {{ t('ai.contractRisk.start') }}
+        </el-button>
+        <template v-if="reviewResult">
+          <el-button @click="copyReview">{{ t('ai.contractRisk.copy') }}</el-button>
+          <el-button @click="appendReviewToRemark">{{ t('ai.contractRisk.appendRemark') }}</el-button>
+        </template>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -623,5 +806,62 @@ function applyParse() {
   font-size: var(--bs-typography-font-size-xs, 12px);
   color: var(--bs-color-fg-muted);
   line-height: 1.4;
+}
+
+.risk-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-3);
+}
+
+.review-source {
+  margin-bottom: calc(-1 * var(--bs-space-3));
+}
+
+.review-source-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  flex-wrap: wrap;
+}
+
+.review-attach-select {
+  min-width: 220px;
+}
+
+.review-file-name {
+  color: var(--bs-color-fg-secondary);
+}
+
+.review-file-tip {
+  font-size: var(--bs-typography-font-size-xs, 12px);
+  color: var(--bs-color-fg-muted);
+  line-height: 1.4;
+}
+
+.review-loading {
+  padding: var(--bs-space-4);
+  text-align: center;
+  color: var(--bs-color-fg-secondary);
+}
+
+.review-section {
+  font-size: var(--bs-typography-font-size-sm);
+  font-weight: 600;
+  color: var(--bs-color-fg-muted);
+}
+
+.review-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.review-muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.missing-tag {
+  margin-right: var(--bs-space-1);
 }
 </style>

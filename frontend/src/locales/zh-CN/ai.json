@@ -3,7 +3,9 @@
     "quote": "AI 报价",
     "contract_ocr": "合同识别",
     "task_photo": "拍照记进度",
-    "report_summary": "报告摘要"
+    "report_summary": "报告摘要",
+    "approval_assist": "审批助手",
+    "contract_risk": "合同风险审查"
   },
   "status": {
     "success": "成功",
@@ -89,5 +91,51 @@
     "adopt": "采用并保存",
     "adopted": "摘要已保存到报告备注",
     "lockedTip": "当前状态不可修改摘要（仅已上传待审/已驳回可改）"
+  },
+  "approvalAssist": {
+    "title": "AI 审批助手",
+    "generate": "生成审批辅助分析",
+    "generating": "AI 分析中…",
+    "summary": "本单要点",
+    "highlights": "关键字段",
+    "history": "该客户历史往来",
+    "historyCount": "历史合同数",
+    "historyAvg": "历史均价",
+    "historyDeviation": "本单偏离",
+    "historyPaid": "累计到账",
+    "historyRecent": "近 90 天相近金额合同",
+    "risks": "风险提示",
+    "noRisks": "未发现明显风险",
+    "opinion": "建议审批意见",
+    "useOpinion": "引用到审批意见",
+    "opinionUsed": "已引用到审批意见输入框，请人工修改后提交",
+    "regenerate": "重新生成"
+  },
+  "contractRisk": {
+    "button": "AI 风险审查",
+    "dialogTitle": "AI 合同风险审查",
+    "fileLabel": "合同原文（可选）",
+    "fileTip": "选择新文件（pdf/docx/txt，图片走视觉识别），或直接使用已上传的合同电子版附件",
+    "useAttachment": "使用附件",
+    "noAttachment": "无已上传附件",
+    "reviewing": "AI 审查中…",
+    "start": "开始审查",
+    "risks": "风险清单",
+    "noRisks": "未发现明显风险",
+    "missing": "缺失条款",
+    "noMissing": "未发现缺失条款",
+    "summary": "总体评价",
+    "levelHigh": "高",
+    "levelMid": "中",
+    "levelLow": "低",
+    "level": "级别",
+    "clause": "条款",
+    "suggestion": "建议",
+    "copy": "复制结果",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败，请手动选择文本复制",
+    "appendRemark": "加入备注",
+    "remarkAppended": "已追加到备注字段，保存合同后生效",
+    "onlyShowTip": "审查结果仅供参考，不落库；请人工复核"
   }
 }

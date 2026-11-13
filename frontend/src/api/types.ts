@@ -1485,7 +1485,13 @@ export interface QuotationPayload {
 
 // ---------------- AI 中心 ----------------
 
-export type AiFeatureKey = 'quote' | 'contract_ocr' | 'task_photo' | 'report_summary'
+export type AiFeatureKey =
+  | 'quote'
+  | 'contract_ocr'
+  | 'task_photo'
+  | 'report_summary'
+  | 'approval_assist'
+  | 'contract_risk'
 export type AiUsageStatus = 'success' | 'error' | 'fallback'
 
 export interface AiUsageRow {
@@ -1555,6 +1561,43 @@ export interface ContractParseResult {
   }
   customerCandidates: { id: number; name: string }[]
   source: string
+}
+
+// ---------------- AI 审批助手 / 合同风险审查 ----------------
+
+export interface ApprovalAssistRisk {
+  level: 'high' | 'mid' | 'low'
+  text: string
+}
+
+export interface ApprovalAssistResult {
+  summary: string
+  highlights: string[]
+  risks: ApprovalAssistRisk[]
+  opinion: string
+  customerHistory?: {
+    customerName: string
+    contractCount: number
+    avgAmount: number | null
+    thisAmount: number
+    deviationPercent: number | null
+    recentSimilarCount: number
+    paidTotal?: number
+  }
+}
+
+export interface ContractRiskItem {
+  level: 'high' | 'mid' | 'low'
+  clause: string
+  issue: string
+  suggestion: string
+}
+
+export interface ContractRiskResult {
+  risks: ContractRiskItem[]
+  missingClauses: string[]
+  summary: string
+  withText: boolean
 }
 
 export interface TaskProgressLogItem {

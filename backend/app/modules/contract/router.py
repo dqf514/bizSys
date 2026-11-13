@@ -1,11 +1,12 @@
 """合同路由 /api/v1/contract。"""
 
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -563,5 +564,61 @@ def ai_parse_contract(
     result = svc.ai_parse_contract(db, current, filename, data)
     audit(db, user_id=current.id, module="contract", action="contract_ai_parse",
           detail={"file": filename})
+    db.commit()
+    return result
+
+
+# ---------------- AI 合同风险审查 ----------------
+
+
+@router.post("/contracts/ai-risk-review")
+def ai_risk_review(
+    payload: str = Form(...),
+    attachment_id: int | None = Form(None),
+    file: UploadFile | None = File(None),
+    current: User = Depends(require_perm("contract:create")),
+    db: Session = Depends(get_db),
+):
+    """表单字段 + 可选合同原文（新传文件或已有 econtract 附件）→ 条款风险清单（不落库）。"""
+    from app.services import ai as ai_svc
+
+    try:
+        fields = json.loads(payload)
+        if not isinstance(fields, dict):
+            raise ValueError("not a dict")
+    except ValueError as exc:
+        raise BizException(R.GENERIC_PARAM, "payload 必须是 JSON 对象") from exc
+
+    filename, data = "", b""
+    if file is not None and file.filename:
+        filename = file.filename
+        data = file.file.read()
+    elif attachment_id:
+        a = db.get(ContractAttachment, attachment_id)
+        if not a or a.deleted:
+            raise BizException(R.GENERIC_NOT_FOUND, "附件不存在")
+        dest = Path(settings.upload_dir) / a.path
+        if not dest.exists():
+            raise BizException(R.GENERIC_NOT_FOUND, "附件文件已丢失")
+        filename, data = a.file_name, dest.read_bytes()
+
+    text = ""
+    images = None
+    if data:
+        if len(data) > settings.upload_max_mb * 1024 * 1024:
+            raise BizException(R.GENERIC_PARAM, f"文件超过大小上限 {settings.upload_max_mb}MB")
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext in ai_svc.TEXT_EXTS:
+            text = ai_svc.extract_text(filename, data)
+        elif ext in ai_svc.IMAGE_EXTS:
+            images = [(data, f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}")]
+        else:
+            raise BizException(
+                R.GENERIC_PARAM,
+                f"不支持的文件类型：{ext or '无扩展名'}（限 {'/'.join(sorted(ai_svc.TEXT_EXTS | ai_svc.IMAGE_EXTS))}）",
+            )
+    result = svc.ai_risk_review(db, current, fields, text, images)
+    audit(db, user_id=current.id, module="contract", action="contract_ai_risk_review",
+          detail={"file": filename or "-"})
     db.commit()
     return result

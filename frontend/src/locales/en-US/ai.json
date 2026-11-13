@@ -3,7 +3,9 @@
     "quote": "AI Quotation",
     "contract_ocr": "Contract Recognition",
     "task_photo": "Photo Progress",
-    "report_summary": "Report Summary"
+    "report_summary": "Report Summary",
+    "approval_assist": "Approval Assistant",
+    "contract_risk": "Contract Risk Review"
   },
   "status": {
     "success": "Success",
@@ -89,5 +91,51 @@
     "adopt": "Adopt & Save",
     "adopted": "Summary saved to report remark",
     "lockedTip": "Summary cannot be modified in current status (only uploaded/rejected)"
+  },
+  "approvalAssist": {
+    "title": "AI Approval Assistant",
+    "generate": "Generate approval analysis",
+    "generating": "AI analyzing…",
+    "summary": "Key Points",
+    "highlights": "Highlights",
+    "history": "Customer History",
+    "historyCount": "Past contracts",
+    "historyAvg": "Avg amount",
+    "historyDeviation": "This order deviation",
+    "historyPaid": "Total paid",
+    "historyRecent": "Similar-amount contracts (90d)",
+    "risks": "Risks",
+    "noRisks": "No obvious risks found",
+    "opinion": "Suggested Opinion",
+    "useOpinion": "Use as approval comment",
+    "opinionUsed": "Copied into the comment box. Please edit before submitting.",
+    "regenerate": "Regenerate"
+  },
+  "contractRisk": {
+    "button": "AI Risk Review",
+    "dialogTitle": "AI Contract Risk Review",
+    "fileLabel": "Contract text (optional)",
+    "fileTip": "Pick a new file (pdf/docx/txt; images via vision), or reuse an uploaded e-contract attachment",
+    "useAttachment": "Use attachment",
+    "noAttachment": "No uploaded attachment",
+    "reviewing": "AI reviewing…",
+    "start": "Start Review",
+    "risks": "Risk List",
+    "noRisks": "No obvious risks found",
+    "missing": "Missing Clauses",
+    "noMissing": "No missing clauses found",
+    "summary": "Overall",
+    "levelHigh": "High",
+    "levelMid": "Mid",
+    "levelLow": "Low",
+    "level": "Level",
+    "clause": "Clause",
+    "suggestion": "Suggestion",
+    "copy": "Copy Result",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed. Please select the text and copy manually.",
+    "appendRemark": "Add to Remark",
+    "remarkAppended": "Appended to the remark field; takes effect after saving the contract",
+    "onlyShowTip": "Review results are for reference only and are not saved. Please double-check manually."
   }
 }

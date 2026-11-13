@@ -3,6 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import ListPage from '@/components/list/ListPage.vue'
 import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue'
@@ -14,6 +15,8 @@ import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ApprovalActionbar from '@/components/approval/ApprovalActionbar.vue'
 import FlowGraphViewer from '@/components/flow/FlowGraphViewer.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
+import { aiApprovalAssist } from '@/api/ai'
 import {
   approvalTaskCounts,
   exportApprovalTasks,
@@ -24,7 +27,7 @@ import {
   markCcRead,
   type ApprovalTab,
 } from '@/api/approval'
-import type { ApprovalInstanceDetail, ApprovalTask, TimelineRecord } from '@/api/types'
+import type { ApprovalAssistResult, ApprovalInstanceDetail, ApprovalTask, TimelineRecord } from '@/api/types'
 
 defineOptions({ name: 'TodoList' })
 
@@ -138,6 +141,7 @@ async function openDetail(row: Row) {
   current.value = row
   detail.value = null
   records.value = []
+  assistResult.value = null
   drawerVisible.value = true
   detailLoading.value = true
   try {
@@ -223,9 +227,43 @@ function bizTypeLabel(bt: string) {
 const canAct = computed(() => activeTab.value === 'todo' && current.value?.status === 'pending')
 const canWithdraw = computed(() => activeTab.value === 'initiated' && current.value?.status === 'running')
 
+// --- AI 审批助手（建议 → 人工引用修改 → 随审批动作提交，不自动落库） ---
+
+const aiCaps = useAiCapabilities()
+const assistLoading = ref(false)
+const assistResult = ref<ApprovalAssistResult | null>(null)
+const actionbarRef = ref<InstanceType<typeof ApprovalActionbar> | null>(null)
+const assistOn = computed(() => aiCaps.featureOn('approval_assist'))
+
+const RISK_TAG: Record<string, 'danger' | 'warning' | 'info'> = {
+  high: 'danger',
+  mid: 'warning',
+  low: 'info',
+}
+
+async function runAssist() {
+  if (!current.value?.instanceId) return
+  assistLoading.value = true
+  try {
+    assistResult.value = await aiApprovalAssist(Number(current.value.instanceId))
+  } catch {
+    /* http notifies */
+  } finally {
+    assistLoading.value = false
+  }
+}
+
+function useOpinion() {
+  const opinion = assistResult.value?.opinion
+  if (!opinion) return
+  actionbarRef.value?.setComment(opinion)
+  ElMessage.success(t('ai.approvalAssist.opinionUsed'))
+}
+
 onMounted(() => {
   list.refresh()
   void refreshTabCounts()
+  void aiCaps.ensureLoaded()
 })
 </script>
 
@@ -339,9 +377,69 @@ onMounted(() => {
         </el-descriptions>
       </template>
 
+      <template v-if="assistOn">
+        <div class="section-title assist-head">
+          <span>{{ t('ai.approvalAssist.title') }}</span>
+          <el-button size="small" type="primary" plain :loading="assistLoading" @click="runAssist">
+            {{ assistResult ? t('ai.approvalAssist.regenerate') : t('ai.approvalAssist.generate') }}
+          </el-button>
+        </div>
+        <template v-if="assistResult">
+          <el-alert type="info" :closable="false" :title="t('ai.common.aiDraftTip')" />
+          <template v-if="assistResult.summary">
+            <div class="assist-sub">{{ t('ai.approvalAssist.summary') }}</div>
+            <p class="assist-text">{{ assistResult.summary }}</p>
+          </template>
+          <template v-if="assistResult.highlights.length">
+            <div class="assist-sub">{{ t('ai.approvalAssist.highlights') }}</div>
+            <ul class="assist-list">
+              <li v-for="(h, i) in assistResult.highlights" :key="i">{{ h }}</li>
+            </ul>
+          </template>
+          <template v-if="assistResult.customerHistory">
+            <div class="assist-sub">{{ t('ai.approvalAssist.history') }}</div>
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item :label="t('ai.approvalAssist.historyCount')">
+                {{ assistResult.customerHistory.contractCount }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="t('ai.approvalAssist.historyAvg')">
+                {{ assistResult.customerHistory.avgAmount ?? '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="t('ai.approvalAssist.historyDeviation')">
+                {{ assistResult.customerHistory.deviationPercent != null ? `${assistResult.customerHistory.deviationPercent}%` : '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="t('ai.approvalAssist.historyRecent')">
+                {{ assistResult.customerHistory.recentSimilarCount }}
+              </el-descriptions-item>
+              <el-descriptions-item v-if="assistResult.customerHistory.paidTotal != null" :label="t('ai.approvalAssist.historyPaid')">
+                {{ assistResult.customerHistory.paidTotal }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </template>
+          <div class="assist-sub">{{ t('ai.approvalAssist.risks') }}</div>
+          <ul v-if="assistResult.risks.length" class="assist-list">
+            <li v-for="(r, i) in assistResult.risks" :key="i">
+              <el-tag :type="RISK_TAG[r.level] ?? 'info'" size="small" class="risk-tag">
+                {{ t(`ai.contractRisk.level${r.level === 'high' ? 'High' : r.level === 'mid' ? 'Mid' : 'Low'}`) }}
+              </el-tag>
+              {{ r.text }}
+            </li>
+          </ul>
+          <p v-else class="assist-text assist-muted">{{ t('ai.approvalAssist.noRisks') }}</p>
+          <template v-if="assistResult.opinion">
+            <div class="assist-sub">{{ t('ai.approvalAssist.opinion') }}</div>
+            <p class="assist-text assist-opinion">{{ assistResult.opinion }}</p>
+            <el-button v-if="canAct" size="small" type="primary" @click="useOpinion">
+              {{ t('ai.approvalAssist.useOpinion') }}
+            </el-button>
+          </template>
+        </template>
+      </template>
+
       <template v-if="canAct || canWithdraw">
         <div class="section-title">{{ t('common.action.operate') }}</div>
         <ApprovalActionbar
+          ref="actionbarRef"
           :task="current as unknown as ApprovalTask"
           :can-act="canAct"
           :can-withdraw="canWithdraw"
@@ -374,5 +472,43 @@ onMounted(() => {
 .unread-badge {
   margin-left: var(--bs-space-2);
   vertical-align: super;
+}
+
+.assist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.assist-sub {
+  font-weight: 600;
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  margin-top: var(--bs-space-1);
+}
+
+.assist-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.assist-muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.assist-opinion {
+  padding: var(--bs-space-2);
+  background: var(--bs-color-bg-muted, var(--bs-color-bg-surface));
+  border-radius: var(--bs-radius-md);
+}
+
+.assist-list {
+  margin: 0;
+  padding-left: var(--bs-space-4);
+}
+
+.risk-tag {
+  margin-right: var(--bs-space-1);
 }
 </style>

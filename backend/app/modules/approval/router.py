@@ -123,6 +123,21 @@ def instance_detail(
     return data
 
 
+@router.post("/instances/{instance_id}/ai-assist")
+def instance_ai_assist(
+    instance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """AI 审批助手：要点/历史对比/风险/意见草稿（仅实例相关人；建议不落库）。"""
+    from app.modules.approval import ai_assist
+
+    result = ai_assist.ai_assist(db, user, instance_id)
+    record(db, user_id=user.id, module="approval", action="ai_assist", biz_id=instance_id)
+    db.commit()
+    return result
+
+
 @router.get("/instances/{instance_id}/timeline")
 def timeline_by_instance(
     instance_id: int,

@@ -9,7 +9,14 @@ defineOptions({ name: 'AiSettings' })
 
 const { t } = useI18n()
 
-const FEATURES: AiFeatureKey[] = ['quote', 'contract_ocr', 'task_photo', 'report_summary']
+const FEATURES: AiFeatureKey[] = [
+  'quote',
+  'contract_ocr',
+  'task_photo',
+  'report_summary',
+  'approval_assist',
+  'contract_risk',
+]
 
 const loading = ref(false)
 const saving = ref(false)
@@ -19,6 +26,8 @@ const features = reactive<Record<AiFeatureKey, boolean>>({
   contract_ocr: true,
   task_photo: true,
   report_summary: true,
+  approval_assist: true,
+  contract_risk: true,
 })
 const quota = reactive({
   userDailyCalls: 0,
