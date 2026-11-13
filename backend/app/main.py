@@ -87,6 +87,8 @@ register_exception_handlers(app)
 
 # --- 路由注册（按模块递增挂载） ---
 from app.modules.admin.router import router as admin_router  # noqa: E402
+from app.modules.aicenter.router import cap_router as ai_cap_router  # noqa: E402
+from app.modules.aicenter.router import router as aicenter_router  # noqa: E402
 from app.modules.approval.router import router as approval_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
 from app.modules.auth.wecom import router as wecom_router  # noqa: E402
@@ -120,6 +122,8 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
+app.include_router(aicenter_router, prefix="/api/v1")
+app.include_router(ai_cap_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
 app.include_router(tender_router, prefix="/api/v1")

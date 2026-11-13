@@ -101,6 +101,8 @@
     "modelPlaceholder": "e.g. deepseek-chat / gpt-4o-mini",
     "timeout": "Timeout (seconds)",
     "tip": "Powers AI quotation drafting in Sales; falls back to template defaults / history copy when disabled or unconfigured",
-    "save": "Save AI Settings"
+    "save": "Save AI Settings",
+    "visionModel": "Vision model",
+    "visionModelPlaceholder": "Leave empty to reuse the model above (used by image-based AI features)"
   }
 }

@@ -1481,3 +1481,99 @@ export interface QuotationPayload {
   aiMeta: string
   items: Partial<QuotationItem>[]
 }
+
+
+// ---------------- AI 中心 ----------------
+
+export type AiFeatureKey = 'quote' | 'contract_ocr' | 'task_photo' | 'report_summary'
+export type AiUsageStatus = 'success' | 'error' | 'fallback'
+
+export interface AiUsageRow {
+  id: number
+  userName: string
+  feature: string
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  durationMs: number
+  status: AiUsageStatus
+  error: string
+  bizType: string
+  bizId: number | null
+  createTime: string
+}
+
+export interface AiUsageStats {
+  days: number
+  cards: {
+    totalCalls: number
+    successCalls: number
+    errorCalls: number
+    fallbackCalls: number
+    totalTokens: number
+    successRate: number
+    activeUsers: number
+    avgDurationMs: number
+  }
+  trend: { date: string; calls: number; tokens: number }[]
+  byFeature: { feature: string; calls: number; tokens: number }[]
+  byUser: { userName: string; calls: number; tokens: number }[]
+  byModel: { model: string; calls: number; tokens: number }[]
+}
+
+export interface AiCenterSettings {
+  enabled: boolean
+  features: Record<AiFeatureKey, boolean>
+  quota: {
+    userDailyCalls: number
+    userDailyTokens: number
+    globalDailyTokens: number
+  }
+}
+
+export interface AiCapabilities {
+  enabled: boolean
+  visionModel: string
+  features: Record<AiFeatureKey, boolean>
+}
+
+export interface ContractParseResult {
+  fields: {
+    name: string
+    customerName: string
+    amount: number
+    startDate: string
+    endDate: string
+    payCycle: string
+    delivery: string
+    sealType: string
+    paymentOrg: string
+    contactPerson: string
+    contactPhone: string
+    remark: string
+  }
+  customerCandidates: { id: number; name: string }[]
+  source: string
+}
+
+export interface TaskProgressLogItem {
+  id: number
+  percent: number
+  note: string
+  imagePath: string
+  source: 'ai' | 'manual'
+  operatorName: string
+  createTime: string
+}
+
+export interface TaskProgressAiDraft {
+  percent: number
+  note: string
+  imagePath: string
+}
+
+export interface ReportSummaryDraft {
+  summary: string
+  source: string
+}

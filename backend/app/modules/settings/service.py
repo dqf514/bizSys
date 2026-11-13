@@ -104,6 +104,7 @@ def ai_out(db: Session) -> dict:
         "baseUrl": cfg["base_url"],
         "apiKeySet": bool(cfg["api_key"]),
         "model": cfg["model"],
+        "visionModel": cfg["vision_model"],
         "timeout": cfg["timeout"],
     }
 
@@ -116,6 +117,7 @@ def _update_ai(db: Session, a, user_id: int) -> None:
     set_value(db, ai.KEY_AI_ENABLED, "1" if a.enabled else "0", user_id, "AI 总开关")
     set_value(db, ai.KEY_AI_BASE_URL, a.base_url.strip(), user_id, "AI 端点（OpenAI 兼容）")
     set_value(db, ai.KEY_AI_MODEL, a.model.strip(), user_id, "AI 模型名")
+    set_value(db, ai.KEY_AI_VISION_MODEL, a.vision_model.strip(), user_id, "AI 多模态模型名")
     set_value(db, ai.KEY_AI_TIMEOUT, str(a.timeout), user_id, "AI 超时秒数")
     if a.api_key:  # 空 = 不修改
         set_value(db, ai.KEY_AI_API_KEY, encrypt_text(a.api_key.strip()), user_id, "AI API Key（加密）")

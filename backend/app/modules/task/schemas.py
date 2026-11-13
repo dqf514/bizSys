@@ -46,3 +46,12 @@ class TaskIn(CamelModel):
     version: int | None = None
     items: list[ItemIn] = Field(default_factory=list)
     samples: list[SampleIn] = Field(default_factory=list)
+
+
+class ProgressIn(CamelModel):
+    """进度记录（人工确认后落库；AI 分析结果由前端透传 source=ai）。"""
+
+    percent: int = Field(..., ge=0, le=100)
+    note: str = Field("", max_length=2000)
+    image_path: str = Field("", max_length=255)
+    source: str = Field("manual", pattern="^(ai|manual)$")

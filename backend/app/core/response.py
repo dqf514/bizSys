@@ -5,7 +5,7 @@ from typing import Any
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
 # 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购；96xxx 招投标/门户
-# 63xxx 人事行政（HR）；64xxx 销售（AI 报价）
+# 63xxx 人事行政（HR）；64xxx 销售（AI 报价）；65xxx AI 中心
 OK = 0
 
 GENERIC_PARAM = 10001
@@ -65,6 +65,12 @@ SALES_QUOTE_INVALID_STATE = 64001
 SALES_TEMPLATE_NOT_PUBLISHED = 64002
 SALES_TEMPLATE_CONFLICT = 64003
 SALES_QUOTE_ALREADY_CONVERTED = 64004
+
+# 65xxx AI 中心（网关/配额/功能开关）
+AI_NOT_CONFIGURED = 65001
+AI_FEATURE_DISABLED = 65002
+AI_QUOTA_EXCEEDED = 65003
+AI_PARSE_FAILED = 65004
 
 FINANCE_INVALID_STATE = 80001
 FINANCE_SETTLEMENT_EXISTS = 80002
@@ -133,6 +139,10 @@ DEFAULT_MESSAGES: dict[int, str] = {
     SALES_TEMPLATE_NOT_PUBLISHED: "报价模板未发布或已停用",
     SALES_TEMPLATE_CONFLICT: "模板标识+版本已存在",
     SALES_QUOTE_ALREADY_CONVERTED: "该报价单已转合同",
+    AI_NOT_CONFIGURED: "AI 未启用或未配置，请联系管理员",
+    AI_FEATURE_DISABLED: "该 AI 功能已被管理员停用",
+    AI_QUOTA_EXCEEDED: "AI 调用配额已用完，请明日再试或联系管理员",
+    AI_PARSE_FAILED: "AI 无法解析该文件内容",
     FINANCE_INVALID_STATE: "当前财务单据状态不允许该操作",
     FINANCE_SETTLEMENT_EXISTS: "该任务已存在结算单",
     FINANCE_NOT_TASK_CREATOR: "仅任务创建人可发起结算",

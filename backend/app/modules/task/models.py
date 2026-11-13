@@ -89,3 +89,17 @@ class TaskSampleFlow(BaseModel):
     operator_name: Mapped[str] = mapped_column(String(64), default="")
     at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     remark: Mapped[str] = mapped_column(String(255), default="")
+
+
+class TaskProgressLog(BaseModel):
+    """任务进度记录：拍照/AI 分析草稿必须人工确认后经 POST 落库（source=ai|manual）。"""
+
+    __tablename__ = "task_progress_log"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("task_task.id"), index=True)
+    percent: Mapped[int] = mapped_column(Integer, default=0, comment="完成百分比 0-100")
+    note: Mapped[str] = mapped_column(Text, default="", comment="进度描述")
+    image_path: Mapped[str] = mapped_column(String(255), default="", comment="现场照片（相对 upload_dir）")
+    source: Mapped[str] = mapped_column(String(8), default="manual", comment="ai/manual")
+    operator_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    operator_name: Mapped[str] = mapped_column(String(64), default="")

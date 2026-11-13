@@ -53,7 +53,15 @@ const testSending = ref(false)
 
 // ---- AI 设置 ----
 const savingAi = ref(false)
-const aiForm = reactive({ enabled: false, baseUrl: '', apiKey: '', apiKeySet: false, model: '', timeout: 30 })
+const aiForm = reactive({
+  enabled: false,
+  baseUrl: '',
+  apiKey: '',
+  apiKeySet: false,
+  model: '',
+  visionModel: '',
+  timeout: 30,
+})
 
 const logoSrc = computed(() => (basic.logoUrl ? `${basic.logoUrl}?v=${logoStamp.value}` : ''))
 const faviconSrc = computed(() => (basic.faviconUrl ? `${basic.faviconUrl}?v=${faviconStamp.value}` : ''))
@@ -221,6 +229,7 @@ async function saveAi() {
       enabled: aiForm.enabled,
       baseUrl: aiForm.baseUrl.trim(),
       model: aiForm.model.trim(),
+      visionModel: aiForm.visionModel.trim(),
       timeout: aiForm.timeout || 30,
     }
     if (aiForm.apiKey.trim()) ai.apiKey = aiForm.apiKey.trim()
@@ -665,6 +674,9 @@ async function copyCallback() {
         </el-form-item>
         <el-form-item :label="t('settings.ai.model')">
           <el-input v-model="aiForm.model" :placeholder="t('settings.ai.modelPlaceholder')" maxlength="64" class="form-input" />
+        </el-form-item>
+        <el-form-item :label="t('settings.ai.visionModel')">
+          <el-input v-model="aiForm.visionModel" :placeholder="t('settings.ai.visionModelPlaceholder')" maxlength="64" class="form-input" />
         </el-form-item>
         <el-form-item :label="t('settings.ai.timeout')">
           <el-input-number v-model="aiForm.timeout" :min="1" :max="300" class="form-input" />

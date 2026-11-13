@@ -303,3 +303,91 @@ def next_sample_no(db: Session, task: Task) -> str:
     nos = db.scalars(select(TaskSample.sample_no).where(TaskSample.task_id == task.id)).all()
     seqs = [int(no[len(prefix):]) for no in nos if no and no.startswith(prefix) and no[len(prefix):].isdigit()]
     return f"{prefix}{max(seqs, default=0) + 1:02d}"
+
+
+# ---------------- 进度记录（拍照记进度：AI 分析草稿 → 人工确认落库） ----------------
+
+PROGRESS_AI_PROMPT_VERSION = "v1"
+PROGRESS_AI_SYSTEM = (
+    "你是工程现场进度分析助手。根据任务信息与现场照片，评估工作进度，输出严格 JSON："
+    '{"percent": 0-100 的整数, "note": "进度描述（客观描述照片所见与进度判断依据，200 字以内）"}。'
+    "只输出 JSON。无法判断时 percent 填 0 并在 note 说明原因。"
+)
+
+
+def list_progress(db: Session, task_id: int) -> list[dict]:
+    from app.modules.task.models import TaskProgressLog
+
+    rows = db.scalars(
+        select(TaskProgressLog)
+        .where(TaskProgressLog.task_id == task_id, TaskProgressLog.deleted == 0)
+        .order_by(TaskProgressLog.id.desc())
+    ).all()
+    return [
+        {
+            "id": r.id,
+            "percent": r.percent,
+            "note": r.note,
+            "imagePath": r.image_path,
+            "source": r.source,
+            "operatorName": r.operator_name,
+            "createTime": r.create_time.strftime("%Y-%m-%d %H:%M:%S") if r.create_time else "",
+        }
+        for r in rows
+    ]
+
+
+def add_progress(db: Session, task: Task, body, user: User):
+    """人工确认后落库（AI 草稿必须经此确认才会写业务表）。"""
+    from app.modules.task.models import TaskProgressLog
+
+    if task.status != "in_progress":
+        raise BizException(R.TASK_INVALID_STATE, "仅进行中的任务可登记进度")
+    row = TaskProgressLog(
+        task_id=task.id,
+        percent=body.percent,
+        note=body.note.strip(),
+        image_path=body.image_path.strip(),
+        source=body.source,
+        operator_id=user.id,
+        operator_name=user.name or user.username,
+        create_by=user.id,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def ai_analyze_progress(db: Session, task: Task, filename: str, data: bytes, user: User) -> dict:
+    """照片 → AI 视觉分析 → 进度草稿（不落库，前端确认后走 add_progress）。"""
+    from app.services import ai as ai_svc
+
+    if task.status != "in_progress":
+        raise BizException(R.TASK_INVALID_STATE, "仅进行中的任务可拍照记进度")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ai_svc.IMAGE_EXTS:
+        raise BizException(R.GENERIC_PARAM, f"进度照片仅支持图片格式（{'/'.join(sorted(ai_svc.IMAGE_EXTS))}）")
+    if not ai_svc.feature_enabled(db, "task_photo"):
+        raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置或拍照进度功能已停用，请手工填写进度")
+    messages = [
+        {"role": "system", "content": PROGRESS_AI_SYSTEM},
+        {"role": "user", "content": (
+            f"任务：{task.task_name}\n工作内容：{(task.content or '')[:500]}\n"
+            "请分析这张现场照片，给出进度百分比与描述。"
+        )},
+    ]
+    try:
+        raw = ai_svc.gateway_chat(
+            db, feature="task_photo", messages=messages, user=user,
+            biz_type="task", biz_id=task.id, prompt_version=PROGRESS_AI_PROMPT_VERSION,
+            json_mode=True, images=[(data, f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}")],
+        )
+    except ai_svc.AiUnavailable as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 视觉分析失败（模型可能不支持多模态），请手工填写进度") from exc
+    try:
+        result = json.loads(raw.strip().removeprefix("```json").removesuffix("```").strip())
+        percent = int(result.get("percent", 0))
+        note = str(result.get("note") or "")
+    except (ValueError, TypeError) as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 输出无法解析，请手工填写进度") from exc
+    return {"percent": max(0, min(percent, 100)), "note": note[:2000]}

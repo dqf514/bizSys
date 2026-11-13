@@ -18,7 +18,10 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
+from app.core import response as R
 from app.core.config import settings
+from app.core.exceptions import BizException
+from app.modules.auth.models import User
 from app.modules.report.models import Report, ReportFile
 from app.modules.task.models import TaskItem
 
@@ -197,3 +200,66 @@ def _handle_withdrawn(event: ApprovalWithdrawn) -> None:
 subscribe(ApprovalCompleted, _handle_completed)
 subscribe(ApprovalRejected, _handle_rejected)
 subscribe(ApprovalWithdrawn, _handle_withdrawn)
+
+
+# ---------------- AI 报告摘要（草稿 → 人工编辑 → 采用才写 remark） ----------------
+
+SUMMARY_PROMPT_VERSION = "v1"
+SUMMARY_SYSTEM = (
+    "你是检测报告摘要助手。根据报告文本与任务信息撰写「报告摘要/结论草稿」，"
+    "要求：客观、200-400 字、包含检测对象/依据标准/主要结果/结论建议；信息不足时基于任务信息概括并标注待补充。"
+    "直接输出摘要文本，不要输出标题以外的格式标记。"
+)
+
+
+def ai_summary(db: Session, r: Report, user: User) -> dict:
+    """基于报告文件文本（可提取时）+ 任务信息生成摘要草稿；不落库。"""
+    from app.modules.task.models import Task, TaskItem
+    from app.services import ai as ai_svc
+
+    if not ai_svc.feature_enabled(db, "report_summary"):
+        raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置或报告摘要功能已停用")
+
+    item = db.get(TaskItem, r.task_item_id)
+    task = db.get(Task, r.task_id)
+    context = [
+        f"报告编号：{r.report_no}",
+        f"任务：{task.task_name if task else ''}（{task.task_no or '' if task else ''}）",
+        f"客户：{task.customer_name if task else ''}",
+        f"条目：{item.name if item else ''}（依据标准：{item.std if item else ''}）",
+        f"工作内容：{(task.content or '')[:500] if task else ''}",
+    ]
+    text_note = ""
+    f = db.get(ReportFile, r.file_id)
+    if f:
+        try:
+            path = file_path(f)
+            if path.exists():
+                extracted = ai_svc.extract_text(f.file_name, path.read_bytes())
+                text_note = f"\n\n报告文件文本（节选）：\n{extracted}"
+        except BizException:
+            text_note = "\n\n（报告文件文本不可提取，请基于任务信息概括）"
+    messages = [
+        {"role": "system", "content": SUMMARY_SYSTEM},
+        {"role": "user", "content": "\n".join(context) + text_note},
+    ]
+    try:
+        raw = ai_svc.gateway_chat(
+            db, feature="report_summary", messages=messages, user=user,
+            biz_type="report", biz_id=r.id, prompt_version=SUMMARY_PROMPT_VERSION,
+            json_mode=False, max_tokens=1200,
+        )
+    except ai_svc.AiUnavailable as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc
+    return {"summary": raw.strip()[:4000], "source": "ai"}
+
+
+def update_remark(db: Session, r: Report, remark: str, user: User) -> Report:
+    """采用 AI 摘要/人工编辑结论：仅 uploaded/rejected 可改（审批中/已签章锁定）。"""
+    if r.status not in ("uploaded", "rejected"):
+        raise BizException(R.REPORT_INVALID_STATE, "当前报告状态不允许修改摘要")
+    r.remark = remark.strip()
+    r.update_by = user.id
+    r.update_time = datetime.now()
+    db.flush()
+    return r

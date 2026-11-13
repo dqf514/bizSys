@@ -1,0 +1,93 @@
+{
+  "feature": {
+    "quote": "AI Quotation",
+    "contract_ocr": "Contract Recognition",
+    "task_photo": "Photo Progress",
+    "report_summary": "Report Summary"
+  },
+  "status": {
+    "success": "Success",
+    "error": "Error",
+    "fallback": "Fallback"
+  },
+  "usage": {
+    "title": "AI Usage Monitor",
+    "totalCalls": "Total Calls",
+    "successRate": "Success Rate",
+    "totalTokens": "Total Tokens",
+    "activeUsers": "Active Users",
+    "avgDuration": "Avg Duration",
+    "ms": "ms",
+    "trend": "Call Trend (last {days} days)",
+    "byFeature": "By Feature",
+    "byUser": "Top 10 Users",
+    "byModel": "By Model",
+    "detail": "Call Details",
+    "user": "User",
+    "featureCol": "Feature",
+    "model": "Model",
+    "tokens": "Tokens",
+    "duration": "Duration",
+    "statusCol": "Status",
+    "errorCol": "Error / Fallback Reason",
+    "biz": "Business Ref",
+    "time": "Time",
+    "calls": "Calls",
+    "searchPlaceholder": "User / error info"
+  },
+  "settings": {
+    "title": "AI Settings",
+    "connectionTip": "Connection (endpoint/key/model) is managed in System Settings → AI card; AI is not configured or disabled, so switches and quotas below will not take effect.",
+    "featureSwitches": "Feature Switches",
+    "quota": "Quotas (0 = unlimited)",
+    "userDailyCalls": "Calls per user per day",
+    "userDailyTokens": "Tokens per user per day",
+    "globalDailyTokens": "Global daily token budget",
+    "save": "Save Settings"
+  },
+  "common": {
+    "notConfigured": "AI is not configured or disabled. Ask an administrator to configure it in System Settings.",
+    "featureDisabled": "This AI feature has been disabled by the administrator",
+    "aiDraftTip": "The following is an AI-generated draft. Please review and edit before adopting.",
+    "sourceAi": "AI Generated"
+  },
+  "contractParse": {
+    "button": "AI Fill",
+    "dialogTitle": "AI Contract Recognition",
+    "selectFile": "Choose contract file",
+    "fileTip": "pdf/docx/txt via text extraction; jpg/png via multimodal vision",
+    "parsing": "AI parsing…",
+    "customerCandidate": "Matched partners (pick manually)",
+    "customerRaw": "Recognized customer name",
+    "apply": "Fill into form",
+    "noCandidate": "No matching partner found. Please create it first.",
+    "fields": "Recognized fields (editable)",
+    "applied": "Filled into the form. Please review before saving."
+  },
+  "taskPhoto": {
+    "tab": "Progress",
+    "button": "Log Progress with Photo",
+    "dialogTitle": "Log Progress with Photo",
+    "selectImage": "Upload site photo",
+    "imageTip": "jpg/png supported; AI vision generates a progress draft",
+    "analyzing": "AI analyzing…",
+    "percent": "Completion %",
+    "note": "Progress note",
+    "confirm": "Confirm & Log",
+    "manual": "Manual entry",
+    "sourceAi": "AI",
+    "sourceManual": "Manual",
+    "empty": "No progress records yet",
+    "viewImage": "View photo",
+    "source": "Source"
+  },
+  "reportSummary": {
+    "button": "Generate Summary with AI",
+    "dialogTitle": "AI Report Summary",
+    "generating": "AI generating…",
+    "summary": "Summary / conclusion draft",
+    "adopt": "Adopt & Save",
+    "adopted": "Summary saved to report remark",
+    "lockedTip": "Summary cannot be modified in current status (only uploaded/rejected)"
+  }
+}

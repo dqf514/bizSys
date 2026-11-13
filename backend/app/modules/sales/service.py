@@ -793,7 +793,10 @@ def _parse_ai_json(raw: str) -> dict:
 
 
 def ai_generate(db: Session, current: User, body: S.AiGenerateIn) -> dict:
-    """需求文本 → 报价草稿（回填前端不落库）。回退：未配置→模板默认；调用失败→该客户最近报价复制。"""
+    """需求文本 → 报价草稿（回填前端不落库）。回退：未配置/功能停用→模板默认；调用失败→该客户最近报价复制。
+
+    统一走 AI 网关（feature=quote）：配额超限直接抛 65003 回前端；其余回退均落用量日志。
+    """
     q = _load(db, body.quotation_id) if body.quotation_id else None
     if q is not None:
         _check_editable(q)
@@ -808,13 +811,23 @@ def ai_generate(db: Session, current: User, body: S.AiGenerateIn) -> dict:
     layout = _layout_of(tpl) if tpl and not tpl.deleted else {}
 
     if not ai_svc.ai_ready(db):
+        ai_svc.log_usage(db, feature="quote", status=ai_svc.USAGE_FALLBACK, error="ai_not_configured",
+                         user=current, biz_type="sales_quotation", biz_id=q.id if q else None,
+                         prompt_version=PROMPT_VERSION)
         return _template_fallback(layout, "ai_not_configured")
 
     history = _history_quotations(db, customer_id, limit=3)
     messages = _build_prompt(body.requirement.strip(), customer_name, layout, history)
     try:
-        raw = ai_svc.chat(db, messages)
+        raw = ai_svc.gateway_chat(
+            db, feature="quote", messages=messages, user=current,
+            biz_type="sales_quotation", biz_id=q.id if q else None, prompt_version=PROMPT_VERSION,
+        )
         data = _parse_ai_json(raw)
+    except ai_svc.AiQuotaExceeded:
+        raise  # 配额超限：明确错误码回前端，不静默回退
+    except ai_svc.AiFeatureDisabled:
+        return _template_fallback(layout, "feature_disabled")
     except (ai_svc.AiUnavailable, _AiStructureError) as exc:
         logger.warning("AI 报价生成失败，走回退：%s", exc)
         if history and history[0].items:

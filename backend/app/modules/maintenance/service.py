@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.exceptions import BizException
 from app.core.security import verify_password
 from app.modules.admin.models import AuditLog, LoginLog, Notify, NumberSeq, UserDept, UserPref, UserRole
+from app.modules.aicenter.models import AiUsageLog
 from app.modules.approval.models import (
     ApprovalCc,
     ApprovalInstance,
@@ -50,7 +51,7 @@ from app.modules.procurement.models import (
 from app.modules.report.models import Report, ReportFile
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
-from app.modules.task.models import Task, TaskItem, TaskSample, TaskSampleFlow
+from app.modules.task.models import Task, TaskItem, TaskProgressLog, TaskSample, TaskSampleFlow
 
 # ---- 配置键 ----
 KEY_BACKUP_ENABLED = "backup.enabled"
@@ -72,6 +73,7 @@ _PURGE_TABLES = [
     OaInstance,
     OaForm,
     HrTimesheet,
+    AiUsageLog,
     SalesQuoteSendLog,
     SalesQuotationItem,
     SalesQuotation,
@@ -88,6 +90,7 @@ _PURGE_TABLES = [
     PurchaseRequest,
     ContractAttachment,
     Contract,
+    TaskProgressLog,
     TaskSampleFlow,
     TaskSample,
     TaskItem,
@@ -107,7 +110,7 @@ _PURGE_TABLES = [
 ]
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）
-_PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner")
+_PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner", "task_progress")
 
 CONFIRM_WORD = "CLEAR"
 

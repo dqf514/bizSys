@@ -516,6 +516,36 @@ MENU_TREE = [
                     ),
                 ],
             ),
+            (
+                "menu.aiCenter",
+                "AiCenter",
+                "",
+                "",
+                "MagicStick",
+                "",
+                [
+                    (
+                        "menu.aiUsage",
+                        "AiUsage",
+                        "/admin/ai/usage",
+                        "admin/AiUsage",
+                        "DataAnalysis",
+                        "admin:ai:usage",
+                        [
+                            (None, "ai-usage-export", "", "", "", "admin:ai:usage:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.aiSettings",
+                        "AiSettings",
+                        "/admin/ai/settings",
+                        "admin/AiSettings",
+                        "Operation",
+                        "admin:ai:settings",
+                        [],
+                    ),
+                ],
+            ),
         ],
     ),
     # 流程中心并入工作台门户：菜单隐藏保留（权限点 approval:view 仍由它承载），/approval 走前端静态路由深链

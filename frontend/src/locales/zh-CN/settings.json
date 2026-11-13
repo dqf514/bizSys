@@ -101,6 +101,8 @@
     "modelPlaceholder": "如 deepseek-chat / gpt-4o-mini",
     "timeout": "超时（秒）",
     "tip": "用于销售报价的 AI 生成；未启用或未配置时自动回退「模板默认 / 历史报价复制」",
-    "save": "保存 AI 设置"
+    "save": "保存 AI 设置",
+    "visionModel": "视觉模型",
+    "visionModelPlaceholder": "留空则复用上方模型（图片类 AI 功能使用）"
   }
 }

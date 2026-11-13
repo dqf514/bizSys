@@ -11,3 +11,7 @@ class SubmitIn(CamelModel):
 
 class SealIn(CamelModel):
     comment: str = Field("", max_length=255)
+
+
+class RemarkIn(CamelModel):
+    remark: str = Field("", max_length=4000)

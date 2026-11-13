@@ -374,7 +374,7 @@ def test_ai_success_structure_recalc(client, admin_headers, monkeypatch):
 
     from app.services import ai as ai_svc
 
-    def fake_chat(db, messages, **kw):
+    def fake_chat(db, **kw):
         return json.dumps(
             {
                 "title": "AI 报价标题",
@@ -385,7 +385,7 @@ def test_ai_success_structure_recalc(client, admin_headers, monkeypatch):
             }
         )
 
-    monkeypatch.setattr(ai_svc, "chat", fake_chat)
+    monkeypatch.setattr(ai_svc, "gateway_chat", fake_chat)
     cust = _create_customer(client, admin_headers)
     tid = _create_template(client, admin_headers)
     r = client.post(
@@ -406,10 +406,10 @@ def test_ai_failure_history_fallback(client, admin_headers, monkeypatch):
 
     from app.services import ai as ai_svc
 
-    def boom(db, messages, **kw):
+    def boom(db, **kw):
         raise ai_svc.AiUnavailable("timeout")
 
-    monkeypatch.setattr(ai_svc, "chat", boom)
+    monkeypatch.setattr(ai_svc, "gateway_chat", boom)
     # 造一条该客户的历史报价（带明细）
     cust = _create_customer(client, admin_headers)
     tid = _create_template(client, admin_headers)
@@ -440,7 +440,7 @@ def test_ai_bad_json_falls_back(client, admin_headers, monkeypatch):
 
     from app.services import ai as ai_svc
 
-    monkeypatch.setattr(ai_svc, "chat", lambda db, messages, **kw: "这不是 JSON")
+    monkeypatch.setattr(ai_svc, "gateway_chat", lambda db, **kw: "这不是 JSON")
     cust = _create_customer(client, admin_headers)
     tid = _create_template(client, admin_headers)
     r = client.post(

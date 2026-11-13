@@ -44,5 +44,8 @@
   "timesheetStats": "Hours Stats",
   "salesSystem": "Sales",
   "quotations": "Quotations",
-  "quoteTemplates": "Quote Templates"
+  "quoteTemplates": "Quote Templates",
+  "aiCenter": "AI Center",
+  "aiUsage": "Usage Monitor",
+  "aiSettings": "AI Settings"
 }

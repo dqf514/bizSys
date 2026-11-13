@@ -190,3 +190,6 @@ P1 即可形成完整线下闭环（打印即 PDF），P2/P3 增量解耦，互�
 - 发送渠道 print/download 仅留痕（result=marked）；企微通道未做（P3 遗留）。
 - 测试数据前缀实际用 psq_（非 sl_），硬删清理；E2E 覆盖全链（设计器预览→AI 回退徽标→两级审批 UI→
   打印标记送达→调试通道邮件→反馈接受→转合同预填→EN 抽查），已全绿。
+- **AI 生成已统一接入 AI 中心网关**（feature=quote，2026-11 第二批）：逐条记 `ai_usage_log` 用量
+  （模型/tokens/耗时/回退原因），受功能开关 `ai.feature.quote` 与配额约束；配额超限不再静默回退，
+  直接抛 65003；功能停用走模板回退（fallbackReason=feature_disabled）。详见 docs/ai-center.md。

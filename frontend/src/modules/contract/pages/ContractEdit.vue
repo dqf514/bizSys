@@ -9,6 +9,8 @@ import SmartInput from '@/components/form/SmartInput.vue'
 import UploadFiles from '@/components/form/UploadFiles.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
+import { aiParseContract } from '@/api/ai'
 import {
   getContract,
   createContract,
@@ -19,7 +21,7 @@ import {
   deleteAttachment,
   frameworkContractOptions,
 } from '@/api/contract'
-import type { Attachment, Contract, CustomerOption } from '@/api/types'
+import type { Attachment, Contract, ContractParseResult, CustomerOption } from '@/api/types'
 
 defineOptions({ name: 'ContractEdit' })
 
@@ -262,6 +264,70 @@ async function download(fileId: number | string, fileName: string) {
 function cancel() {
   router.push('/contract/contracts')
 }
+
+// ---------------- AI 合同识别（草稿 → 人工确认回填，不直接落库） ----------------
+
+const aiCaps = useAiCapabilities()
+const parseFileInput = ref<HTMLInputElement | null>(null)
+const parseDialogVisible = ref(false)
+const parsing = ref(false)
+const parseResult = ref<ContractParseResult | null>(null)
+const parseCandidateId = ref<number | undefined>(undefined)
+
+async function openAiParse() {
+  await aiCaps.ensureLoaded()
+  if (!aiCaps.featureOn('contract_ocr')) {
+    ElMessage.warning(t(aiCaps.caps.value.enabled ? 'ai.common.featureDisabled' : 'ai.common.notConfigured'))
+    return
+  }
+  parseFileInput.value?.click()
+}
+
+async function onParseFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  parsing.value = true
+  parseResult.value = null
+  parseCandidateId.value = undefined
+  parseDialogVisible.value = true
+  try {
+    parseResult.value = await aiParseContract(file)
+  } catch {
+    parseDialogVisible.value = false
+  } finally {
+    parsing.value = false
+  }
+}
+
+/** 回填：仅写非空识别字段；客户仅在人工选了候选时绑定 id */
+function applyParse() {
+  const r = parseResult.value
+  if (!r) return
+  const f = r.fields
+  if (f.name) form.name = f.name
+  if (f.amount) form.amount = f.amount
+  if (f.startDate) form.startDate = f.startDate
+  if (f.endDate) form.endDate = f.endDate
+  if (f.payCycle) form.payCycle = f.payCycle
+  if (f.delivery) form.delivery = f.delivery
+  if (f.sealType) form.sealType = f.sealType
+  if (f.paymentOrg) form.paymentOrg = f.paymentOrg
+  if (f.contactPerson) form.contactPerson = f.contactPerson
+  if (f.contactPhone) form.contactPhone = f.contactPhone
+  if (f.remark) form.remark = f.remark
+  if (parseCandidateId.value !== undefined) {
+    const c = r.customerCandidates.find((x) => x.id === parseCandidateId.value)
+    if (c) {
+      form.customerId = c.id
+      form.customerName = c.name
+      form.frameworkNo = ''
+    }
+  }
+  parseDialogVisible.value = false
+  ElMessage.success(t('ai.contractParse.applied'))
+}
 </script>
 
 <template>
@@ -269,6 +335,9 @@ function cancel() {
     <div class="edit-header">
       <h2 class="edit-title">{{ isEdit ? t('contract.contract.edit') : t('contract.contract.create') }}</h2>
       <div>
+        <el-button v-permission="'contract:create'" class="ai-parse-btn" @click="openAiParse">
+          {{ t('ai.contractParse.button') }}
+        </el-button>
         <el-button @click="cancel">{{ t('common.action.cancel') }}</el-button>
         <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
         <el-button type="primary" :loading="savingSubmit" @click="saveAndSubmit">{{ t('common.action.submitApproval') }}</el-button>
@@ -408,6 +477,88 @@ function cancel() {
         </el-col>
       </el-row>
     </el-form>
+
+    <input
+      ref="parseFileInput"
+      type="file"
+      accept=".pdf,.docx,.txt,.jpg,.jpeg,.png"
+      style="display: none"
+      @change="onParseFileChange"
+    />
+
+    <el-dialog v-model="parseDialogVisible" :title="t('ai.contractParse.dialogTitle')" width="640px" append-to-body>
+      <div v-loading="parsing">
+        <template v-if="parsing">
+          <div class="parse-loading">{{ t('ai.contractParse.parsing') }}</div>
+        </template>
+        <template v-else-if="parseResult">
+          <el-alert type="info" :closable="false" :title="t('ai.common.aiDraftTip')" class="parse-tip" />
+          <el-form label-width="120px" class="parse-form">
+            <div class="parse-section">{{ t('ai.contractParse.fields') }}</div>
+            <el-form-item :label="t('contract.contract.name')">
+              <el-input v-model="parseResult.fields.name" maxlength="128" />
+            </el-form-item>
+            <el-form-item :label="t('ai.contractParse.customerRaw')">
+              <el-input v-model="parseResult.fields.customerName" maxlength="128" />
+            </el-form-item>
+            <el-form-item :label="t('ai.contractParse.customerCandidate')">
+              <el-select
+                v-model="parseCandidateId"
+                clearable
+                :placeholder="t('common.form.placeholderSelect')"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="c in parseResult.customerCandidates"
+                  :key="c.id"
+                  :label="c.name"
+                  :value="c.id"
+                />
+              </el-select>
+              <div v-if="!parseResult.customerCandidates.length" class="parse-no-candidate">
+                {{ t('ai.contractParse.noCandidate') }}
+              </div>
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.amount')">
+              <el-input-number v-model="parseResult.fields.amount" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.startDate')">
+              <el-date-picker v-model="parseResult.fields.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.endDate')">
+              <el-date-picker v-model="parseResult.fields.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.payCycle')">
+              <el-input v-model="parseResult.fields.payCycle" maxlength="32" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.delivery')">
+              <el-input v-model="parseResult.fields.delivery" maxlength="32" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.sealType')">
+              <el-input v-model="parseResult.fields.sealType" maxlength="32" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.paymentOrg')">
+              <el-input v-model="parseResult.fields.paymentOrg" maxlength="128" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.contactPerson')">
+              <el-input v-model="parseResult.fields.contactPerson" maxlength="64" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.contactPhone')">
+              <el-input v-model="parseResult.fields.contactPhone" maxlength="32" />
+            </el-form-item>
+            <el-form-item :label="t('contract.contract.remark')">
+              <el-input v-model="parseResult.fields.remark" type="textarea" :rows="2" maxlength="500" />
+            </el-form-item>
+          </el-form>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="parseDialogVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!parseResult" @click="applyParse">
+          {{ t('ai.contractParse.apply') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -449,5 +600,28 @@ function cancel() {
   font-weight: 600;
   color: var(--bs-color-fg-muted);
   margin-bottom: var(--bs-space-1);
+}
+
+.parse-loading {
+  padding: var(--bs-space-4);
+  text-align: center;
+  color: var(--bs-color-fg-secondary);
+}
+
+.parse-tip {
+  margin-bottom: var(--bs-space-3);
+}
+
+.parse-section {
+  font-size: var(--bs-typography-font-size-sm);
+  font-weight: 600;
+  color: var(--bs-color-fg-muted);
+  margin-bottom: var(--bs-space-2);
+}
+
+.parse-no-candidate {
+  font-size: var(--bs-typography-font-size-xs, 12px);
+  color: var(--bs-color-fg-muted);
+  line-height: 1.4;
 }
 </style>

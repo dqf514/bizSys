@@ -3,7 +3,7 @@
 from datetime import datetime
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -822,3 +822,102 @@ def export_tasks(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('tasks')}"},
     )
+
+
+# ---------------- 进度记录（拍照记进度） ----------------
+
+
+def _progress_out(r) -> dict:
+    return {
+        "id": r.id,
+        "percent": r.percent,
+        "note": r.note,
+        "imagePath": r.image_path,
+        "source": r.source,
+        "operatorName": r.operator_name,
+        "createTime": _t(r.create_time),
+    }
+
+
+@router.get("/tasks/{tid}/progress")
+def list_progress(
+    tid: int,
+    _: User = Depends(require_perm("task:list")),
+    db: Session = Depends(get_db),
+):
+    _load(db, tid)
+    return svc.list_progress(db, tid)
+
+
+@router.post("/tasks/{tid}/progress/ai-image")
+def ai_progress_image(
+    tid: int,
+    file: UploadFile,
+    current: User = Depends(require_perm("task:edit")),
+    db: Session = Depends(get_db),
+):
+    """上传现场照片：存 uploads/task_progress/ + AI 视觉分析出进度草稿（不落库，人工确认后才写）。"""
+    import uuid
+    from pathlib import Path
+
+    from app.core.config import settings
+
+    t = _load(db, tid)
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    from app.services import ai as ai_svc
+
+    if ext not in ai_svc.IMAGE_EXTS:
+        raise BizException(R.GENERIC_PARAM, f"进度照片仅支持图片格式（{'/'.join(sorted(ai_svc.IMAGE_EXTS))}）")
+    data = file.file.read()
+    if not data:
+        raise BizException(R.GENERIC_PARAM, "文件为空")
+    if len(data) > settings.upload_max_mb * 1024 * 1024:
+        raise BizException(R.GENERIC_PARAM, f"文件超过大小上限 {settings.upload_max_mb}MB")
+    rel = Path("task_progress") / f"{uuid.uuid4().hex}.{ext}"
+    dest = Path(settings.upload_dir) / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    result = svc.ai_analyze_progress(db, t, filename, data, current)
+    audit(db, user_id=current.id, module="task", action="task_progress_ai", biz_type="task", biz_id=tid,
+          detail={"file": filename})
+    db.commit()
+    return {**result, "imagePath": str(rel)}
+
+
+@router.post("/tasks/{tid}/progress", status_code=201)
+def add_progress(
+    tid: int,
+    body: S.ProgressIn,
+    current: User = Depends(require_perm("task:edit")),
+    db: Session = Depends(get_db),
+):
+    t = _load(db, tid)
+    row = svc.add_progress(db, t, body, current)
+    audit(db, user_id=current.id, module="task", action="task_progress_add", biz_type="task", biz_id=tid,
+          detail={"percent": body.percent, "source": body.source})
+    db.commit()
+    return _progress_out(row)
+
+
+@router.get("/progress-images/{log_id}")
+def progress_image(
+    log_id: int,
+    _: User = Depends(require_perm("task:list")),
+    db: Session = Depends(get_db),
+):
+    """进度照片查看（按日志行鉴权，避免路径遍历）。"""
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    from app.core.config import settings
+    from app.modules.task.models import TaskProgressLog
+
+    row = db.get(TaskProgressLog, log_id)
+    if not row or row.deleted or not row.image_path:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    dest = Path(settings.upload_dir) / row.image_path
+    if not dest.exists():
+        raise BizException(R.GENERIC_NOT_FOUND, "文件已丢失")
+    return FileResponse(dest)

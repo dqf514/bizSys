@@ -101,7 +101,7 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
     sales = _find(tree, "SalesSystem")
     assert [c["name"] for c in sales["children"]] == ["Quotations", "QuoteTemplates"]
     sy = _find(tree, "System")
-    assert [c["name"] for c in sy["children"]] == ["SysOrg", "SysData", "OaAdmin", "SysOps"]
+    assert [c["name"] for c in sy["children"]] == ["SysOrg", "SysData", "OaAdmin", "SysOps", "AiCenter"]
 
     # 脏状态修复：异名同 path 残留被改名归位（path 相同只会留一个 Customers）
     db = SessionLocal()

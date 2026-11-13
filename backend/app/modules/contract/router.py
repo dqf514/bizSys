@@ -542,3 +542,26 @@ def export_contracts(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('contracts')}"},
     )
+
+
+# ---------------- AI 合同识别 ----------------
+
+
+@router.post("/contracts/ai-parse")
+def ai_parse_contract(
+    file: UploadFile,
+    current: User = Depends(require_perm("contract:create")),
+    db: Session = Depends(get_db),
+):
+    """上传合同文件 → AI 抽取字段草稿（不落库，前端人工确认后走正常创建/更新）。"""
+    filename = file.filename or ""
+    data = file.file.read()
+    if not data:
+        raise BizException(R.GENERIC_PARAM, "文件为空")
+    if len(data) > settings.upload_max_mb * 1024 * 1024:
+        raise BizException(R.GENERIC_PARAM, f"文件超过大小上限 {settings.upload_max_mb}MB")
+    result = svc.ai_parse_contract(db, current, filename, data)
+    audit(db, user_id=current.id, module="contract", action="contract_ai_parse",
+          detail={"file": filename})
+    db.commit()
+    return result

@@ -25,7 +25,10 @@ import {
   type TaskAction,
 } from '@/api/task'
 import { listReports } from '@/api/report'
-import type { Report, Task, TaskItem, TaskLog, TaskSample, TaskStatus } from '@/api/types'
+import { addTaskProgress, aiAnalyzeTaskPhoto, listTaskProgress } from '@/api/ai'
+import { http } from '@/api/http'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
+import type { Report, Task, TaskItem, TaskLog, TaskProgressLogItem, TaskSample, TaskStatus } from '@/api/types'
 
 defineOptions({ name: 'TaskDetailPanel' })
 
@@ -97,7 +100,104 @@ async function load() {
     loading.value = false
   }
   void loadReports()
+  void loadProgress()
 }
+
+// ---------------- 进度记录（拍照记进度：AI 草稿 → 人工确认落库） ----------------
+
+const aiCaps = useAiCapabilities()
+const progressLogs = ref<TaskProgressLogItem[]>([])
+const progressLoading = ref(false)
+
+async function loadProgress() {
+  if (!props.taskId) return
+  progressLoading.value = true
+  try {
+    progressLogs.value = await listTaskProgress(props.taskId)
+  } catch {
+    progressLogs.value = []
+  } finally {
+    progressLoading.value = false
+  }
+}
+
+const photoVisible = ref(false)
+const photoAnalyzing = ref(false)
+const photoSaving = ref(false)
+const photoManual = ref(false)
+const photoPreviewUrl = ref('')
+const photoForm = reactive({ percent: 0, note: '', imagePath: '' })
+const photoFileInput = ref<HTMLInputElement | null>(null)
+
+function resetPhotoDialog(manual: boolean) {
+  photoManual.value = manual
+  photoForm.percent = 0
+  photoForm.note = ''
+  photoForm.imagePath = ''
+  if (photoPreviewUrl.value) {
+    URL.revokeObjectURL(photoPreviewUrl.value)
+    photoPreviewUrl.value = ''
+  }
+  photoVisible.value = true
+}
+
+async function openPhotoAi() {
+  await aiCaps.ensureLoaded()
+  if (!aiCaps.featureOn('task_photo')) {
+    ElMessage.warning(t(aiCaps.caps.value.enabled ? 'ai.common.featureDisabled' : 'ai.common.notConfigured'))
+    return
+  }
+  resetPhotoDialog(false)
+  photoFileInput.value?.click()
+}
+
+async function onPhotoFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (photoPreviewUrl.value) URL.revokeObjectURL(photoPreviewUrl.value)
+  photoPreviewUrl.value = URL.createObjectURL(file)
+  photoAnalyzing.value = true
+  try {
+    const draft = await aiAnalyzeTaskPhoto(props.taskId, file)
+    photoForm.percent = draft.percent
+    photoForm.note = draft.note
+    photoForm.imagePath = draft.imagePath
+  } catch {
+    /* http notifies；照片已上传可手工填写 */
+  } finally {
+    photoAnalyzing.value = false
+  }
+}
+
+async function confirmProgress() {
+  photoSaving.value = true
+  try {
+    await addTaskProgress(props.taskId, {
+      percent: photoForm.percent,
+      note: photoForm.note,
+      imagePath: photoForm.imagePath || undefined,
+      source: photoManual.value ? 'manual' : 'ai',
+    })
+    ElMessage.success(t('common.message.saveSuccess'))
+    photoVisible.value = false
+    void loadProgress()
+  } catch {
+    /* http notifies */
+  } finally {
+    photoSaving.value = false
+  }
+}
+
+async function viewProgressImage(logId: number) {
+  const resp = await http.request({ url: `/task/progress-images/${logId}`, method: 'get', responseType: 'blob' })
+  window.open(URL.createObjectURL(resp.data as Blob), '_blank')
+}
+
+onUnmounted(() => {
+  if (photoPreviewUrl.value) URL.revokeObjectURL(photoPreviewUrl.value)
+})
 
 /* ---------- 关联面板 ---------- */
 function publishContext() {
@@ -673,6 +773,51 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane name="progress">
+        <template #label>
+          {{ t('ai.taskPhoto.tab') }}
+          <span v-if="progressLogs.length" class="bs-tab-count">({{ progressLogs.length }})</span>
+        </template>
+        <div v-if="status === 'in_progress'" class="tab-toolbar">
+          <el-button v-permission="'task:edit'" size="small" @click="resetPhotoDialog(true)">
+            {{ t('ai.taskPhoto.manual') }}
+          </el-button>
+          <el-button v-permission="'task:edit'" size="small" type="primary" plain @click="openPhotoAi">
+            {{ t('ai.taskPhoto.button') }}
+          </el-button>
+        </div>
+        <el-table v-loading="progressLoading" :data="progressLogs" border stripe size="small">
+          <el-table-column :label="t('ai.taskPhoto.percent')" prop="percent" width="110" align="right">
+            <template #default="{ row }">{{ row.percent }}%</template>
+          </el-table-column>
+          <el-table-column :label="t('ai.taskPhoto.note')" prop="note" min-width="220" show-overflow-tooltip />
+          <el-table-column :label="t('ai.taskPhoto.source')" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.source === 'ai' ? 'primary' : 'info'" size="small">
+                {{ row.source === 'ai' ? t('ai.taskPhoto.sourceAi') : t('ai.taskPhoto.sourceManual') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('task.task.logOperator')" prop="operatorName" width="110" />
+          <el-table-column :label="t('task.task.logTime')" prop="createTime" width="160" />
+          <el-table-column :label="t('common.action.operate')" width="110" fixed="right" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.imagePath"
+                size="small"
+                link
+                type="primary"
+                @click="viewProgressImage(row.id)"
+              >
+                {{ t('ai.taskPhoto.viewImage') }}
+              </el-button>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <template #empty>{{ t('ai.taskPhoto.empty') }}</template>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane name="logs">
         <template #label>
           {{ t('task.task.tabLogs') }}
@@ -826,6 +971,48 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
         <el-button type="primary" :loading="sampleSaving" @click="saveSample">{{ t('common.action.save') }}</el-button>
       </template>
     </el-dialog>
+    <!-- 拍照记进度 -->
+    <input
+      ref="photoFileInput"
+      type="file"
+      accept=".jpg,.jpeg,.png"
+      style="display: none"
+      @change="onPhotoFileChange"
+    />
+    <el-dialog
+      v-model="photoVisible"
+      :title="photoManual ? t('ai.taskPhoto.manual') : t('ai.taskPhoto.dialogTitle')"
+      width="560px"
+      append-to-body
+    >
+      <div v-loading="photoAnalyzing">
+        <el-alert
+          v-if="!photoManual"
+          type="info"
+          :closable="false"
+          :title="photoAnalyzing ? t('ai.taskPhoto.analyzing') : t('ai.common.aiDraftTip')"
+          class="photo-tip"
+        />
+        <div v-if="photoPreviewUrl" class="photo-preview">
+          <img :src="photoPreviewUrl" alt="" class="photo-preview-img" />
+        </div>
+        <el-form label-width="110px">
+          <el-form-item :label="t('ai.taskPhoto.percent')">
+            <el-input-number v-model="photoForm.percent" :min="0" :max="100" />
+          </el-form-item>
+          <el-form-item :label="t('ai.taskPhoto.note')">
+            <el-input v-model="photoForm.note" type="textarea" :rows="4" maxlength="2000" />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="photoVisible = false">{{ t('common.action.cancel') }}</el-button>
+        <el-button type="primary" :loading="photoSaving" :disabled="photoAnalyzing" @click="confirmProgress">
+          {{ t('ai.taskPhoto.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 报告上传 / 详情 -->
     <ReportUploadDialog v-model="reportUploadVisible" :task-id="taskId" @uploaded="onReportUploaded" />
     <ReportDetailDrawer v-model="reportDetailVisible" :report-id="reportDetailId" />
@@ -878,5 +1065,20 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
   line-height: 1.4;
+}
+
+.photo-tip {
+  margin-bottom: var(--bs-space-3);
+}
+
+.photo-preview {
+  margin-bottom: var(--bs-space-3);
+  text-align: center;
+}
+
+.photo-preview-img {
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: var(--bs-radius-md);
 }
 </style>

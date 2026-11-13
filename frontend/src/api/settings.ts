@@ -22,6 +22,8 @@ export interface AiSettings {
   baseUrl: string
   apiKeySet: boolean
   model: string
+  /** 视觉模型（空 = 复用 model），图片类 AI 功能使用 */
+  visionModel: string
   timeout: number
 }
 
@@ -86,6 +88,7 @@ export interface SystemSettingsUpdate {
     baseUrl: string
     apiKey?: string
     model: string
+    visionModel?: string
     timeout: number
   }
 }

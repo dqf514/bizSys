@@ -360,3 +360,35 @@ def download_report(
         media_type=f.content_type or "application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(f.file_name)}"},
     )
+
+
+# ---------------- AI 报告摘要 ----------------
+
+
+@router.post("/reports/{rid}/ai-summary")
+def ai_summary(
+    rid: int,
+    current: User = Depends(require_perm("report:create")),
+    db: Session = Depends(get_db),
+):
+    """AI 生成摘要/结论草稿（不落库；人工编辑后经 PUT remark 采用）。"""
+    r = _load_report(db, rid)
+    data = svc.ai_summary(db, r, current)
+    audit(db, user_id=current.id, module="report", action="report_ai_summary", biz_type="report", biz_id=rid)
+    db.commit()
+    return data
+
+
+@router.put("/reports/{rid}/remark")
+def put_remark(
+    rid: int,
+    body: S.RemarkIn,
+    current: User = Depends(require_perm("report:create")),
+    db: Session = Depends(get_db),
+):
+    """采用摘要/编辑备注：仅 uploaded/rejected 可改。"""
+    r = _load_report(db, rid)
+    svc.update_remark(db, r, body.remark, current)
+    audit(db, user_id=current.id, module="report", action="report_remark_update", biz_type="report", biz_id=rid)
+    db.commit()
+    return {"id": r.id, "remark": r.remark or ""}

@@ -77,12 +77,13 @@ class WecomCallbackIn(CamelModel):
 
 
 class AiIn(CamelModel):
-    """AI 集成（OpenAI 兼容端点）：api_key 空串 = 不修改。"""
+    """AI 集成（OpenAI 兼容端点）：api_key 空串 = 不修改。vision_model 空 = 复用 model。"""
 
     enabled: bool = False
     base_url: str = Field(default="", max_length=255)
     api_key: str = Field(default="", max_length=255)
     model: str = Field(default="", max_length=64)
+    vision_model: str = Field(default="", max_length=64)
     timeout: int = Field(default=30, ge=1, le=300)
 
 

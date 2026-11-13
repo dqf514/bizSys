@@ -1,0 +1,93 @@
+{
+  "feature": {
+    "quote": "AI 报价",
+    "contract_ocr": "合同识别",
+    "task_photo": "拍照记进度",
+    "report_summary": "报告摘要"
+  },
+  "status": {
+    "success": "成功",
+    "error": "失败",
+    "fallback": "回退"
+  },
+  "usage": {
+    "title": "AI 用量监控",
+    "totalCalls": "累计调用",
+    "successRate": "成功率",
+    "totalTokens": "累计 Tokens",
+    "activeUsers": "活跃用户",
+    "avgDuration": "平均耗时",
+    "ms": "ms",
+    "trend": "调用趋势（近 {days} 天）",
+    "byFeature": "按功能",
+    "byUser": "按用户 Top10",
+    "byModel": "按模型",
+    "detail": "调用明细",
+    "user": "用户",
+    "featureCol": "功能",
+    "model": "模型",
+    "tokens": "Tokens",
+    "duration": "耗时",
+    "statusCol": "状态",
+    "errorCol": "错误/回退原因",
+    "biz": "关联业务",
+    "time": "时间",
+    "calls": "调用次数",
+    "searchPlaceholder": "用户/错误信息"
+  },
+  "settings": {
+    "title": "AI 设置",
+    "connectionTip": "连接参数（端点/Key/模型）在「系统设置 → AI 设置」卡片维护；当前 AI 未配置或未启用，以下开关与配额不会生效。",
+    "featureSwitches": "功能开关",
+    "quota": "配额（0 = 不限）",
+    "userDailyCalls": "每用户每日调用次数",
+    "userDailyTokens": "每用户每日 Tokens",
+    "globalDailyTokens": "全局每日 Token 预算",
+    "save": "保存设置"
+  },
+  "common": {
+    "notConfigured": "AI 未配置或未启用，请联系管理员在系统设置中配置",
+    "featureDisabled": "该 AI 功能已被管理员停用",
+    "aiDraftTip": "以下为 AI 生成的草稿，请人工核对修订后采用",
+    "sourceAi": "AI 生成"
+  },
+  "contractParse": {
+    "button": "AI 识别填充",
+    "dialogTitle": "AI 合同识别",
+    "selectFile": "选择合同文件",
+    "fileTip": "支持 pdf/docx/txt 文本提取；jpg/png 图片走多模态识别",
+    "parsing": "AI 识别中…",
+    "customerCandidate": "匹配到的往来单位（人工选择）",
+    "customerRaw": "识别出的客户名",
+    "apply": "回填到表单",
+    "noCandidate": "未匹配到现有往来单位，请先建档",
+    "fields": "识别结果（可编辑）",
+    "applied": "已回填到表单，请核对后保存"
+  },
+  "taskPhoto": {
+    "tab": "进度记录",
+    "button": "拍照记进度",
+    "dialogTitle": "拍照记进度",
+    "selectImage": "上传现场照片",
+    "imageTip": "支持 jpg/png，AI 视觉分析生成进度草稿",
+    "analyzing": "AI 分析中…",
+    "percent": "完成百分比",
+    "note": "进度描述",
+    "confirm": "确认登记",
+    "manual": "手工登记",
+    "sourceAi": "AI",
+    "sourceManual": "手工",
+    "empty": "暂无进度记录",
+    "viewImage": "查看照片",
+    "source": "来源"
+  },
+  "reportSummary": {
+    "button": "AI 生成摘要",
+    "dialogTitle": "AI 报告摘要",
+    "generating": "AI 生成中…",
+    "summary": "摘要/结论草稿",
+    "adopt": "采用并保存",
+    "adopted": "摘要已保存到报告备注",
+    "lockedTip": "当前状态不可修改摘要（仅已上传待审/已驳回可改）"
+  }
+}

@@ -44,5 +44,8 @@
   "timesheetStats": "工时统计",
   "salesSystem": "销售系统",
   "quotations": "报价管理",
-  "quoteTemplates": "报价模板"
+  "quoteTemplates": "报价模板",
+  "aiCenter": "AI 中心",
+  "aiUsage": "用量监控",
+  "aiSettings": "AI 设置"
 }

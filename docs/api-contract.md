@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR） · 64xxx 销售（报价）
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -80,8 +80,8 @@
   → 白名单字段改值（approval_record.at；report.create_time/seal_time；结算/发票/到账 create_time），
   sys_audit_log 留痕 `{field,old,new,reason}`
 - 系统设置（sys_config，Secret AES-GCM 加密落库、接口只回 xxxSet 布尔）：
-  - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl},messaging:{...}}`
-  - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{...},messaging?:{...}}`（各密文字段空=不修改）
+  - `GET /admin/settings`（admin:setting:list）→ `{siteName,logoUrl,wecom:{enabled,corpId,agentId,secretSet,callbackUrl},messaging:{...},ai:{enabled,baseUrl,apiKeySet,model,visionModel,timeout}}`
+  - `PUT /admin/settings`（admin:setting:edit）`{siteName?,wecom?:{...},messaging?:{...},ai?:{enabled,baseUrl,apiKey?,model,visionModel?,timeout}}`（各密文字段空=不修改）
   - 消息通道 messaging：`email:{host,port(0=默认),security:ssl|starttls|none,username,passwordSet,sender}` +
     `sms:{provider:aliyun|tencent|huawei|custom_http, aliyun/tencent/huawei:{各厂商字段+密钥Set},
     customHttp:{url,paramTemplate(phone/code 占位),authHeaderSet}}`；
@@ -92,6 +92,21 @@
 - 免登录公共接口：`GET /public/branding` → `{siteName,logoUrl,wecomEnabled}` · `GET /public/logo` → Logo 文件流
 - 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`
   `GET /admin/notifies/unread-count` → `{count}` · `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
+
+### AI 中心 /admin/ai（统一网关 + 用量监控 + 功能开关/配额；详见 docs/ai-center.md）
+- 能力探测（登录即可，前端据此举入口显隐/提示）：`GET /ai/capabilities` →
+  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary}}`（feature=false 表示总开关未开/未配置/该功能被停用）
+- 用量监控（admin:ai:usage）：
+  - `GET /admin/ai/usage` 分页（q=userName/error；filters[feature,status]；range[create_time]=起|止；sort 白名单
+    `id,create_time,feature,status,user_name`）→ 行 `{id,userName,feature,model,promptTokens,completionTokens,totalTokens,durationMs,status:success|error|fallback,error,bizType,bizId,createTime}`
+  - `GET /admin/ai/usage/export`（admin:ai:usage:export，xlsx 流，同检索参数）
+  - `GET /admin/ai/stats?days=1..90` → `{days,cards:{totalCalls,successCalls,errorCalls,fallbackCalls,totalTokens,successRate,activeUsers,avgDurationMs},trend:[{date,calls,tokens}],byFeature[],byUser[](top10),byModel[]}`（全部 SQL 聚合）
+- 用量设置（admin:ai:settings，存 sys_config）：
+  - `GET /admin/ai/settings` → `{enabled,features:{...},quota:{userDailyCalls,userDailyTokens,globalDailyTokens}}`
+  - `PUT /admin/ai/settings` `{features?,quota?}`（quota 0=不限；审计 ai_settings_update）
+- 连接参数仍在系统设置 AI 卡片：`ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.vision_model(空=复用 model)/ai.timeout`
+- 错误码（65xxx）：65001 AI 未配置或功能已停用 / 65002 功能停用 / 65003 配额超限（quota:reason）/ 65004 AI 输出解析失败
+- 权限码：`admin:ai:usage` / `admin:ai:usage:export` / `admin:ai:settings`（默认仅 super）
 
 ## CRM 往来单位 /crm（客户/供应商统一档案，partner_type ∈ customer/supplier/both）
 - `GET /crm/customers` 分页：字段
@@ -218,6 +233,9 @@
 - `GET /contract/contracts/framework-options?customer_id=&q=&limit=` → `[{id,label,sub,customerId,customerName}]`
   （仅 approved 且 contract_type=framework 的合同；id=框架合同号，编辑合同"框架合同号"下拉用，可按客户过滤）
 - `GET /contract/contracts/counts`（沿用 contract:list）→ `{draft,approving,approved,rejected,voided,all}`（状态页签计数）
+- `POST /contract/contracts/ai-parse`（contract:create，multipart file；pdf/docx/txt 文本提取，jpg/png 走多模态视觉模型）
+  → `{fields:{name,customerName,amount,startDate,endDate,payCycle,delivery,sealType,paymentOrg,contactPerson,contactPhone,remark},customerCandidates:[{id,name}],source:"ai"}`；
+  仅返回草稿不落库，客户候选由人工选择绑定；未配置/停用 65001，解析失败 65004
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
 ## 销售 /sales（AI 报价：模板 → 报价单 → 审批 → 发送 → 反馈 → 转合同；设计见 docs/sales-quotation-design.md）
@@ -246,9 +264,11 @@
   - `POST /sales/quotations/ai-generate` `{customerId, templateId?, requirement}` → 三级回退：
     AI 未配置 → 模板默认（source=template/ai_not_configured）；AI 失败或 JSON 结构非法 → 复制该客户最近报价
     （source=history，remark 标注复制来源）→ 无历史 → 模板兜底（source=template/ai_failed）；
-    成功时 source=ai，金额仍服务端重算。结果不落库，ai_meta 由前端保存时透传
-  - AI 配置在系统设置卡片：`sys_config ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.timeout`，
-    OpenAI 兼容 `POST {base_url}/chat/completions`，429/5xx/网络重试 3 次
+    成功时 source=ai，金额仍服务端重算。结果不落库，ai_meta 由前端保存时透传。
+    已接入 AI 中心网关（feature=quote）：功能停用 → 模板回退（fallbackReason=feature_disabled）；
+    配额超限不静默回退，直接抛 65003
+  - AI 配置在系统设置卡片：`sys_config ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.vision_model/ai.timeout`，
+    OpenAI 兼容 `POST {base_url}/chat/completions`，429/5xx/网络重试 3 次；环回/内网端点自动绕过系统代理
 - 权限码：`sales:quote:list/create/edit/submit/send/feedback/to-contract/export`（biz_user 默认）+
   `sales:template:list/create/edit/publish/delete`（默认仅 super）
 - 错误码：64001 当前报价状态不允许该操作 / 64002 模板未发布 / 64003 模板键冲突 / 64004 报价单已转合同
@@ -371,6 +391,12 @@
 - `GET /task/samples/counts`（`task:sample:list`）→ `{in,out,all}`
 - `POST /task/samples/export`（`task:sample:list:export`，xlsx 中文表头，同列表过滤条件）
 - `POST /task/tasks/export`
+- 进度记录（表 task_progress_log，拍照记进度：AI 草稿 → 人工确认才落库）：
+  - `GET /task/tasks/{id}/progress`（task:list）→ `[{id,percent,note,imagePath,source:ai|manual,operatorName,createTime}]`
+  - `POST /task/tasks/{id}/progress/ai-image`（task:edit，multipart file 限 jpg/jpeg/png；仅 in_progress 任务）：
+    照片存 uploads/task_progress/ + AI 视觉分析 → `{percent,note,imagePath}` 草稿（不落库；未配置/停用 65001，分析失败 65004）
+  - `POST /task/tasks/{id}/progress`（task:edit，201）`{percent:0-100,note,imagePath?,source}`：人工确认登记（仅 in_progress，否则 60001）
+  - `GET /task/progress-images/{logId}`（task:list）：进度照片流（按日志行鉴权，防路径遍历）
 - 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）、
   `task:sample:list`、`task:sample:list:export`（种子挂 super/biz_user）
 
@@ -423,6 +449,8 @@
 - 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 人事行政（HrSystem）→ 销售系统（SalesSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
   前端侧栏将顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
+- 系统管理区尾部：AI 中心（AiCenter 目录）→ AI 用量监控（AiUsage，`/admin/ai/usage`，admin:ai:usage）/
+  AI 设置（AiSettings，`/admin/ai/settings`，admin:ai:settings）；连接参数仍在 系统设置 页 AI 卡片。
 - 人事行政子级：工时填报（TimesheetFill，`/hr/timesheets`，填报+我的工时双视图）/ 工时统计（TimesheetStats，`/hr/timesheet-stats`，hr:timesheet:stats）。
 - 销售系统子级：报价管理（Quotations，`/sales/quotations`）/ 报价模板（QuoteTemplates，`/sales/templates`）。
 - 业务系统子级顺序：往来单位（Customers，`/crm/customers`，页面级视图：往来单位/合作方账号）/ 合同管理 / 任务管理 / 报告管理 /
@@ -457,6 +485,11 @@
 - `GET /report/reports/{id}` → 详情 + 签批 `timeline`
 - `GET /report/reports/{id}/download?pdf=0|1`（原件 / 转换后 PDF 流）
 - `GET /report/reports/export`（同检索参数，返回 xlsx 流）
+- `POST /report/reports/{id}/ai-summary`（report:create）→ `{summary,source:"ai"}`：
+  基于报告文件文本（pdf/docx/txt 可提取时，失败降级为纯任务信息上下文）+ 任务信息生成摘要草稿，不落库；
+  未配置/停用 65001，调用失败 65004
+- `PUT /report/reports/{id}/remark`（report:create）`{remark}`：采用 AI 摘要/人工编辑结论，
+  仅 uploaded/rejected 可改（审批中/已签章锁定，否则 61002）
 - 权限码：`report:list/create/submit/seal/export`
 - 错误码：60003 存在未完成签章的报告，任务不能结束 / 61001 该条目已存在报告 / 61002 当前报告状态不允许该操作
 - 菜单：报告管理（Reports，`/report/reports`，componentKey `report/ReportList`）
@@ -473,6 +506,7 @@ sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
+admin/AiUsage  admin/AiSettings
 ```
 
 ## 字典（sys_dict）
