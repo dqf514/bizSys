@@ -266,36 +266,36 @@ onUnmounted(() => {
   border-color: color-mix(in srgb, var(--chip-c) 80%, transparent);
 }
 
-/* preset palette: hue only — backgrounds/text derive via color-mix so both themes stay readable */
+/* preset palette: 取 --bs-color-chart-1..8 语义色板（背景/文字经 color-mix 派生，明暗主题均可读） */
 .c-a {
-  --chip-c: #3b82f6;
+  --chip-c: var(--bs-color-chart-1);
 }
 
 .c-b {
-  --chip-c: #06b6d4;
+  --chip-c: var(--bs-color-chart-2);
 }
 
 .c-c {
-  --chip-c: #22c55e;
+  --chip-c: var(--bs-color-chart-3);
 }
 
 .c-d {
-  --chip-c: #eab308;
+  --chip-c: var(--bs-color-chart-4);
 }
 
 .c-e {
-  --chip-c: #f97316;
+  --chip-c: var(--bs-color-chart-5);
 }
 
 .c-f {
-  --chip-c: #ef4444;
+  --chip-c: var(--bs-color-chart-6);
 }
 
 .c-g {
-  --chip-c: #8b5cf6;
+  --chip-c: var(--bs-color-chart-7);
 }
 
 .c-h {
-  --chip-c: #ec4899;
+  --chip-c: var(--bs-color-chart-8);
 }
 </style>

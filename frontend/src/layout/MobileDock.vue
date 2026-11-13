@@ -154,7 +154,7 @@ function onPressEnd() {
   border: none;
   border-radius: var(--bs-radius-full);
   background: var(--bs-color-brand-primary);
-  color: var(--bs-color-fg-inverse, #fff);
+  color: var(--bs-color-fg-inverse);
   box-shadow: var(--bs-shadow-elevation3);
   cursor: pointer;
 }

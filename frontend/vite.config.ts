@@ -21,6 +21,19 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // 包体预算：vendor 拆分后单 chunk 上限 700KB（UI-B；入口 app chunk 目标 <300KB min）
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia', 'vue-i18n', 'axios'],
+          'vendor-element': ['element-plus'],
+          'vendor-icons': ['@element-plus/icons-vue'],
+        },
+      },
+    },
+  },
   css: {
     preprocessorOptions: {
       scss: {

@@ -1,14 +1,12 @@
 /** LogicFlow 自定义节点注册：start/approval/condition/cc/end，颜色取自 bizSys 设计令牌。
  *
  * SVG presentation attribute 不支持 var()，LogicFlow 主题/style 对象最终落在 attribute 上，
- * 因此这里在取样式时用 getComputedStyle 解析令牌为字面色值（暗色主题切换后重绘即生效）。
+ * 因此取色统一走 chartTheme.resolveToken（getComputedStyle 解析令牌；暗色主题切换后重绘即生效）。
  */
 import { CircleNode, CircleNodeModel, RectNode, RectNodeModel, h } from '@logicflow/core'
+import { resolveToken } from '@/utils/chartTheme'
 
-export function resolveToken(name: string, fallback: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return v || fallback
-}
+export { resolveToken }
 
 function typeStyle(nodeType: string): { fill: string; stroke: string } {
   switch (nodeType) {

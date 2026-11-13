@@ -464,7 +464,7 @@ defineExpose({ validate, exportGraph })
   padding: 1px 8px;
   border-radius: var(--bs-radius-sm);
   background: var(--bs-color-semantic-warning);
-  color: #fff;
+  color: var(--bs-color-fg-inverse);
   font-weight: 700;
   font-size: var(--bs-typography-font-size-xs);
 }

@@ -7,6 +7,7 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { OaStats } from '@/api/types'
+import { chartPalette, resolveToken, watchChartTheme } from '@/utils/chartTheme'
 
 defineOptions({ name: 'OaStatsPanel' })
 
@@ -44,11 +45,21 @@ function renderCharts() {
   charts.forEach((c) => c.dispose())
   charts.length = 0
 
+  // 颜色取自 --bs-* 令牌（canvas 不识别 var()，经 chartTheme 解析为字面值；主题切换后 renderCharts 重绘）
+  const primary = resolveToken('--bs-color-primary', '#409eff')
+  const axisText = resolveToken('--bs-color-fg-muted', '#909399')
+  const axis = {
+    axisLabel: { color: axisText },
+    axisLine: { lineStyle: { color: resolveToken('--bs-color-border-default', '#dcdfe6') } },
+    splitLine: { lineStyle: { color: resolveToken('--bs-color-border-subtle', '#e4e7ed') } },
+  }
+
   if (byFormEl.value) {
     const c = echarts.init(byFormEl.value)
     c.setOption({
+      color: chartPalette(),
       tooltip: { trigger: 'item' },
-      legend: { bottom: 0 },
+      legend: { bottom: 0, textStyle: { color: axisText } },
       series: [
         {
           type: 'pie',
@@ -65,13 +76,13 @@ function renderCharts() {
     c.setOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 40, right: 16, top: 24, bottom: 28 },
-      xAxis: { type: 'category', data: STATUS_ORDER.filter((k) => s.byStatus[k]).map(statusLabel) },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: { type: 'category', data: STATUS_ORDER.filter((k) => s.byStatus[k]).map(statusLabel), ...axis },
+      yAxis: { type: 'value', minInterval: 1, ...axis },
       series: [
         {
           type: 'bar',
           barWidth: 36,
-          itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: primary, borderRadius: [4, 4, 0, 0] },
           data: STATUS_ORDER.filter((k) => s.byStatus[k]).map((k) => s.byStatus[k]),
         },
       ],
@@ -83,14 +94,14 @@ function renderCharts() {
     c.setOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 40, right: 16, top: 24, bottom: 28 },
-      xAxis: { type: 'category', data: s.trend.map((p) => p.month) },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: { type: 'category', data: s.trend.map((p) => p.month), ...axis },
+      yAxis: { type: 'value', minInterval: 1, ...axis },
       series: [
         {
           type: 'line',
           smooth: true,
           areaStyle: { opacity: 0.15 },
-          itemStyle: { color: '#409eff' },
+          itemStyle: { color: primary },
           data: s.trend.map((p) => p.count),
         },
       ],
@@ -103,6 +114,8 @@ watch(
   () => props.stats,
   () => requestAnimationFrame(renderCharts),
 )
+
+watchChartTheme(() => renderCharts())
 
 onMounted(() => {
   renderCharts()

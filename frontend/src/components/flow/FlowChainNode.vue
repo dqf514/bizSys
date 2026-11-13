@@ -82,7 +82,7 @@ const summary = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 4px 6px 4px var(--bs-space-3);
-  color: #fff;
+  color: var(--bs-color-fg-inverse);
   font-size: var(--bs-typography-font-size-xs);
   font-weight: 600;
 }
@@ -115,7 +115,7 @@ const summary = computed(() => {
 
 .card-del:hover {
   background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  color: var(--bs-color-fg-inverse);
 }
 
 .card-body {

@@ -4,6 +4,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import LogicFlow from '@logicflow/core'
 import '@logicflow/core/es/style/index.css'
 import { highlightSeqs, registerFlowNodes, resolveToken } from './flowNodes'
+import { watchChartTheme } from '@/utils/chartTheme'
 import type { FlowGraphData } from '@/api/types'
 
 const props = defineProps<{
@@ -23,9 +24,10 @@ function render() {
   lf.fitView(40, 40)
 }
 
-onMounted(() => {
+function init() {
+  if (!container.value) return
   lf = new LogicFlow({
-    container: container.value!,
+    container: container.value,
     isSilentMode: true,
     grid: false,
     edgeType: 'polyline',
@@ -36,6 +38,15 @@ onMounted(() => {
   })
   registerFlowNodes(lf as never)
   render()
+}
+
+onMounted(() => init())
+
+// 主题/明暗/accent 切换：边/节点色取字面值，销毁重建以重算样式
+watchChartTheme(() => {
+  lf?.destroy()
+  lf = null
+  init()
 })
 
 watch(

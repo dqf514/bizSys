@@ -17,6 +17,14 @@
   --bs-color-accent-orange: #ea580c;
   --bs-color-accent-cyan: #0891b2;
   --bs-color-accent-red: #dc2626;
+  --bs-color-chart-1: #2563eb;
+  --bs-color-chart-2: #0891b2;
+  --bs-color-chart-3: #16a34a;
+  --bs-color-chart-4: #d97706;
+  --bs-color-chart-5: #ea580c;
+  --bs-color-chart-6: #dc2626;
+  --bs-color-chart-7: #7c3aed;
+  --bs-color-chart-8: #db2777;
   --bs-typography-font-family-sans: "Inter", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   --bs-typography-font-family-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
   --bs-typography-font-size-xs: 12px;

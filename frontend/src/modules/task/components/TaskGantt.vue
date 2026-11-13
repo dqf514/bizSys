@@ -6,6 +6,7 @@ import { CustomChart } from 'echarts/charts'
 import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { Task, TaskStatus } from '@/api/types'
+import { statusColor, resolveToken, watchChartTheme } from '@/utils/chartTheme'
 
 echarts.use([CustomChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer])
 
@@ -33,14 +34,13 @@ interface GanttRow {
 const DAY = 24 * 3600 * 1000
 const TERMINAL: TaskStatus[] = ['finished', 'settled', 'stopped']
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: '#909399',
-  approving: '#e6a23c',
-  rejected: '#f56c6c',
-  in_progress: '#626aef',
-  finished: '#67c23a',
-  settled: '#13c2c2',
-  stopped: '#f56c6c',
+// 状态色取自 --bs-* 语义令牌（canvas 不识别 var()，经 statusColor 解析为字面值；主题切换后 refreshColors+render）
+const statusColors = ref<Record<string, string>>({})
+
+function refreshColors() {
+  const m: Record<string, string> = {}
+  for (const s of STATUS_KEYS) m[s.value] = statusColor(s.value)
+  statusColors.value = m
 }
 
 const STATUS_KEYS: { value: string; labelKey: string }[] = [
@@ -108,7 +108,7 @@ function renderItem(_params: any, api: any) {
       height,
       r: 3,
     },
-    style: { fill: STATUS_COLORS[String(api.value(3))] ?? '#909399' },
+    style: { fill: statusColors.value[String(api.value(3))] ?? statusColor('') },
   }
 }
 
@@ -138,12 +138,21 @@ function buildOption() {
       },
     },
     grid: { left: 8, right: 36, top: 8, bottom: 8, containLabel: true },
-    xAxis: { type: 'time', axisLabel: { hideOverlap: true } },
+    xAxis: {
+      type: 'time',
+      axisLabel: { hideOverlap: true, color: resolveToken('--bs-color-fg-muted', '#909399') },
+      axisLine: { lineStyle: { color: resolveToken('--bs-color-border-default', '#dcdfe6') } },
+    },
     yAxis: {
       type: 'category',
       inverse: true,
       data: data.map((r) => r.task.taskNo || r.task.taskName),
-      axisLabel: { width: 110, overflow: 'truncate' },
+      axisLabel: {
+        width: 110,
+        overflow: 'truncate',
+        color: resolveToken('--bs-color-fg-secondary', '#5a6472'),
+      },
+      axisLine: { lineStyle: { color: resolveToken('--bs-color-border-default', '#dcdfe6') } },
     },
     dataZoom: [
       { type: 'inside', yAxisIndex: 0, filterMode: 'none', zoomOnMouseWheel: false, moveOnMouseWheel: true },
@@ -193,7 +202,13 @@ function unmountChart() {
 }
 
 onMounted(() => {
+  refreshColors()
   if (chartEl.value) mountChart(chartEl.value)
+})
+
+watchChartTheme(() => {
+  refreshColors()
+  render()
 })
 
 watch(
@@ -214,7 +229,7 @@ onBeforeUnmount(() => unmountChart())
   <div class="task-gantt" v-loading="props.loading">
     <div v-if="legendStatuses.length || truncated || noDateCount > 0" class="gantt-legend">
       <span v-for="s in legendStatuses" :key="s.value" class="legend-item">
-        <i class="legend-dot" :style="{ background: STATUS_COLORS[s.value] }" />
+        <i class="legend-dot" :style="{ background: statusColors[s.value] }" />
         {{ t(s.labelKey) }}
       </span>
       <span v-if="truncated" class="gantt-hint">

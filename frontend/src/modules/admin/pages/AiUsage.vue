@@ -12,6 +12,7 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import { useListPage } from '@/composables/useListPage'
 import { exportAiUsage, getAiStats, listAiUsage } from '@/api/ai'
 import type { AiUsageRow, AiUsageStats } from '@/api/types'
+import { chartPalette, resolveToken, watchChartTheme } from '@/utils/chartTheme'
 
 defineOptions({ name: 'AiUsage' })
 
@@ -54,28 +55,40 @@ function renderCharts() {
   charts.forEach((c) => c.dispose())
   charts.length = 0
 
+  // 颜色取自 --bs-* 令牌（canvas 不识别 var()，经 chartTheme 解析为字面值；主题切换后 renderCharts 重绘）
+  const [primary, success, , warning] = chartPalette()
+  const axisText = resolveToken('--bs-color-fg-muted', '#909399')
+  const axis = {
+    axisLabel: { color: axisText },
+    axisLine: { lineStyle: { color: resolveToken('--bs-color-border-default', '#dcdfe6') } },
+    splitLine: { lineStyle: { color: resolveToken('--bs-color-border-subtle', '#e4e7ed') } },
+  }
+
   if (trendEl.value) {
     const c = echarts.init(trendEl.value)
     c.setOption({
       tooltip: { trigger: 'axis' },
-      legend: { bottom: 0 },
+      legend: { bottom: 0, textStyle: { color: axisText } },
       grid: { left: 48, right: 48, top: 24, bottom: 48 },
-      xAxis: { type: 'category', data: s.trend.map((p) => p.date.slice(5)) },
-      yAxis: [{ type: 'value', minInterval: 1 }, { type: 'value' }],
+      xAxis: { type: 'category', data: s.trend.map((p) => p.date.slice(5)), ...axis },
+      yAxis: [
+        { type: 'value', minInterval: 1, ...axis },
+        { type: 'value', ...axis },
+      ],
       series: [
         {
           name: t('ai.usage.calls'),
           type: 'line',
           smooth: true,
           areaStyle: { opacity: 0.15 },
-          itemStyle: { color: '#409eff' },
+          itemStyle: { color: primary },
           data: s.trend.map((p) => p.calls),
         },
         {
           name: 'Tokens',
           type: 'bar',
           yAxisIndex: 1,
-          itemStyle: { color: '#67c23a', opacity: 0.55 },
+          itemStyle: { color: success, opacity: 0.55 },
           data: s.trend.map((p) => p.tokens),
         },
       ],
@@ -87,13 +100,13 @@ function renderCharts() {
     c.setOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 40, right: 16, top: 24, bottom: 28 },
-      xAxis: { type: 'category', data: s.byFeature.map((r) => featureLabel(r.feature)) },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: { type: 'category', data: s.byFeature.map((r) => featureLabel(r.feature)), ...axis },
+      yAxis: { type: 'value', minInterval: 1, ...axis },
       series: [
         {
           type: 'bar',
           barWidth: 32,
-          itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: primary, borderRadius: [4, 4, 0, 0] },
           data: s.byFeature.map((r) => r.calls),
         },
       ],
@@ -105,13 +118,18 @@ function renderCharts() {
     c.setOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 40, right: 16, top: 24, bottom: 60 },
-      xAxis: { type: 'category', data: s.byModel.map((r) => r.model), axisLabel: { rotate: 20 } },
-      yAxis: { type: 'value', minInterval: 1 },
+      xAxis: {
+        type: 'category',
+        data: s.byModel.map((r) => r.model),
+        ...axis,
+        axisLabel: { rotate: 20, color: axisText },
+      },
+      yAxis: { type: 'value', minInterval: 1, ...axis },
       series: [
         {
           type: 'bar',
           barWidth: 32,
-          itemStyle: { color: '#e6a23c', borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: warning, borderRadius: [4, 4, 0, 0] },
           data: s.byModel.map((r) => r.calls),
         },
       ],
@@ -122,6 +140,7 @@ function renderCharts() {
 
 watch(stats, () => requestAnimationFrame(renderCharts))
 watch(days, () => void loadStats())
+watchChartTheme(() => renderCharts())
 
 onMounted(() => {
   void loadStats()

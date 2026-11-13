@@ -122,7 +122,7 @@ function pick(type: FlowNodeType, close: () => void) {
   justify-content: center;
   font-size: var(--bs-typography-font-size-sm);
   font-weight: 600;
-  color: #fff;
+  color: var(--bs-color-fg-inverse);
 }
 
 .add-approval .add-icon {

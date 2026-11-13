@@ -15,10 +15,11 @@ Root scripts proxy to `frontend` (pnpm 11, Node 24).
 
 - `pnpm install` — install workspace dependencies.
 - `pnpm dev` — Vite on `http://localhost:5173`; `/api` proxies to `:8000`.
-- `pnpm build` — token build, i18n check, literal scan, `vue-tsc`, Vite build.
+- `pnpm build` — token build, i18n check, literal scan, color scan, `vue-tsc`, Vite build.
 - `pnpm lint` / `pnpm typecheck` / `pnpm test` — ESLint (`--max-warnings 0`), `vue-tsc`, Vitest (jsdom).
 - `pnpm i18n:check` — assert `zh-CN` and `en-US` key sets match.
 - `pnpm scan:literal` — find hardcoded CJK literals; `--strict` fails the build.
+- `pnpm scan:colors` — find hardcoded hex colors outside tokens/allowlist; fails the build.
 - `pnpm token:build` — regenerate `src/styles/tokens.css` from `src/styles/tokens/*.tokens.json`.
 
 Backend (`uv`, Python 3.13), from `backend/`: `uv sync`, `uv run alembic upgrade head`, `uv run python -m app.seeds.init_data`, `uv run uvicorn app.main:app --port 8000`, `uv run ruff check app tests`, `uv run pytest -q`.
