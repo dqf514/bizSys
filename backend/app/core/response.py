@@ -5,6 +5,7 @@ from typing import Any
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
 # 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购；96xxx 招投标/门户
+# 63xxx 人事行政（HR）
 OK = 0
 
 GENERIC_PARAM = 10001
@@ -53,6 +54,11 @@ OA_SCHEMA_INVALID = 62002
 OA_DATA_INVALID = 62003
 OA_FORM_CONFLICT = 62004
 OA_INVALID_STATE = 62005
+
+HR_TIMESHEET_EXISTS = 63001
+HR_TIMESHEET_INVALID_STATE = 63002
+HR_TASK_NOT_FILLABLE = 63003
+HR_FUTURE_DATE = 63004
 
 FINANCE_INVALID_STATE = 80001
 FINANCE_SETTLEMENT_EXISTS = 80002
@@ -113,6 +119,10 @@ DEFAULT_MESSAGES: dict[int, str] = {
     OA_DATA_INVALID: "表单数据校验失败",
     OA_FORM_CONFLICT: "表单标识+版本已存在",
     OA_INVALID_STATE: "当前 OA 单据状态不允许该操作",
+    HR_TIMESHEET_EXISTS: "同一日期同一任务已填报，可直接编辑原记录",
+    HR_TIMESHEET_INVALID_STATE: "当前工时状态不允许该操作",
+    HR_TASK_NOT_FILLABLE: "任务不可填报（需为进行中且已关联合同）",
+    HR_FUTURE_DATE: "不允许填报未来日期",
     FINANCE_INVALID_STATE: "当前财务单据状态不允许该操作",
     FINANCE_SETTLEMENT_EXISTS: "该任务已存在结算单",
     FINANCE_NOT_TASK_CREATOR: "仅任务创建人可发起结算",

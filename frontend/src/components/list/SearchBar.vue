@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 export interface SearchField {
   key: string
   labelKey: string
-  type?: 'input' | 'select' | 'date' | 'daterange'
+  type?: 'input' | 'select' | 'date' | 'daterange' | 'month'
   placeholderKey?: string
   options?: { label: string; value: string | number }[]
   width?: number
@@ -76,6 +76,15 @@ function placeholderOf(field: SearchField) {
           value-format="YYYY-MM-DD"
           :placeholder="placeholderOf(field)"
           :style="{ width: (field.width ?? 180) + 'px' }"
+          @update:model-value="setValue(field.key, $event)"
+        />
+        <el-date-picker
+          v-else-if="field.type === 'month'"
+          :model-value="getValue(field.key) as string"
+          type="month"
+          value-format="YYYY-MM"
+          :placeholder="placeholderOf(field)"
+          :style="{ width: (field.width ?? 150) + 'px' }"
           @update:model-value="setValue(field.key, $event)"
         />
         <el-input

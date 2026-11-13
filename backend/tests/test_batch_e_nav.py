@@ -67,9 +67,9 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
     migrate_nav()
     tree = _tree(client, admin_headers)
 
-    # 顶层：工作台 + 三区 + 隐藏流程中心；无重复、无业务残留
+    # 顶层：工作台 + 四区 + 隐藏流程中心；无重复、无业务残留
     top_names = [n["name"] for n in tree]
-    assert top_names == ["Workbench", "BizSystem", "OaSystem", "System", "ApprovalCenter"], top_names
+    assert top_names == ["Workbench", "BizSystem", "OaSystem", "HrSystem", "System", "ApprovalCenter"], top_names
     approval = _find(tree, "ApprovalCenter")
     assert approval and approval["visible"] == 0
 
@@ -91,9 +91,11 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "FinancePayments",
     ]
 
-    # OA 区与系统管理区
+    # OA 区、人事行政区与系统管理区
     oa = _find(tree, "OaSystem")
     assert [c["name"] for c in oa["children"]] == ["OaApply", "OaMy", "OaRelated", "OaStats"]
+    hr = _find(tree, "HrSystem")
+    assert [c["name"] for c in hr["children"]] == ["TimesheetFill", "TimesheetStats"]
     sy = _find(tree, "System")
     assert [c["name"] for c in sy["children"]] == ["SysOrg", "SysData", "OaAdmin", "SysOps"]
 

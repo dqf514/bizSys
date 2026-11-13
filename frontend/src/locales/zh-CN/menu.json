@@ -38,5 +38,8 @@
   "purchaseContract": "采购合同",
   "stockOrder": "出入库",
   "tender": "招标管理",
-  "partnerAccount": "合作方账号"
+  "partnerAccount": "合作方账号",
+  "hrSystem": "人事行政",
+  "timesheetFill": "工时填报",
+  "timesheetStats": "工时统计"
 }

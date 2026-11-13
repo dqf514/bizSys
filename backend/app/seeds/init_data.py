@@ -266,6 +266,39 @@ MENU_TREE = [
         ],
     ),
     (
+        "menu.hrSystem",
+        "HrSystem",
+        "",
+        "",
+        "Avatar",
+        "",
+        [
+            (
+                "menu.timesheetFill",
+                "TimesheetFill",
+                "/hr/timesheets",
+                "hr/TimesheetFill",
+                "AlarmClock",
+                "hr:timesheet:list",
+                [
+                    (None, "timesheet-create", "", "", "", "hr:timesheet:create", []),
+                    (None, "timesheet-export", "", "", "", "hr:timesheet:list:export", []),
+                ],
+            ),
+            (
+                "menu.timesheetStats",
+                "TimesheetStats",
+                "/hr/timesheet-stats",
+                "hr/TimesheetStats",
+                "PieChart",
+                "hr:timesheet:stats",
+                [
+                    (None, "timesheet-stats-export", "", "", "", "hr:timesheet:stats:export", []),
+                ],
+            ),
+        ],
+    ),
+    (
         "menu.system",
         "System",
         "",
@@ -731,6 +764,9 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "procurement:partner:edit",
         "procurement:partner:review",
         "procurement:partner:delete",
+        "hr:timesheet:list",
+        "hr:timesheet:create",
+        "hr:timesheet:list:export",
     ]
     for p in biz_perms:
         if p in perm_to_id:

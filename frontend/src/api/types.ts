@@ -1280,3 +1280,90 @@ export interface PortalTenderDetail extends PortalTender {
   myRegistration: PortalRegistration | null
   myBid: PortalBid | null
 }
+
+
+/* ---------- HR（人事行政） ---------- */
+
+export interface HrTimesheetItem {
+  id: number
+  userId: number
+  userName: string
+  workDate: string
+  taskId: number
+  taskNo: string
+  taskName: string
+  contractId: number
+  contractNo: string
+  customerId: number
+  customerName: string
+  hours: number
+  content: string
+  remark: string
+  status: string // draft / submitted
+  submittedAt: string
+  createTime: string
+  updateTime: string
+}
+
+export interface HrContractOption {
+  id: number
+  contractNo: string
+  name: string
+  customerName: string
+}
+
+export interface HrTaskOption {
+  id: number
+  taskNo: string
+  taskName: string
+  contractId: number
+  contractNo: string
+  customerName: string
+}
+
+export interface HrDayData {
+  items: HrTimesheetItem[]
+  totalHours: number
+}
+
+export interface HrWeekDay {
+  date: string
+  totalHours: number
+  count: number
+  future: boolean
+}
+
+export interface HrWeekSummary {
+  weekStart: string
+  days: HrWeekDay[]
+}
+
+export interface HrStatsRow {
+  taskId?: number
+  taskNo?: string
+  taskName?: string
+  contractId?: number
+  contractNo?: string
+  customerName?: string
+  userId?: number
+  userName?: string
+  deptName?: string
+  totalHours: number
+  entryCount: number
+  userCount?: number
+  taskCount?: number
+  dayCount?: number
+}
+
+export interface HrStatsResult {
+  dimension: string
+  rows: HrStatsRow[]
+  grandTotalHours: number
+}
+
+export interface HrStatsOption {
+  id: number
+  label: string
+  deptName?: string
+  contractNo?: string
+}

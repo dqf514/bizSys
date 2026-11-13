@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR）
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -239,6 +239,34 @@
   定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
 
+## 人事行政 /hr（工时填报：业务系统合同/任务 ↔ 人事数据的关联起点）
+- 表 hr_timesheet：用户/工作日期/任务（快照 task_no/task_name/contract_id/contract_no/customer_id/customer_name）
+  /hours Numeric(4,1)（>0 且 ≤24、0.5 步进，服务端校验）/content（必填 ≤500）/remark/status draft|submitted；
+  (user_id, work_date, task_id, deleted) 唯一（软删写行 id，同 oa_form 模式）。
+- 规则：可填报任务口径 = 任务 status=in_progress 且已关联合同；日期不允许未来（63004）；
+  同人同日同任务防重 63001；提交后只读（改/删/重复提交 63002），本人可 withdraw 退回草稿再改；
+  草稿可改可删；操作仅本人（他人 403）。
+- 用户侧（hr:timesheet:create）：
+  `GET /hr/timesheets/options/contracts?q=`（仅 approved 合同，远程检索）
+  · `GET /hr/timesheets/options/tasks?contractId=&q=`（该合同下进行中任务，带客户名）
+  · `GET /hr/timesheets/day?date=` → `{items,totalHours}` · `GET /hr/timesheets/week?date=` → 周一至周日逐日 `{date,totalHours,count,future}`
+  · `POST /hr/timesheets`（201；body.submit=true 即保存并提交）· `PUT /hr/timesheets/{id}`（仅草稿）
+  · `DELETE /hr/timesheets/{id}`（仅草稿）· `POST /hr/timesheets/{id}/submit` · `POST /hr/timesheets/{id}/withdraw`
+- 我的工时（hr:timesheet:list）：`GET /hr/timesheets/my?status=&q=&range[work_date]=YYYY-MM-DD|YYYY-MM-DD&sort=&page&size`
+  （q 按任务/合同/客户/内容模糊）· `GET /hr/timesheets/my/counts` → `{draft,submitted,all}`
+  · `GET /hr/timesheets/my/export`（xlsx 流，复用 my 过滤）
+- 工时统计（hr:timesheet:stats；仅 submitted 计入）：
+  `GET /hr/timesheets/stats?dimension=task|contract|user&dateStart&dateEnd&deptId&userId&taskId`
+  → `{dimension,rows,grandTotalHours}`（task 维度含 entryCount/userCount；contract 加 taskCount；user 加 deptName/taskCount/dayCount）
+  · `GET /hr/timesheets/stats/detail?userId=&dateStart&dateEnd&taskId&page&size`（人员下钻明细）
+  · `GET /hr/timesheets/stats/options?kind=dept|user|task&q=`（筛选项远程检索：dept/user 取有工时记录者）
+  · `GET /hr/timesheets/stats/export`（hr:timesheet:stats:export，xlsx 按维度列）。
+  遗留：部门经理行级数据范围未做（统计暂为全量视角，按需授权）。
+- 权限码：hr:timesheet:create / hr:timesheet:list / hr:timesheet:list:export（biz_user 种子含此三项）
+  / hr:timesheet:stats / hr:timesheet:stats:export（默认仅 super，按需分配）。
+- 错误码：63001 同人同日同任务已填报 / 63002 当前工时状态不允许该操作 / 63003 任务不可填报（需进行中且关联合同）/ 63004 不允许填报未来日期。
+- purge 清单含 hr_timesheet（硬删，先于 task_task）。
+
 ## OA /oa
 - `GET /oa/instances/my?status=&page&size&q=`（oa:my；`q` 按单号/表单名模糊检索）·
   `GET /oa/instances/my/export?status=&q=`（xlsx 流，沿用 oa:my）
@@ -355,16 +383,18 @@
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
 
-## 导航结构（批次A 定形 / 批次E 归一）
-- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 系统管理（System）；
+## 导航结构（批次A 定形 / 批次E 归一 / HR 批次扩展）
+- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 人事行政（HrSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
-  前端侧栏将四个顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
+  前端侧栏将顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
+- 人事行政子级：工时填报（TimesheetFill，`/hr/timesheets`，填报+我的工时双视图）/ 工时统计（TimesheetStats，`/hr/timesheet-stats`，hr:timesheet:stats）。
 - 业务系统子级顺序：往来单位（Customers，`/crm/customers`，页面级视图：往来单位/合作方账号）/ 合同管理 / 任务管理 / 报告管理 /
   样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
   采购申请→采购合同→出入库→招标管理；合作方账号 PartnerAccounts visible=0 隐藏保留作权限载体）/
   财务管理（子级 开票申请→结算信息→到账信息 不变）。
 - 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
-  去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；种子只保证新库直接产出目标结构
+  去重同名目录、归位异名同 path 残留、parent_id/sort 归一，HR 区已纳入 TARGET_TREE；
+  批次入口 `backend/scripts/migrate_nav_hr.py` 直接委托批次E）；种子只保证新库直接产出目标结构
   （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
 
 ## 报告 /report
@@ -401,6 +431,7 @@ finance/SettlementList  finance/InvoiceList  finance/PaymentList
 procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/StockOrderList
 procurement/TenderList  procurement/PartnerAccountList
 report/ReportList
+hr/TimesheetFill  hr/TimesheetStats
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList

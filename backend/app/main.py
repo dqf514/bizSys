@@ -93,6 +93,7 @@ from app.modules.auth.wecom import router as wecom_router  # noqa: E402
 from app.modules.contract.router import router as contract_router  # noqa: E402
 from app.modules.crm.router import router as crm_router  # noqa: E402
 from app.modules.finance.router import router as finance_router  # noqa: E402
+from app.modules.hr.router import router as hr_router  # noqa: E402
 from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 订阅 ApprovalTodoCreated
 from app.modules.integration.router import router as integration_router  # noqa: E402
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
@@ -115,6 +116,7 @@ app.include_router(crm_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(task_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
+app.include_router(hr_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
