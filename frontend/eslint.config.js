@@ -27,7 +27,6 @@ export default [
       'vue/html-self-closing': 'off',
       'vue/require-default-prop': 'off',
       'vue/require-explicit-emits': 'off',
-      'vue/no-v-html': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],

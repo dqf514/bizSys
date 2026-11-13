@@ -18,6 +18,14 @@ import type {
 } from '@/api/types'
 import { listOaResourceMeta } from '@/api/oa'
 import { dictTypes } from '@/api/admin'
+import {
+  duplicateField,
+  insertFieldAt,
+  moveFieldTo,
+  nextFieldKey,
+  removeField,
+  swapField,
+} from './fieldOps'
 
 const props = defineProps<{ fields: OaField[] }>()
 const emit = defineEmits<{ (e: 'update:fields', v: OaField[]): void }>()
@@ -87,69 +95,41 @@ function onSelect(key: string) {
   selectedField.value = props.fields.find((f) => f.key === key) ?? null
 }
 
-function emitChange() {
-  emit('update:fields', [...props.fields])
-}
-
-function nextKey(type: OaFieldType): string {
-  let i = props.fields.length + 1
-  let key = `${type}_${i}`
-  while (props.fields.some((f) => f.key === key)) key = `${type}_${++i}`
-  return key
+/* 数组所有权在父级（v-model:fields）：一切结构变更都生成 next 数组再 emit，不原地改 props */
+function emitFields(next: OaField[]) {
+  emit('update:fields', next)
 }
 
 function addField(type: OaFieldType, index?: number) {
   const field: OaField = {
-    key: nextKey(type),
+    key: nextFieldKey(props.fields, type),
     label: t(`oa.fieldType.${type}`),
     type,
     required: false,
   }
   if (OPTION_TYPES.includes(type)) field.options = ['A', 'B']
   if (type === 'resource') field.mappings = []
-  const at = index ?? props.fields.length
-  props.fields.splice(at, 0, field)
   selectedField.value = field
-  emitChange()
+  emitFields(insertFieldAt(props.fields, field, index))
 }
 
 function onMove(key: string, dir: -1 | 1) {
-  const idx = props.fields.findIndex((f) => f.key === key)
-  const target = idx + dir
-  if (idx < 0 || target < 0 || target >= props.fields.length) return
-  const a = props.fields[idx]!
-  props.fields[idx] = props.fields[target]!
-  props.fields[target] = a
-  emitChange()
+  const next = swapField(props.fields, key, dir)
+  if (next) emitFields(next)
 }
 
 function onRemove(key: string) {
-  const idx = props.fields.findIndex((f) => f.key === key)
-  if (idx < 0) return
-  props.fields.splice(idx, 1)
+  const next = removeField(props.fields, key)
+  if (!next) return
   if (selectedField.value?.key === key) selectedField.value = null
-  emitChange()
+  emitFields(next)
 }
 
 function onDuplicate(key: string) {
-  const idx = props.fields.findIndex((f) => f.key === key)
-  if (idx < 0) return
-  const src = props.fields[idx]!
-  const copy: OaField = {
-    ...src,
-    options: src.options ? [...src.options] : undefined,
-    mappings: src.mappings ? src.mappings.map((m) => ({ ...m })) : undefined,
-    cascade: src.cascade ? { parent: src.cascade.parent, map: { ...src.cascade.map } } : undefined,
-    showWhen: src.showWhen ? structuredClone(src.showWhen) : undefined,
-    requiredWhen: src.requiredWhen ? structuredClone(src.requiredWhen) : undefined,
-    readonlyWhen: src.readonlyWhen ? structuredClone(src.readonlyWhen) : undefined,
-  }
-  let n = 1
-  copy.key = `${src.key}_copy`
-  while (props.fields.some((f) => f.key === copy.key)) copy.key = `${src.key}_copy${++n}`
-  props.fields.splice(idx + 1, 0, copy)
-  selectedField.value = copy
-  emitChange()
+  const res = duplicateField(props.fields, key)
+  if (!res) return
+  selectedField.value = res.copy
+  emitFields(res.next)
 }
 
 /** 画布拖放落点：面板拖入新字段 或 既有字段拖拽排序 */
@@ -161,14 +141,10 @@ function onDropAt(index: number, raw: string) {
       return
     }
     if (data.kind === 'move' && data.key) {
-      const from = props.fields.findIndex((f) => f.key === data.key)
-      if (from < 0) return
-      const [item] = props.fields.splice(from, 1)
-      // 从前面挪走一个元素后，落点下标随之前移
-      const to = from < index ? index - 1 : index
-      props.fields.splice(to, 0, item!)
-      selectedField.value = item!
-      emitChange()
+      const res = moveFieldTo(props.fields, data.key, index)
+      if (!res) return
+      selectedField.value = res.item
+      emitFields(res.next)
     }
   } catch {
     /* 非法拖放数据忽略 */

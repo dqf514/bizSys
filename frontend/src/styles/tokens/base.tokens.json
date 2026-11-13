@@ -75,6 +75,8 @@
     "fast": "120ms",
     "base": "150ms",
     "slow": "250ms",
+    "enter": "200ms",
+    "exit": "100ms",
     "curve": "cubic-bezier(0.2, 0, 0, 1)"
   },
   "density": {

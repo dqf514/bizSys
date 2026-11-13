@@ -12,9 +12,10 @@ import FlowChainNode from './FlowChainNode.vue'
 import FlowChainConnector from './FlowChainConnector.vue'
 import {
   buildGraphFromNodes,
+  insertNodeAt,
   isOrgApproverType,
   normalizeNode,
-  reseqNodes,
+  removeNodeRow,
   validateFlowNodes,
   type FlowNodeRow,
 } from './flowModel'
@@ -57,10 +58,7 @@ const APPROVER_TYPE_KEYS: Record<FlowApproverType, string> = {
 
 /* ---------- 结构操作 ---------- */
 
-function emitChange() {
-  emit('update:nodes', [...props.nodes])
-}
-
+/* 数组所有权在父级（v-model:nodes）：结构变更生成 next 数组再 emit，不原地改 props */
 function insertAt(index: number, nodeType: FlowNodeType) {
   const row = normalizeNode({
     seq: index + 1,
@@ -71,18 +69,14 @@ function insertAt(index: number, nodeType: FlowNodeType) {
     branches: nodeType === 'condition' ? [] : null,
   })
   row.signMode = 'or'
-  props.nodes.splice(index, 0, row)
-  reseqNodes(props.nodes)
-  emitChange()
+  emit('update:nodes', insertNodeAt(props.nodes, index, row))
   openConfig(row)
 }
 
 function removeNode(n: FlowNodeRow) {
-  const idx = props.nodes.indexOf(n)
-  if (idx < 0) return
-  props.nodes.splice(idx, 1)
-  reseqNodes(props.nodes)
-  emitChange()
+  const next = removeNodeRow(props.nodes, n)
+  if (!next) return
+  emit('update:nodes', next)
   if (current.value === n) drawerVisible.value = false
 }
 
@@ -129,6 +123,11 @@ function approverIds(n: FlowNodeRow): string[] {
 }
 
 /* ---------- 条件分支 ---------- */
+
+/** 节点对象内部的字段级编辑（branches 等嵌套结构）：浅拷贝触发父级 v-model 刷新 */
+function emitChange() {
+  emit('update:nodes', [...props.nodes])
+}
 
 function addBranch(n: FlowNodeRow) {
   const branches = n.branches ?? []

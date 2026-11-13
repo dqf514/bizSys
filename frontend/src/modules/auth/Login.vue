@@ -52,6 +52,9 @@ const year = new Date().getFullYear()
 // ---- 图形验证码（一次性，任何登录尝试后即失效，失败必须刷新） ----
 const captchaId = ref('')
 const captchaSvg = ref('')
+const captchaImgUrl = computed(() =>
+  captchaSvg.value ? `data:image/svg+xml;utf8,${encodeURIComponent(captchaSvg.value)}` : '',
+)
 
 async function loadCaptcha() {
   try {
@@ -355,8 +358,14 @@ function switchLang() {
                       :title="t('auth.login.captchaRefresh')"
                       :aria-label="t('auth.login.captchaRefresh')"
                       @click="loadCaptcha"
-                      v-html="captchaSvg"
-                    ></button>
+                    >
+                      <img
+                        v-if="captchaImgUrl"
+                        :src="captchaImgUrl"
+                        :alt="t('auth.login.captchaRefresh')"
+                        class="captcha-svg"
+                      />
+                    </button>
                   </div>
                 </el-form-item>
                 <el-button type="primary" size="large" class="login-btn" :loading="loading" @click="doLogin">
@@ -685,6 +694,12 @@ function switchLang() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.captcha-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .mfa-box {

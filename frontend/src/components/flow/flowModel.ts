@@ -206,6 +206,24 @@ export function reseqNodes(nodes: FlowNodeRow[]) {
   }
 }
 
+/* 结构操作纯函数：输入数组为父级 v-model 所有（只读），返回重编 seq 后的新数组 */
+
+/** 在 index 处插入节点行，返回重编 seq 后的新数组 */
+export function insertNodeAt(nodes: FlowNodeRow[], index: number, row: FlowNodeRow): FlowNodeRow[] {
+  const next = [...nodes]
+  next.splice(index, 0, row)
+  reseqNodes(next)
+  return next
+}
+
+/** 删除节点行（按引用匹配），返回重编 seq 后的新数组；节点不在数组中返回 null */
+export function removeNodeRow(nodes: FlowNodeRow[], row: FlowNodeRow): FlowNodeRow[] | null {
+  if (!nodes.includes(row)) return null
+  const next = nodes.filter((x) => x !== row)
+  reseqNodes(next)
+  return next
+}
+
 /** 保存前校验，返回 i18n key 列表（空 = 通过） */
 export function validateFlowNodes(nodes: FlowNodeRow[]): string[] {
   const errors: string[] = []

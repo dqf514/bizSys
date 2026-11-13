@@ -56,6 +56,8 @@
   --bs-motion-fast: 120ms;
   --bs-motion-base: 150ms;
   --bs-motion-slow: 250ms;
+  --bs-motion-enter: 200ms;
+  --bs-motion-exit: 100ms;
   --bs-motion-curve: cubic-bezier(0.2, 0, 0, 1);
   --bs-density-comfortable-control-height: 30px;
   --bs-density-comfortable-control-height-sm: 22px;

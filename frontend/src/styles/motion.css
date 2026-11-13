@@ -48,21 +48,39 @@
 
 /* page enter animation (TabWorkspace router-view root; mount-triggered, KeepAlive-safe) */
 .page-anim {
-  animation: bs-fade-up var(--bs-motion-base) var(--bs-motion-curve) both;
+  animation: bs-fade-up var(--bs-motion-enter) var(--bs-motion-curve) both;
 }
 
-/* pop transition (context menus, small popovers) */
-.pop-enter-active,
+/* pop transition (context menus, small popovers) — enter slower than exit */
+.pop-enter-active {
+  transition:
+    opacity var(--bs-motion-enter) var(--bs-motion-curve),
+    transform var(--bs-motion-enter) var(--bs-motion-curve);
+}
+
 .pop-leave-active {
   transition:
-    opacity var(--bs-motion-fast) var(--bs-motion-curve),
-    transform var(--bs-motion-fast) var(--bs-motion-curve);
+    opacity var(--bs-motion-exit) var(--bs-motion-curve),
+    transform var(--bs-motion-exit) var(--bs-motion-curve);
 }
 
 .pop-enter-from,
 .pop-leave-to {
   opacity: 0;
   transform: scale(0.96);
+}
+
+/* EP overlays: exit runs faster than enter */
+.dialog-fade-leave-active,
+.dialog-fade-leave-active .el-overlay-dialog,
+.el-drawer-fade-leave-active,
+.el-message-fade-leave-active,
+.el-zoom-in-top-leave-active,
+.el-zoom-in-bottom-leave-active,
+.el-fade-in-leave-active,
+.el-fade-in-linear-leave-active {
+  animation-duration: var(--bs-motion-exit);
+  transition-duration: var(--bs-motion-exit);
 }
 
 /* subtle card lift on hover */
@@ -77,19 +95,20 @@
   box-shadow: var(--bs-shadow-elevation2);
 }
 
-/* accessibility: honor reduced motion */
+/* accessibility: honor reduced motion — global kill switch for non-essential
+   animation, including EP component transitions driven by --el-transition-duration */
 @media (prefers-reduced-motion: reduce) {
-  .bs-fade-up,
-  .bs-fade-in,
-  .bs-stagger > *,
-  .page-anim {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 
-  .pop-enter-active,
-  .pop-leave-active,
-  .bs-hover-lift {
-    transition: none;
+  html {
+    scroll-behavior: auto;
   }
 
   .bs-hover-lift:hover {

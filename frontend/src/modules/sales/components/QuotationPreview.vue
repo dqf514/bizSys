@@ -49,7 +49,8 @@ function fmt(n: number): string {
 
 <template>
   <div class="quote-preview">
-    <!-- 抬头（模板 HTML） -->
+    <!-- 抬头（模板 HTML，管理员维护的受信富文本，仅在预览/打印页渲染） -->
+    <!-- eslint-disable-next-line vue/no-v-html -- 报价模板富文本由管理员在后台维护，非用户输入 -->
     <div v-if="layout.headerHtml" class="qp-header" v-html="layout.headerHtml" />
     <div class="qp-meta">
       <div class="qp-meta-row"><span class="qp-label">{{ t('sales.print.quoteNo') }}</span>{{ quoteNo || '-' }}</div>
@@ -62,6 +63,7 @@ function fmt(n: number): string {
         <span class="qp-label">{{ t('sales.print.validUntil') }}</span>{{ validUntil || '-' }}
       </div>
     </div>
+    <!-- eslint-disable-next-line vue/no-v-html -- 报价模板富文本由管理员在后台维护，非用户输入 -->
     <div v-if="layout.introHtml" class="qp-intro" v-html="layout.introHtml" />
 
     <table class="qp-table">
@@ -108,8 +110,10 @@ function fmt(n: number): string {
 
     <div v-if="layout.termsHtml" class="qp-terms">
       <div class="qp-terms-title">{{ t('sales.print.terms') }}</div>
+      <!-- eslint-disable-next-line vue/no-v-html -- 报价模板富文本由管理员在后台维护，非用户输入 -->
       <div v-html="layout.termsHtml" />
     </div>
+    <!-- eslint-disable-next-line vue/no-v-html -- 报价模板富文本由管理员在后台维护，非用户输入 -->
     <div v-if="layout.footerHtml" class="qp-footer" v-html="layout.footerHtml" />
     <div class="qp-sign">
       <span>{{ t('sales.print.signature') }}</span>
