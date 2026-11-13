@@ -25,6 +25,8 @@
   "customizeTip": "Check widgets to show and use the arrows to reorder them",
   "viewAll": "View all",
   "markAllRead": "Mark all read",
+  "prevMonth": "Previous month",
+  "nextMonth": "Next month",
   "emptyApproval": "No pending approvals",
   "emptyInitiated": "No initiated flows",
   "emptyCc": "No CC messages",

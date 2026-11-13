@@ -7,6 +7,7 @@ import { Expand, Fold, Setting } from '@element-plus/icons-vue'
 import SideNavItem from './SideNavItem.vue'
 import NavSortDialog from './NavSortDialog.vue'
 import { useNavZones } from './useNavZones'
+import { usePopoverA11y } from '@/composables/usePopoverA11y'
 import type { MenuNode } from '@/api/types'
 
 const props = defineProps<{ collapsed: boolean }>()
@@ -34,6 +35,8 @@ watch(
 
 // ---- 底部工具栏：系统管理入口（向上弹层） + 折叠切换 ----
 const sysVisible = ref(false)
+const sysBtnRef = ref<HTMLButtonElement>()
+usePopoverA11y(sysVisible, 'nav-system-pop', sysBtnRef, { arrowNav: true })
 
 function gotoSystemItem(node: MenuNode) {
   if (!node.path) return
@@ -70,25 +73,29 @@ function isActivePath(node: MenuNode) {
         placement="top-start"
         :width="300"
         popper-class="nav-system-pop"
+        role="menu"
       >
         <template #reference>
           <button
+            ref="sysBtnRef"
             type="button"
             class="nav-system-btn"
             :title="menuTitle(systemZone)"
+            :aria-label="menuTitle(systemZone)"
           >
             <ElIcon><Setting /></ElIcon>
             <span class="nav-label">{{ menuTitle(systemZone) }}</span>
           </button>
         </template>
 
-        <div class="system-panel">
+        <div class="system-panel" role="menu" :aria-label="menuTitle(systemZone)">
           <div v-for="group in systemZone.children" :key="group.id" class="system-group">
             <div class="system-group-title">{{ menuTitle(group) }}</div>
             <button
               v-for="item in group.children"
               :key="item.id"
               type="button"
+              role="menuitem"
               class="panel-item"
               :class="{ active: isActivePath(item) }"
               @click="gotoSystemItem(item)"
@@ -103,6 +110,7 @@ function isActivePath(node: MenuNode) {
         type="button"
         class="nav-fold-btn"
         :title="props.collapsed ? t('common.action.expand') : t('common.action.collapse')"
+        :aria-label="props.collapsed ? t('common.action.expand') : t('common.action.collapse')"
         @click="emit('toggle-nav')"
       >
         <ElIcon>

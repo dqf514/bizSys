@@ -407,15 +407,31 @@ function onResourceTypeChange(f: OaField) {
                     v-model="selectedField.options![oi]"
                     :placeholder="t('oa.design.optionN', { n: oi + 1 })"
                   />
-                  <el-button size="small" circle :icon="Top" :disabled="oi === 0" @click="moveOption(selectedField, oi, -1)" />
+                  <el-button
+                    size="small"
+                    circle
+                    :icon="Top"
+                    :disabled="oi === 0"
+                    :aria-label="t('common.action.moveUp')"
+                    @click="moveOption(selectedField, oi, -1)"
+                  />
                   <el-button
                     size="small"
                     circle
                     :icon="Bottom"
                     :disabled="oi >= (selectedField.options?.length ?? 0) - 1"
+                    :aria-label="t('common.action.moveDown')"
                     @click="moveOption(selectedField, oi, 1)"
                   />
-                  <el-button size="small" circle type="danger" plain :icon="Delete" @click="removeOption(selectedField, oi)" />
+                  <el-button
+                    size="small"
+                    circle
+                    type="danger"
+                    plain
+                    :icon="Delete"
+                    :aria-label="t('common.action.delete')"
+                    @click="removeOption(selectedField, oi)"
+                  />
                 </div>
                 <el-button size="small" plain type="primary" @click="addOption(selectedField)">
                   {{ t('oa.design.optionAdd') }}
@@ -500,7 +516,15 @@ function onResourceTypeChange(f: OaField) {
                       :label="tf.label || tf.key"
                     />
                   </el-select>
-                  <el-button size="small" circle type="danger" plain :icon="Delete" @click="removeMapping(selectedField, mi)" />
+                  <el-button
+                    size="small"
+                    circle
+                    type="danger"
+                    plain
+                    :icon="Delete"
+                    :aria-label="t('common.action.delete')"
+                    @click="removeMapping(selectedField, mi)"
+                  />
                 </div>
                 <el-button size="small" plain :icon="Plus" @click="addMapping(selectedField)">
                   {{ t('oa.design.mappingAdd') }}

@@ -138,3 +138,32 @@ textarea,
 }
 
 /* avoid bare hex: components must use var(--bs-*) */
+
+/* a11y: keyboard focus ring（令牌描边；只增不删，不移除任何现有焦点指示） */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+[role='menuitem']:focus-visible,
+[role='tab']:focus-visible,
+[role='option']:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+input:not(.el-input__inner):focus-visible,
+[tabindex]:focus-visible,
+.el-button:focus-visible,
+.el-menu-item:focus-visible,
+.el-sub-menu__title:focus-visible,
+.el-tabs__item:focus-visible,
+.el-dropdown-menu__item:focus-visible,
+.el-pagination button:focus-visible,
+.el-pager li:focus-visible {
+  outline: 2px solid var(--bs-color-primary);
+  outline-offset: 2px;
+}
+
+/* el-input 的可视框在 wrapper 上，描边画在 wrapper 避免内层 input 双圈 */
+.el-input__wrapper:focus-within,
+.el-select__wrapper:focus-within {
+  outline: 2px solid var(--bs-color-primary);
+  outline-offset: 1px;
+}

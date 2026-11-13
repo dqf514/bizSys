@@ -41,4 +41,125 @@
     flex: none;
     white-space: nowrap;
   }
+
+  /* ---- 字号底线：正文 ≥14px、辅助文字 ≥12px（紧凑密度在移动端放宽） ---- */
+  :root {
+    --bs-typography-font-size-sm: 14px;
+  }
+
+  /* 与 tokens.css 的 html[data-density="compact"] 同优先级，靠加载顺序（mobile.css 最后）覆盖 */
+  html[data-density] {
+    --bs-density-font-size: 14px;
+  }
+
+  /* ---- 触控目标：可点元素最小 44×44，相邻间距 ≥8px ---- */
+  .el-button {
+    min-height: 44px;
+  }
+
+  .el-button.is-link,
+  .el-button.is-text {
+    min-width: 44px;
+  }
+
+  /* 列表行内图标操作（ActionBar） */
+  .action-bar {
+    gap: var(--bs-space-2);
+  }
+
+  .action-bar .action-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 顶栏 / 侧栏 / 弹窗行内图标按钮 */
+  .icon-btn,
+  .notify-btn,
+  .account-btn,
+  .nav-fold-btn,
+  .nav-system-btn,
+  .row-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .topbar .actions {
+    gap: var(--bs-space-2);
+  }
+
+  /* 弹层关闭 X */
+  .el-dialog__headerbtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .el-drawer__close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .el-message-box__headerbtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 分页 */
+  .el-pagination button,
+  .el-pagination .el-pager li {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 页签与菜单项 */
+  .el-tabs__item {
+    min-height: 44px;
+  }
+
+  .el-menu-item,
+  .el-sub-menu__title {
+    min-height: 44px;
+  }
+
+  /* 头像弹层 / 系统管理弹层内的项与分段按钮 */
+  .panel-item,
+  .seg-btn {
+    min-height: 44px;
+  }
+
+  .seg-row {
+    gap: var(--bs-space-2);
+  }
+
+  /* 输入控件 */
+  .el-input__wrapper,
+  .el-select__wrapper {
+    min-height: 44px;
+  }
+
+  /* 快捷方式条：chips 加高至 44px 触控目标，行间留白 */
+  .shortcut-bar {
+    height: auto;
+    min-height: 56px;
+    padding-top: var(--bs-space-1);
+    padding-bottom: var(--bs-space-1);
+  }
+
+  .chip {
+    min-height: 44px;
+  }
+
+  /* 小尺寸可点元素（色板 / chip 关闭 / 添加快捷方式）：视觉不变，::after 扩大触控热区至 ≥44px */
+  .accent-swatch-btn,
+  .chip-close,
+  .add-btn {
+    position: relative;
+  }
+
+  .accent-swatch-btn::after,
+  .chip-close::after,
+  .add-btn::after {
+    content: '';
+    position: absolute;
+    inset: -15px;
+  }
 }

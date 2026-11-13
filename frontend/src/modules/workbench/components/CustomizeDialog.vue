@@ -62,12 +62,20 @@ function confirm() {
       <li v-for="(w, i) in draft" :key="w.key" class="widget-row">
         <el-checkbox v-model="w.visible">{{ t(labelKeys[w.key] ?? w.key) }}</el-checkbox>
         <span class="row-actions">
-          <el-button link size="small" :icon="ArrowUp" :disabled="i === 0" @click="move(i, -1)" />
+          <el-button
+            link
+            size="small"
+            :icon="ArrowUp"
+            :disabled="i === 0"
+            :aria-label="t('common.action.moveUp')"
+            @click="move(i, -1)"
+          />
           <el-button
             link
             size="small"
             :icon="ArrowDown"
             :disabled="i === draft.length - 1"
+            :aria-label="t('common.action.moveDown')"
             @click="move(i, 1)"
           />
         </span>

@@ -48,12 +48,18 @@ function hidePalette() {
   paletteFor.value = null
 }
 
+function onDocKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') hidePalette()
+}
+
 onMounted(() => {
   document.addEventListener('click', hidePalette)
+  document.addEventListener('keydown', onDocKeydown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hidePalette)
+  document.removeEventListener('keydown', onDocKeydown)
 })
 </script>
 
@@ -66,8 +72,12 @@ onUnmounted(() => {
         class="chip"
         :class="[`c-${s.color}`, { active: s.path === route.path, dragging: dragIndex === i }]"
         draggable="true"
+        role="button"
+        tabindex="0"
         :title="s.path"
         @click="go(s)"
+        @keydown.enter.prevent="go(s)"
+        @keydown.space.prevent="go(s)"
         @contextmenu="openPalette($event, s.path)"
         @dragstart="onDragStart(i)"
         @dragover.prevent
@@ -79,6 +89,7 @@ onUnmounted(() => {
           class="chip-close"
           type="button"
           :title="t('common.shortcut.remove')"
+          :aria-label="t('common.shortcut.remove')"
           @click.stop="remove(s.path)"
         >
           ×
@@ -91,6 +102,7 @@ onUnmounted(() => {
       class="add-btn"
       type="button"
       :title="t('common.shortcut.add')"
+      :aria-label="t('common.shortcut.add')"
       @click="addCurrent"
     >
       +
@@ -101,6 +113,8 @@ onUnmounted(() => {
         <div
           v-if="paletteFor"
           class="palette-pop"
+          role="menu"
+          :aria-label="t('common.shortcut.color')"
           :style="{ left: palettePos.x + 'px', top: palettePos.y + 'px' }"
           @click.stop
         >
@@ -110,7 +124,9 @@ onUnmounted(() => {
             class="swatch"
             :class="`c-${c}`"
             type="button"
+            role="menuitem"
             :title="t('common.shortcut.color')"
+            :aria-label="t('common.shortcut.color')"
             @click="pickColor(c)"
           />
         </div>
@@ -185,7 +201,7 @@ onUnmounted(() => {
   border-radius: var(--bs-radius-full);
   background: transparent;
   color: inherit;
-  font-size: 11px;
+  font-size: var(--bs-typography-font-size-xs);
   line-height: 1;
   cursor: pointer;
   opacity: 0;

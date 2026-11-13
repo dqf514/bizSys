@@ -25,6 +25,8 @@
   "customizeTip": "勾选要显示的板块，使用箭头调整展示顺序",
   "viewAll": "查看全部",
   "markAllRead": "全部已读",
+  "prevMonth": "上个月",
+  "nextMonth": "下个月",
   "emptyApproval": "暂无待办审批",
   "emptyInitiated": "暂无发起的流程",
   "emptyCc": "暂无抄送消息",

@@ -22,7 +22,14 @@ function pick(type: FlowNodeType, close: () => void) {
     <div class="chain-line" />
     <el-popover placement="right" trigger="click" :width="230">
       <template #reference>
-        <button type="button" class="chain-add-btn" :title="t('admin.flow.insertNode')">+</button>
+        <button
+          type="button"
+          class="chain-add-btn"
+          :title="t('admin.flow.insertNode')"
+          :aria-label="t('admin.flow.insertNode')"
+        >
+          +
+        </button>
       </template>
       <template #default="{ hide }">
         <div class="add-menu">

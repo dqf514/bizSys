@@ -296,6 +296,8 @@ function switchLang() {
               type="button"
               class="kind-btn"
               :class="{ active: kind === 'staff' }"
+              role="tab"
+              :aria-selected="kind === 'staff'"
               @click="kind = 'staff'"
             >
               {{ t('auth.login.tabStaff') }}
@@ -304,6 +306,8 @@ function switchLang() {
               type="button"
               class="kind-btn"
               :class="{ active: kind === 'partner' }"
+              role="tab"
+              :aria-selected="kind === 'partner'"
               @click="kind = 'partner'"
             >
               {{ t('auth.login.tabPartner') }}
@@ -318,6 +322,7 @@ function switchLang() {
                   <el-input
                     v-model="form.username"
                     :placeholder="t('auth.login.usernamePlaceholder')"
+                    :aria-label="t('auth.login.username')"
                     size="large"
                     @keyup.enter="doLogin"
                   />
@@ -328,6 +333,7 @@ function switchLang() {
                     type="password"
                     show-password
                     :placeholder="t('auth.login.passwordPlaceholder')"
+                    :aria-label="t('auth.login.password')"
                     size="large"
                     @keyup.enter="doLogin"
                   />
@@ -337,6 +343,7 @@ function switchLang() {
                     <el-input
                       v-model="form.captchaText"
                       :placeholder="t('auth.login.captchaPlaceholder')"
+                      :aria-label="t('auth.login.captchaPlaceholder')"
                       size="large"
                       maxlength="4"
                       class="captcha-input"
@@ -380,6 +387,7 @@ function switchLang() {
               <el-input
                 v-model="mfa.code"
                 :placeholder="t('auth.mfa.codePlaceholder')"
+                :aria-label="t('auth.mfa.codePlaceholder')"
                 size="large"
                 maxlength="6"
                 class="mfa-code-input"
@@ -423,6 +431,7 @@ function switchLang() {
                 <el-input
                   v-model="partnerForm.username"
                   :placeholder="t('portal.portal.username')"
+                  :aria-label="t('portal.portal.username')"
                   size="large"
                   @keyup.enter="doPartnerLogin"
                 />
@@ -433,6 +442,7 @@ function switchLang() {
                   type="password"
                   show-password
                   :placeholder="t('portal.portal.password')"
+                  :aria-label="t('portal.portal.password')"
                   size="large"
                   @keyup.enter="doPartnerLogin"
                 />

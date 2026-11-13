@@ -152,10 +152,14 @@ watch(keyword, () => {
         ref="inputRef"
         v-model="keyword"
         class="cmd-input"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="cmd-list"
+        :aria-label="t('common.command.placeholder')"
         :placeholder="t('common.command.placeholder')"
         @keydown="onKey"
       />
-      <div class="cmd-list">
+      <div id="cmd-list" class="cmd-list" role="listbox">
         <template v-for="[group, groupItems] in grouped" :key="group">
           <div class="cmd-group">{{ group }}</div>
           <div
@@ -163,6 +167,8 @@ watch(keyword, () => {
             :key="item.id"
             class="cmd-item"
             :class="{ active: itemIndex(item) === activeIndex }"
+            role="option"
+            :aria-selected="itemIndex(item) === activeIndex"
             @click="run(item)"
             @mouseenter="activeIndex = itemIndex(item)"
           >

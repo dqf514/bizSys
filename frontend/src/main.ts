@@ -28,6 +28,17 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.directive('permission', permission)
 
+// a11y：Element Plus 图标组件根节点是 <svg> 且默认无 aria-hidden；
+// 全局限顶为装饰性图标统一补上，避免读屏器读出无意义 "image"
+app.mixin({
+  mounted() {
+    const el = this.$el
+    if (el instanceof SVGElement && !el.hasAttribute('aria-hidden')) {
+      el.setAttribute('aria-hidden', 'true')
+    }
+  },
+})
+
 // 非路由场景的动态 import 失败兜底（与 router.onError 同策：整页刷新一次）
 window.addEventListener('unhandledrejection', (e) => {
   const msg = String(e.reason?.message ?? e.reason ?? '')

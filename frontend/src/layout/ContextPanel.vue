@@ -53,7 +53,12 @@ watch(
           </div>
         </div>
         <el-tooltip :content="t('common.context.collapse')" placement="left">
-          <button class="icon-btn" type="button" @click="context.close()">
+          <button
+            class="icon-btn"
+            type="button"
+            :aria-label="t('common.context.collapse')"
+            @click="context.close()"
+          >
             <el-icon><DArrowRight /></el-icon>
           </button>
         </el-tooltip>
@@ -65,7 +70,12 @@ watch(
     </div>
 
     <el-tooltip v-else-if="context.hasContent" :content="t('common.context.expand')" placement="left">
-      <button class="reopen-handle bs-fade-in" type="button" @click="context.toggle()">
+      <button
+        class="reopen-handle bs-fade-in"
+        type="button"
+        :aria-label="t('common.context.expand')"
+        @click="context.toggle()"
+      >
         <el-icon><DArrowLeft /></el-icon>
       </button>
     </el-tooltip>

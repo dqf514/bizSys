@@ -127,9 +127,21 @@ onMounted(() => {
 <template>
   <WidgetShell :title="t('workbench.widget.calendar')" :loading="loading">
     <template #actions>
-      <el-button link size="small" :icon="ArrowLeft" @click="shiftMonth(-1)" />
+      <el-button
+        link
+        size="small"
+        :icon="ArrowLeft"
+        :aria-label="t('workbench.prevMonth')"
+        @click="shiftMonth(-1)"
+      />
       <span class="month-label">{{ monthLabel }}</span>
-      <el-button link size="small" :icon="ArrowRight" @click="shiftMonth(1)" />
+      <el-button
+        link
+        size="small"
+        :icon="ArrowRight"
+        :aria-label="t('workbench.nextMonth')"
+        @click="shiftMonth(1)"
+      />
     </template>
 
     <div class="calendar">

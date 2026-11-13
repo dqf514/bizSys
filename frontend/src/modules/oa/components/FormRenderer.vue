@@ -242,10 +242,36 @@ defineExpose({ validate })
         <el-icon><Rank /></el-icon>
       </span>
       <div v-if="props.design && props.selectedKey === f.key" class="fr-actions" @click.stop>
-        <el-button size="small" circle :icon="Top" @click="emit('move', f.key, -1)" />
-        <el-button size="small" circle :icon="Bottom" @click="emit('move', f.key, 1)" />
-        <el-button size="small" circle :icon="CopyDocument" @click="emit('duplicate', f.key)" />
-        <el-button size="small" circle type="danger" plain :icon="Delete" @click="emit('remove', f.key)" />
+        <el-button
+          size="small"
+          circle
+          :icon="Top"
+          :aria-label="t('common.action.moveUp')"
+          @click="emit('move', f.key, -1)"
+        />
+        <el-button
+          size="small"
+          circle
+          :icon="Bottom"
+          :aria-label="t('common.action.moveDown')"
+          @click="emit('move', f.key, 1)"
+        />
+        <el-button
+          size="small"
+          circle
+          :icon="CopyDocument"
+          :aria-label="t('common.action.copy')"
+          @click="emit('duplicate', f.key)"
+        />
+        <el-button
+          size="small"
+          circle
+          type="danger"
+          plain
+          :icon="Delete"
+          :aria-label="t('common.action.delete')"
+          @click="emit('remove', f.key)"
+        />
       </div>
 
       <!-- 布局控件：不占数据位 -->

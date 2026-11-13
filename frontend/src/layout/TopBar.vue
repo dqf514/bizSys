@@ -29,6 +29,7 @@ import NotifyBell from './NotifyBell.vue'
 import { openNavSort } from './useNavZones'
 import { openDockSettings } from './useDock'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { usePopoverA11y } from '@/composables/usePopoverA11y'
 
 defineOptions({ name: 'TopBar' })
 
@@ -46,6 +47,8 @@ const { t } = useI18n()
 const { isEligible, isFavorite, toggleFavorite } = useShortcuts()
 const { isMobile } = useIsMobile()
 const accountVisible = ref(false)
+const accountBtnRef = ref<HTMLButtonElement>()
+usePopoverA11y(accountVisible, 'account-pop', accountBtnRef)
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
 
@@ -202,6 +205,7 @@ async function submitPassword() {
       :class="{ favored: isFavorite }"
       type="button"
       :title="isFavorite ? t('common.shortcut.unfavorite') : t('common.shortcut.favorite')"
+      :aria-label="isFavorite ? t('common.shortcut.unfavorite') : t('common.shortcut.favorite')"
       @click="toggleFavorite"
     >
       <ElIcon :size="16">
@@ -225,9 +229,15 @@ async function submitPassword() {
         placement="bottom-end"
         :width="300"
         popper-class="account-pop"
+        role="dialog"
       >
         <template #reference>
-          <button class="account-btn" type="button">
+          <button
+            ref="accountBtnRef"
+            class="account-btn"
+            type="button"
+            :aria-label="t('common.a11y.accountMenu')"
+          >
             <span class="avatar">
               <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" class="avatar-img" alt="" />
               <template v-else>{{ (auth.user?.name || auth.user?.username || '?').slice(0, 1) }}</template>
@@ -236,7 +246,7 @@ async function submitPassword() {
           </button>
         </template>
 
-        <div class="account-panel">
+        <div class="account-panel" role="dialog" :aria-label="t('common.a11y.accountMenu')">
           <div class="account-head">
             <span class="avatar avatar-lg">
               <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" class="avatar-img" alt="" />
@@ -289,6 +299,7 @@ async function submitPassword() {
                 class="accent-swatch-btn"
                 :class="[`accent-${a}`, { active: theme.accent === a }]"
                 :title="a"
+                :aria-label="t('common.a11y.accentColor', { name: a })"
                 @click="theme.setAccent(a)"
               />
             </div>

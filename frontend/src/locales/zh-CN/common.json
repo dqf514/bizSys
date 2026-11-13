@@ -3,6 +3,10 @@
     "title": "业务系统",
     "short": "bizSys"
   },
+  "a11y": {
+    "accountMenu": "账户菜单",
+    "accentColor": "强调色 {name}"
+  },
   "context": {
     "title": "关联信息",
     "collapse": "收起关联面板",

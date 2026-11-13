@@ -251,7 +251,13 @@ onMounted(() => {
 <template>
   <div class="profile-page" v-loading="loading">
     <section class="profile-hero">
-      <button class="avatar-wrap" type="button" :title="t('auth.profile.changeAvatar')" @click="pickAvatar">
+      <button
+        class="avatar-wrap"
+        type="button"
+        :title="t('auth.profile.changeAvatar')"
+        :aria-label="t('auth.profile.changeAvatar')"
+        @click="pickAvatar"
+      >
         <img v-if="profile?.avatarUrl" :src="profile.avatarUrl" class="avatar-img" alt="" />
         <span v-else class="avatar-fallback">{{ initial }}</span>
         <span class="avatar-mask"><el-icon><Camera /></el-icon></span>
@@ -359,6 +365,7 @@ onMounted(() => {
                 type="primary"
                 :icon="View"
                 :title="t('auth.profile.reveal')"
+                :aria-label="t('auth.profile.reveal')"
                 @click="revealBank(row)"
               />
             </template>

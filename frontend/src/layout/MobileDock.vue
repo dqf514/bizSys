@@ -132,7 +132,7 @@ function onPressEnd() {
 
 .dock-label {
   max-width: 100%;
-  font-size: 10px;
+  font-size: var(--bs-typography-font-size-xs);
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;

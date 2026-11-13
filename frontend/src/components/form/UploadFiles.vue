@@ -76,8 +76,21 @@ function fmtSize(size: number) {
       <div v-for="f in props.files" :key="String(f.id)" class="file-row">
         <span class="file-name bs-truncate">{{ f.fileName }}</span>
         <span class="file-size">{{ fmtSize(f.size) }}</span>
-        <el-button link type="primary" :icon="Download" @click="props.download(f.id, f.fileName)" />
-        <el-button v-if="!props.disabled" link type="danger" :icon="Delete" @click="void remove(f.id)" />
+        <el-button
+          link
+          type="primary"
+          :icon="Download"
+          :aria-label="t('common.action.download')"
+          @click="props.download(f.id, f.fileName)"
+        />
+        <el-button
+          v-if="!props.disabled"
+          link
+          type="danger"
+          :icon="Delete"
+          :aria-label="t('common.action.delete')"
+          @click="void remove(f.id)"
+        />
       </div>
     </div>
     <el-button v-if="!props.disabled" :loading="uploading" @click="pick">

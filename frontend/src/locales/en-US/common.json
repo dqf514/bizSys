@@ -3,6 +3,10 @@
     "title": "Business System",
     "short": "bizSys"
   },
+  "a11y": {
+    "accountMenu": "Account menu",
+    "accentColor": "Accent {name}"
+  },
   "context": {
     "title": "Related",
     "collapse": "Collapse context panel",

@@ -87,7 +87,15 @@ function patchRule(idx: number, patch: Partial<OaConditionGroup['rules'][number]
           :placeholder="t('oa.design.condValue')"
           @update:model-value="patchRule(ri, { value: String($event ?? '') })"
         />
-        <el-button size="small" circle type="danger" plain :icon="Delete" @click="removeRule(ri)" />
+        <el-button
+          size="small"
+          circle
+          type="danger"
+          plain
+          :icon="Delete"
+          :aria-label="t('common.action.delete')"
+          @click="removeRule(ri)"
+        />
       </div>
       <el-button size="small" plain :icon="Plus" @click="addRule">{{ t('oa.design.condAdd') }}</el-button>
     </template>

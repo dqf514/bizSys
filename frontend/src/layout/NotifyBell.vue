@@ -6,6 +6,7 @@ import { ElBadge, ElIcon, ElPopover } from 'element-plus'
 import { Bell } from '@element-plus/icons-vue'
 import { listNotifies, markAllNotifiesRead, markNotifyRead, notifyUnreadCount } from '@/api/workbench'
 import type { NotifyItem } from '@/api/types'
+import { usePopoverA11y } from '@/composables/usePopoverA11y'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -14,6 +15,8 @@ const items = ref<NotifyItem[]>([])
 const unread = ref(0)
 const loading = ref(false)
 const visible = ref(false)
+const notifyBtnRef = ref<HTMLButtonElement>()
+usePopoverA11y(visible, 'notify-pop', notifyBtnRef)
 let timer: ReturnType<typeof setInterval> | null = null
 
 async function loadList() {
@@ -85,17 +88,24 @@ async function readAll() {
     placement="bottom-end"
     :width="360"
     popper-class="notify-pop"
+    role="dialog"
     @update:visible="onOpen"
   >
     <template #reference>
-      <button class="icon-btn notify-btn" type="button" :title="t('workbench.widget.notify')">
+      <button
+        ref="notifyBtnRef"
+        class="icon-btn notify-btn"
+        type="button"
+        :title="t('workbench.widget.notify')"
+        :aria-label="t('workbench.widget.notify')"
+      >
         <ElBadge :value="unread" :hidden="!unread" :max="99">
           <ElIcon :size="16"><Bell /></ElIcon>
         </ElBadge>
       </button>
     </template>
 
-    <div class="notify-panel">
+    <div class="notify-panel" role="dialog" :aria-label="t('workbench.widget.notify')">
       <div class="notify-head">
         <span class="notify-head-title">{{ t('workbench.widget.notify') }}</span>
         <el-button v-if="unread" link type="primary" size="small" @click="readAll">
@@ -105,19 +115,20 @@ async function readAll() {
       <div v-loading="loading" class="notify-body">
         <div v-if="!items.length" class="notify-empty">{{ t('workbench.emptyNotify') }}</div>
         <ul v-else class="notify-list">
-          <li
-            v-for="n in items"
-            :key="n.id"
-            class="notify-item"
-            :class="{ unread: !n.readFlag }"
-            @click="openItem(n)"
-          >
-            <span class="notify-dot" :class="{ on: !n.readFlag }" aria-hidden="true"></span>
-            <span class="notify-main">
-              <span class="notify-title" :title="n.title">{{ n.title }}</span>
-              <span v-if="n.content" class="notify-content" :title="n.content">{{ n.content }}</span>
-            </span>
-            <span class="notify-time">{{ n.createTime }}</span>
+          <li v-for="n in items" :key="n.id">
+            <button
+              type="button"
+              class="notify-item"
+              :class="{ unread: !n.readFlag }"
+              @click="openItem(n)"
+            >
+              <span class="notify-dot" :class="{ on: !n.readFlag }" aria-hidden="true"></span>
+              <span class="notify-main">
+                <span class="notify-title" :title="n.title">{{ n.title }}</span>
+                <span v-if="n.content" class="notify-content" :title="n.content">{{ n.content }}</span>
+              </span>
+              <span class="notify-time">{{ n.createTime }}</span>
+            </button>
           </li>
         </ul>
       </div>
@@ -185,10 +196,14 @@ async function readAll() {
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);
+  width: 100%;
   padding: var(--bs-space-2) var(--bs-space-1);
+  border: none;
   border-radius: var(--bs-radius-sm);
+  background: transparent;
   cursor: pointer;
   font-size: var(--bs-typography-font-size-sm);
+  text-align: left;
 }
 
 .notify-item:hover {
