@@ -154,6 +154,55 @@ export const extraRoutes: RouteRecordRaw[] = [
       componentName: 'TaskDetail',
     },
   },
+  // 销售系统：报价编辑/模板设计页（列表页为菜单路由，这里补深链）
+  {
+    path: '/sales/quotations/new',
+    name: 'QuotationEditNew',
+    component: () => import('@/modules/sales/pages/QuotationEdit.vue'),
+    meta: {
+      tabKey: '/sales/quotations/new',
+      titleKey: 'sales.quotation.createTitle',
+      title: 'New Quotation',
+      keepAlive: false,
+      componentName: 'QuotationEdit',
+    },
+  },
+  {
+    path: '/sales/quotations/:id/edit',
+    name: 'QuotationEdit',
+    component: () => import('@/modules/sales/pages/QuotationEdit.vue'),
+    meta: {
+      tabKey: '/sales/quotations/edit',
+      titleKey: 'sales.quotation.editTitle',
+      title: 'Edit Quotation',
+      keepAlive: false,
+      componentName: 'QuotationEdit',
+    },
+  },
+  {
+    path: '/sales/templates/new',
+    name: 'QuoteTemplateDesignerNew',
+    component: () => import('@/modules/sales/pages/QuoteTemplateDesigner.vue'),
+    meta: {
+      tabKey: '/sales/templates/new',
+      titleKey: 'sales.template.createTitle',
+      title: 'New Quote Template',
+      keepAlive: false,
+      componentName: 'QuoteTemplateDesigner',
+    },
+  },
+  {
+    path: '/sales/templates/:id/design',
+    name: 'QuoteTemplateDesigner',
+    component: () => import('@/modules/sales/pages/QuoteTemplateDesigner.vue'),
+    meta: {
+      tabKey: '/sales/templates/design',
+      titleKey: 'sales.template.designTitle',
+      title: 'Template Designer',
+      keepAlive: false,
+      componentName: 'QuoteTemplateDesigner',
+    },
+  },
 ]
 
 const router = createRouter({
@@ -164,6 +213,13 @@ const router = createRouter({
       name: 'Login',
       component: () => import('@/modules/auth/Login.vue'),
       meta: { public: true },
+    },
+    // 报价单打印视图：无壳干净页（打印→另存 PDF 即正式输出），需登录
+    {
+      path: '/sales/quotations/:id/print',
+      name: 'QuotationPrint',
+      component: () => import('@/modules/sales/pages/QuotationPrint.vue'),
+      meta: { tabless: true, titleKey: 'sales.quotation.print', title: 'Print Quotation' },
     },
     // 合作方门户：独立认证体系（bs.portal_token），守卫见 guards.ts 的 /portal 早分支
     // 旧独立登录页废弃：重定向到主登录页合作方 tab（保留 redirect 参数）

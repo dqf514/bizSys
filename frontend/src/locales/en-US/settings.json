@@ -88,5 +88,19 @@
     "testSentReal": "Sent via the real channel",
     "providerPendingTip": "This provider gateway is not integrated yet: settings are stored only; sending falls back to the debug channel (errors in production)",
     "notConfiguredTip": "Without a configured channel, verification codes use the debug channel (non-production only); configure at least one channel"
+  },
+  "ai": {
+    "title": "AI Settings",
+    "enabled": "Enable AI features",
+    "baseUrl": "Endpoint URL (OpenAI-compatible)",
+    "baseUrlPlaceholder": "e.g. https://api.deepseek.com/v1 or your enterprise gateway",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter API Key",
+    "apiKeySetPlaceholder": "Configured (leave empty to keep unchanged)",
+    "model": "Model",
+    "modelPlaceholder": "e.g. deepseek-chat / gpt-4o-mini",
+    "timeout": "Timeout (seconds)",
+    "tip": "Powers AI quotation drafting in Sales; falls back to template defaults / history copy when disabled or unconfigured",
+    "save": "Save AI Settings"
   }
 }

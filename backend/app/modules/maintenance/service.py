@@ -2,7 +2,8 @@
 
 清空范围（显式表清单，失败整体回滚）：
 - 业务数据：合同+附件、任务+明细+样品+样品流转、报告+文件、结算/开票/收款、客户、OA 表单+实例、
-  采购申请+明细、采购合同、出入库单+明细、招标项目+报名+投标+评标、门户合作方账号、工时填报；
+  采购申请+明细、采购合同、出入库单+明细、招标项目+报名+投标+评标、门户合作方账号、工时填报、
+  报价单+明细+发送留痕+报价模板；
 - 审批运行数据：实例/待办/时间线/抄送/已读水位；
 - 系统运行数据：通知、审计日志、登录日志、编号序列（归零）；
 - 用户：除 username=admin 外的全部用户及其角色绑定/任职/偏好；
@@ -47,6 +48,7 @@ from app.modules.procurement.models import (
     TenderRegistration,
 )
 from app.modules.report.models import Report, ReportFile
+from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
 from app.modules.task.models import Task, TaskItem, TaskSample, TaskSampleFlow
 
@@ -70,6 +72,10 @@ _PURGE_TABLES = [
     OaInstance,
     OaForm,
     HrTimesheet,
+    SalesQuoteSendLog,
+    SalesQuotationItem,
+    SalesQuotation,
+    SalesQuoteTemplate,
     TenderEval,
     TenderBid,
     TenderRegistration,

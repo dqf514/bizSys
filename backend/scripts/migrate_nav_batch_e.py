@@ -8,8 +8,9 @@ _seed_menus 不回写 parent_id/sort；局部执行/别的库/中文名匹配都
 1. 同名菜单去重（保留最小 id，其余软删并解除角色绑定）；
 2. 残留归位：路径与目标子项相同但 name 不同/位置不对的菜单，改名并挂到目标父目录；
    目标子项的同路径重复行软删；
-3. 按 TARGET_TREE 归一 parent_id/sort（工作台→业务系统→OA系统→人事行政→系统管理，
-   业务区内 客户/合同/任务/报告/样品/采购/财务，财务内 开票→结算→到账，人事行政区 工时填报→工时统计）；
+3. 按 TARGET_TREE 归一 parent_id/sort（工作台→业务系统→OA系统→人事行政→销售系统→系统管理，
+   业务区内 客户/合同/任务/报告/样品/采购/财务，财务内 开票→结算→到账，人事行政区 工时填报→工时统计，
+   销售区 报价单→报价模板）；
 4. ApprovalCenter 强制隐藏（深链 /approval 可用，权限点仍由它承载）；
 5. 跑 init_data.main() 补齐缺失菜单与角色权限绑定。
 
@@ -25,11 +26,12 @@ from app.seeds import init_data
 
 # 目标结构：父目录 name → [子项 name 按 sort 顺序]；None 表示顶层
 TARGET_TREE: dict[str | None, list[str]] = {
-    None: ["Workbench", "BizSystem", "OaSystem", "HrSystem", "System", "ApprovalCenter"],
+    None: ["Workbench", "BizSystem", "OaSystem", "HrSystem", "SalesSystem", "System", "ApprovalCenter"],
     "BizSystem": ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Procurement", "Finance"],
     "Finance": ["FinanceInvoices", "FinanceSettlements", "FinancePayments"],
     "OaSystem": ["OaApply", "OaMy", "OaRelated", "OaStats"],
     "HrSystem": ["TimesheetFill", "TimesheetStats"],
+    "SalesSystem": ["Quotations", "QuoteTemplates"],
     "System": ["SysOrg", "SysData", "OaAdmin", "SysOps"],
     "SysOrg": ["Users", "Roles", "Depts"],
     "SysData": ["FlowDefs", "Dicts", "NumberRules"],
@@ -60,6 +62,9 @@ TITLE_KEYS = {
     "HrSystem": "menu.hrSystem",
     "TimesheetFill": "menu.timesheetFill",
     "TimesheetStats": "menu.timesheetStats",
+    "SalesSystem": "menu.salesSystem",
+    "Quotations": "menu.quotations",
+    "QuoteTemplates": "menu.quoteTemplates",
     "SysOrg": "menu.sysOrg",
     "SysData": "menu.sysData",
     "OaAdmin": "menu.oaAdmin",
@@ -96,6 +101,8 @@ CANON_PATHS = {
     "OaStats": "/oa/stats",
     "TimesheetFill": "/hr/timesheets",
     "TimesheetStats": "/hr/timesheet-stats",
+    "Quotations": "/sales/quotations",
+    "QuoteTemplates": "/sales/templates",
     "Users": "/admin/users",
     "Roles": "/admin/roles",
     "Depts": "/admin/depts",

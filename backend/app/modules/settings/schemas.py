@@ -76,7 +76,18 @@ class WecomCallbackIn(CamelModel):
     state: str = Field(min_length=1, max_length=64)
 
 
+class AiIn(CamelModel):
+    """AI 集成（OpenAI 兼容端点）：api_key 空串 = 不修改。"""
+
+    enabled: bool = False
+    base_url: str = Field(default="", max_length=255)
+    api_key: str = Field(default="", max_length=255)
+    model: str = Field(default="", max_length=64)
+    timeout: int = Field(default=30, ge=1, le=300)
+
+
 class SettingsIn(CamelModel):
     site_name: str | None = Field(default=None, max_length=128)
     wecom: WecomIn | None = None
     messaging: MessagingIn | None = None
+    ai: AiIn | None = None

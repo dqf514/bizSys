@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR）
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR） · 64xxx 销售（报价）
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -220,6 +220,42 @@
 - `GET /contract/contracts/counts`（沿用 contract:list）→ `{draft,approving,approved,rejected,voided,all}`（状态页签计数）
 - 权限码：`contract:list/create/edit/submit/delete/list:export`
 
+## 销售 /sales（AI 报价：模板 → 报价单 → 审批 → 发送 → 反馈 → 转合同；设计见 docs/sales-quotation-design.md）
+- 报价模板（`sales_quote_template`，(key, tpl_version, deleted) 唯一；版式全部收进 layout_json：
+  headerHtml/introHtml/termsHtml/footerHtml/validDays/itemColumns[spec/unit/remark 白名单]）：
+  - `GET /sales/templates`（全量）· `GET /sales/templates/options`（published 下拉，挂 sales:quote:create）
+  - `POST /sales/templates` · `PUT /sales/templates/{id}`（仅 draft）· `GET /sales/templates/{id}`
+  - `POST /sales/templates/{id}/new-version`（复制为 draft 新版本）· `POST /sales/templates/{id}/publish`
+    （同 key 旧 published 版自动停用）· `POST /sales/templates/{id}/disable` · `DELETE`（仅 draft 且无引用，逻辑删）
+  - 预置 3 套：standard 标准报价单 / simple 简洁版 / bilingual 中英文版（种子幂等）
+- 报价单（`sales_quotation` + `sales_quotation_item` + `sales_quote_send_log`）：
+  - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重提）→ sent 已送达
+    → accepted 客户接受 / declined 客户拒绝`；`voided 已作废` 预留。明细金额服务端重算（qty×unit_price），不信任前端合计
+  - `GET /sales/quotations` 分页（q/status 页签）· `GET /sales/quotations/counts` · `GET /sales/quotations/export`（xlsx）
+  - `POST /sales/quotations` · `PUT /sales/quotations/{id}`（仅 draft/rejected；选模板时落 layout_snapshot）·
+    `DELETE`（仅 draft，逻辑删）· `GET /sales/quotations/{id}`（详情 + timeline + sendLogs）
+  - `POST /sales/quotations/{id}/submit`：校验明细≥1、合计>0、valid_until≥today、模板 published（64002）；
+    发 BJ 编号（编号规则 quotation，daily）+ 启动审批（biz_type=sales_quotation，定义 quote_approve：部门负责人→分管领导）
+  - 审批事件订阅：通过 → approved（auto_send 且 contact_email 时自动发邮件留痕，异常不阻断）；
+    驳回 → rejected；撤回 → draft
+  - `POST /sales/quotations/{id}/send` `{channel:email|print|download, recipient?}`（仅 approved/sent）：
+    email 复用 SMTP 设置（未配置走调试通道），print/download 仅留痕；全部落 send_log（result=real/debug/marked/skipped/failed）
+  - `POST /sales/quotations/{id}/feedback` `{action:accept|decline, note?}`（仅 approved/sent）→ accepted/declined
+  - `POST /sales/quotations/{id}/to-contract`（仅 accepted；幂等：已转返回 64004）→ 生成 ctr_contract 草稿
+    （contract_type=sales，名称/金额/客户/联系人预填，备注注明来源单号）并回写 contract_id
+  - `POST /sales/quotations/ai-generate` `{customerId, templateId?, requirement}` → 三级回退：
+    AI 未配置 → 模板默认（source=template/ai_not_configured）；AI 失败或 JSON 结构非法 → 复制该客户最近报价
+    （source=history，remark 标注复制来源）→ 无历史 → 模板兜底（source=template/ai_failed）；
+    成功时 source=ai，金额仍服务端重算。结果不落库，ai_meta 由前端保存时透传
+  - AI 配置在系统设置卡片：`sys_config ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.timeout`，
+    OpenAI 兼容 `POST {base_url}/chat/completions`，429/5xx/网络重试 3 次
+- 权限码：`sales:quote:list/create/edit/submit/send/feedback/to-contract/export`（biz_user 默认）+
+  `sales:template:list/create/edit/publish/delete`（默认仅 super）
+- 错误码：64001 当前报价状态不允许该操作 / 64002 模板未发布 / 64003 模板键冲突 / 64004 报价单已转合同
+- 打印：无壳路由 `/sales/quotations/{id}/print`（浏览器打印另存 PDF；非 approved 系状态显示草稿水印）
+- 菜单：销售系统区（menu.salesSystem）子项 报价管理（Quotations，`/sales/quotations`，componentKey `sales/QuotationList`）/
+  报价模板（QuoteTemplates，`/sales/templates`，componentKey `sales/QuoteTemplateList`）；存量库归并经 `backend/scripts/migrate_nav_sales.py`（委托批次E）
+
 ## 审批中心 /approval（自研引擎）
 - `GET /approval/tasks?tab=todo|done|initiated&page&size&q=` →
   `{items:[{id,instanceId,bizType,bizId,title,status,nodeName,comment,initiatorName,assigneeName,createTime,actedAt}],...}`
@@ -384,10 +420,11 @@
   到账信息（FinancePayments）
 
 ## 导航结构（批次A 定形 / 批次E 归一 / HR 批次扩展）
-- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 人事行政（HrSystem）→ 系统管理（System）；
+- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 人事行政（HrSystem）→ 销售系统（SalesSystem）→ 系统管理（System）；
   流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
   前端侧栏将顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
 - 人事行政子级：工时填报（TimesheetFill，`/hr/timesheets`，填报+我的工时双视图）/ 工时统计（TimesheetStats，`/hr/timesheet-stats`，hr:timesheet:stats）。
+- 销售系统子级：报价管理（Quotations，`/sales/quotations`）/ 报价模板（QuoteTemplates，`/sales/templates`）。
 - 业务系统子级顺序：往来单位（Customers，`/crm/customers`，页面级视图：往来单位/合作方账号）/ 合同管理 / 任务管理 / 报告管理 /
   样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
   采购申请→采购合同→出入库→招标管理；合作方账号 PartnerAccounts visible=0 隐藏保留作权限载体）/
@@ -432,6 +469,7 @@ procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/S
 procurement/TenderList  procurement/PartnerAccountList
 report/ReportList
 hr/TimesheetFill  hr/TimesheetStats
+sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList

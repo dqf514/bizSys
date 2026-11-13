@@ -15,6 +15,7 @@ import zhOa from './locales/zh-CN/oa.json'
 import zhProcurement from './locales/zh-CN/procurement.json'
 import zhPortal from './locales/zh-CN/portal.json'
 import zhHr from './locales/zh-CN/hr.json'
+import zhSales from './locales/zh-CN/sales.json'
 import enUS from './locales/en-US/common.json'
 import enMenu from './locales/en-US/menu.json'
 import enAuth from './locales/en-US/auth.json'
@@ -31,6 +32,7 @@ import enOa from './locales/en-US/oa.json'
 import enProcurement from './locales/en-US/procurement.json'
 import enPortal from './locales/en-US/portal.json'
 import enHr from './locales/en-US/hr.json'
+import enSales from './locales/en-US/sales.json'
 
 export const LOCALES = ['zh-CN', 'en-US'] as const
 export type Locale = (typeof LOCALES)[number]
@@ -52,14 +54,15 @@ function pack(
   procurement: object,
   portal: object,
   hr: object,
+  sales: object,
 ) {
   // 代码统一用 `common.xxx` / `menu.xxx` 等命名空间引用，common 必须挂在 common 下
-  return { common, menu, auth, workbench, admin, approval, crm, contract, task, finance, report, settings, oa, procurement, portal, hr }
+  return { common, menu, auth, workbench, admin, approval, crm, contract, task, finance, report, settings, oa, procurement, portal, hr, sales }
 }
 
 const messages = {
-  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr),
-  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr),
+  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr, zhSales),
+  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr, enSales),
 }
 
 export function detectLocale(): Locale {

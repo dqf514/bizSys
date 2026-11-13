@@ -102,6 +102,7 @@ from app.modules.portal.router import router as portal_router  # noqa: E402  合
 from app.modules.procurement.router import router as procurement_router  # noqa: E402  导入即订阅采购审批事件回写
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
 from app.modules.report.router import router as report_router  # noqa: E402
+from app.modules.sales.router import router as sales_router  # noqa: E402  导入即订阅报价审批事件回写
 from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
 from app.modules.task.router import router as task_router  # noqa: E402
@@ -118,6 +119,7 @@ app.include_router(task_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
+app.include_router(sales_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
 app.include_router(tender_router, prefix="/api/v1")

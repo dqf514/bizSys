@@ -87,7 +87,38 @@ def settings_out(db: Session) -> dict:
             "callbackUrl": get_value(db, KEY_WECOM_CALLBACK),
         },
         "messaging": messaging_out(db),
+        "ai": ai_out(db),
     }
+
+
+# ---------------- AI 集成（OpenAI 兼容） ----------------
+
+
+def ai_out(db: Session) -> dict:
+    """AI 配置回显：api_key 只回 apiKeySet 布尔，不回明文。"""
+    from app.services import ai
+
+    cfg = ai.ai_config(db)
+    return {
+        "enabled": cfg["enabled"],
+        "baseUrl": cfg["base_url"],
+        "apiKeySet": bool(cfg["api_key"]),
+        "model": cfg["model"],
+        "timeout": cfg["timeout"],
+    }
+
+
+def _update_ai(db: Session, a, user_id: int) -> None:
+    from app.services import ai
+
+    if a.base_url.strip() and not a.base_url.strip().startswith(("http://", "https://")):
+        raise BizException(R.GENERIC_PARAM, "AI 端点 URL 须以 http(s):// 开头")
+    set_value(db, ai.KEY_AI_ENABLED, "1" if a.enabled else "0", user_id, "AI 总开关")
+    set_value(db, ai.KEY_AI_BASE_URL, a.base_url.strip(), user_id, "AI 端点（OpenAI 兼容）")
+    set_value(db, ai.KEY_AI_MODEL, a.model.strip(), user_id, "AI 模型名")
+    set_value(db, ai.KEY_AI_TIMEOUT, str(a.timeout), user_id, "AI 超时秒数")
+    if a.api_key:  # 空 = 不修改
+        set_value(db, ai.KEY_AI_API_KEY, encrypt_text(a.api_key.strip()), user_id, "AI API Key（加密）")
 
 
 # ---------------- 消息通道（邮件 SMTP / 短信） ----------------
@@ -219,6 +250,8 @@ def update_settings(db: Session, body, user_id: int) -> dict:
             set_value(db, KEY_WECOM_SECRET, encrypt_text(w.secret.strip()), user_id, "企微 Secret（加密）")
     if body.messaging is not None:
         _update_messaging(db, body.messaging, user_id)
+    if body.ai is not None:
+        _update_ai(db, body.ai, user_id)
     return settings_out(db)
 
 

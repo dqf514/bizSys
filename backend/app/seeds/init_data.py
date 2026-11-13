@@ -299,6 +299,46 @@ MENU_TREE = [
         ],
     ),
     (
+        "menu.salesSystem",
+        "SalesSystem",
+        "",
+        "",
+        "Sell",
+        "",
+        [
+            (
+                "menu.quotations",
+                "Quotations",
+                "/sales/quotations",
+                "sales/QuotationList",
+                "Tickets",
+                "sales:quote:list",
+                [
+                    (None, "quote-create", "", "", "", "sales:quote:create", []),
+                    (None, "quote-edit", "", "", "", "sales:quote:edit", []),
+                    (None, "quote-submit", "", "", "", "sales:quote:submit", []),
+                    (None, "quote-send", "", "", "", "sales:quote:send", []),
+                    (None, "quote-feedback", "", "", "", "sales:quote:feedback", []),
+                    (None, "quote-to-contract", "", "", "", "sales:quote:to-contract", []),
+                    (None, "quote-export", "", "", "", "sales:quote:list:export", []),
+                ],
+            ),
+            (
+                "menu.quoteTemplates",
+                "QuoteTemplates",
+                "/sales/templates",
+                "sales/QuoteTemplateList",
+                "Collection",
+                "sales:template:list",
+                [
+                    (None, "template-create", "", "", "", "sales:template:create", []),
+                    (None, "template-edit", "", "", "", "sales:template:edit", []),
+                    (None, "template-publish", "", "", "", "sales:template:publish", []),
+                ],
+            ),
+        ],
+    ),
+    (
         "menu.system",
         "System",
         "",
@@ -610,6 +650,7 @@ NUMBER_RULES = [
     ("stock_in", "", "RK", 4, 2, 2, 4, 1, "", "daily", "RK202610090001"),
     ("stock_out", "", "CK", 4, 2, 2, 4, 1, "", "daily", "CK202610090001"),
     ("tender", "", "ZB", 4, 2, 2, 4, 1, "", "daily", "ZB202610090001"),
+    ("quotation", "", "BJ", 4, 2, 2, 4, 1, "", "daily", "BJ202610090001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -767,6 +808,14 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "hr:timesheet:list",
         "hr:timesheet:create",
         "hr:timesheet:list:export",
+        "sales:quote:list",
+        "sales:quote:create",
+        "sales:quote:edit",
+        "sales:quote:submit",
+        "sales:quote:send",
+        "sales:quote:feedback",
+        "sales:quote:to-contract",
+        "sales:quote:list:export",
     ]
     for p in biz_perms:
         if p in perm_to_id:
@@ -934,6 +983,15 @@ def _seed_flows(db: Session) -> None:
             remark="OA 默认两级顺序审批",
             nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
         )
+    # 销售报价：组织两级（发起人主部门负责人 → 上级部门负责人），同 OA 请假解析口径
+    _seed_flow(
+        db,
+        code="quote_approve",
+        name="报价审批",
+        biz_type="sales_quotation",
+        remark="组织两级审批：发起人主部门负责人 → 上级部门负责人（解析失败自动跳过）",
+        nodes=((1, "部门负责人审批", "DEPT_LEADER", ""), (2, "分管领导审批", "PARENT_DEPT_LEADER", "")),
+    )
 
 
 def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
@@ -1159,6 +1217,88 @@ def _seed_oa_forms(db: Session) -> None:
         )
 
 
+# (key, name, sort, layout)：预置报价模板（published），key+tpl_version=1 存在即跳过
+QUOTE_TEMPLATES = [
+    (
+        "standard",
+        "标准报价单",
+        1,
+        {
+            "headerHtml": "<h2>报价单</h2><p>上海机动车检测认证技术研究中心有限公司</p>",
+            "introHtml": "感谢贵司垂询。根据所述需求，报价明细如下：",
+            "termsHtml": "<p>1. 付款方式：合同签订后 7 个工作日内支付 50% 预付款，交付验收后支付余款。</p>"
+            "<p>2. 交付周期：以双方确认的项目计划为准。</p><p>3. 本报价含 6% 增值税。</p>",
+            "footerHtml": "<p>联系电话：021-xxxx-xxxx　邮箱：sales@example.com</p>",
+            "validDays": 30,
+            "itemColumns": [
+                {"key": "spec", "label": "", "visible": True},
+                {"key": "unit", "label": "", "visible": True},
+                {"key": "remark", "label": "", "visible": True},
+            ],
+        },
+    ),
+    (
+        "simple",
+        "简洁版报价单",
+        2,
+        {
+            "headerHtml": "<h2>报价单</h2>",
+            "introHtml": "根据贵司需求，报价如下：",
+            "termsHtml": "<p>付款方式：一次性付款。报价含税。</p>",
+            "footerHtml": "",
+            "validDays": 15,
+            "itemColumns": [
+                {"key": "spec", "label": "", "visible": False},
+                {"key": "unit", "label": "", "visible": True},
+                {"key": "remark", "label": "", "visible": False},
+            ],
+        },
+    ),
+    (
+        "bilingual",
+        "中英文版报价单",
+        3,
+        {
+            "headerHtml": "<h2>报价单 Quotation</h2><p>SMVIC Co., Ltd.</p>",
+            "introHtml": "感谢垂询，报价明细如下。/ Thank you for your inquiry. Please find our quotation below.",
+            "termsHtml": "<p>1. 付款 Payment: 50% advance, balance on delivery.</p>"
+            "<p>2. 有效期 Validity: 30 days from issue date.</p>",
+            "footerHtml": "<p>Tel: 021-xxxx-xxxx　Email: sales@example.com</p>",
+            "validDays": 30,
+            "itemColumns": [
+                {"key": "spec", "label": "规格 Spec", "visible": True},
+                {"key": "unit", "label": "单位 Unit", "visible": True},
+                {"key": "remark", "label": "备注 Remark", "visible": True},
+            ],
+        },
+    ),
+]
+
+
+def _seed_quote_templates(db: Session) -> None:
+    """预置报价模板：published（幂等：同 key+tpl_version=1 存在即跳过，同 _seed_oa_forms 口径）。"""
+    from app.modules.sales.models import SalesQuoteTemplate  # noqa: PLC0415 避免种子与模块加载循环
+
+    for key, name, sort, layout in QUOTE_TEMPLATES:
+        if db.scalar(
+            select(SalesQuoteTemplate).where(
+                SalesQuoteTemplate.key == key, SalesQuoteTemplate.tpl_version == 1, SalesQuoteTemplate.deleted == 0
+            )
+        ):
+            continue
+        db.add(
+            SalesQuoteTemplate(
+                key=key,
+                name=name,
+                tpl_version=1,
+                status="published",
+                sort=sort,
+                layout_json=json.dumps(layout, ensure_ascii=False),
+                published_at=datetime.now(),
+            )
+        )
+
+
 def main() -> None:
     db: Session = SessionLocal()
     try:
@@ -1171,6 +1311,7 @@ def main() -> None:
         _seed_org_memberships(db)
         _seed_flows(db)
         _seed_oa_forms(db)
+        _seed_quote_templates(db)
         db.commit()
         print(f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}")
     except Exception:

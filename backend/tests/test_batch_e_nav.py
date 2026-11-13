@@ -1,7 +1,7 @@
 """批次E：企业总导航三区重构。
 
 断言迁移脚本 migrate_nav_batch_e 幂等修复脏状态：
-- 顶层恰好为 工作台/业务系统/OA系统/系统管理（+隐藏的流程中心），无重复无残留；
+- 顶层恰好为 工作台/业务系统/OA系统/人事行政/销售系统/系统管理（+隐藏的流程中心），无重复无残留；
 - 各区子项 parent/sort 归一（业务区 报告在样品前；财务 开票→结算→到账）；
 - 同名重复目录去重、异名同 path 残留归位；
 - 连续执行两次结果一致。
@@ -67,9 +67,11 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
     migrate_nav()
     tree = _tree(client, admin_headers)
 
-    # 顶层：工作台 + 四区 + 隐藏流程中心；无重复、无业务残留
+    # 顶层：工作台 + 五区 + 隐藏流程中心；无重复、无业务残留
     top_names = [n["name"] for n in tree]
-    assert top_names == ["Workbench", "BizSystem", "OaSystem", "HrSystem", "System", "ApprovalCenter"], top_names
+    assert top_names == [
+        "Workbench", "BizSystem", "OaSystem", "HrSystem", "SalesSystem", "System", "ApprovalCenter",
+    ], top_names
     approval = _find(tree, "ApprovalCenter")
     assert approval and approval["visible"] == 0
 
@@ -96,6 +98,8 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
     assert [c["name"] for c in oa["children"]] == ["OaApply", "OaMy", "OaRelated", "OaStats"]
     hr = _find(tree, "HrSystem")
     assert [c["name"] for c in hr["children"]] == ["TimesheetFill", "TimesheetStats"]
+    sales = _find(tree, "SalesSystem")
+    assert [c["name"] for c in sales["children"]] == ["Quotations", "QuoteTemplates"]
     sy = _find(tree, "System")
     assert [c["name"] for c in sy["children"]] == ["SysOrg", "SysData", "OaAdmin", "SysOps"]
 

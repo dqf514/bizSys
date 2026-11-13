@@ -41,5 +41,8 @@
   "partnerAccount": "合作方账号",
   "hrSystem": "人事行政",
   "timesheetFill": "工时填报",
-  "timesheetStats": "工时统计"
+  "timesheetStats": "工时统计",
+  "salesSystem": "销售系统",
+  "quotations": "报价管理",
+  "quoteTemplates": "报价模板"
 }

@@ -1,6 +1,6 @@
 # 销售系统 · AI 报价设计文档
 
-> 状态：设计评审稿（未开发） · 2026-11-13
+> 状态：已实施（P1 骨架 + P2 AI，2026-11-13） · 与本文差异见末节「实施差异」
 > 范围：销售系统顶级区首个功能「报价单」——模板 CRUD + WYSIWYG、AI 辅助生成（OpenAI 兼容）、审批与发送、PDF/打印、导航整合。
 > 约定：沿用 AGENTS.md 全部规范（四件套模块、编号规则、审批引擎、权限码、i18n/tokens、SearchBar/StatusTabs/counts、导出模式）。
 
@@ -169,3 +169,24 @@ System prompt 内置（代码常量，带版本号）：输出**严格 JSON**（
 3. **P3 通道**：SMTP 邮件发送 + 服务端 PDF（weasyprint 评估）+ 企微通知集成。
 
 P1 即可形成完整线下闭环（打印即 PDF），P2/P3 增量解耦，互不阻塞。
+
+## 10. 实施差异（2026-11-13 落地口径，以此为准）
+
+- **模板版式全部收进 `layout_json`**（headerHtml/introHtml/termsHtml/footerHtml/validDays/itemColumns），
+  无独立 `default_terms` 列；明细列白名单固定 spec/unit/remark。
+- **报价单增加 `contact_email` 列**：邮件/auto_send 收件人来源（从客户主联系人带出，可改）。
+- **发送留痕独立表 `sales_quote_send_log`**（channel/recipient/result=real|debug|marked|skipped|failed/sender），
+  报价单上另冗余 sent_at/sent_channel/sent_to 便于列表展示。
+- **反馈允许 approved 或 sent 状态**（设计上仅 sent）；`expired` 状态与定时任务未实现（P3 遗留）。
+- **邮件复用现有 SMTP 设置**（settings/notify.py send_email，未配置自动走调试通道留痕），不做独立邮件配置；
+  **服务端 PDF 未做**，打印页浏览器另存 PDF（P3 遗留）。
+- AI 生成结果不落库，`ai_meta`（source/prompt_version/回退原因）由前端保存时透传落行；
+  金额一律服务端重算，不信任模型算术。
+- 转合同 `contract_type` 固定 sales（字典"销售合同"），幂等锚点 `contract_id`（重复转 64004）。
+- 错误码实际：64001 报价状态不允许 / 64002 模板未发布 / 64003 模板键冲突 / 64004 已转合同
+  （64003 语义与设计不同：AI 失败走历史/模板兜底，不再单独报错）。
+- 权限码实际：`sales:quote:list/create/edit/submit/send/feedback/to-contract/export`（biz_user 默认）+
+  `sales:template:list/create/edit/publish/delete`（默认仅 super；templates/options 挂 sales:quote:create 供 biz_user 下拉）。
+- 发送渠道 print/download 仅留痕（result=marked）；企微通道未做（P3 遗留）。
+- 测试数据前缀实际用 psq_（非 sl_），硬删清理；E2E 覆盖全链（设计器预览→AI 回退徽标→两级审批 UI→
+  打印标记送达→调试通道邮件→反馈接受→转合同预填→EN 抽查），已全绿。

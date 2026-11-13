@@ -41,5 +41,8 @@
   "partnerAccount": "Partner Accounts",
   "hrSystem": "HR & Admin",
   "timesheetFill": "Timesheets",
-  "timesheetStats": "Hours Stats"
+  "timesheetStats": "Hours Stats",
+  "salesSystem": "Sales",
+  "quotations": "Quotations",
+  "quoteTemplates": "Quote Templates"
 }

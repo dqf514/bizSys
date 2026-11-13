@@ -95,6 +95,7 @@
       "status": "状态"
     },
     "bizOa": "OA申请",
-    "bizTenderAward": "定标审批"
+    "bizTenderAward": "定标审批",
+    "bizSalesQuotation": "报价审批"
   }
 }

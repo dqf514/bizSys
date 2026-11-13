@@ -14,6 +14,15 @@ export interface SystemSettings {
   faviconUrl: string
   wecom: WecomSettings
   messaging: MessagingSettings
+  ai: AiSettings
+}
+
+export interface AiSettings {
+  enabled: boolean
+  baseUrl: string
+  apiKeySet: boolean
+  model: string
+  timeout: number
 }
 
 export interface EmailSettings {
@@ -71,6 +80,13 @@ export interface SystemSettingsUpdate {
       huawei?: { appKey: string; appSecret?: string; sender: string; templateId: string }
       customHttp?: { url: string; paramTemplate: string; authHeader?: string }
     }
+  }
+  ai?: {
+    enabled: boolean
+    baseUrl: string
+    apiKey?: string
+    model: string
+    timeout: number
   }
 }
 

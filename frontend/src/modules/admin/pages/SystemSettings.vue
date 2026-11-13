@@ -51,6 +51,10 @@ const testChannel = ref<'sms' | 'email'>('email')
 const testTarget = ref('')
 const testSending = ref(false)
 
+// ---- AI 设置 ----
+const savingAi = ref(false)
+const aiForm = reactive({ enabled: false, baseUrl: '', apiKey: '', apiKeySet: false, model: '', timeout: 30 })
+
 const logoSrc = computed(() => (basic.logoUrl ? `${basic.logoUrl}?v=${logoStamp.value}` : ''))
 const faviconSrc = computed(() => (basic.faviconUrl ? `${basic.faviconUrl}?v=${faviconStamp.value}` : ''))
 const callbackDisplay = computed(() => wecom.callbackUrl || `${window.location.origin}/login`)
@@ -89,6 +93,7 @@ async function load() {
     Object.assign(smsForm.tencent, { ...data.messaging.sms.tencent, secretKey: '' })
     Object.assign(smsForm.huawei, { ...data.messaging.sms.huawei, appSecret: '' })
     Object.assign(smsForm.customHttp, { ...data.messaging.sms.customHttp, authHeader: '' })
+    Object.assign(aiForm, { ...data.ai, apiKey: '' })
   } catch {
     /* http notifies */
   } finally {
@@ -206,6 +211,27 @@ async function saveSms() {
     /* http notifies */
   } finally {
     savingSms.value = false
+  }
+}
+
+async function saveAi() {
+  savingAi.value = true
+  try {
+    const ai: NonNullable<Parameters<typeof updateSettings>[0]['ai']> = {
+      enabled: aiForm.enabled,
+      baseUrl: aiForm.baseUrl.trim(),
+      model: aiForm.model.trim(),
+      timeout: aiForm.timeout || 30,
+    }
+    if (aiForm.apiKey.trim()) ai.apiKey = aiForm.apiKey.trim()
+    const data = await updateSettings({ ai })
+    aiForm.apiKey = ''
+    aiForm.apiKeySet = data.ai.apiKeySet
+    ElMessage.success(t('common.message.saveSuccess'))
+  } catch {
+    /* http notifies */
+  } finally {
+    savingAi.value = false
   }
 }
 
@@ -610,6 +636,42 @@ async function copyCallback() {
           </el-button>
           <el-button v-permission="'admin:setting:edit'" @click="openMessagingTest('sms')">
             {{ t('settings.messaging.testSend') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card class="settings-card" shadow="never">
+      <template #header>
+        <span class="card-title">{{ t('settings.ai.title') }}</span>
+      </template>
+      <el-form label-width="140px" class="settings-form">
+        <el-form-item :label="t('settings.ai.enabled')">
+          <el-switch v-model="aiForm.enabled" />
+          <span class="form-tip inline-tip">{{ t('settings.ai.tip') }}</span>
+        </el-form-item>
+        <el-form-item :label="t('settings.ai.baseUrl')">
+          <el-input v-model="aiForm.baseUrl" :placeholder="t('settings.ai.baseUrlPlaceholder')" maxlength="255" class="form-input" />
+        </el-form-item>
+        <el-form-item :label="t('settings.ai.apiKey')">
+          <el-input
+            v-model="aiForm.apiKey"
+            type="password"
+            show-password
+            :placeholder="aiForm.apiKeySet ? t('settings.ai.apiKeySetPlaceholder') : t('settings.ai.apiKeyPlaceholder')"
+            maxlength="255"
+            class="form-input"
+          />
+        </el-form-item>
+        <el-form-item :label="t('settings.ai.model')">
+          <el-input v-model="aiForm.model" :placeholder="t('settings.ai.modelPlaceholder')" maxlength="64" class="form-input" />
+        </el-form-item>
+        <el-form-item :label="t('settings.ai.timeout')">
+          <el-input-number v-model="aiForm.timeout" :min="1" :max="300" class="form-input" />
+        </el-form-item>
+        <el-form-item>
+          <el-button v-permission="'admin:setting:edit'" type="primary" :loading="savingAi" @click="saveAi">
+            {{ t('settings.ai.save') }}
           </el-button>
         </el-form-item>
       </el-form>

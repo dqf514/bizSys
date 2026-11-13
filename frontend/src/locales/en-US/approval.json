@@ -95,6 +95,7 @@
       "status": "Status"
     },
     "bizOa": "OA Request",
-    "bizTenderAward": "Tender Award"
+    "bizTenderAward": "Tender Award",
+    "bizSalesQuotation": "Quotation Approval"
   }
 }

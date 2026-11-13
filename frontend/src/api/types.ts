@@ -1367,3 +1367,117 @@ export interface HrStatsOption {
   deptName?: string
   contractNo?: string
 }
+
+// ---------------- 销售系统（AI 报价） ----------------
+
+export interface QuoteItemColumnConf {
+  key: string
+  label: string
+  visible: boolean
+}
+
+export interface QuoteTemplateLayout {
+  headerHtml: string
+  introHtml: string
+  termsHtml: string
+  footerHtml: string
+  validDays: number
+  itemColumns: QuoteItemColumnConf[]
+}
+
+export interface QuoteTemplate {
+  id: number
+  key: string
+  name: string
+  status: string
+  tplVersion: number
+  layout: QuoteTemplateLayout
+  sort: number
+  publishedAt: string
+  createTime: string
+  updateTime: string
+}
+
+export interface QuotationItem {
+  id?: number
+  seq?: number
+  name: string
+  spec: string
+  unit: string
+  qty: number
+  unitPrice: number
+  amount: number
+  remark: string
+}
+
+export interface Quotation {
+  id: number
+  quoteNo: string
+  title: string
+  customerId: number
+  customerName: string
+  contactName: string
+  contactPhone: string
+  contactEmail: string
+  templateId: number | null
+  tplVersion: number
+  requirement: string
+  introHtml: string
+  termsHtml: string
+  totalAmount: number
+  taxRate: number
+  currency: string
+  validUntil: string
+  status: string
+  aiMeta: string
+  autoSend: boolean
+  sentAt: string
+  sentChannel: string
+  sentTo: string
+  feedbackNote: string
+  flowInstanceId: number | null
+  contractId: number | null
+  createTime: string
+  updateTime: string
+  items?: QuotationItem[]
+  layout?: QuoteTemplateLayout
+  timeline?: TimelineRecord[]
+  sendLogs?: QuoteSendLog[]
+}
+
+export interface QuoteSendLog {
+  id: number
+  channel: string
+  recipient: string
+  result: string
+  detail: string
+  senderName: string
+  sentAt: string
+}
+
+export interface AiGenerateResult {
+  source: 'ai' | 'template' | 'history'
+  fallbackReason: string
+  title: string
+  introHtml: string
+  termsHtml: string
+  items: QuotationItem[]
+  aiMeta: string
+}
+
+export interface QuotationPayload {
+  title: string
+  customerId: number | undefined
+  contactName: string
+  contactPhone: string
+  contactEmail: string
+  templateId?: number | null
+  requirement: string
+  introHtml: string
+  termsHtml: string
+  taxRate: number
+  validUntil: string | null
+  autoSend: boolean
+  aiMeta: string
+  items: Partial<QuotationItem>[]
+}

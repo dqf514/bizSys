@@ -88,5 +88,19 @@
     "testSentReal": "已通过真实通道发送",
     "providerPendingTip": "该厂商网关尚未联调：配置仅落库保存，发送走调试通道（生产环境将报错）",
     "notConfiguredTip": "未配置通道时验证码走调试通道（仅非生产环境可用），请至少配置一种通道"
+  },
+  "ai": {
+    "title": "AI 设置",
+    "enabled": "启用 AI 能力",
+    "baseUrl": "端点 URL（OpenAI 兼容）",
+    "baseUrlPlaceholder": "如 https://api.deepseek.com/v1 或企业网关地址",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "请输入 API Key",
+    "apiKeySetPlaceholder": "已配置（留空则不修改）",
+    "model": "模型名",
+    "modelPlaceholder": "如 deepseek-chat / gpt-4o-mini",
+    "timeout": "超时（秒）",
+    "tip": "用于销售报价的 AI 生成；未启用或未配置时自动回退「模板默认 / 历史报价复制」",
+    "save": "保存 AI 设置"
   }
 }
