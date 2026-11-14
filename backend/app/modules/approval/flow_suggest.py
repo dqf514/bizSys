@@ -15,23 +15,14 @@ from app.core.exceptions import BizException
 from app.modules.admin.models import Role
 from app.modules.approval.models import ApprovalDefinition
 from app.modules.auth.models import User
+from app.services import prompts
 
-SUGGEST_PROMPT_VERSION = "v1"
 SUGGEST_NODE_LIMIT = 8
 _DEF_SAMPLE_LIMIT = 5
 
 ORG_TYPES = ("DEPT_LEADER", "PARENT_DEPT_LEADER", "SUPERVISOR_CHAIN")
 APPROVER_TYPES = ("USER", "ROLE") + ORG_TYPES
 SIGN_MODES = ("or", "and")
-
-SUGGEST_SYSTEM = (
-    "你是企业审批流程设计助手。根据业务类型、金额/分类与组织角色清单，建议一条审批链，输出严格 JSON："
-    '{"nodes":[{"nodeName":"节点名","approverType":"USER|ROLE|DEPT_LEADER|PARENT_DEPT_LEADER|SUPERVISOR_CHAIN",'
-    '"approverValue":"USER 时为用户ID，ROLE 时为角色code，组织类型可空","signMode":"or|and"}],'
-    '"rationale":"设计理由（120字内）"}。规则：1-6 个审批节点；审批人只能从给定的用户/角色清单中选；'
-    "金额较大时建议增加高层级节点；组织类型含义：DEPT_LEADER=发起人部门负责人，"
-    "PARENT_DEPT_LEADER=上级部门负责人，SUPERVISOR_CHAIN=逐级负责人链。只输出 JSON，不要输出其他内容。"
-)
 
 
 def _enabled_users(db: Session) -> list[dict]:
@@ -160,7 +151,7 @@ def ai_suggest(db: Session, user: User, biz_type: str, name: str = "",
         "existingDefinitions": _sample_definitions(db, biz_type),
     }
     messages = [
-        {"role": "system", "content": SUGGEST_SYSTEM},
+        {"role": "system", "content": prompts.get("flow_route")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -170,7 +161,7 @@ def ai_suggest(db: Session, user: User, biz_type: str, name: str = "",
             messages=messages,
             user=user,
             biz_type="approval_definition",
-            prompt_version=SUGGEST_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("flow_route"),
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc

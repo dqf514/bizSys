@@ -11,6 +11,7 @@ from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
+from app.services import prompts
 
 EDITABLE = ("draft", "rejected")
 
@@ -92,15 +93,6 @@ def load_customer_name(db: Session, customer_id: int) -> str:
 
 # ---------------- AI 合同识别（上传合同文件 → 字段抽取草稿，人工确认后才落库） ----------------
 
-CONTRACT_PARSE_PROMPT_VERSION = "v1"
-CONTRACT_PARSE_SYSTEM = (
-    "你是合同信息抽取助手。从合同内容中抽取字段，输出严格 JSON："
-    '{"name": "合同名称", "customerName": "对方单位/客户名称", "amount": 金额数字(无则0), '
-    '"startDate": "YYYY-MM-DD 或空", "endDate": "YYYY-MM-DD 或空", '
-    '"payCycle": "付款周期(如 月结/季结/一次性)", "delivery": "交付方式", "sealType": "盖章类型", '
-    '"paymentOrg": "付款单位", "contactPerson": "联系人", "contactPhone": "联系电话", '
-    '"remark": "一句合同要点概述"}。只输出 JSON，未知字段留空字符串或 0。'
-)
 PARSE_FIELDS = (
     "name", "customerName", "amount", "startDate", "endDate", "payCycle",
     "delivery", "sealType", "paymentOrg", "contactPerson", "contactPhone", "remark",
@@ -154,13 +146,13 @@ def ai_parse_contract(db: Session, current: User, filename: str, data: bytes) ->
             f"不支持的文件类型：{ext or '无扩展名'}（限 {'/'.join(sorted(ai_svc.TEXT_EXTS | ai_svc.IMAGE_EXTS))}）",
         )
     messages = [
-        {"role": "system", "content": CONTRACT_PARSE_SYSTEM},
+        {"role": "system", "content": prompts.get("contract_ocr")["system"]},
         {"role": "user", "content": user_msg},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="contract_ocr", messages=messages, user=current,
-            biz_type="contract", prompt_version=CONTRACT_PARSE_PROMPT_VERSION, images=images,
+            biz_type="contract", prompt_version=prompts.feature_version("contract_ocr"), images=images,
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试或手工填写") from exc
@@ -189,16 +181,6 @@ def ai_parse_contract(db: Session, current: User, filename: str, data: bytes) ->
 
 # ---------------- AI 合同风险审查（表单字段 + 可选合同原文 → 风险清单，仅展示不落库） ----------------
 
-CONTRACT_RISK_PROMPT_VERSION = "v1"
-CONTRACT_RISK_SYSTEM = (
-    "你是合同风险审查助手。根据合同表单字段（JSON）"
-    "与可能附带的合同原文，做条款风险检查，输出严格 JSON："
-    '{"risks":[{"level":"high|mid|low","clause":"条款/方面","issue":"问题描述","suggestion":"修改建议"}],'
-    '"missingClauses":["缺失条款名称"],"summary":"总体评价（50字内）"}。'
-    "检查维度：付款条款（比例/节点/账期是否明确合理）、违约责任是否对等、金额/日期相互矛盾、"
-    "（有原文时）金额大小写一致性；缺失条款参考：验收、保密、争议解决、不可抗力、知识产权。"
-    "只输出 JSON，无风险时 risks 给空数组，拿不准的级别给 low。"
-)
 RISK_LEVELS = ("high", "mid", "low")
 
 # 送审字段白名单（prompt 只放必要字段）
@@ -260,7 +242,7 @@ def ai_risk_review(
     elif not images:
         parts.append("（未提供合同原文，请仅按表单字段做基础审查，并在 missingClauses 中提示补充原文可复核项）")
     messages = [
-        {"role": "system", "content": CONTRACT_RISK_SYSTEM},
+        {"role": "system", "content": prompts.get("contract_risk")["system"]},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
     try:
@@ -271,7 +253,7 @@ def ai_risk_review(
             user=current,
             biz_type="contract",
             biz_id=int(fields.get("id") or 0) or None,
-            prompt_version=CONTRACT_RISK_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("contract_risk"),
             images=images,
         )
     except ai_svc.AiUnavailable as exc:

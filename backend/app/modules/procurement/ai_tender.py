@@ -17,22 +17,14 @@ from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.modules.portal import service as portal_svc
 from app.modules.procurement.models import TenderBid, TenderProject
+from app.services import prompts
 
-SCREEN_PROMPT_VERSION = "v1"
 SCREEN_STATUSES = ("evaluating", "awarding", "awarded")
 VERDICTS = ("comply", "deviate", "manual")
 _MAX_BIDS = 10
 _MAX_REQUIREMENTS = 10
 _PROPOSAL_CHARS = 4000
 _ANNOUNCEMENT_CHARS = 6000
-
-SCREEN_SYSTEM = (
-    "你是招投标评标助手。根据招标公告要求与各投标文件文本，输出严格 JSON："
-    '{"requirements":["公告中的实质性要求，最多10条，每条40字内"],'
-    '"bids":[{"bidId":数字,"results":[{"requirement":"对应要求原文","verdict":"comply|deviate|manual","note":"依据，40字内"}]}]}。'
-    "verdict 口径：comply=符合，deviate=偏离/不满足，manual=文本不足以判断、需人工确认；"
-    "bidId 必须来自给定的投标清单；每条要求对每个投标都要给出结论。只输出 JSON，不要输出其他内容。"
-)
 
 
 def _tender_bids(db: Session, tid: int) -> list[TenderBid]:
@@ -141,7 +133,7 @@ def ai_bid_screen(db: Session, user: User, tender: TenderProject) -> dict:
         ],
     }
     messages = [
-        {"role": "system", "content": SCREEN_SYSTEM},
+        {"role": "system", "content": prompts.get("tender_assist")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -152,7 +144,7 @@ def ai_bid_screen(db: Session, user: User, tender: TenderProject) -> dict:
             user=user,
             biz_type="tender",
             biz_id=tender.id,
-            prompt_version=SCREEN_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("tender_assist"),
             max_tokens=4000,
         )
     except ai_svc.AiUnavailable as exc:

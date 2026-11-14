@@ -25,6 +25,8 @@ from app.modules.crm.models import Customer
 from app.modules.sales import schemas as S
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.services import ai as ai_svc
+from app.services import masking as masking_svc
+from app.services import prompts
 from app.services.numbering import next_no
 
 logger = logging.getLogger("bizsys.sales")
@@ -32,16 +34,6 @@ logger = logging.getLogger("bizsys.sales")
 EDITABLE = ("draft", "rejected")
 FEEDBACKABLE = ("approved", "sent")
 QUOTE_STATUSES = ("draft", "approving", "approved", "rejected", "sent", "accepted", "declined", "voided")
-
-PROMPT_VERSION = "v1"
-AI_SYSTEM_PROMPT = (
-    "你是企业报价助手。根据客户需求生成报价草稿，输出严格 JSON："
-    '{"title": "报价标题", "introHtml": "报价说明(纯文本或简单HTML)", '
-    '"termsHtml": "报价条款(付款方式/交付周期/质保等)", '
-    '"items": [{"name": "项目名称", "spec": "规格说明", "unit": "单位", '
-    '"qty": 数量数字, "unitPrice": 单价数字, "remark": "备注"}]}。'
-    "只输出 JSON，不要输出其他文字。价格不明时 unitPrice 填 0 并在 remark 标注待询价。"
-)
 
 
 def _layout_of(tpl: SalesQuoteTemplate) -> dict:
@@ -670,7 +662,7 @@ def _history_quotations(db: Session, customer_id: int, limit: int = 3) -> list[S
 
 
 def _ai_meta(source: str, fallback_reason: str = "", model: str = "") -> str:
-    meta: dict = {"source": source, "promptVersion": PROMPT_VERSION}
+    meta: dict = {"source": source, "promptVersion": prompts.feature_version("quote")}
     if fallback_reason:
         meta["fallbackReason"] = fallback_reason
     if model:
@@ -736,7 +728,7 @@ def _build_prompt(requirement: str, customer_name: str, layout: dict, history: l
     if history:
         parts.append(f"该客户最近历史报价（参考口径与价格水平）：\n{_history_summary(history)}")
     return [
-        {"role": "system", "content": AI_SYSTEM_PROMPT},
+        {"role": "system", "content": prompts.get("quote")["system"]},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 
@@ -813,7 +805,8 @@ def ai_generate(db: Session, current: User, body: S.AiGenerateIn) -> dict:
     if not ai_svc.ai_ready(db):
         ai_svc.log_usage(db, feature="quote", status=ai_svc.USAGE_FALLBACK, error="ai_not_configured",
                          user=current, biz_type="sales_quotation", biz_id=q.id if q else None,
-                         prompt_version=PROMPT_VERSION)
+                         prompt_version=prompts.feature_version("quote"),
+                         masking=masking_svc.effective_level(db, "quote"))
         return _template_fallback(layout, "ai_not_configured")
 
     history = _history_quotations(db, customer_id, limit=3)
@@ -821,7 +814,8 @@ def ai_generate(db: Session, current: User, body: S.AiGenerateIn) -> dict:
     try:
         raw = ai_svc.gateway_chat(
             db, feature="quote", messages=messages, user=current,
-            biz_type="sales_quotation", biz_id=q.id if q else None, prompt_version=PROMPT_VERSION,
+            biz_type="sales_quotation", biz_id=q.id if q else None,
+            prompt_version=prompts.feature_version("quote"),
         )
         data = _parse_ai_json(raw)
     except ai_svc.AiQuotaExceeded:

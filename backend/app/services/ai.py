@@ -1,20 +1,25 @@
 """AI 统一网关：OpenAI 兼容 chat completions 封装 + 用量日志 + 功能开关 + 配额控制。
 
 所有 AI 调用必须经 gateway_chat 进出：
-- 配置读 sys_config（系统设置页"AI 设置"卡片维护连接；AI 中心"AI 设置"页维护功能开关/配额）：
+- 配置读 sys_config（系统设置页"AI 设置"卡片维护连接；AI 中心"AI 设置"页维护功能开关/配额/脱敏/单价）：
   ai.enabled / ai.base_url / ai.api_key(AES-GCM) / ai.model / ai.timeout / ai.vision_model(空=复用 ai.model)
   ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query|
   hr_prefill|oa_prefill|flow_route|flow_anomaly|tender_assist|sample_ocr|invoice_ocr|price_ref|assistant|
   daily_digest|knowledge}
   功能开关，缺省 1
   ai.quota.user_daily_calls / ai.quota.user_daily_tokens / ai.quota.global_daily_tokens  0=不限
-- 每次调用落 ai_usage_log（success/error/fallback 三态，token 统计只计 success）；
+  ai.masking.level  脱敏级别 off/standard/strict（缺省 standard，见 services/masking.py）
+  ai.model_prices   模型单价 JSON {"<model>": {"input": x, "output": y}}（每千 token，无单价成本记 null）
+- 出网 prompt 统一过脱敏层（messages 的文本片段，按实际生效级别掩码）；
+- 每次调用落 ai_usage_log（success/error/fallback 三态，token 统计只计 success，
+  记录实际脱敏级别；成功调用按当时单价估算成本）；
 - 未配置/网络失败/结构不符抛 AiUnavailable（业务方走回退）；功能停用/配额超限抛
   AiFeatureDisabled/AiQuotaExceeded（BizException，回前端明确错误码 65002/65003）。
 """
 
 import base64
 import io
+import json
 import logging
 import time
 from datetime import date
@@ -30,6 +35,7 @@ from app.core.crypto import decrypt_text
 from app.core.exceptions import BizException
 from app.modules.aicenter.models import AiUsageLog
 from app.modules.settings.service import get_value
+from app.services import masking as masking_svc
 
 logger = logging.getLogger("bizsys.ai")
 
@@ -43,6 +49,7 @@ KEY_FEATURE_PREFIX = "ai.feature."
 KEY_QUOTA_USER_CALLS = "ai.quota.user_daily_calls"
 KEY_QUOTA_USER_TOKENS = "ai.quota.user_daily_tokens"
 KEY_QUOTA_GLOBAL_TOKENS = "ai.quota.global_daily_tokens"
+KEY_MODEL_PRICES = "ai.model_prices"  # JSON {"<model>": {"input": x, "output": y}} 每千 token 单价
 
 DEFAULT_TIMEOUT = 30
 
@@ -152,6 +159,21 @@ def check_quota(db: Session, user_id: int | None) -> None:
             raise AiQuotaExceeded("global_daily_tokens")
 
 
+def model_price(db: Session, model: str) -> tuple[float, float] | None:
+    """模型单价（input, output，每千 token）。未配置/解析失败返回 None（成本记 null）。"""
+    raw = get_value(db, KEY_MODEL_PRICES)
+    if not raw or not model:
+        return None
+    try:
+        prices = json.loads(raw)
+        entry = prices.get(model)
+        if not isinstance(entry, dict):
+            return None
+        return float(entry["input"]), float(entry["output"])
+    except (ValueError, TypeError, KeyError):
+        return None
+
+
 def log_usage(
     db: Session,
     *,
@@ -166,6 +188,8 @@ def log_usage(
     biz_type: str = "",
     biz_id: int | None = None,
     prompt_version: str = "",
+    masking: str = "",
+    cost: float | None = None,
 ) -> None:
     """落一行用量日志（同事务；不吞业务异常）。"""
     db.add(
@@ -182,13 +206,15 @@ def log_usage(
             biz_type=biz_type,
             biz_id=biz_id,
             prompt_version=prompt_version,
+            masking=masking,
+            cost=cost,
             create_by=user.id if user else None,
         )
     )
     db.flush()
 
 
-def _row_kw(*, feature: str, user, biz_type: str, biz_id: int | None, prompt_version: str) -> dict:
+def _row_kw(*, feature: str, user, biz_type: str, biz_id: int | None, prompt_version: str, masking: str) -> dict:
     return {
         "user_id": user.id if user else None,
         "user_name": (user.name or user.username) if user else "",
@@ -196,6 +222,7 @@ def _row_kw(*, feature: str, user, biz_type: str, biz_id: int | None, prompt_ver
         "biz_type": biz_type,
         "biz_id": biz_id,
         "prompt_version": prompt_version,
+        "masking": masking,
         "create_by": user.id if user else None,
     }
 
@@ -267,7 +294,11 @@ def gateway_chat(
     """
     cfg = ai_config(db)
     model = cfg["model"]
-    log_kw = _row_kw(feature=feature, user=user, biz_type=biz_type, biz_id=biz_id, prompt_version=prompt_version)
+    masking = masking_svc.effective_level(db, feature)
+    log_kw = _row_kw(
+        feature=feature, user=user, biz_type=biz_type, biz_id=biz_id,
+        prompt_version=prompt_version, masking=masking,
+    )
     if not (cfg["enabled"] and cfg["base_url"] and cfg["api_key"] and cfg["model"]):
         _write_log(status=USAGE_FALLBACK, error="ai_not_configured", **log_kw)
         raise AiUnavailable("AI 未启用或未配置")
@@ -291,6 +322,8 @@ def gateway_chat(
         last["content"] = parts
     else:
         msgs = messages
+    # 出网前统一脱敏（仅作用于发给 AI 的文本，不改库内数据）
+    msgs = masking_svc.mask_messages(msgs, masking, db)
     payload: dict = {"model": model, "messages": msgs, "temperature": 0.3, "max_tokens": max_tokens}
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -311,12 +344,17 @@ def gateway_chat(
         raise AiUnavailable(f"AI 调用网络失败：{type(exc).__name__}") from exc
 
     usage = data.get("usage") or {}
+    prompt_tokens = int(usage.get("prompt_tokens") or 0)
+    completion_tokens = int(usage.get("completion_tokens") or 0)
+    price = model_price(db, model)
+    cost = round((prompt_tokens * price[0] + completion_tokens * price[1]) / 1000, 6) if price else None
     _write_log(
         status=USAGE_SUCCESS,
         model=model,
-        prompt_tokens=int(usage.get("prompt_tokens") or 0),
-        completion_tokens=int(usage.get("completion_tokens") or 0),
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
         duration_ms=int((time.monotonic() - t0) * 1000),
+        cost=cost,
         **log_kw,
     )
     return content

@@ -1,6 +1,8 @@
-# AI 中心（统一网关 / 用量监控 / 配额）
+# AI 中心（统一网关 / 用量监控 / 配额 / 脱敏 / 成本）
 
-> 版本：2026-11 落地。后端 `app/services/ai.py` + `app/modules/aicenter/`；前端 `src/modules/admin/pages/AiUsage.vue`、`AiSettings.vue`。
+> 版本：2026-11 落地（AI-5 增补脱敏分级、成本估算、提示词注册表）。后端 `app/services/ai.py` +
+> `app/services/masking.py` + `app/services/prompts.py` + `app/modules/aicenter/`；
+> 前端 `src/modules/admin/pages/AiUsage.vue`、`AiSettings.vue`。
 
 ## 1. 架构
 
@@ -9,17 +11,21 @@
                   │                                  ▲
                   ├─ 功能开关 ai.feature.{f}           │（业务回滚不丢日志）
                   ├─ 配额检查（当日 success 聚合）      │
+                  ├─ 脱敏层（出网 prompt 掩码）         │
                   └─ OpenAI 兼容 POST {base_url}/chat/completions（429/5xx/网络重试 3 次）
 ```
 
 - 所有 AI 调用统一经 `gateway_chat()`，逐条落 `ai_usage_log`：用户、feature、模型、prompt/completion tokens、
-  耗时、状态（success/error/fallback）、错误/回退原因、关联业务（bizType/bizId）、prompt_version。
+  耗时、状态（success/error/fallback）、错误/回退原因、关联业务（bizType/bizId）、prompt_version、
+  实际脱敏级别 masking、估算成本 cost。
 - 日志用**独立 SessionLocal 提交**（`_write_log`）：业务事务回滚后用量记录仍保留，统计口径不被业务成败影响。
 - 配置全部存 sys_config：
   - 连接（系统设置 → AI 设置卡片）：`ai.enabled` / `ai.base_url` / `ai.api_key`（AES-GCM 加密）/
     `ai.model` / `ai.vision_model`（空 = 复用 model，图片类功能使用）/ `ai.timeout`
   - 功能开关（AI 中心 → AI 设置）：`ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query|hr_prefill|oa_prefill|flow_route|flow_anomaly|tender_assist|sample_ocr|invoice_ocr|price_ref|assistant|daily_digest|knowledge}`，缺省启用
   - 配额：`ai.quota.user_daily_calls` / `ai.quota.user_daily_tokens` / `ai.quota.global_daily_tokens`，0 = 不限
+  - 脱敏级别：`ai.masking.level` = off/standard/strict，缺省 standard（见 §4）
+  - 模型单价：`ai.model_prices` = JSON `{"<model>": {"input": x, "output": y}}`（每千 token，见 §5）
 - 环回/内网端点（127.0.0.1/localhost/::1）自动绕过系统代理（httpx trust_env 在 Windows 会读注册表代理）。
 
 ## 2. 异常语义
@@ -70,16 +76,51 @@
 | `procurement` | procurement:request:list | 按创建时间；预算合计；subject=self → 创建人 |
 | `quotation` | sales:quote:list | 按创建时间；报价合计；subject=self → 创建人 |
 
-## 4. 用量监控
+## 4. 出网脱敏（`app/services/masking.py`）
 
-页面 `/admin/ai/usage`（admin:ai:usage）：统计卡（累计调用/成功率/累计 tokens/活跃用户/平均耗时）+
-近 N 天趋势折线 + 按功能/模型柱状 + 按用户 Top10 + 明细分页（q/feature/status/时间段检索，admin:ai:usage:export 导出 xlsx）。
+- 所有 feature 的 prompt 在 `gateway_chat` 内构造 payload 前统一过脱敏层（字符串 content 与多模态
+  parts 的 text 片段），**只掩码发给 AI 的文本，不改库内数据**；每行用量日志记录实际生效级别。
+- 级别语义：
+  - `off`：不脱敏（例外见下）；
+  - `standard`（缺省）：掩码手机号（11 位 1 开头）、身份证号（18 位）、银行卡号（13-19 位连续数字）、邮箱；
+  - `strict`：standard 之上追加税号（15-20 位含字母的大写字母数字组合）+ 客户名称替换为代号
+    `客户#N`（按 crm_customer 启用客户 id 序稳定编号，仅处理长度 ≥4 的名称，长名优先避免子串误替换）。
+- **强制脱敏**：涉及个人信息的功能 `hr_prefill / oa_prefill / flow_anomaly / daily_digest / assistant / knowledge`
+  即使配置为 off 也按 standard 执行（`PERSONAL_FEATURES`）。
+- 设置入口：AI 中心 → AI 设置「出网脱敏」单选 + 说明文案；保存走 `PUT /admin/ai/settings {masking}`。
+
+## 5. 成本估算
+
+- 单价配置：AI 中心 → AI 设置「模型单价（每千 token）」动态行（模型名/输入/输出），存 `ai.model_prices` JSON；
+  同模型重复行后者为准，空列表清空。
+- 口径：成功调用落日志时按**当时**单价估算 `cost = (prompt_tokens×input + completion_tokens×output)/1000`
+  （保留 6 位小数，Numeric(12,6)）；模型无单价或配置解析失败 → cost = null，不计入成本聚合。
+- 展示：用量监控页「估算成本」统计卡（仅求和 cost 非空的 success 行）、按模型图增加成本系列、
+  明细与导出含 cost/masking 列。
+
+## 6. 提示词注册表（`app/services/prompts.py`）
+
+- 各 feature 的 system 模板集中在注册表：`{key: {feature, name, version, system}}`；
+  `report_assist` 按子用途拆为 `report_assist.conclusion/.proofread/.completeness` 三条（feature 同为 report_assist）。
+- 模块通过 `prompts.get(key)["system"]` / `prompts.feature_version(feature)` 取用，不再各自维护常量；
+  调整模板时递增 version（落 `ai_usage_log.prompt_version` 供回溯）。
+- 只读查看：`GET /admin/ai/prompts`（admin:ai:settings）→ `[{key,feature,name,version,systemPreview(前100字)}]`；
+  AI 设置页「提示词版本」表展示。**不提供在线编辑**，改模板 = 改代码发布。
+
+## 7. 用量监控
+
+页面 `/admin/ai/usage`（admin:ai:usage）：统计卡（累计调用/成功率/累计 tokens/估算成本/活跃用户/平均耗时）+
+近 N 天趋势折线 + 按功能/模型柱状（模型图含成本系列）+ 按用户 Top10 + 明细分页（q/feature/status/时间段检索，
+admin:ai:usage:export 导出 xlsx，含估算成本/脱敏级别列）。
 全部为 SQL 聚合，不拉全量。
 
-## 5. 新功能接入步骤
+## 8. 新功能接入步骤
 
 1. 在 `app/services/ai.py` 的 `FEATURES` 登记新 feature key。
-2. 业务 service 调 `gateway_chat(db, feature=..., messages=..., user=..., biz_type=..., biz_id=...)`；
+2. 在 `app/services/prompts.py` 注册表登记 `{feature, name, version, system}` 模板。
+3. 业务 service 调 `gateway_chat(db, feature=..., messages=..., user=..., biz_type=..., biz_id=...)`；
    `AiUnavailable` 决定回退或报错，不要在业务会话里自行写日志。
-3. 前端 `ai.json` 加 `feature.{key}` 文案（中英双语）；入口按钮经 `useAiCapabilities().featureOn(key)` 判断。
-4. AI 结果一律走「草稿 → 人工确认 → 落库」，不自动写业务表。
+   prompt 组装不需要关心脱敏——网关在出网前统一处理；含个人信息的功能把 feature 加入
+   `masking.PERSONAL_FEATURES` 即获得强制脱敏。
+4. 前端 `ai.json` 加 `feature.{key}` 文案（中英双语）；入口按钮经 `useAiCapabilities().featureOn(key)` 判断。
+5. AI 结果一律走「草稿 → 人工确认 → 落库」，不自动写业务表。

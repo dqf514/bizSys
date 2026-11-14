@@ -19,6 +19,7 @@ from app.core.exceptions import BizException
 from app.modules.admin.models import DictItem, Notify
 from app.modules.auth.models import User
 from app.modules.task.models import Task, TaskItem, TaskSample
+from app.services import prompts
 
 # action: (允许的前置状态, 目标状态或 None=动态)
 # 精简状态机（2026-10-21 评审）：assigning/assigned 并入 in_progress，closed 并入 finished
@@ -307,13 +308,6 @@ def next_sample_no(db: Session, task: Task) -> str:
 
 # ---------------- 进度记录（拍照记进度：AI 分析草稿 → 人工确认落库） ----------------
 
-PROGRESS_AI_PROMPT_VERSION = "v1"
-PROGRESS_AI_SYSTEM = (
-    "你是工程现场进度分析助手。根据任务信息与现场照片，评估工作进度，输出严格 JSON："
-    '{"percent": 0-100 的整数, "note": "进度描述（客观描述照片所见与进度判断依据，200 字以内）"}。'
-    "只输出 JSON。无法判断时 percent 填 0 并在 note 说明原因。"
-)
-
 
 def list_progress(db: Session, task_id: int) -> list[dict]:
     from app.modules.task.models import TaskProgressLog
@@ -370,7 +364,7 @@ def ai_analyze_progress(db: Session, task: Task, filename: str, data: bytes, use
     if not ai_svc.feature_enabled(db, "task_photo"):
         raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置或拍照进度功能已停用，请手工填写进度")
     messages = [
-        {"role": "system", "content": PROGRESS_AI_SYSTEM},
+        {"role": "system", "content": prompts.get("task_photo")["system"]},
         {"role": "user", "content": (
             f"任务：{task.task_name}\n工作内容：{(task.content or '')[:500]}\n"
             "请分析这张现场照片，给出进度百分比与描述。"
@@ -379,7 +373,7 @@ def ai_analyze_progress(db: Session, task: Task, filename: str, data: bytes, use
     try:
         raw = ai_svc.gateway_chat(
             db, feature="task_photo", messages=messages, user=user,
-            biz_type="task", biz_id=task.id, prompt_version=PROGRESS_AI_PROMPT_VERSION,
+            biz_type="task", biz_id=task.id, prompt_version=prompts.feature_version("task_photo"),
             json_mode=True, images=[(data, f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}")],
         )
     except ai_svc.AiUnavailable as exc:

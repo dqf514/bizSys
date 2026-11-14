@@ -9,14 +9,7 @@ from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.modules.finance.models import Invoice, Settlement
 from app.services import ai as ai_svc
-
-INVOICE_OCR_PROMPT_VERSION = "v1"
-INVOICE_OCR_SYSTEM = (
-    "你是发票识别助手。从发票图片或 PDF 文本中抽取字段，输出严格 JSON："
-    '{"invoiceNo":"发票号码","amount":价税合计金额(数字),"taxRate":税率百分数(数字，如 13 表示 13%，无则 null),'
-    '"buyer":"购买方名称","seller":"销售方名称","invoiceDate":"开票日期 YYYY-MM-DD"}。'
-    "只输出 JSON，看不清的字段留空（amount 给 0，taxRate 给 null），不要臆造。"
-)
+from app.services import prompts
 
 
 def parse_invoice_ocr(raw: str) -> dict:
@@ -62,13 +55,13 @@ def ai_ocr_invoice(db: Session, user: User, invoice: Invoice, filename: str, dat
     else:
         raise BizException(R.GENERIC_PARAM, f"不支持的发票文件类型：{ext or '无扩展名'}（限 pdf/jpg/jpeg/png）")
     messages = [
-        {"role": "system", "content": INVOICE_OCR_SYSTEM},
+        {"role": "system", "content": prompts.get("invoice_ocr")["system"]},
         {"role": "user", "content": user_msg},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="invoice_ocr", messages=messages, user=user,
-            biz_type="invoice", biz_id=invoice.id, prompt_version=INVOICE_OCR_PROMPT_VERSION,
+            biz_type="invoice", biz_id=invoice.id, prompt_version=prompts.feature_version("invoice_ocr"),
             json_mode=True, images=images,
         )
     except ai_svc.AiUnavailable as exc:

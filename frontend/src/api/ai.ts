@@ -2,6 +2,7 @@ import { download, request, toQuery } from './http'
 import type {
   AiCapabilities,
   AiCenterSettings,
+  AiPromptInfo,
   AiUsageRow,
   AiUsageStats,
   ApprovalAssistResult,
@@ -58,8 +59,14 @@ export function getAiCenterSettings() {
   return request<AiCenterSettings>({ url: '/admin/ai/settings', method: 'get' })
 }
 
-export function updateAiCenterSettings(data: Partial<Pick<AiCenterSettings, 'features' | 'quota'>>) {
+export function updateAiCenterSettings(
+  data: Partial<Pick<AiCenterSettings, 'features' | 'quota' | 'masking' | 'modelPrices'>>,
+) {
   return request<AiCenterSettings>({ url: '/admin/ai/settings', method: 'put', data })
+}
+
+export function listAiPrompts() {
+  return request<AiPromptInfo[]>({ url: '/admin/ai/prompts', method: 'get' })
 }
 
 // ---------------- AI 辅助（建议 → 人工确认 → 才保存） ----------------

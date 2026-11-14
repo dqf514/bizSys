@@ -1,6 +1,6 @@
 """AI 中心：ai_usage_log（全站 AI 调用用量日志，网关统一落行）+ ai_knowledge（知识库条目）。"""
 
-from sqlalchemy import BigInteger, Index, Integer, String, Text
+from sqlalchemy import BigInteger, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.models import BaseModel
@@ -29,6 +29,10 @@ class AiUsageLog(BaseModel):
     biz_type: Mapped[str] = mapped_column(String(32), default="", comment="关联业务类型")
     biz_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联业务 id")
     prompt_version: Mapped[str] = mapped_column(String(16), default="")
+    masking: Mapped[str] = mapped_column(String(8), default="", comment="实际生效脱敏级别 off/standard/strict")
+    cost: Mapped[float | None] = mapped_column(
+        Numeric(12, 6), nullable=True, comment="按当时单价估算的成本（无单价为 null）"
+    )
 
 
 class KnowledgeEntry(BaseModel):

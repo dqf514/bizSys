@@ -12,15 +12,9 @@ from app.modules.approval.models import ApprovalInstance, ApprovalTask
 from app.modules.auth.models import User
 from app.modules.task.models import Task
 from app.services import ai as ai_svc
+from app.services import prompts
 
 logger = logging.getLogger("bizsys.ai.digest")
-
-DIGEST_PROMPT_VERSION = "v1"
-DIGEST_SYSTEM = (
-    "你是工作助手。根据用户今日待办数据（JSON：待审批列表/进行中任务/临期或逾期任务），"
-    "生成一段话摘要（100字内，突出重点与风险），并列出最多 3 条重点提示。"
-    '输出严格 JSON：{"summary":"...","highlights":["..."]}。只输出 JSON。'
-)
 
 DUE_SOON_DAYS = 3
 
@@ -102,13 +96,13 @@ def daily_digest(db: Session, user: User) -> dict:
     if not ai_svc.feature_enabled(db, "daily_digest"):
         return {**_fallback_summary(todos), "todos": todos}
     messages = [
-        {"role": "system", "content": DIGEST_SYSTEM},
+        {"role": "system", "content": prompts.get("daily_digest")["system"]},
         {"role": "user", "content": json.dumps(todos, ensure_ascii=False)},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="daily_digest", messages=messages, user=user,
-            biz_type="daily_digest", prompt_version=DIGEST_PROMPT_VERSION,
+            biz_type="daily_digest", prompt_version=prompts.feature_version("daily_digest"),
             json_mode=True, max_tokens=500,
         )
         parsed = json.loads(raw.strip().removeprefix("```json").removesuffix("```").strip())

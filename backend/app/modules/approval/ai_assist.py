@@ -16,19 +16,9 @@ from app.core.exceptions import BizException
 from app.modules.approval.graph import parse_json
 from app.modules.approval.models import ApprovalCc, ApprovalInstance, ApprovalRecord, ApprovalTask
 from app.modules.auth.models import User
+from app.services import prompts
 
-ASSIST_PROMPT_VERSION = "v1"
 ASSIST_LEVELS = ("high", "mid", "low")
-
-ASSIST_SYSTEM = (
-    "你是企业审批助手。根据审批单快照与历史往来统计，输出严格 JSON："
-    '{"summary":"本单要点摘要（金额/单位/关键字段，80字内）",'
-    '"highlights":["要点，最多5条"],'
-    '"risks":[{"level":"high|mid|low","text":"风险描述"}]，最多5条，'
-    '"opinion":"建议审批意见草稿（客观中立、供审批人引用修改，60字内）"}。'
-    "风险参考角度：金额偏离历史均价、账期/付款条件异常、短期重复提交迹象、关键字段缺失；"
-    "无风险则 risks 给空数组。只输出 JSON，不要输出其他内容。"
-)
 
 _SNAPSHOT_MAX_KEYS = 30
 _SNAPSHOT_MAX_VAL = 200
@@ -195,7 +185,7 @@ def ai_assist(db: Session, user: User, instance_id: int) -> dict:
 
     ctx = build_assist_context(db, inst, user)
     messages = [
-        {"role": "system", "content": ASSIST_SYSTEM},
+        {"role": "system", "content": prompts.get("approval_assist")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -206,7 +196,7 @@ def ai_assist(db: Session, user: User, instance_id: int) -> dict:
             user=user,
             biz_type=inst.biz_type,
             biz_id=inst.biz_id,
-            prompt_version=ASSIST_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("approval_assist"),
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc

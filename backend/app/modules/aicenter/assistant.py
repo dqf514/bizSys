@@ -17,15 +17,7 @@ from app.modules.admin import service as admin_svc
 from app.modules.aicenter import knowledge as kb
 from app.modules.auth.models import User
 from app.services import ai as ai_svc
-
-ASSISTANT_PROMPT_VERSION = "v1"
-ASSISTANT_SYSTEM = (
-    "你是企业系统的全局助手。把用户消息分类为三种意图之一，输出严格 JSON：\n"
-    '1) 查数 query（询问业务数据/统计/数量/金额）：{"type":"query","question":"改写后的完整问题"}\n'
-    '2) 导航 navigate（想打开某个页面/功能）：{"type":"navigate","path":"候选菜单中最匹配的一项的 path"}\n'
-    '3) 指引 guide（询问怎么操作/流程/规则）：{"type":"guide","question":"改写后的完整问题"}\n'
-    "导航只能从给定的候选菜单中选择 path，不要编造路径。只输出 JSON。"
-)
+from app.services import prompts
 
 # 深链静态路由（不占菜单但可导航）
 STATIC_PATHS = ("/approval", "/profile", "/ai/knowledge", "/workbench")
@@ -114,13 +106,13 @@ def chat(db: Session, user: User, message: str, client_menus: list[dict]) -> dic
 
     menu_lines = "\n".join(f"- {c['title']}：{c['path']}" for c in cands) or "（无）"
     messages = [
-        {"role": "system", "content": ASSISTANT_SYSTEM},
+        {"role": "system", "content": prompts.get("assistant")["system"]},
         {"role": "user", "content": f"候选菜单：\n{menu_lines}\n\n用户消息：{message}"},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="assistant", messages=messages, user=user,
-            biz_type="assistant", prompt_version=ASSISTANT_PROMPT_VERSION,
+            biz_type="assistant", prompt_version=prompts.feature_version("assistant"),
             json_mode=True, max_tokens=500,
         )
         parsed = json.loads(raw.strip().removeprefix("```json").removesuffix("```").strip())

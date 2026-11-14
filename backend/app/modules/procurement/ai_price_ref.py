@@ -10,13 +10,7 @@ from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.modules.procurement.models import PurchaseRequest, PurchaseRequestItem, StockOrder, StockOrderItem
 from app.services import ai as ai_svc
-
-PRICE_REF_PROMPT_VERSION = "v1"
-PRICE_REF_SYSTEM = (
-    "你是采购价格分析助手。根据同品名历史采购价格统计（JSON：次数/均价/最低/最高/最近价）"
-    "与本次预估单价，给出一句简短点评（80字内）：偏离程度、是否合理、议价建议。"
-    '输出严格 JSON：{"comment":"..."}。只输出 JSON。无历史数据时 comment 给"暂无历史价格可参考"。'
-)
+from app.services import prompts
 
 MAX_SAMPLES = 200
 
@@ -80,7 +74,7 @@ def price_reference(db: Session, user: User, item_name: str, price: float | None
     comment = ""
     if ai_svc.feature_enabled(db, "price_ref"):
         messages = [
-            {"role": "system", "content": PRICE_REF_SYSTEM},
+            {"role": "system", "content": prompts.get("price_ref")["system"]},
             {"role": "user", "content": json.dumps(
                 {"itemName": item_name, "currentPrice": price, "stats": stats, "deviationPercent": deviation},
                 ensure_ascii=False,
@@ -89,7 +83,7 @@ def price_reference(db: Session, user: User, item_name: str, price: float | None
         try:
             raw = ai_svc.gateway_chat(
                 db, feature="price_ref", messages=messages, user=user,
-                biz_type="purchase_request", prompt_version=PRICE_REF_PROMPT_VERSION,
+                biz_type="purchase_request", prompt_version=prompts.feature_version("price_ref"),
                 json_mode=True, max_tokens=300,
             )
             parsed = json.loads(raw.strip().removeprefix("```json").removesuffix("```").strip())

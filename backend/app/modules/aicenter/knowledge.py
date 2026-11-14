@@ -14,14 +14,7 @@ from app.core.exceptions import BizException
 from app.modules.aicenter.models import KnowledgeEntry
 from app.modules.auth.models import User
 from app.services import ai as ai_svc
-
-KNOWLEDGE_PROMPT_VERSION = "v1"
-KNOWLEDGE_SYSTEM = (
-    "你是企业内部知识库问答助手。仅根据给出的知识库条目回答用户问题；"
-    "条目中没有的信息就明说「知识库暂无相关内容」，不要编造。"
-    '输出严格 JSON：{"answer":"回答（200字内，引用条目时注明条目名）","usedIds":[引用的条目id数组]}。'
-    "只输出 JSON。"
-)
+from app.services import prompts
 
 TOP_K = 3
 
@@ -113,13 +106,13 @@ def ask(db: Session, user: User, question: str) -> dict:
         f"[条目 {e.id}] {e.title}（{e.category or '未分类'}）\n{e.content[:1500]}" for e in entries
     ) or "（无命中条目）"
     messages = [
-        {"role": "system", "content": KNOWLEDGE_SYSTEM},
+        {"role": "system", "content": prompts.get("knowledge")["system"]},
         {"role": "user", "content": f"知识库条目：\n{ctx}\n\n问题：{question}"},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="knowledge", messages=messages, user=user,
-            biz_type="knowledge", prompt_version=KNOWLEDGE_PROMPT_VERSION,
+            biz_type="knowledge", prompt_version=prompts.feature_version("knowledge"),
             json_mode=True, max_tokens=800,
         )
         parsed = json.loads(raw.strip().removeprefix("```json").removesuffix("```").strip())

@@ -11,7 +11,7 @@ import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import { useListPage } from '@/composables/useListPage'
 import { exportAiUsage, getAiStats, listAiUsage } from '@/api/ai'
-import type { AiUsageRow, AiUsageStats } from '@/api/types'
+import type { AiFeatureKey, AiUsageRow, AiUsageStats } from '@/api/types'
 import { chartPalette, resolveToken, watchChartTheme } from '@/utils/chartTheme'
 
 defineOptions({ name: 'AiUsage' })
@@ -117,20 +117,33 @@ function renderCharts() {
     const c = echarts.init(byModelEl.value)
     c.setOption({
       tooltip: { trigger: 'axis' },
-      grid: { left: 40, right: 16, top: 24, bottom: 60 },
+      legend: { bottom: 0, textStyle: { color: axisText } },
+      grid: { left: 40, right: 48, top: 24, bottom: 60 },
       xAxis: {
         type: 'category',
         data: s.byModel.map((r) => r.model),
         ...axis,
         axisLabel: { rotate: 20, color: axisText },
       },
-      yAxis: { type: 'value', minInterval: 1, ...axis },
+      yAxis: [
+        { type: 'value', minInterval: 1, ...axis },
+        { type: 'value', ...axis },
+      ],
       series: [
         {
+          name: t('ai.usage.calls'),
           type: 'bar',
-          barWidth: 32,
+          barWidth: 24,
           itemStyle: { color: warning, borderRadius: [4, 4, 0, 0] },
           data: s.byModel.map((r) => r.calls),
+        },
+        {
+          name: t('ai.usage.cost'),
+          type: 'bar',
+          barWidth: 24,
+          yAxisIndex: 1,
+          itemStyle: { color: success, borderRadius: [4, 4, 0, 0] },
+          data: s.byModel.map((r) => r.cost),
         },
       ],
     })
@@ -157,9 +170,29 @@ onBeforeUnmount(() => {
 
 const searchModel = ref<Record<string, unknown>>({ q: '', feature: '', status: '', dateRange: null })
 
-const featureOptions = computed(() =>
-  ['quote', 'contract_ocr', 'task_photo', 'report_summary'].map((f) => ({ label: featureLabel(f), value: f })),
-)
+const FEATURE_OPTIONS: AiFeatureKey[] = [
+  'quote',
+  'contract_ocr',
+  'task_photo',
+  'report_summary',
+  'approval_assist',
+  'contract_risk',
+  'report_assist',
+  'nl_query',
+  'hr_prefill',
+  'oa_prefill',
+  'flow_route',
+  'flow_anomaly',
+  'tender_assist',
+  'sample_ocr',
+  'invoice_ocr',
+  'price_ref',
+  'assistant',
+  'daily_digest',
+  'knowledge',
+]
+
+const featureOptions = computed(() => FEATURE_OPTIONS.map((f) => ({ label: featureLabel(f), value: f })))
 const statusOptions = computed(() =>
   ['success', 'error', 'fallback'].map((s) => ({ label: t(`ai.status.${s}`), value: s })),
 )
@@ -200,6 +233,14 @@ const columns: ListColumn[] = [
   { prop: 'feature', labelKey: 'ai.usage.featureCol', width: 120, slot: 'feature' },
   { prop: 'model', labelKey: 'ai.usage.model', minWidth: 140, showOverflowTooltip: true },
   { prop: 'totalTokens', labelKey: 'ai.usage.tokens', width: 100, align: 'right' },
+  {
+    prop: 'cost',
+    labelKey: 'ai.usage.cost',
+    width: 100,
+    align: 'right',
+    formatter: (r) => (r.cost == null ? '-' : Number(r.cost).toFixed(6)),
+  },
+  { prop: 'masking', labelKey: 'ai.usage.masking', width: 90, formatter: (r) => String(r.masking || '-') },
   { prop: 'durationMs', labelKey: 'ai.usage.duration', width: 90, align: 'right', formatter: (r) => `${r.durationMs} ms` },
   { prop: 'status', labelKey: 'ai.usage.statusCol', width: 90, slot: 'status' },
   { prop: 'error', labelKey: 'ai.usage.errorCol', minWidth: 180, showOverflowTooltip: true },
@@ -231,6 +272,12 @@ function statusTagType(s: string) {
         <div class="stat-card">
           <div class="stat-label">{{ t('ai.usage.totalTokens') }}</div>
           <div class="stat-value">{{ stats.cards.totalTokens.toLocaleString() }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">{{ t('ai.usage.totalCost') }}</div>
+          <div class="stat-value">
+            {{ stats.cards.totalCost.toFixed(4) }}<span class="stat-unit">{{ t('ai.usage.costUnit') }}</span>
+          </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">{{ t('ai.usage.activeUsers') }}</div>
@@ -336,7 +383,7 @@ function statusTagType(s: string) {
 
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--bs-space-3);
 }
 

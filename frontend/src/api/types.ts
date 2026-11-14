@@ -1519,6 +1519,8 @@ export interface AiUsageRow {
   promptTokens: number
   completionTokens: number
   totalTokens: number
+  cost: number | null
+  masking: string
   durationMs: number
   status: AiUsageStatus
   error: string
@@ -1535,6 +1537,7 @@ export interface AiUsageStats {
     errorCalls: number
     fallbackCalls: number
     totalTokens: number
+    totalCost: number
     successRate: number
     activeUsers: number
     avgDurationMs: number
@@ -1542,7 +1545,23 @@ export interface AiUsageStats {
   trend: { date: string; calls: number; tokens: number }[]
   byFeature: { feature: string; calls: number; tokens: number }[]
   byUser: { userName: string; calls: number; tokens: number }[]
-  byModel: { model: string; calls: number; tokens: number }[]
+  byModel: { model: string; calls: number; tokens: number; cost: number }[]
+}
+
+export type AiMaskingLevel = 'off' | 'standard' | 'strict'
+
+export interface AiModelPrice {
+  model: string
+  input: number
+  output: number
+}
+
+export interface AiPromptInfo {
+  key: string
+  feature: string
+  name: string
+  version: string
+  systemPreview: string
 }
 
 export interface AiCenterSettings {
@@ -1553,6 +1572,8 @@ export interface AiCenterSettings {
     userDailyTokens: number
     globalDailyTokens: number
   }
+  masking: AiMaskingLevel
+  modelPrices: AiModelPrice[]
 }
 
 export interface AiCapabilities {

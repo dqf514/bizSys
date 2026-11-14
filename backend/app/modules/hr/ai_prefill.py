@@ -16,14 +16,7 @@ from app.modules.auth.models import User
 from app.modules.hr.models import HrTimesheet
 from app.modules.hr.service import _check_date, _fillable_task
 from app.modules.task.models import TaskProgressLog
-
-PREFILL_PROMPT_VERSION = "v1"
-
-PREFILL_SYSTEM = (
-    "你是工时填报助手。根据任务的近期进度记录与填报人近期工时，给出当日工时建议，输出严格 JSON："
-    '{"hours":数字（0.5-24，0.5 步进）,"content":"当日工作内容草稿（客观描述完成事项，200字内）"}。'
-    "参考当日已报工时合计，避免全天合计明显超过 24 小时；只输出 JSON，不要输出其他内容。"
-)
+from app.services import prompts
 
 _PROGRESS_LIMIT = 5
 _RECENT_LIMIT = 5
@@ -115,7 +108,7 @@ def ai_prefill(db: Session, user: User, task_id: int, work_date: date) -> dict:
         "dayUsedHours": ctx["dayUsedHours"],
     }
     messages = [
-        {"role": "system", "content": PREFILL_SYSTEM},
+        {"role": "system", "content": prompts.get("hr_prefill")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -126,7 +119,7 @@ def ai_prefill(db: Session, user: User, task_id: int, work_date: date) -> dict:
             user=user,
             biz_type="hr_timesheet",
             biz_id=task_id,
-            prompt_version=PREFILL_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("hr_prefill"),
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc

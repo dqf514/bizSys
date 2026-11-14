@@ -1,5 +1,6 @@
 """AI 中心业务：用量统计（SQL 聚合）/ 明细分页导出 / 功能开关与配额设置。"""
 
+import json
 from datetime import date, timedelta
 
 from sqlalchemy import func, select
@@ -11,6 +12,8 @@ from app.modules.aicenter import schemas as S
 from app.modules.aicenter.models import AiUsageLog
 from app.modules.settings.service import get_value, set_value
 from app.services import ai as ai_svc
+from app.services import masking as masking_svc
+from app.services import prompts
 
 STATUS_CN = {"success": "成功", "error": "失败", "fallback": "回退"}
 
@@ -24,6 +27,8 @@ def _row_out(r: AiUsageLog) -> dict:
         "promptTokens": r.prompt_tokens,
         "completionTokens": r.completion_tokens,
         "totalTokens": (r.prompt_tokens or 0) + (r.completion_tokens or 0),
+        "cost": float(r.cost) if r.cost is not None else None,
+        "masking": r.masking,
         "durationMs": r.duration_ms,
         "status": r.status,
         "error": r.error,
@@ -72,6 +77,8 @@ EXPORT_COLUMNS = [
     {"key": "promptTokens", "label": "Prompt Tokens", "width": 14},
     {"key": "completionTokens", "label": "Completion Tokens", "width": 16},
     {"key": "durationMs", "label": "耗时(ms)", "width": 10},
+    {"key": "cost", "label": "估算成本", "width": 12, "formatter": lambda v, _r: "-" if v is None else f"{v:.6f}"},
+    {"key": "masking", "label": "脱敏级别", "width": 10},
     {"key": "status", "label": "状态", "width": 10, "formatter": lambda v, _r: STATUS_CN.get(v, v)},
     {"key": "error", "label": "错误/回退原因", "width": 30},
 ]
@@ -97,6 +104,11 @@ def stats(db: Session, days: int = 30) -> dict:
     avg_ms = db.scalar(
         select(func.coalesce(func.avg(AiUsageLog.duration_ms), 0)).where(
             *base, AiUsageLog.status == ai_svc.USAGE_SUCCESS
+        )
+    ) or 0
+    total_cost = db.scalar(
+        select(func.coalesce(func.sum(AiUsageLog.cost), 0)).where(
+            *base, AiUsageLog.status == ai_svc.USAGE_SUCCESS, AiUsageLog.cost.isnot(None)
         )
     ) or 0
 
@@ -146,12 +158,13 @@ def stats(db: Session, days: int = 30) -> dict:
         ).all()
     ]
     by_model = [
-        {"model": m or "-", "calls": c, "tokens": int(tk)}
-        for m, c, tk in db.execute(
+        {"model": m or "-", "calls": c, "tokens": int(tk), "cost": float(cost)}
+        for m, c, tk, cost in db.execute(
             select(
                 AiUsageLog.model,
                 func.count(),
                 func.coalesce(func.sum(AiUsageLog.prompt_tokens + AiUsageLog.completion_tokens), 0),
+                func.coalesce(func.sum(AiUsageLog.cost), 0),
             )
             .where(*base, AiUsageLog.model != "")
             .group_by(AiUsageLog.model)
@@ -169,6 +182,7 @@ def stats(db: Session, days: int = 30) -> dict:
             "errorCalls": int(by_status.get(ai_svc.USAGE_ERROR, 0)),
             "fallbackCalls": int(by_status.get(ai_svc.USAGE_FALLBACK, 0)),
             "totalTokens": int(total_tokens),
+            "totalCost": float(total_cost),
             "successRate": round(success / done * 100, 1) if done else 0.0,
             "activeUsers": int(active_users),
             "avgDurationMs": int(avg_ms),
@@ -180,7 +194,22 @@ def stats(db: Session, days: int = 30) -> dict:
     }
 
 
-# ---------------- 功能开关 / 配额设置 ----------------
+# ---------------- 功能开关 / 配额 / 脱敏 / 单价设置 ----------------
+
+
+def _model_prices_out(db: Session) -> list[dict]:
+    raw = get_value(db, ai_svc.KEY_MODEL_PRICES)
+    if not raw:
+        return []
+    try:
+        prices = json.loads(raw)
+    except ValueError:
+        return []
+    return [
+        {"model": m, "input": float(v["input"]), "output": float(v["output"])}
+        for m, v in prices.items()
+        if isinstance(v, dict) and "input" in v and "output" in v
+    ]
 
 
 def center_settings_out(db: Session) -> dict:
@@ -198,6 +227,8 @@ def center_settings_out(db: Session) -> dict:
             "userDailyTokens": qi(ai_svc.KEY_QUOTA_USER_TOKENS),
             "globalDailyTokens": qi(ai_svc.KEY_QUOTA_GLOBAL_TOKENS),
         },
+        "masking": masking_svc.configured_level(db),
+        "modelPrices": _model_prices_out(db),
     }
 
 
@@ -213,7 +244,20 @@ def update_center_settings(db: Session, body: S.AiCenterSettingsIn, user_id: int
         set_value(db, ai_svc.KEY_QUOTA_USER_CALLS, str(q.userDailyCalls), user_id, "AI 每用户每日调用次数配额")
         set_value(db, ai_svc.KEY_QUOTA_USER_TOKENS, str(q.userDailyTokens), user_id, "AI 每用户每日 token 配额")
         set_value(db, ai_svc.KEY_QUOTA_GLOBAL_TOKENS, str(q.globalDailyTokens), user_id, "AI 全局每日 token 预算")
+    if body.masking is not None:
+        set_value(db, masking_svc.KEY_MASKING_LEVEL, body.masking, user_id, "AI 出网脱敏级别")
+    if body.modelPrices is not None:
+        # 同模型重复行以后者为准；空列表清空配置
+        prices = {p.model.strip(): {"input": p.input, "output": p.output} for p in body.modelPrices if p.model.strip()}
+        set_value(
+            db, ai_svc.KEY_MODEL_PRICES, json.dumps(prices, ensure_ascii=False), user_id, "AI 模型单价（每千 token）"
+        )
     return center_settings_out(db)
+
+
+def list_prompts() -> list[dict]:
+    """提示词注册表只读列表。"""
+    return prompts.list_prompts()
 
 
 def capabilities(db: Session) -> dict:

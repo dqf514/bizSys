@@ -25,18 +25,10 @@ from app.modules.approval.models import (
 from app.modules.auth.models import User
 from app.modules.oa.models import OaInstance
 from app.modules.oa.service import _flow_of, _oa_by_id
+from app.services import prompts
 
-ANOMALY_PROMPT_VERSION = "v1"
 SUGGESTION_TYPES = ("urge", "transfer", "restart", "other")
 _STUCK_WARN_HOURS = 24.0
-
-ANOMALY_SYSTEM = (
-    "你是流程运维助手。根据滞留审批单的信息与系统检测到的异常信号，输出严格 JSON："
-    '{"analysis":"滞留原因分析（结合信号，200字内）",'
-    '"suggestions":[{"type":"urge|transfer|restart|other","text":"建议说明（60字内）",'
-    '"userName":"转办/加签建议人选姓名（仅 transfer 时需要，须来自给定候选名单）"}]，最多4条}。'
-    "只输出 JSON，不要输出其他内容。"
-)
 
 
 def _pending_tasks(db: Session, flow: ApprovalInstance) -> list[ApprovalTask]:
@@ -205,7 +197,7 @@ def ai_anomaly(db: Session, user: User, inst_id: int) -> dict:
         "transferCandidates": candidates,
     }
     messages = [
-        {"role": "system", "content": ANOMALY_SYSTEM},
+        {"role": "system", "content": prompts.get("flow_anomaly")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -216,7 +208,7 @@ def ai_anomaly(db: Session, user: User, inst_id: int) -> dict:
             user=user,
             biz_type="oa",
             biz_id=inst.id,
-            prompt_version=ANOMALY_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("flow_anomaly"),
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc

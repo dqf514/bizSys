@@ -17,19 +17,11 @@ from app.modules.auth.models import User
 from app.modules.oa.models import OaForm, OaInstance
 from app.modules.oa.schemas import FormFieldIn
 from app.modules.oa.service import fields_of
+from app.services import prompts
 
-PREFILL_PROMPT_VERSION = "v1"
 PREFILLABLE_TYPES = ("text", "textarea", "number", "money", "date", "daterange", "select", "radio", "checkbox")
 _HISTORY_LIMIT = 3
 _VAL_MAX = 500
-
-PREFILL_SYSTEM = (
-    "你是表单填写助手。根据用户在同表单上的历史申请记录，为新申请预填字段值，输出严格 JSON："
-    '{"data":{"字段key":值,...}}。规则：只输出给定字段清单中的 key；'
-    "select/radio 值必须是该字段 options 之一；checkbox 值是 options 子集的数组；"
-    "number/money 输出数字；date 输出 YYYY-MM-DD；daterange 输出 [起,止] 数组；"
-    "取值以最近一条历史申请为主，缺失字段不要编造。只输出 JSON，不要输出其他内容。"
-)
 
 
 def _prefillable_fields(form: OaForm) -> list[FormFieldIn]:
@@ -127,7 +119,7 @@ def ai_prefill(db: Session, user: User, form_id: int) -> dict:
         "history": history,
     }
     messages = [
-        {"role": "system", "content": PREFILL_SYSTEM},
+        {"role": "system", "content": prompts.get("oa_prefill")["system"]},
         {"role": "user", "content": json.dumps(ctx, ensure_ascii=False)},
     ]
     try:
@@ -138,7 +130,7 @@ def ai_prefill(db: Session, user: User, form_id: int) -> dict:
             user=user,
             biz_type="oa_form",
             biz_id=form.id,
-            prompt_version=PREFILL_PROMPT_VERSION,
+            prompt_version=prompts.feature_version("oa_prefill"),
         )
     except ai_svc.AiUnavailable as exc:
         raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc

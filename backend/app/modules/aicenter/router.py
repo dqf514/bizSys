@@ -77,6 +77,14 @@ def put_center_settings(
     return data
 
 
+@router.get("/prompts")
+def list_prompts(
+    _: User = Depends(require_perm("admin:ai:settings")),
+):
+    """提示词注册表只读列表（版本与模板预览，集中维护在 services/prompts.py，不提供在线编辑）。"""
+    return svc.list_prompts()
+
+
 @cap_router.get("/capabilities")
 def ai_capabilities(
     _: User = Depends(get_current_user),

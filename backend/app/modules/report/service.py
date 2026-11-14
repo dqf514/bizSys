@@ -25,6 +25,7 @@ from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.modules.report.models import Report, ReportFile
 from app.modules.task.models import TaskItem
+from app.services import prompts
 
 logger = logging.getLogger("bizsys.report")
 
@@ -205,13 +206,6 @@ subscribe(ApprovalWithdrawn, _handle_withdrawn)
 
 # ---------------- AI 报告摘要（草稿 → 人工编辑 → 采用才写 remark） ----------------
 
-SUMMARY_PROMPT_VERSION = "v1"
-SUMMARY_SYSTEM = (
-    "你是检测报告摘要助手。根据报告文本与任务信息撰写「报告摘要/结论草稿」，"
-    "要求：客观、200-400 字、包含检测对象/依据标准/主要结果/结论建议；信息不足时基于任务信息概括并标注待补充。"
-    "直接输出摘要文本，不要输出标题以外的格式标记。"
-)
-
 
 def ai_summary(db: Session, r: Report, user: User) -> dict:
     """基于报告文件文本（可提取时）+ 任务信息生成摘要草稿；不落库。"""
@@ -241,13 +235,13 @@ def ai_summary(db: Session, r: Report, user: User) -> dict:
         except BizException:
             text_note = "\n\n（报告文件文本不可提取，请基于任务信息概括）"
     messages = [
-        {"role": "system", "content": SUMMARY_SYSTEM},
+        {"role": "system", "content": prompts.get("report_summary")["system"]},
         {"role": "user", "content": "\n".join(context) + text_note},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="report_summary", messages=messages, user=user,
-            biz_type="report", biz_id=r.id, prompt_version=SUMMARY_PROMPT_VERSION,
+            biz_type="report", biz_id=r.id, prompt_version=prompts.feature_version("report_summary"),
             json_mode=False, max_tokens=1200,
         )
     except ai_svc.AiUnavailable as exc:
@@ -267,26 +261,6 @@ def update_remark(db: Session, r: Report, remark: str, user: User) -> Report:
 
 
 # ---------------- AI 全文辅助（结论草稿 / 校对 / 完整性检查；仅结论采用后落库） ----------------
-
-ASSIST_PROMPT_VERSION = "v1"
-
-CONCLUSION_SYSTEM = (
-    "你是检测报告结论撰写助手。根据任务/条目信息与报告文本，撰写「结论与测量不确定度」段落草稿："
-    "包含检测结论（样品是否满足依据标准的技术要求）与测量不确定度说明；信息不足处用【待补充：…】标注，"
-    "不得编造数值。仅输出 JSON：{\"conclusion\": \"段落文本\"}。"
-)
-
-PROOFREAD_SYSTEM = (
-    "你是检测报告校对助手。检查报告文本的错别字、标点误用、数字与单位格式、明显语病。"
-    "仅输出 JSON：{\"issues\": [{\"position\": \"章节或位置\", \"original\": \"原文片段\", "
-    "\"suggestion\": \"修改建议\"}]}；未发现问题时 issues 输出空数组。只列问题，不要改写全文。"
-)
-
-COMPLETENESS_SYSTEM = (
-    "你是检测报告完整性审查助手。检查报告文本是否缺少以下要素：报告编号、检测日期、签名/签章信息、"
-    "依据标准、结论段、测量不确定度说明、样品信息。仅输出 JSON：{\"issues\": [\"缺失项描述\", ...]}；"
-    "无缺失时输出空数组。"
-)
 
 
 def _assist_context(db: Session, r: Report) -> str:
@@ -421,9 +395,7 @@ def ai_assist(db: Session, r: Report, user: User, kind: str) -> dict:
         raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置，请联系管理员")
     # 功能停用由 gateway_chat 抛 AiFeatureDisabled（65002），与配额 65003 一并透传
 
-    system = {"conclusion": CONCLUSION_SYSTEM, "proofread": PROOFREAD_SYSTEM, "completeness": COMPLETENESS_SYSTEM}[
-        kind
-    ]
+    system = prompts.get(f"report_assist.{kind}")["system"]
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": _assist_context(db, r)},
@@ -431,7 +403,7 @@ def ai_assist(db: Session, r: Report, user: User, kind: str) -> dict:
     try:
         raw = ai_svc.gateway_chat(
             db, feature="report_assist", messages=messages, user=user,
-            biz_type="report", biz_id=r.id, prompt_version=ASSIST_PROMPT_VERSION,
+            biz_type="report", biz_id=r.id, prompt_version=prompts.feature_version("report_assist"),
             json_mode=True, max_tokens=2000,
         )
     except ai_svc.AiUnavailable as exc:

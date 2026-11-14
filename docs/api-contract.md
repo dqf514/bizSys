@@ -103,12 +103,17 @@
   subject=self 由后端解析为当前用户；非法域/解析失败 65004，未配置 65001，停用 65002；审计 ai_nl_query
 - 用量监控（admin:ai:usage）：
   - `GET /admin/ai/usage` 分页（q=userName/error；filters[feature,status]；range[create_time]=起|止；sort 白名单
-    `id,create_time,feature,status,user_name`）→ 行 `{id,userName,feature,model,promptTokens,completionTokens,totalTokens,durationMs,status:success|error|fallback,error,bizType,bizId,createTime}`
-  - `GET /admin/ai/usage/export`（admin:ai:usage:export，xlsx 流，同检索参数）
-  - `GET /admin/ai/stats?days=1..90` → `{days,cards:{totalCalls,successCalls,errorCalls,fallbackCalls,totalTokens,successRate,activeUsers,avgDurationMs},trend:[{date,calls,tokens}],byFeature[],byUser[](top10),byModel[]}`（全部 SQL 聚合）
+    `id,create_time,feature,status,user_name`）→ 行 `{id,userName,feature,model,promptTokens,completionTokens,totalTokens,cost:float|null,masking:off|standard|strict,durationMs,status:success|error|fallback,error,bizType,bizId,createTime}`
+  - `GET /admin/ai/usage/export`（admin:ai:usage:export，xlsx 流，同检索参数；含估算成本/脱敏级别列）
+  - `GET /admin/ai/stats?days=1..90` → `{days,cards:{totalCalls,successCalls,errorCalls,fallbackCalls,totalTokens,totalCost,successRate,activeUsers,avgDurationMs},trend:[{date,calls,tokens}],byFeature[],byUser[](top10),byModel[]({model,calls,tokens,cost})}`（全部 SQL 聚合；成本仅合计 cost 非空的 success 行）
 - 用量设置（admin:ai:settings，存 sys_config）：
-  - `GET /admin/ai/settings` → `{enabled,features:{...},quota:{userDailyCalls,userDailyTokens,globalDailyTokens}}`
-  - `PUT /admin/ai/settings` `{features?,quota?}`（quota 0=不限；审计 ai_settings_update）
+  - `GET /admin/ai/settings` → `{enabled,features:{...},quota:{userDailyCalls,userDailyTokens,globalDailyTokens},masking:off|standard|strict,modelPrices:[{model,input,output}]}`
+  - `PUT /admin/ai/settings` `{features?,quota?,masking?,modelPrices?}`（quota 0=不限；masking 语义见 docs/ai-center.md §4，
+    个人信息类 feature 强制 standard 起步；modelPrices 为每千 token 输入/输出单价，同模型重复行后者为准，
+    空数组清空；审计 ai_settings_update）
+- 提示词注册表（只读，admin:ai:settings）：`GET /admin/ai/prompts` →
+  `[{key,feature,name,version,systemPreview(前100字)}]`；模板集中维护在 `app/services/prompts.py`（report_assist 拆
+  conclusion/proofread/completeness 三条），在线不可编辑，调整需改代码并递增 version
 - 连接参数仍在系统设置 AI 卡片：`ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.vision_model(空=复用 model)/ai.timeout`
 - 错误码（65xxx）：65001 AI 未配置或功能已停用 / 65002 功能停用 / 65003 配额超限（quota:reason）/ 65004 AI 输出解析失败
 - 权限码：`admin:ai:usage` / `admin:ai:usage:export` / `admin:ai:settings` / `admin:ai:knowledge`（默认仅 super）

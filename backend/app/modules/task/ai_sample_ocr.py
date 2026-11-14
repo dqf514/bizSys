@@ -8,14 +8,7 @@ from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.auth.models import User
 from app.services import ai as ai_svc
-
-SAMPLE_OCR_PROMPT_VERSION = "v1"
-SAMPLE_OCR_SYSTEM = (
-    "你是样品标签识别助手。识别照片中的样品标签/铭牌，抽取字段，输出严格 JSON："
-    '{"name":"样品名称","model":"型号规格","vin":"VIN/车架号（无则空）",'
-    '"vehicleType":"车型（无则空）","sampleDate":"日期 YYYY-MM-DD（无则空）"}。'
-    "只输出 JSON，看不清的字段留空字符串，不要臆造。"
-)
+from app.services import prompts
 
 
 def ai_ocr_sample(db: Session, user: User, filename: str, data: bytes) -> dict:
@@ -26,13 +19,13 @@ def ai_ocr_sample(db: Session, user: User, filename: str, data: bytes) -> dict:
     if not ai_svc.ai_ready(db):
         raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置，请手工填写或联系管理员")
     messages = [
-        {"role": "system", "content": SAMPLE_OCR_SYSTEM},
+        {"role": "system", "content": prompts.get("sample_ocr")["system"]},
         {"role": "user", "content": "请识别这张样品标签照片，抽取样品字段。"},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="sample_ocr", messages=messages, user=user,
-            biz_type="task_sample", prompt_version=SAMPLE_OCR_PROMPT_VERSION,
+            biz_type="task_sample", prompt_version=prompts.feature_version("sample_ocr"),
             json_mode=True, images=[(data, f"image/{'jpeg' if ext in ('jpg', 'jpeg') else ext}")],
         )
     except ai_svc.AiUnavailable as exc:

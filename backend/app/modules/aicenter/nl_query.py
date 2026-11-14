@@ -28,26 +28,7 @@ from app.modules.procurement.models import PurchaseRequest
 from app.modules.sales.models import SalesQuotation
 from app.modules.task.models import Task
 from app.services import ai as ai_svc
-
-NLQ_PROMPT_VERSION = "v1"
-
-NLQ_SYSTEM = (
-    "你是企业系统的问数意图解析器。把用户问题解析为结构化查询意图 JSON，严禁输出 SQL 或自由文本。\n"
-    "可选 domain 域：\n"
-    "- task_volume 任务量（status: draft/approving/rejected/in_progress/finished/settled/stopped）\n"
-    "- contract_amount 合同额（status: draft/approving/approved/rejected/voided）\n"
-    "- receivable 应收未收（无 status 参数）\n"
-    "- settlement 结算（status: pending/invoicing/invoiced/paid）\n"
-    "- work_hours 工时（status: draft/submitted；仅统计提问人本人）\n"
-    "- procurement 采购申请（status: draft/approving/approved/rejected/voided）\n"
-    "- quotation 报价（status: draft/approving/approved/rejected/sent/accepted/declined/voided）\n"
-    "params 可选键：status（该域状态码之一）、customerName（客户名称关键字）；其余键禁止输出。\n"
-    "timeRange：{\"from\": \"YYYY-MM-DD\", \"to\": \"YYYY-MM-DD\"}；相对时间（如本月/上月/今年）按今天日期换算；"
-    "无时间语义则两个值都输出 null。\n"
-    "subject：问题限定“我/我的/本人”时输出 \"self\"，否则输出 null。\n"
-    "无法归类到上述域时 domain 输出 null。\n"
-    '仅输出 JSON：{"domain": ..., "params": {...}, "timeRange": {...}, "subject": ...}'
-)
+from app.services import prompts
 
 TASK_STATUS_CN = {
     "draft": "草稿", "approving": "审批中", "rejected": "已驳回", "in_progress": "进行中",
@@ -368,13 +349,13 @@ def ask(db: Session, user: User, question: str, context: dict | None = None) -> 
             user_msg_parts.append(f"上一轮查询时间范围：{ctx_from or '…'} 至 {ctx_to or '…'}（本轮未提新时间则沿用）")
     user_msg_parts.append(f"问题：{question}")
     messages = [
-        {"role": "system", "content": NLQ_SYSTEM},
+        {"role": "system", "content": prompts.get("nl_query")["system"]},
         {"role": "user", "content": "\n".join(user_msg_parts)},
     ]
     try:
         raw = ai_svc.gateway_chat(
             db, feature="nl_query", messages=messages, user=user,
-            biz_type="nl_query", prompt_version=NLQ_PROMPT_VERSION,
+            biz_type="nl_query", prompt_version=prompts.feature_version("nl_query"),
             json_mode=True, max_tokens=800,
         )
     except ai_svc.AiUnavailable as exc:

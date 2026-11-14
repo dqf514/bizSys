@@ -1,5 +1,7 @@
 """AI 中心入参。"""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -9,9 +11,19 @@ class AiQuotaIn(BaseModel):
     globalDailyTokens: int = Field(0, ge=0, le=100_000_000)
 
 
+class AiModelPriceIn(BaseModel):
+    """模型单价：每千 token 的输入/输出价格。"""
+
+    model: str = Field(..., min_length=1, max_length=64)
+    input: float = Field(..., ge=0, le=1000)
+    output: float = Field(..., ge=0, le=1000)
+
+
 class AiCenterSettingsIn(BaseModel):
     features: dict[str, bool] | None = None
     quota: AiQuotaIn | None = None
+    masking: Literal["off", "standard", "strict"] | None = None
+    modelPrices: list[AiModelPriceIn] | None = Field(None, max_length=50)
 
 
 class NlQueryContext(BaseModel):
