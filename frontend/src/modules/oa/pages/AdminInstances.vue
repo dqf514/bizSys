@@ -11,13 +11,17 @@ import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
+  aiOaAnomaly,
   listOaAdminInstances,
   oaAdminInstanceCounts,
   reassignOaInstance,
   restartOaInstance,
   terminateOaInstance,
+  urgeOaInstance,
+  type OaAnomalyResult,
 } from '@/api/oa'
 import { listUsers } from '@/api/admin'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
 import type { AdminUser, OaInstanceItem } from '@/api/types'
 
 defineOptions({ name: 'AdminInstances' })
@@ -78,17 +82,22 @@ const columns: ListColumn[] = [
 /** 仅流转中且有流程实例的单据可干预 */
 function rowActions(row: OaInstanceItem): ActionItem[] {
   if (!canIntervene(row)) return []
-  return [
+  const actions: ActionItem[] = [
     { key: 'reassign', tip: 'oa.handle.reassign', icon: 'Position', disabled: !row.pendingTasks?.length },
     { key: 'restart', tip: 'oa.handle.restart', icon: 'RefreshLeft' },
     { key: 'terminate', tip: 'oa.handle.terminate', icon: 'CircleClose', danger: true },
   ]
+  if (anomalyOn.value) {
+    actions.unshift({ key: 'aiAnomaly', tip: 'oa.handle.aiAnomaly', icon: 'MagicStick', disabled: !row.pendingTasks?.length })
+  }
+  return actions
 }
 
 function onRowAction(key: string, row: OaInstanceItem) {
   if (key === 'terminate') void doTerminate(row)
   else if (key === 'reassign') void openReassign(row)
   else if (key === 'restart') openRestart(row)
+  else if (key === 'aiAnomaly') void openAnomaly(row)
 }
 
 function switchStatus(v: string) {
@@ -189,7 +198,57 @@ async function doRestart() {
 
 const canIntervene = (row: OaInstanceItem) => row.status === 'running' && row.flowInstanceId > 0
 
+/* ---------- AI 异常分析 + 催办（分析不落库；催办人工点击才发送） ---------- */
+const aiCaps = useAiCapabilities()
+const anomalyOn = computed(() => aiCaps.featureOn('flow_anomaly'))
+const anomalyVisible = ref(false)
+const anomalyLoading = ref(false)
+const anomalyRow = ref<OaInstanceItem | null>(null)
+const anomalyResult = ref<OaAnomalyResult | null>(null)
+const urgeLoading = ref(false)
+
+const SUG_TAG: Record<string, 'warning' | 'primary' | 'danger' | 'info'> = {
+  urge: 'warning',
+  transfer: 'primary',
+  restart: 'danger',
+  other: 'info',
+}
+const SUG_LABEL: Record<string, string> = {
+  urge: 'oa.handle.sugUrge',
+  transfer: 'oa.handle.sugTransfer',
+  restart: 'oa.handle.sugRestart',
+  other: 'oa.handle.sugOther',
+}
+
+async function openAnomaly(row: OaInstanceItem) {
+  anomalyRow.value = row
+  anomalyResult.value = null
+  anomalyVisible.value = true
+  anomalyLoading.value = true
+  try {
+    anomalyResult.value = await aiOaAnomaly(row.id)
+  } catch {
+    /* http notifies */
+  } finally {
+    anomalyLoading.value = false
+  }
+}
+
+async function doUrge() {
+  if (!anomalyRow.value) return
+  urgeLoading.value = true
+  try {
+    const r = await urgeOaInstance(anomalyRow.value.id)
+    ElMessage.success(t('oa.handle.urgeDone', { count: r.urged }))
+  } catch {
+    /* http notifies */
+  } finally {
+    urgeLoading.value = false
+  }
+}
+
 onMounted(() => {
+  void aiCaps.ensureLoaded()
   void loadCounts()
   list.refresh()
 })
@@ -247,6 +306,44 @@ onMounted(() => {
     </template>
   </ListPage>
 
+  <el-dialog v-model="anomalyVisible" :title="t('oa.handle.aiAnomalyTitle')" width="560px" v-loading="anomalyLoading">
+    <template v-if="anomalyResult">
+      <div class="anomaly-section">
+        <div class="anomaly-label">{{ t('oa.handle.stuckNode') }}：{{ anomalyResult.stuck.nodeName || '-' }}</div>
+        <div class="anomaly-pending">
+          <el-tag v-for="p in anomalyResult.stuck.pending" :key="p.assigneeId" size="small" class="node-tag">
+            {{ p.assigneeName }}（{{ t('oa.handle.stuckHours', { hours: p.hours }) }}）
+          </el-tag>
+        </div>
+      </div>
+      <div class="anomaly-section">
+        <div class="anomaly-label">{{ t('oa.handle.signalTitle') }}</div>
+        <ul v-if="anomalyResult.signals.length" class="anomaly-list">
+          <li v-for="(s, i) in anomalyResult.signals" :key="i">{{ s }}</li>
+        </ul>
+        <div v-else class="anomaly-muted">{{ t('oa.handle.noSignal') }}</div>
+      </div>
+      <div v-if="anomalyResult.analysis" class="anomaly-section">
+        <div class="anomaly-label">{{ t('oa.handle.analysisTitle') }}</div>
+        <el-alert type="warning" :closable="false" :title="anomalyResult.analysis" />
+      </div>
+      <div v-if="anomalyResult.suggestions.length" class="anomaly-section">
+        <div class="anomaly-label">{{ t('oa.handle.suggestionTitle') }}</div>
+        <div v-for="(s, i) in anomalyResult.suggestions" :key="i" class="anomaly-sug">
+          <el-tag size="small" :type="SUG_TAG[s.type] ?? 'info'">{{ t(SUG_LABEL[s.type] ?? 'oa.handle.sugOther') }}</el-tag>
+          <span>{{ s.text }}</span>
+          <span v-if="s.userName" class="anomaly-muted">→ {{ s.userName }}</span>
+        </div>
+      </div>
+    </template>
+    <template #footer>
+      <el-button @click="anomalyVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button type="warning" plain :loading="urgeLoading" @click="doUrge">
+        {{ t('oa.handle.urgeSend') }}
+      </el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="reassignVisible" :title="t('oa.handle.reassignTitle')" width="440px">
     <el-form label-width="110px">
       <el-form-item :label="t('oa.handle.reassignTask')">
@@ -295,5 +392,36 @@ onMounted(() => {
 <style scoped>
 .no-op {
   color: var(--bs-color-fg-muted);
+}
+
+.anomaly-section {
+  margin-bottom: var(--bs-space-3);
+}
+
+.anomaly-label {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+  margin-bottom: var(--bs-space-1);
+}
+
+.anomaly-list {
+  margin: 0;
+  padding-left: var(--bs-space-4);
+  color: var(--bs-color-fg-default);
+}
+
+.anomaly-muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.anomaly-sug {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  margin-bottom: var(--bs-space-1);
+}
+
+.node-tag {
+  margin: 2px 4px 2px 0;
 }
 </style>

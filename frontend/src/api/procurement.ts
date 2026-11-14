@@ -243,3 +243,42 @@ export function downloadRegistrationAttachment(regId: number) {
 export function downloadBidProposal(bidId: number) {
   return download({ url: `/procurement/tenders/bids/${bidId}/proposal`, method: 'get' }, 'proposal')
 }
+
+// ---- AI 评标辅助（不落库） + 报价比对（确定性，非 AI） ----
+
+export interface BidScreenResult {
+  requirements: string[]
+  bids: {
+    bidId: number
+    companyName: string
+    extractable: boolean
+    results: { requirement: string; verdict: 'comply' | 'deviate' | 'manual'; note: string }[]
+  }[]
+}
+
+export function aiBidScreen(tenderId: number) {
+  return request<BidScreenResult>({ url: `/procurement/tenders/${tenderId}/ai-bid-screen`, method: 'post' })
+}
+
+export interface BidCompareResult {
+  budgetAmount: number | null
+  rows: {
+    bidId: number
+    companyName: string
+    price: number
+    deviationPercent: number | null
+    rank: number
+    submitAt: string
+  }[]
+}
+
+export function getBidCompare(tenderId: number) {
+  return request<BidCompareResult>({ url: `/procurement/tenders/${tenderId}/bid-compare`, method: 'get' })
+}
+
+export function exportBidCompare(tenderId: number) {
+  return download(
+    { url: `/procurement/tenders/${tenderId}/bid-compare/export`, method: 'get' },
+    `bid_compare_${tenderId}.xlsx`,
+  )
+}

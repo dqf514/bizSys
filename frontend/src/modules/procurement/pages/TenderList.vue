@@ -14,6 +14,9 @@ import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useDictOptions } from '@/composables/useDict'
 import {
+  aiBidScreen,
+  exportBidCompare,
+  getBidCompare,
   listTenders,
   tenderCounts,
   getTender,
@@ -31,7 +34,10 @@ import {
   downloadRegistrationAttachment,
   downloadBidProposal,
   listPurchaseRequests,
+  type BidCompareResult,
+  type BidScreenResult,
 } from '@/api/procurement'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
 import type { PurchaseRequest, TenderBid, TenderProject, TenderProjectDetail, TenderRegistration } from '@/api/types'
 
 defineOptions({ name: 'TenderList' })
@@ -403,6 +409,49 @@ async function doAward(bid: TenderBid) {
 
 const genSaving = ref(false)
 
+/* ---------- AI 评标辅助 + 报价比对（比对为确定性计算；初筛仅辅助不落库） ---------- */
+const aiCaps = useAiCapabilities()
+const screenOn = computed(() => aiCaps.featureOn('tender_assist'))
+const assistVisible = ref(false)
+const assistLoading = ref(false)
+const compareResult = ref<BidCompareResult | null>(null)
+const screenResult = ref<BidScreenResult | null>(null)
+
+const VERDICT_TAG: Record<string, 'success' | 'danger' | 'info'> = {
+  comply: 'success',
+  deviate: 'danger',
+  manual: 'info',
+}
+const VERDICT_LABEL: Record<string, string> = {
+  comply: 'procurement.tender.verdictComply',
+  deviate: 'procurement.tender.verdictDeviate',
+  manual: 'procurement.tender.verdictManual',
+}
+
+async function openBidAssist() {
+  if (!detail.value) return
+  assistVisible.value = true
+  assistLoading.value = true
+  compareResult.value = null
+  screenResult.value = null
+  try {
+    compareResult.value = await getBidCompare(detail.value.id)
+    if (screenOn.value) {
+      screenResult.value = await aiBidScreen(detail.value.id)
+    }
+  } catch {
+    /* http notifies */
+  } finally {
+    assistLoading.value = false
+  }
+}
+
+function doExportCompare() {
+  if (detail.value) void exportBidCompare(detail.value.id)
+}
+
+onMounted(() => void aiCaps.ensureLoaded())
+
 async function doGenerateContract() {
   if (!detail.value) return
   genSaving.value = true
@@ -620,7 +669,20 @@ function fmtAmount(v: unknown) {
         </el-table>
         <div v-else class="muted">{{ t('procurement.tender.noRegistrations') }}</div>
 
-        <div class="section-title">{{ t('procurement.tender.bids') }}</div>
+        <div class="section-title bids-title">
+          <span>{{ t('procurement.tender.bids') }}</span>
+          <el-button
+            v-if="['evaluating', 'awarding', 'awarded'].includes(detail.status)"
+            v-permission="'procurement:tender:evaluate'"
+            size="small"
+            type="primary"
+            plain
+            class="ai-bid-assist-btn"
+            @click="openBidAssist"
+          >
+            {{ t('procurement.tender.aiAssist') }}
+          </el-button>
+        </div>
         <div v-if="detail.bids.length" class="bid-list">
           <div v-for="bid in detail.bids" :key="bid.id" class="bid-card">
             <div class="bid-head">
@@ -707,6 +769,65 @@ function fmtAmount(v: unknown) {
       </template>
     </div>
   </el-drawer>
+
+  <el-dialog
+    v-model="assistVisible"
+    :title="t('procurement.tender.aiAssistTitle')"
+    width="760px"
+    append-to-body
+    v-loading="assistLoading"
+  >
+    <div class="assist-section">
+      <div class="assist-head">
+        <span class="assist-label">{{ t('procurement.tender.compareTitle') }}</span>
+        <el-button size="small" :disabled="!compareResult?.rows.length" @click="doExportCompare">
+          {{ t('procurement.tender.compareExport') }}
+        </el-button>
+      </div>
+      <el-table v-if="compareResult" :data="compareResult.rows" border stripe size="small">
+        <el-table-column :label="t('procurement.tender.compareRank')" prop="rank" width="70" align="center" />
+        <el-table-column :label="t('procurement.partner.companyName')" prop="companyName" min-width="180" />
+        <el-table-column :label="t('procurement.tender.comparePrice')" width="130" align="right">
+          <template #default="{ row }">{{ fmtAmount(row.price) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('procurement.tender.compareDeviation')" width="120" align="right">
+          <template #default="{ row }">
+            <span v-if="row.deviationPercent !== null">{{ row.deviationPercent }}%</span>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('procurement.tender.submitAt')" prop="submitAt" width="160" />
+      </el-table>
+    </div>
+    <div class="assist-section">
+      <div class="assist-head">
+        <span class="assist-label">{{ t('procurement.tender.screenTitle') }}</span>
+      </div>
+      <el-alert v-if="!screenOn" type="info" :closable="false" :title="t('procurement.tender.screenOff')" />
+      <template v-else-if="screenResult">
+        <div v-for="b in screenResult.bids" :key="b.bidId" class="screen-bid">
+          <div class="screen-bid-name">{{ b.companyName }}</div>
+          <el-alert
+            v-if="!b.extractable"
+            type="warning"
+            :closable="false"
+            :title="t('procurement.tender.notExtractable')"
+            class="screen-note"
+          />
+          <div v-for="(r, i) in b.results" :key="i" class="screen-row">
+            <el-tag size="small" :type="VERDICT_TAG[r.verdict] ?? 'info'" class="screen-tag">
+              {{ t(VERDICT_LABEL[r.verdict] ?? 'procurement.tender.verdictManual') }}
+            </el-tag>
+            <span class="screen-req">{{ r.requirement }}</span>
+            <span v-if="r.note" class="muted">{{ r.note }}</span>
+          </div>
+        </div>
+      </template>
+    </div>
+    <template #footer>
+      <el-button @click="assistVisible = false">{{ t('common.action.cancel') }}</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -729,6 +850,57 @@ function fmtAmount(v: unknown) {
 
 .section-title {
   font-weight: 600;
+  color: var(--bs-color-fg-default);
+}
+
+.bids-title {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.assist-section {
+  margin-bottom: var(--bs-space-4);
+}
+
+.assist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--bs-space-2);
+}
+
+.assist-label {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+}
+
+.screen-bid {
+  margin-bottom: var(--bs-space-3);
+}
+
+.screen-bid-name {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+  margin-bottom: var(--bs-space-1);
+}
+
+.screen-note {
+  margin-bottom: var(--bs-space-1);
+}
+
+.screen-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  margin-bottom: var(--bs-space-1);
+}
+
+.screen-tag {
+  flex-shrink: 0;
+}
+
+.screen-req {
   color: var(--bs-color-fg-default);
 }
 

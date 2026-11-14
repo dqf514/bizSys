@@ -95,7 +95,7 @@
 
 ### AI 中心 /admin/ai（统一网关 + 用量监控 + 功能开关/配额；详见 docs/ai-center.md）
 - 能力探测（登录即可，前端据此举入口显隐/提示）：`GET /ai/capabilities` →
-  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary,approval_assist,contract_risk,report_assist,nl_query}}`（feature=false 表示总开关未开/未配置/该功能被停用）
+  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary,approval_assist,contract_risk,report_assist,nl_query,hr_prefill,oa_prefill,flow_route,flow_anomaly,tender_assist}}`（feature=false 表示总开关未开/未配置/该功能被停用）
 - 自然语言问数（登录即可，feature `nl_query`）：`POST /ai/nl-query` `{question,context?:{domain?,timeFrom?,timeTo?}}` →
   `{domain,domainLabel,text,rows:[{label,value}],link,timeRange:{from,to},criteria}`；
   AI 只产白名单意图（task_volume/contract_amount/receivable/settlement/work_hours/procurement/quotation），
@@ -186,6 +186,13 @@
   · `POST /{id}/award` `{bidId}`（→ awarding + tender_award_approve 单级审批；通过自动 awarded 落 winner_*，驳回/撤回回 evaluating）
   · `POST /{id}/generate-contract`（awarded → 采购合同草稿：供应商=中标账号绑定往来单位、金额=中标价；幂等一项目一合同；未绑定往来单位 95002）
   · `POST /tenders/export` · 附件下载 `GET /tenders/registrations/{rid}/attachment`、`GET /tenders/bids/{bid}/proposal`
+  · `POST /{id}/ai-bid-screen`（procurement:tender:evaluate，feature `tender_assist`，限 evaluating/awarding/awarded）→
+    `{requirements:[≤10],bids:[{bidId,companyName,extractable,results:[{requirement,verdict:comply|deviate|manual,note}]}]}`：
+    投标文件文本提取（pdf/docx/txt，每份截 4000，≤10 份，提取失败 extractable=false 全项 manual）+ 公告（截 6000）；
+    bidId 白名单过滤、verdict 归一、缺失投标/要求按 manual 补齐；仅辅助不落库，评分仍人工
+  · `GET /{id}/bid-compare`（同权限，确定性计算非 AI、不受开关约束）→
+    `{budgetAmount,rows:[{bidId,companyName,price,deviationPercent,rank,submitAt}]}`（偏离度=(报价-预算)/预算*100，无预算 null；按价升序排名）
+  · `GET /{id}/bid-compare/export`（同权限，xlsx 流；审计 tender_bid_compare_export）
 - 合作方账号审核与 CRUD：`GET /procurement/partners`（q=账号/公司/联系人/电话；filters[status,customer_id]——customer_id
   供往来单位详情"门户账号"tab 查绑定账号；返回含 customerName）· counts
   · `POST /partners/{pid}/review` `{approve,comment?,customerId?}`（通过可绑供应商往来单位；对 enabled 账号 approve=false 即停用）
@@ -306,6 +313,11 @@
 - 管理端：`GET /approval/definitions` · `POST /approval/definitions` · `PUT /approval/definitions/{id}`
   · `DELETE /approval/definitions/{id}`（admin:flow:edit；有运行中实例时拒绝，逻辑删）
   定义结构：`{id,code,name,bizType,enabled,nodes:[{seq,nodeName,approverType:"USER|ROLE",approverValue,approverName}]}`
+- `POST /approval/definitions/ai-suggest`（admin:flow:edit，feature `flow_route`）`{bizType,name?,amount?,category?}` →
+  `{nodes:[{nodeName,approverType,approverValue,approverName,signMode}],rationale}`：
+  上下文=启用用户/角色清单（各≤50）+ 同 bizType 现有定义节点摘要（每 code 最新版 ≤5 条）；
+  USER/ROLE 审批人逐一服务端校验存在且启用并回填 approverName，组织类型仅校验兜底角色 code，
+  非法节点丢弃、全丢 65004；建议不落库，前端「采纳」才替换编辑中的节点（采纳后强制简易模式）
 - 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
 
 ## 人事行政 /hr（工时填报：业务系统合同/任务 ↔ 人事数据的关联起点）
@@ -321,6 +333,10 @@
   · `GET /hr/timesheets/day?date=` → `{items,totalHours}` · `GET /hr/timesheets/week?date=` → 周一至周日逐日 `{date,totalHours,count,future}`
   · `POST /hr/timesheets`（201；body.submit=true 即保存并提交）· `PUT /hr/timesheets/{id}`（仅草稿）
   · `DELETE /hr/timesheets/{id}`（仅草稿）· `POST /hr/timesheets/{id}/submit` · `POST /hr/timesheets/{id}/withdraw`
+  · `POST /hr/timesheets/ai-prefill`（hr:timesheet:create，feature `hr_prefill`）`{taskId,workDate}` →
+    `{hours,content,basis:{progressCount,recentCount,dayUsedHours}}`：
+    上下文=该任务最近 5 条进度日志 + 本人该任务最近 5 条工时 + 当日已报合计；
+    hours 服务端 0.5 步进取整 clamp [0.5,24]、content 截 500；只回草稿不落库，人工修改后随保存/提交落库
 - 我的工时（hr:timesheet:list）：`GET /hr/timesheets/my?status=&q=&range[work_date]=YYYY-MM-DD|YYYY-MM-DD&sort=&page&size`
   （q 按任务/合同/客户/内容模糊）· `GET /hr/timesheets/my/counts` → `{draft,submitted,all}`
   · `GET /hr/timesheets/my/export`（xlsx 流，复用 my 过滤）
@@ -344,6 +360,16 @@
 - `GET /oa/related/counts` → `{todo,done,cc}`（页签计数）
 - 管理端单据检索：`GET /oa/admin/instances?status=&keyword=&stuckDays=&page&size`（oa:admin:handle）·
   `GET /oa/admin/instances/counts` → `{running,approved,rejected,withdrawn,terminated,all}`
+- `POST /oa/ai-prefill`（oa:apply，feature `oa_prefill`）`{formId}` → `{data,filledKeys,historyCount}`：
+  按本人同 form.key 最近 3 条历史申请预填；仅 text/textarea/number/money/date/daterange/select/radio/checkbox
+  可预填（file/user/resource/布局控件不预填）；select/radio 值须 ∈ options、checkbox ⊆ options、number/money 数值化，
+  非法 key/值服务端丢弃；无历史直接回空不调 AI；只回草稿不落库
+- 异常干预（oa:admin:handle）：`POST /oa/admin/instances/{id}/ai-anomaly`（feature `flow_anomaly`）→
+  `{stuck:{nodeName,pending:[{assigneeId,assigneeName,hours}]},signals:[],analysis,suggestions:[{type:urge|transfer|restart|other,text,userId?,userName?}]}`：
+  signals 服务端确定性生成（审批人停用/锁定、滞留时长 vs 同表单历史中位处理时长、组织节点解析不到人）；
+  AI 只产 analysis/suggestions，转办人选只信服务端按 userName 匹配回的 userId；仅 running 且绑流程的单据
+  · `POST /oa/admin/instances/{id}/urge`（非 AI、不受开关约束）`{comment?}` → `{instanceId,urged}`：
+  给当前全部待办人各写一条 sys_notify（link=/approval）+ 审计 oa_urge；人工点击才发送
 - 资源控件检索（oa:apply，OA 填写人只读）：
   - `GET /oa/resources/meta` → `[{type,label,fields:[{key,label}]}]`
     （type ∈ customer/contract/task/report/dept/user/oa_instance；fields 为可带出字段清单，设计器配 mappings 用）

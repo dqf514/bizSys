@@ -7,7 +7,12 @@
     "approval_assist": "审批助手",
     "contract_risk": "合同风险审查",
     "report_assist": "报告全文辅助",
-    "nl_query": "AI 问数"
+    "nl_query": "AI 问数",
+    "hr_prefill": "工时预填",
+    "oa_prefill": "表单预填",
+    "flow_route": "审批链建议",
+    "flow_anomaly": "异常流程分析",
+    "tender_assist": "评标辅助"
   },
   "status": {
     "success": "成功",

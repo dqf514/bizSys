@@ -7,7 +7,12 @@
     "approval_assist": "Approval Assistant",
     "contract_risk": "Contract Risk Review",
     "report_assist": "Report Assistant",
-    "nl_query": "AI Data Query"
+    "nl_query": "AI Data Query",
+    "hr_prefill": "Timesheet Prefill",
+    "oa_prefill": "Form Prefill",
+    "flow_route": "Approval Chain Suggestion",
+    "flow_anomaly": "Stuck Flow Analysis",
+    "tender_assist": "Bid Evaluation Assistant"
   },
   "status": {
     "success": "Success",

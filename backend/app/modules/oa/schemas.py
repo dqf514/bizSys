@@ -130,6 +130,12 @@ class ApplyIn(CamelModel):
     data: dict = {}
 
 
+class PrefillIn(CamelModel):
+    """AI 表单预填入参：按本人历史申请生成草稿（不落库）。"""
+
+    form_id: int
+
+
 class TerminateIn(CamelModel):
     comment: str = Field(default="", max_length=500)
 

@@ -14,7 +14,15 @@ from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.approval import service
-from app.modules.approval.schemas import AddSignIn, CommentIn, DefinitionIn, PreviewIn, TransferIn, WithdrawIn
+from app.modules.approval.schemas import (
+    AddSignIn,
+    CommentIn,
+    DefinitionIn,
+    FlowSuggestIn,
+    PreviewIn,
+    TransferIn,
+    WithdrawIn,
+)
 from app.modules.auth.models import User
 from app.services.excel import export_xlsx_styled, now_filename
 
@@ -272,6 +280,18 @@ def preview_route(
 @router.get("/definitions", dependencies=[Depends(require_perm("admin:flow:list"))])
 def list_definitions(db: Session = Depends(get_db)):
     return service.list_definitions(db)
+
+
+@router.post("/definitions/ai-suggest")
+def suggest_definition(
+    body: FlowSuggestIn,
+    user: User = Depends(require_perm("admin:flow:edit")),
+    db: Session = Depends(get_db),
+):
+    """AI 建议审批链（不落库）：按业务类型+金额/分类+角色与同类流程生成节点建议，人工采纳才生效。"""
+    from app.modules.approval import flow_suggest
+
+    return flow_suggest.ai_suggest(db, user, body.biz_type, body.name, body.amount, body.category)
 
 
 @router.post("/definitions", dependencies=[Depends(require_perm("admin:flow:edit"))])

@@ -60,6 +60,15 @@ class DefinitionIn(CamelModel):
     nodes: list[NodeIn] = Field(default_factory=list)
 
 
+class FlowSuggestIn(CamelModel):
+    """AI 审批链建议入参：金额/分类可选，供 AI 参考节点层级。"""
+
+    biz_type: str = Field(..., min_length=1, max_length=32)
+    name: str = Field("", max_length=64)
+    amount: float | None = Field(None, ge=0)
+    category: str = Field("", max_length=64)
+
+
 class PreviewIn(CamelModel):
     """按 variables 预览分支走向；nodes 缺省时按已保存定义预览，传入则预览画布草稿。"""
 

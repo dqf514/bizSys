@@ -916,3 +916,437 @@ def test_nl_query_perm_denied(client, admin_headers, monkeypatch):
     r = _nlq(client, headers, "有多少任务")
     assert r["code"] == 20002, r
     _disable_ai(client, admin_headers)
+
+
+# ---------------- AI-3：工时/OA 预填、流程建议、异常分析、评标辅助 ----------------
+
+
+def _no_perm_headers(client, admin_headers, prefix: str):
+    """空权限角色用户 headers（越权断言用）。"""
+    suf = uuid.uuid4().hex[:8]
+    role = client.post(
+        "/api/v1/admin/roles", headers=admin_headers, json={"code": f"{prefix}_{suf}", "name": "无权限角色"}
+    ).json()
+    assert role["code"] == 0, role
+    uname = f"{prefix}_{suf}"
+    r = client.post(
+        "/api/v1/admin/users", headers=admin_headers,
+        json={"username": uname, "password": "Test@123456", "name": "越权测试", "roleIds": [role["data"]["id"]]},
+    ).json()
+    assert r["code"] == 0, r
+    cap = client.get("/api/v1/auth/captcha").json()["data"]
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": uname, "password": "Test@123456",
+              "captchaId": cap["captchaId"], "captchaText": cap.get("debugText", "")},
+    ).json()
+    assert login["code"] == 0, login
+    return {"Authorization": f"Bearer {login['data']['access_token']}"}
+
+
+def _admin_id_name():
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.auth.models import User
+
+    db = SessionLocal()
+    try:
+        u = db.scalar(select(User).where(User.username == "admin"))
+        return u.id, (u.name or u.username)
+    finally:
+        db.close()
+
+
+# ---- 工时 AI 预填 ----
+
+
+def test_hr_timesheet_ai_prefill(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    tid = _in_progress_task(client, admin_headers)
+    for pct in (30, 50):
+        r = client.post(
+            f"/api/v1/task/tasks/{tid}/progress", headers=admin_headers,
+            json={"percent": pct, "note": f"pa3_进度{pct}", "source": "manual"},
+        ).json()
+        assert r["code"] == 0, r
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    ts = client.post(
+        "/api/v1/hr/timesheets", headers=admin_headers,
+        json={"taskId": tid, "workDate": yesterday, "hours": 3.5, "content": "pa3_昨日工时"},
+    ).json()
+    assert ts["code"] == 0, ts
+    ts_id = ts["data"]["id"]
+    try:
+        _mock_chat(monkeypatch, json.dumps({"hours": 4.3, "content": "风洞段支架安装与调试"}, ensure_ascii=False))
+        r = client.post(
+            "/api/v1/hr/timesheets/ai-prefill", headers=admin_headers,
+            json={"taskId": tid, "workDate": date.today().isoformat()},
+        ).json()
+        assert r["code"] == 0, r
+        d = r["data"]
+        assert d["hours"] == 4.5  # 0.5 步进取整
+        assert "风洞" in d["content"]
+        assert d["basis"]["progressCount"] == 2 and d["basis"]["recentCount"] == 1
+        assert d["basis"]["dayUsedHours"] == 0
+        # 不落库：当日无该任务工时行
+        day = client.get(
+            "/api/v1/hr/timesheets/day", headers=admin_headers, params={"date": date.today().isoformat()}
+        ).json()
+        assert all(t["taskId"] != tid for t in day["data"]["items"])
+    finally:
+        # 清理草稿工时，避免污染 nl_query 工时合计断言
+        client.delete(f"/api/v1/hr/timesheets/{ts_id}", headers=admin_headers)
+        _disable_ai(client, admin_headers)
+
+
+def test_hr_timesheet_ai_prefill_guards(client, admin_headers, monkeypatch):
+    tid = _in_progress_task(client, admin_headers)
+    body = {"taskId": tid, "workDate": date.today().isoformat()}
+    # 未配置 → 65001
+    _disable_ai(client, admin_headers)
+    assert client.post("/api/v1/hr/timesheets/ai-prefill", headers=admin_headers, json=body).json()["code"] == 65001
+    # 功能停用 → 65002
+    _enable_ai(client, admin_headers)
+    _set_center(client, admin_headers, {"features": {"hr_prefill": False}})
+    _mock_chat(monkeypatch, json.dumps({"hours": 4, "content": "x"}))
+    assert client.post("/api/v1/hr/timesheets/ai-prefill", headers=admin_headers, json=body).json()["code"] == 65002
+    _set_center(client, admin_headers, {"features": {"hr_prefill": True}})
+    # 解析失败 → 65004；越权 → 20002
+    _mock_chat(monkeypatch, "无法解析")
+    assert client.post("/api/v1/hr/timesheets/ai-prefill", headers=admin_headers, json=body).json()["code"] == 65004
+    bad = _no_perm_headers(client, admin_headers, "pa3_hr")
+    assert client.post("/api/v1/hr/timesheets/ai-prefill", headers=bad, json=body).json()["code"] == 20002
+    _disable_ai(client, admin_headers)
+
+
+# ---- OA 表单 AI 预填 ----
+
+PA3_OA_FIELDS = [
+    {"key": "reason", "label": "事由", "type": "textarea"},
+    {"key": "kind", "label": "类别", "type": "select", "options": ["A", "B"]},
+    {"key": "tags", "label": "标签", "type": "checkbox", "options": ["X", "Y"]},
+    {"key": "target", "label": "关联合同", "type": "resource", "resource": "contract"},
+    {"key": "owner", "label": "经办人", "type": "user"},
+]
+
+
+def _pa3_oa_form(client, admin_headers, key, fields=None, flow_id=None) -> int:
+    r = client.post(
+        "/api/v1/oa/admin/forms",
+        headers=admin_headers,
+        json={"key": key, "name": f"pa3_表单{key}", "category": "other",
+              "fields": fields if fields is not None else PA3_OA_FIELDS, "flowDefinitionId": flow_id},
+    ).json()
+    assert r["code"] == 0, r
+    fid = r["data"]["id"]
+    p = client.post(f"/api/v1/oa/admin/forms/{fid}/publish", headers=admin_headers).json()
+    assert p["code"] == 0, p
+    return fid
+
+
+def test_oa_ai_prefill(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    fid = _pa3_oa_form(client, admin_headers, _uniq("pa3_pf_"))
+    try:
+        for data in (
+            {"reason": "pa3_历史事由1", "kind": "A", "tags": ["X"]},
+            {"reason": "pa3_历史事由2", "kind": "B", "tags": ["X", "Y"]},
+        ):
+            r = client.post("/api/v1/oa/instances", headers=admin_headers, json={"formId": fid, "data": data}).json()
+            assert r["code"] == 0, r
+
+        _mock_chat(monkeypatch, json.dumps({"data": {
+            "reason": "pa3_预填事由", "kind": "B", "tags": ["X", "BAD"],
+            "target": 123, "owner": 5, "ghost": "x",
+        }}, ensure_ascii=False))
+        r = client.post("/api/v1/oa/ai-prefill", headers=admin_headers, json={"formId": fid}).json()
+        assert r["code"] == 0, r
+        d = r["data"]
+        assert d["historyCount"] == 2
+        assert d["data"]["reason"] == "pa3_预填事由" and d["data"]["kind"] == "B"
+        assert d["data"]["tags"] == ["X"]  # 非法选项剔除
+        # 资源/人员/未知字段一律不预填
+        assert "target" not in d["data"] and "owner" not in d["data"] and "ghost" not in d["data"]
+        assert set(d["filledKeys"]) == set(d["data"].keys())
+
+        # 非法 select 值整条丢弃
+        _mock_chat(monkeypatch, json.dumps({"data": {"kind": "C"}}))
+        r2 = client.post("/api/v1/oa/ai-prefill", headers=admin_headers, json={"formId": fid}).json()
+        assert r2["code"] == 0 and r2["data"]["data"] == {}, r2
+        # 解析失败 → 65004
+        _mock_chat(monkeypatch, "坏输出")
+        assert client.post("/api/v1/oa/ai-prefill", headers=admin_headers, json={"formId": fid}).json()["code"] == 65004
+    finally:
+        client.post(f"/api/v1/oa/admin/forms/{fid}/disable", headers=admin_headers)
+        _disable_ai(client, admin_headers)
+
+
+def test_oa_ai_prefill_no_history(client, admin_headers):
+    """无历史申请 → 直接回空草稿，不调 AI（不 mock 也应通过）。"""
+    _enable_ai(client, admin_headers)
+    fid = _pa3_oa_form(client, admin_headers, _uniq("pa3_nh_"))
+    try:
+        r = client.post("/api/v1/oa/ai-prefill", headers=admin_headers, json={"formId": fid}).json()
+        assert r["code"] == 0, r
+        assert r["data"] == {"data": {}, "filledKeys": [], "historyCount": 0}
+    finally:
+        client.post(f"/api/v1/oa/admin/forms/{fid}/disable", headers=admin_headers)
+        _disable_ai(client, admin_headers)
+
+
+# ---- 流程定义 AI 建议审批链 ----
+
+
+def test_flow_ai_suggest(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    admin_id, admin_name = _admin_id_name()
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.admin.models import Role
+
+    db = SessionLocal()
+    try:
+        role = db.scalar(select(Role).where(Role.code == "biz_user", Role.deleted == 0))
+    finally:
+        db.close()
+    _mock_chat(monkeypatch, json.dumps({"nodes": [
+        {"nodeName": "部门审批", "approverType": "USER", "approverValue": str(admin_id), "signMode": "or"},
+        {"nodeName": "业务会签", "approverType": "ROLE", "approverValue": "biz_user", "signMode": "and"},
+        {"nodeName": "部门负责人", "approverType": "DEPT_LEADER", "approverValue": "", "signMode": "bogus"},
+        {"nodeName": "坏节点1", "approverType": "USER", "approverValue": "999999999"},
+        {"nodeName": "坏节点2", "approverType": "ROLE", "approverValue": "no_such_role"},
+        {"nodeName": "坏节点3", "approverType": "MAGIC"},
+    ], "rationale": "金额较大，建议两级审批加会签"}, ensure_ascii=False))
+    r = client.post(
+        "/api/v1/approval/definitions/ai-suggest", headers=admin_headers,
+        json={"bizType": "oa", "name": "pa3_流程", "amount": 90000},
+    ).json()
+    assert r["code"] == 0, r
+    nodes = r["data"]["nodes"]
+    assert [n["nodeName"] for n in nodes] == ["部门审批", "业务会签", "部门负责人"]
+    assert nodes[0]["approverName"] == admin_name
+    assert nodes[1]["approverName"] == role.name and nodes[1]["signMode"] == "and"
+    assert nodes[2]["signMode"] == "or"  # 非法 signMode 归一
+    assert r["data"]["rationale"]
+
+    # 全部节点非法 → 65004
+    _mock_chat(monkeypatch, json.dumps({"nodes": [{"nodeName": "x", "approverType": "USER", "approverValue": "0"}]}))
+    r2 = client.post(
+        "/api/v1/approval/definitions/ai-suggest", headers=admin_headers, json={"bizType": "oa"}
+    ).json()
+    assert r2["code"] == 65004, r2
+    _disable_ai(client, admin_headers)
+
+
+# ---- 异常流程 AI 分析 + 催办 ----
+
+
+def _pa3_running_oa(client, admin_headers) -> int:
+    """建 oa 流程定义（admin 单节点审批）+ 表单绑定发布 + 发起 → running 实例 id。"""
+    suf = uuid.uuid4().hex[:8]
+    admin_id, _name = _admin_id_name()
+    d = client.post(
+        "/api/v1/approval/definitions", headers=admin_headers,
+        json={"code": f"pa3_flow_{suf}", "name": f"pa3_流程{suf}", "bizType": "oa",
+              "nodes": [{"seq": 1, "nodeName": "审批", "approverType": "USER", "approverValue": str(admin_id)}]},
+    ).json()
+    assert d["code"] == 0, d
+    fid = _pa3_oa_form(
+        client, admin_headers, _uniq("pa3_an_"),
+        fields=[{"key": "reason", "label": "事由", "type": "textarea"}],
+        flow_id=d["data"]["id"],
+    )
+    r = client.post(
+        "/api/v1/oa/instances", headers=admin_headers, json={"formId": fid, "data": {"reason": "pa3_异常测试"}}
+    ).json()
+    assert r["code"] == 0 and r["data"]["status"] == "running", r
+    return r["data"]["id"]
+
+
+def test_oa_ai_anomaly_and_urge(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    inst_id = _pa3_running_oa(client, admin_headers)
+    admin_id, admin_name = _admin_id_name()
+    _mock_chat(monkeypatch, json.dumps({
+        "analysis": "审批人长期未处理，疑似遗漏",
+        "suggestions": [
+            {"type": "urge", "text": "发送催办提醒"},
+            {"type": "transfer", "text": "转办给管理员", "userName": admin_name, "userId": 999999},
+            {"type": "hack", "text": "非法类型归一"},
+            {"type": "transfer", "text": "编造人选", "userName": "不存在的人pa3"},
+        ],
+    }, ensure_ascii=False))
+    r = client.post(f"/api/v1/oa/admin/instances/{inst_id}/ai-anomaly", headers=admin_headers).json()
+    assert r["code"] == 0, r
+    d = r["data"]
+    assert d["stuck"]["nodeName"] == "审批"
+    assert d["stuck"]["pending"][0]["assigneeId"] == admin_id
+    assert "分析" not in d["analysis"] or d["analysis"]  # analysis 非空
+    sugg = d["suggestions"]
+    assert sugg[0]["type"] == "urge"
+    # userId 只信服务端按姓名匹配（AI 给的 999999 被覆盖）
+    assert sugg[1]["type"] == "transfer" and sugg[1]["userId"] == admin_id
+    assert sugg[2]["type"] == "other"
+    assert "userId" not in sugg[3]  # 查无此人 → 不带 userId
+
+    # 催办：sys_notify 落行 + 审计
+    u = client.post(f"/api/v1/oa/admin/instances/{inst_id}/urge", headers=admin_headers, json={}).json()
+    assert u["code"] == 0 and u["data"]["urged"] == 1, u
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.admin.models import Notify
+
+    db = SessionLocal()
+    try:
+        n = db.scalar(
+            select(Notify).where(
+                Notify.user_id == admin_id, Notify.biz_type == "oa", Notify.biz_id == inst_id,
+                Notify.deleted == 0, Notify.title.like("催办：%"),
+            )
+        )
+        assert n and n.title.startswith("催办：") and n.link == "/approval"
+    finally:
+        db.close()
+
+    # 越权 → 20002；非 running → 状态错误
+    bad = _no_perm_headers(client, admin_headers, "pa3_oa")
+    assert client.post(f"/api/v1/oa/admin/instances/{inst_id}/ai-anomaly", headers=bad).json()["code"] == 20002
+    assert client.post(f"/api/v1/oa/admin/instances/{inst_id}/urge", headers=bad, json={}).json()["code"] == 20002
+    t = client.post(f"/api/v1/oa/admin/instances/{inst_id}/terminate", headers=admin_headers, json={}).json()
+    assert t["code"] == 0, t
+    assert client.post(
+        f"/api/v1/oa/admin/instances/{inst_id}/ai-anomaly", headers=admin_headers
+    ).json()["code"] != 0
+    _disable_ai(client, admin_headers)
+
+
+# ---- 招投标 AI 评标辅助 + 报价比对 ----
+
+
+def _pa3_evaluating_tender(client, admin_headers):
+    """评标中项目 + 2 条 ORM 投标（真实 txt 附件）→ (tid, [bid_id,...], [文件路径,...])。"""
+    from datetime import datetime as _dt
+    from pathlib import Path
+
+    from app.core.config import settings
+    from app.core.db import SessionLocal
+    from app.modules.procurement.models import TenderBid
+
+    now = _dt.now()
+    r = client.post(
+        "/api/v1/procurement/tenders", headers=admin_headers,
+        json={"name": _uniq("pa3_招标_"), "tenderMethod": "public", "budgetAmount": 50000,
+              "regDeadline": (now + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S"),
+              "bidDeadline": (now + timedelta(hours=48)).strftime("%Y-%m-%d %H:%M:%S"),
+              "announcement": "要求：具备风洞试验资质；工期不超过45天。"},
+    ).json()
+    assert r["code"] == 0, r
+    tid = r["data"]["id"]
+    assert client.post(f"/api/v1/procurement/tenders/{tid}/publish", headers=admin_headers).json()["code"] == 0
+    assert client.post(
+        f"/api/v1/procurement/tenders/{tid}/start-evaluation", headers=admin_headers
+    ).json()["code"] == 0
+
+    root = Path(settings.upload_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    files, bid_ids = [], []
+    db = SessionLocal()
+    try:
+        for comp, price in (("pa3_甲公司", 45000), ("pa3_乙公司", 55000)):
+            rel = f"pa3_bid_{uuid.uuid4().hex[:8]}.txt"
+            (root / rel).write_text(f"{comp}投标文件：具备风洞试验资质，承诺工期30天。", encoding="utf-8")
+            files.append(root / rel)
+            b = TenderBid(
+                tender_id=tid, partner_user_id=0, registration_id=0, company_name=comp,
+                price=price, proposal_path=rel, proposal_name=f"{comp}.txt", comment="",
+            )
+            db.add(b)
+            db.flush()
+            bid_ids.append(b.id)
+        db.commit()
+    finally:
+        db.close()
+    return tid, bid_ids, files
+
+
+def test_tender_ai_bid_screen_and_compare(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    tid, bid_ids, files = _pa3_evaluating_tender(client, admin_headers)
+    try:
+        _mock_chat(monkeypatch, json.dumps({
+            "requirements": ["具备风洞试验资质", "工期不超过45天"],
+            "bids": [
+                {"bidId": bid_ids[0], "results": [
+                    {"requirement": "具备风洞试验资质", "verdict": "comply", "note": "文本声明具备"},
+                    {"requirement": "工期不超过45天", "verdict": "maybe", "note": "非法归一"},
+                ]},
+                {"bidId": 999999, "results": [
+                    {"requirement": "具备风洞试验资质", "verdict": "deviate", "note": "幽灵投标应丢弃"},
+                ]},
+            ],
+        }, ensure_ascii=False))
+        r = client.post(f"/api/v1/procurement/tenders/{tid}/ai-bid-screen", headers=admin_headers).json()
+        assert r["code"] == 0, r
+        d = r["data"]
+        assert d["requirements"] == ["具备风洞试验资质", "工期不超过45天"]
+        assert [b["bidId"] for b in d["bids"]] == bid_ids  # 幽灵 bidId 丢弃、真实投标对齐补齐
+        b0, b1 = d["bids"]
+        assert b0["extractable"] and b1["extractable"]
+        assert b0["results"][0]["verdict"] == "comply"
+        assert b0["results"][1]["verdict"] == "manual"  # 非法 verdict 归一
+        assert all(x["verdict"] == "manual" for x in b1["results"])  # AI 漏掉的投标补齐 manual
+
+        # 比对表：确定性数值（偏离度/排名）
+        c = client.get(f"/api/v1/procurement/tenders/{tid}/bid-compare", headers=admin_headers).json()
+        assert c["code"] == 0, c
+        cd = c["data"]
+        assert cd["budgetAmount"] == 50000
+        rows = cd["rows"]
+        assert [x["companyName"] for x in rows] == ["pa3_甲公司", "pa3_乙公司"]  # 按价升序
+        assert rows[0]["rank"] == 1 and rows[0]["deviationPercent"] == -10.0
+        assert rows[1]["rank"] == 2 and rows[1]["deviationPercent"] == 10.0
+
+        ex = client.get(f"/api/v1/procurement/tenders/{tid}/bid-compare/export", headers=admin_headers)
+        assert ex.status_code == 200
+        wb = load_workbook(io.BytesIO(ex.content), read_only=True)
+        exported = list(wb.active.iter_rows(values_only=True))
+        assert exported[0][0] == "排名" and len(exported) == 3
+
+        # 比对表不受 AI 开关约束；评标辅助受约束
+        _set_center(client, admin_headers, {"features": {"tender_assist": False}})
+        assert client.get(
+            f"/api/v1/procurement/tenders/{tid}/bid-compare", headers=admin_headers
+        ).json()["code"] == 0
+        assert client.post(
+            f"/api/v1/procurement/tenders/{tid}/ai-bid-screen", headers=admin_headers
+        ).json()["code"] == 65002
+        _set_center(client, admin_headers, {"features": {"tender_assist": True}})
+
+        # 越权 → 20002
+        bad = _no_perm_headers(client, admin_headers, "pa3_td")
+        assert client.post(
+            f"/api/v1/procurement/tenders/{tid}/ai-bid-screen", headers=bad
+        ).json()["code"] == 20002
+        assert client.get(f"/api/v1/procurement/tenders/{tid}/bid-compare", headers=bad).json()["code"] == 20002
+    finally:
+        from sqlalchemy import select
+
+        from app.core.db import SessionLocal
+        from app.modules.procurement.models import TenderBid, TenderProject
+
+        db = SessionLocal()
+        try:
+            for b in db.scalars(select(TenderBid).where(TenderBid.tender_id == tid)).all():
+                db.delete(b)
+            t = db.get(TenderProject, tid)
+            if t:
+                db.delete(t)
+            db.commit()
+        finally:
+            db.close()
+        for f in files:
+            f.unlink(missing_ok=True)
+        _disable_ai(client, admin_headers)

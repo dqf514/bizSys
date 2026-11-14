@@ -50,6 +50,22 @@ export function createTimesheet(data: TimesheetPayload) {
   return request<HrTimesheetItem>({ url: '/hr/timesheets', method: 'post', data })
 }
 
+/* ---------- AI 工时预填（草稿，不落库） ---------- */
+
+export interface TimesheetPrefillResult {
+  hours: number
+  content: string
+  basis: { progressCount: number; recentCount: number; dayUsedHours: number }
+}
+
+export function aiPrefillTimesheet(taskId: number, workDate: string) {
+  return request<TimesheetPrefillResult>({
+    url: '/hr/timesheets/ai-prefill',
+    method: 'post',
+    data: { taskId, workDate },
+  })
+}
+
 export function updateTimesheet(id: number, data: TimesheetPayload) {
   return request<HrTimesheetItem>({ url: `/hr/timesheets/${id}`, method: 'put', data })
 }

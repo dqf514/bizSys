@@ -3,7 +3,8 @@
 所有 AI 调用必须经 gateway_chat 进出：
 - 配置读 sys_config（系统设置页"AI 设置"卡片维护连接；AI 中心"AI 设置"页维护功能开关/配额）：
   ai.enabled / ai.base_url / ai.api_key(AES-GCM) / ai.model / ai.timeout / ai.vision_model(空=复用 ai.model)
-  ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query}
+  ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query|
+  hr_prefill|oa_prefill|flow_route|flow_anomaly|tender_assist}
   功能开关，缺省 1
   ai.quota.user_daily_calls / ai.quota.user_daily_tokens / ai.quota.global_daily_tokens  0=不限
 - 每次调用落 ai_usage_log（success/error/fallback 三态，token 统计只计 success）；
@@ -47,7 +48,7 @@ DEFAULT_TIMEOUT = 30
 # 全站 AI 功能清单（新功能接入时在此登记，并在前端 ai.json 配文案）
 FEATURES = (
     "quote", "contract_ocr", "task_photo", "report_summary", "approval_assist", "contract_risk",
-    "report_assist", "nl_query",
+    "report_assist", "nl_query", "hr_prefill", "oa_prefill", "flow_route", "flow_anomaly", "tender_assist",
 )
 
 USAGE_SUCCESS = "success"

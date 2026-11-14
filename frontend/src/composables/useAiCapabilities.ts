@@ -15,6 +15,11 @@ const EMPTY: AiCapabilities = {
     contract_risk: false,
     report_assist: false,
     nl_query: false,
+    hr_prefill: false,
+    oa_prefill: false,
+    flow_route: false,
+    flow_anomaly: false,
+    tender_assist: false,
   },
 }
 

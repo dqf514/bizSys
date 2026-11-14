@@ -24,3 +24,10 @@ class TimesheetIn(CamelModel):
         if v * 2 != int(v * 2):
             raise ValueError("工时须以 0.5 小时为步进")
         return v
+
+
+class TimesheetPrefillIn(CamelModel):
+    """AI 工时预填入参：按任务+日期生成草稿（不落库）。"""
+
+    task_id: int
+    work_date: date

@@ -11,8 +11,9 @@ import OaFormPanel from '@/modules/admin/components/OaFormPanel.vue'
 import { isOrgApproverType, normalizeNode, validateFlowNodes, type FlowNodeRow } from '@/components/flow/flowModel'
 import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, listUsers } from '@/api/admin'
 import { listOaForms } from '@/api/oa'
-import { previewFlow } from '@/api/approval'
-import type { FlowApproverType, FlowDef, FlowGraphData, FlowNodeType } from '@/api/types'
+import { aiSuggestFlow, previewFlow, type FlowSuggestResult } from '@/api/approval'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
+import type { FlowApproverType, FlowDef, FlowGraphData, FlowNode, FlowNodeType } from '@/api/types'
 
 defineOptions({ name: 'FlowDefList' })
 
@@ -196,6 +197,53 @@ async function runPreview() {
   } finally {
     previewLoading.value = false
   }
+}
+
+// --- AI 建议审批链（建议 → 人工采纳才改写节点，不自动落库） ---
+
+const aiCaps = useAiCapabilities()
+const suggestOn = computed(() => aiCaps.featureOn('flow_route'))
+const suggestVisible = ref(false)
+const suggestLoading = ref(false)
+const suggestResult = ref<FlowSuggestResult | null>(null)
+const suggestAmount = ref<number | undefined>(undefined)
+const suggestCategory = ref('')
+
+onMounted(() => void aiCaps.ensureLoaded())
+
+async function runSuggest() {
+  suggestLoading.value = true
+  try {
+    suggestResult.value = await aiSuggestFlow({
+      bizType: form.bizType,
+      name: form.name,
+      amount: suggestAmount.value ?? null,
+      category: suggestCategory.value,
+    })
+  } catch {
+    suggestResult.value = null
+  } finally {
+    suggestLoading.value = false
+  }
+}
+
+function adoptSuggest() {
+  const nodes = suggestResult.value?.nodes ?? []
+  if (!nodes.length) return
+  form.nodes = nodes.map((n, i) =>
+    normalizeNode({
+      seq: i + 1,
+      nodeName: n.nodeName,
+      nodeType: 'approval',
+      signMode: (n.signMode === 'and' ? 'and' : 'or') as FlowNode['signMode'],
+      approverType: n.approverType as FlowNode['approverType'],
+      approverValue: n.approverType === 'USER' && /^\d+$/.test(n.approverValue) ? Number(n.approverValue) : n.approverValue,
+      approverName: n.approverName,
+    }),
+  )
+  mode.value = 'simple'
+  suggestVisible.value = false
+  ElMessage.success(t('admin.flow.aiSuggestAdopted'))
 }
 
 async function save() {
@@ -451,6 +499,16 @@ function onDefAction(key: string, row: FlowDef) {
         <el-button class="preview-btn" size="small" @click="previewVisible = true">
           {{ t('admin.flow.preview') }}
         </el-button>
+        <el-button
+          v-if="suggestOn"
+          class="preview-btn"
+          size="small"
+          type="primary"
+          plain
+          @click="suggestVisible = true"
+        >
+          {{ t('admin.flow.aiSuggest') }}
+        </el-button>
       </el-form-item>
 
       <el-form-item v-if="mode === 'simple'" :label="t('admin.flow.nodes')">
@@ -528,6 +586,37 @@ function onDefAction(key: string, row: FlowDef) {
     </template>
   </el-dialog>
 
+  <el-dialog v-model="suggestVisible" :title="t('admin.flow.aiSuggest')" width="560px" append-to-body>
+    <el-form label-position="top" size="small">
+      <el-form-item :label="t('admin.flow.aiSuggestAmount')">
+        <el-input-number v-model="suggestAmount" :min="0" :precision="2" class="suggest-amount" />
+      </el-form-item>
+      <el-form-item :label="t('admin.flow.aiSuggestCategory')">
+        <el-input v-model="suggestCategory" maxlength="64" />
+      </el-form-item>
+    </el-form>
+    <div v-if="suggestResult" class="suggest-result">
+      <div v-for="(n, i) in suggestResult.nodes" :key="i" class="suggest-node">
+        <span class="node-seq">{{ i + 1 }}</span>
+        <span class="suggest-node-name">{{ n.nodeName }}</span>
+        <el-tag size="small" type="primary">
+          {{ approverTypeLabel(n.approverType) }}<template v-if="n.approverName || n.approverValue">: {{ n.approverName || n.approverValue }}</template>
+        </el-tag>
+        <el-tag v-if="n.signMode === 'and'" size="small" type="warning">{{ t('admin.flow.aiSuggestSignAll') }}</el-tag>
+      </div>
+      <el-alert v-if="suggestResult.rationale" type="info" :closable="false" class="preview-route">
+        {{ suggestResult.rationale }}
+      </el-alert>
+    </div>
+    <template #footer>
+      <el-button @click="suggestVisible = false">{{ t('common.action.cancel') }}</el-button>
+      <el-button :loading="suggestLoading" @click="runSuggest">{{ t('admin.flow.aiSuggestRun') }}</el-button>
+      <el-button type="primary" :disabled="!suggestResult?.nodes.length" @click="adoptSuggest">
+        {{ t('admin.flow.aiSuggestAdopt') }}
+      </el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="previewVisible" :title="t('admin.flow.preview')" width="480px" append-to-body>
     <el-form label-position="top" size="small">
       <el-form-item :label="t('admin.flow.previewVariables')">
@@ -598,6 +687,28 @@ function onDefAction(key: string, row: FlowDef) {
 
 .preview-btn {
   margin-left: var(--bs-space-3);
+}
+
+.suggest-amount {
+  width: 200px;
+}
+
+.suggest-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+  margin-top: var(--bs-space-2);
+}
+
+.suggest-node {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.suggest-node-name {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
 }
 
 .preview-route {

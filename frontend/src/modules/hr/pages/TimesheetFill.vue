@@ -12,7 +12,9 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
 import {
+  aiPrefillTimesheet,
   createTimesheet,
   deleteTimesheet,
   exportMyTimesheets,
@@ -250,6 +252,29 @@ onMounted(() => {
   void loadWeek()
 })
 
+// --- AI 工时预填（只填当前行草稿，人工核对后保存/提交才落库） ---
+
+const aiCaps = useAiCapabilities()
+const prefillOn = computed(() => aiCaps.featureOn('hr_prefill'))
+const prefillLoading = ref('')
+
+onMounted(() => void aiCaps.ensureLoaded())
+
+async function prefillRow(row: RowState) {
+  if (!row.taskId) return
+  prefillLoading.value = row.key
+  try {
+    const r = await aiPrefillTimesheet(row.taskId, workDate.value)
+    row.hours = r.hours
+    row.content = r.content
+    ElMessage.success(t('hr.fill.aiPrefillDone'))
+  } catch {
+    /* http notifies */
+  } finally {
+    prefillLoading.value = ''
+  }
+}
+
 /* ================= 我的工时 ================= */
 
 const activeStatus = ref('all')
@@ -438,6 +463,18 @@ watch(view, (v) => {
             class="cell-remark"
           />
           <div class="cell-actions">
+            <el-button
+              v-if="prefillOn"
+              plain
+              :size="ctrlSize"
+              :disabled="!row.taskId"
+              :loading="prefillLoading === row.key"
+              :title="t('hr.fill.aiPrefillTip')"
+              class="ai-prefill-btn"
+              @click="prefillRow(row)"
+            >
+              {{ t('hr.fill.aiPrefill') }}
+            </el-button>
             <el-button :size="ctrlSize" :loading="saving === row.key" @click="saveRow(row, false)">
               {{ t('hr.fill.saveDraft') }}
             </el-button>

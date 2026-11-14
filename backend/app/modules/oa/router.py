@@ -78,6 +78,14 @@ def search_resources(
     return svc.search_resource(db, rtype, current, q, page, size)
 
 
+@router.post("/ai-prefill")
+def ai_prefill(body: S.PrefillIn, current: User = Depends(require_perm("oa:apply")), db: Session = Depends(get_db)):
+    """AI 预填表单草稿（不落库）：按本人同表单历史申请（最近 3 条）生成字段值。"""
+    from app.modules.oa import ai_prefill as ai_prefill_svc
+
+    return ai_prefill_svc.ai_prefill(db, current, body.form_id)
+
+
 @router.post("/instances", status_code=201)
 def apply(body: S.ApplyIn, current: User = Depends(require_perm("oa:apply")), db: Session = Depends(get_db)):
     inst = svc.apply(db, body.form_id, current, body.data)
@@ -335,6 +343,33 @@ def admin_instance_counts(
 ):
     """管理端单据状态页签计数。"""
     return svc.instance_status_counts(db)
+
+
+@router.post("/admin/instances/{inst_id}/ai-anomaly")
+def admin_ai_anomaly(
+    inst_id: int,
+    current: User = Depends(require_perm("oa:admin:handle")),
+    db: Session = Depends(get_db),
+):
+    """AI 异常分析（不落库）：滞留信号（服务端确定性）+ AI 原因分析与处理建议。"""
+    from app.modules.oa import ai_anomaly
+
+    return ai_anomaly.ai_anomaly(db, current, inst_id)
+
+
+@router.post("/admin/instances/{inst_id}/urge")
+def admin_urge(
+    inst_id: int,
+    body: S.TerminateIn | None = None,
+    current: User = Depends(require_perm("oa:admin:handle")),
+    db: Session = Depends(get_db),
+):
+    """催办（非 AI）：给当前待办审批人各发一条站内通知，人工点击才发送。"""
+    data = svc.urge(db, inst_id, current, body.comment if body else "")
+    record(db, user_id=current.id, module="oa", action="oa_urge", biz_type="oa", biz_id=inst_id,
+           detail={"urged": data["urged"]})
+    db.commit()
+    return data
 
 
 @router.post("/admin/instances/{inst_id}/terminate")

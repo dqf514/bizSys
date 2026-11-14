@@ -1144,3 +1144,37 @@ def restart(db: Session, inst_id: int, seq: int, operator: User, comment: str = 
     inst.update_time = datetime.now()
     db.flush()
     return {"instanceId": flow.id, "status": flow.status, "currentSeq": seq}
+
+
+def urge(db: Session, inst_id: int, operator: User, comment: str = "") -> dict:
+    """催办：给当前全部待办审批人各写一条站内通知（sys_notify），不改变流程状态。"""
+    from app.modules.admin.models import Notify
+
+    inst = _oa_by_id(db, inst_id)
+    flow = _flow_of(db, inst)
+    if flow.status != "running":
+        raise BizException(R.APPROVAL_INVALID_STATE, "仅处理中的单据可催办")
+    tasks = db.scalars(
+        select(ApprovalTask).where(
+            ApprovalTask.instance_id == flow.id,
+            ApprovalTask.status == "pending",
+            ApprovalTask.deleted == 0,
+        )
+    ).all()
+    if not tasks:
+        raise BizException(R.APPROVAL_NO_TODO, "当前无待办审批人")
+    title = f"催办：{inst.display_no} {inst.form_name}"
+    content = comment.strip() or f"单据已滞留，请尽快处理（当前节点：{tasks[0].node_name or '审批'}）。"
+    for t in tasks:
+        db.add(
+            Notify(
+                user_id=t.assignee_id,
+                title=title,
+                content=content[:500],
+                biz_type="oa",
+                biz_id=inst.id,
+                link="/approval",
+            )
+        )
+    db.flush()
+    return {"instanceId": flow.id, "urged": len(tasks)}

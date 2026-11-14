@@ -1495,6 +1495,11 @@ export type AiFeatureKey =
   | 'contract_risk'
   | 'report_assist'
   | 'nl_query'
+  | 'hr_prefill'
+  | 'oa_prefill'
+  | 'flow_route'
+  | 'flow_anomaly'
+  | 'tender_assist'
 export type AiUsageStatus = 'success' | 'error' | 'fallback'
 
 export interface AiUsageRow {

@@ -7,8 +7,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElIcon } from 'element-plus'
 import ListPage from '@/components/list/ListPage.vue'
 import FormRenderer from '@/modules/oa/components/FormRenderer.vue'
-import { applyOa, listOaCatalog } from '@/api/oa'
+import { aiPrefillOaForm, applyOa, listOaCatalog } from '@/api/oa'
 import { useDict } from '@/composables/useDict'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
 import { useAuthStore } from '@/stores/auth'
 import type { OaCatalogGroup, OaForm } from '@/api/types'
 
@@ -120,6 +121,7 @@ onBeforeUnmount(() => {
 function openApply(form: OaForm) {
   currentForm.value = form
   savedAt.value = ''
+  prefilledLabels.value = []
   const key = `oa.draft.${auth.user?.id ?? 'anon'}.${form.key}`
   let restored = false
   try {
@@ -153,6 +155,7 @@ async function resetForm() {
   }
   if (!currentForm.value) return
   clearDraft()
+  prefilledLabels.value = []
   formData.value = defaultData(currentForm.value)
 }
 
@@ -176,6 +179,35 @@ async function submit() {
     submitting.value = false
   }
 }
+
+// --- AI 表单预填（按本人历史申请生成草稿，人工确认后随正常发起提交） ---
+
+const aiCaps = useAiCapabilities()
+const prefillOn = computed(() => aiCaps.featureOn('oa_prefill'))
+const prefillLoading = ref(false)
+const prefilledLabels = ref<string[]>([])
+
+async function runPrefill() {
+  if (!currentForm.value) return
+  prefillLoading.value = true
+  try {
+    const r = await aiPrefillOaForm(currentForm.value.id)
+    if (!r.filledKeys.length) {
+      ElMessage.info(t('oa.form.aiPrefillEmpty'))
+      return
+    }
+    formData.value = { ...formData.value, ...r.data }
+    const labelOf = (k: string) => currentForm.value?.fields?.find((f) => f.key === k)?.label || k
+    prefilledLabels.value = r.filledKeys.map(labelOf)
+    ElMessage.success(t('oa.form.aiPrefillDone'))
+  } catch {
+    /* http notifies */
+  } finally {
+    prefillLoading.value = false
+  }
+}
+
+onMounted(() => void aiCaps.ensureLoaded())
 </script>
 
 <template>
@@ -216,6 +248,13 @@ async function submit() {
         :closable="false"
         class="direct-tip"
       />
+      <el-alert
+        v-if="prefilledLabels.length"
+        type="warning"
+        :title="t('oa.form.aiPrefillNote', { fields: prefilledLabels.join('、') })"
+        :closable="false"
+        class="direct-tip"
+      />
       <FormRenderer
         v-if="dialogVisible && currentForm"
         ref="rendererRef"
@@ -225,7 +264,18 @@ async function submit() {
     </div>
     <template #footer>
       <div class="dialog-footer">
-        <el-button class="clear-btn" @click="resetForm">{{ t('oa.form.clearDraft') }}</el-button>
+        <div class="footer-left">
+          <el-button class="clear-btn" @click="resetForm">{{ t('oa.form.clearDraft') }}</el-button>
+          <el-button
+            v-if="prefillOn"
+            plain
+            :loading="prefillLoading"
+            class="ai-prefill-btn"
+            @click="runPrefill"
+          >
+            {{ t('oa.form.aiPrefill') }}
+          </el-button>
+        </div>
         <div>
           <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
           <el-button type="primary" :loading="submitting" @click="submit">{{ t('oa.form.submit') }}</el-button>
@@ -329,5 +379,10 @@ async function submit() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.footer-left {
+  display: flex;
+  gap: var(--bs-space-2);
 }
 </style>

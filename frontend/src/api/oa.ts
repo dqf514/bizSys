@@ -174,3 +174,39 @@ export function restartOaInstance(id: number, seq: number, comment: string) {
     data: { seq, comment },
   })
 }
+
+/* ---------- AI 表单预填（草稿，不落库） ---------- */
+
+export interface OaPrefillResult {
+  data: Record<string, unknown>
+  filledKeys: string[]
+  historyCount: number
+}
+
+export function aiPrefillOaForm(formId: number) {
+  return request<OaPrefillResult>({ url: '/oa/ai-prefill', method: 'post', data: { formId } })
+}
+
+/* ---------- 管理侧：AI 异常分析 / 催办 ---------- */
+
+export interface OaAnomalyResult {
+  stuck: {
+    nodeName: string
+    pending: { assigneeId: number; assigneeName: string; hours: number }[]
+  }
+  signals: string[]
+  analysis: string
+  suggestions: { type: string; text: string; userId?: number; userName?: string }[]
+}
+
+export function aiOaAnomaly(id: number) {
+  return request<OaAnomalyResult>({ url: `/oa/admin/instances/${id}/ai-anomaly`, method: 'post' })
+}
+
+export function urgeOaInstance(id: number, comment = '') {
+  return request<{ instanceId: number; urged: number }>({
+    url: `/oa/admin/instances/${id}/urge`,
+    method: 'post',
+    data: { comment },
+  })
+}

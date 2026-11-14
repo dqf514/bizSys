@@ -512,6 +512,63 @@ def generate_contract(
     return _contract_out(c)
 
 
+@router.post("/tenders/{tid}/ai-bid-screen")
+def ai_bid_screen(
+    tid: int,
+    current: User = Depends(require_perm("procurement:tender:evaluate")),
+    db: Session = Depends(get_db),
+):
+    """AI 评标辅助（不落库）：公告要求提取 + 各投标符合性初筛（符合/偏离/待人工确认）。"""
+    from app.modules.procurement import ai_tender
+
+    t = _get_tender(db, tid)
+    return ai_tender.ai_bid_screen(db, current, t)
+
+
+@router.get("/tenders/{tid}/bid-compare")
+def bid_compare(
+    tid: int,
+    current: User = Depends(require_perm("procurement:tender:evaluate")),
+    db: Session = Depends(get_db),
+):
+    """报价比对表（确定性计算，非 AI）：各投标价/预算偏离度/排名。"""
+    from app.modules.procurement import ai_tender
+
+    t = _get_tender(db, tid)
+    return ai_tender.bid_compare_rows(db, t)
+
+
+BID_COMPARE_EXPORT_COLS = [
+    {"key": "rank", "label": "排名", "width": 8},
+    {"key": "companyName", "label": "投标单位", "width": 28},
+    {"key": "price", "label": "报价(元)", "width": 14},
+    {"key": "deviationPercent", "label": "预算偏离度(%)", "width": 14},
+    {"key": "submitAt", "label": "提交时间", "width": 19},
+]
+
+
+@router.get("/tenders/{tid}/bid-compare/export")
+def bid_compare_export(
+    tid: int,
+    current: User = Depends(require_perm("procurement:tender:evaluate")),
+    db: Session = Depends(get_db),
+):
+    """报价比对表导出 xlsx（非 AI）。"""
+    from app.modules.procurement import ai_tender
+
+    t = _get_tender(db, tid)
+    data = ai_tender.bid_compare_rows(db, t)
+    payload = export_xlsx_styled(data["rows"], BID_COMPARE_EXPORT_COLS, f"bid_compare_{tid}")
+    audit(db, user_id=current.id, module="procurement", action="tender_bid_compare_export",
+          biz_type="tender", biz_id=tid, detail={"count": len(data["rows"])})
+    db.commit()
+    return Response(
+        payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{now_filename('bid_compare')}"},
+    )
+
+
 @router.post("/tenders/export")
 def export_tenders(
     request: Request,

@@ -116,5 +116,29 @@ export function previewFlow(
   })
 }
 
+/* ---------- AI 审批链建议（不落库，人工采纳才生效） ---------- */
+
+export interface FlowSuggestNode {
+  nodeName: string
+  approverType: string
+  approverValue: string
+  approverName: string
+  signMode: string
+}
+
+export interface FlowSuggestResult {
+  nodes: FlowSuggestNode[]
+  rationale: string
+}
+
+export function aiSuggestFlow(data: {
+  bizType: string
+  name?: string
+  amount?: number | null
+  category?: string
+}) {
+  return request<FlowSuggestResult>({ url: '/approval/definitions/ai-suggest', method: 'post', data })
+}
+
 /** lightweight user options for transfer / add-sign (fallback to admin users list) */
 export type { UserProfile }

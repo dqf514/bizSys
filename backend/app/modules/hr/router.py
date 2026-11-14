@@ -109,6 +109,18 @@ def week(
     return svc.week_summary(db, current, date_)
 
 
+@router.post("/timesheets/ai-prefill")
+def ai_prefill(
+    body: S.TimesheetPrefillIn,
+    current: User = Depends(require_perm("hr:timesheet:create")),
+    db: Session = Depends(get_db),
+):
+    """AI 预填当日工时草稿（不落库）：按任务近期进度日志 + 本人近期工时生成建议。"""
+    from app.modules.hr import ai_prefill as ai_prefill_svc
+
+    return ai_prefill_svc.ai_prefill(db, current, body.task_id, body.work_date)
+
+
 @router.post("/timesheets", status_code=201)
 def create(
     body: S.TimesheetIn,
