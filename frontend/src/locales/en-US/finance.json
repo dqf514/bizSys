@@ -77,7 +77,10 @@
     "status": {
       "approving": "Approving",
       "issued": "Issued"
-    }
+    },
+    "taxRate": "Tax Rate %",
+    "buyerName": "Buyer",
+    "sellerName": "Seller"
   },
   "payment": {
     "title": "Payments",

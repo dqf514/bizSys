@@ -691,6 +691,18 @@ def add_sample(
     return _sample_out(row)
 
 
+@router.post("/samples/ai-ocr")
+def ai_ocr_sample(
+    file: UploadFile,
+    current: User = Depends(require_perm("task:edit")),
+    db: Session = Depends(get_db),
+):
+    """样品标签拍照识别：返回字段草稿（不落库，人工确认后随任务/样品保存）。"""
+    from app.modules.task import ai_sample_ocr
+
+    return ai_sample_ocr.ai_ocr_sample(db, current, file.filename or "", file.file.read())
+
+
 @router.put("/samples/{sid}")
 def update_sample(
     sid: int,

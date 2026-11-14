@@ -33,6 +33,9 @@ class ConfirmIn(CamelModel):
 class InvoiceIn(CamelModel):
     invoice_no: str = Field(..., min_length=1, max_length=64)
     amount: Decimal = Field(..., gt=0, le=9999999999999999.99)
+    tax_rate: Decimal | None = Field(None, ge=0, le=100)
+    buyer_name: str = Field("", max_length=128)
+    seller_name: str = Field("", max_length=128)
     invoice_date: OptionalDate = None
 
 

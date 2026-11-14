@@ -5,15 +5,22 @@ import type {
   AiUsageRow,
   AiUsageStats,
   ApprovalAssistResult,
+  AssistantReply,
   ContractParseResult,
   ContractRiskResult,
+  DailyDigestResult,
+  InvoiceOcrResult,
+  KnowledgeAskResult,
+  KnowledgeEntry,
   ListQuery,
   NlQueryAnswer,
   NlQueryContext,
   PageResult,
+  PriceReferenceResult,
   ReportAssistKind,
   ReportAssistResult,
   ReportSummaryDraft,
+  SampleOcrResult,
   TaskProgressAiDraft,
   TaskProgressLogItem,
 } from './types'
@@ -142,4 +149,92 @@ export function aiNlQuery(question: string, context?: NlQueryContext) {
     method: 'post',
     data: { question, context },
   })
+}
+
+// ---------------- AI-4：OCR / 价格参考 / 助手 / 摘要 / 知识库 ----------------
+
+export function aiSampleOcr(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<SampleOcrResult>({ url: '/task/samples/ai-ocr', method: 'post', data: form })
+}
+
+export function aiInvoiceOcr(invoiceId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<InvoiceOcrResult>({
+    url: `/finance/invoices/${invoiceId}/ai-ocr`,
+    method: 'post',
+    data: form,
+  })
+}
+
+export function getPriceReference(itemName: string, price?: number | null) {
+  return request<PriceReferenceResult>({
+    url: '/procurement/price-reference',
+    method: 'get',
+    params: { itemName, price: price ?? undefined },
+  })
+}
+
+export function aiAssistantChat(message: string, menus: { title: string; path: string }[] = []) {
+  return request<AssistantReply>({ url: '/ai/assistant', method: 'post', data: { message, menus } })
+}
+
+export function getDailyDigest() {
+  return request<DailyDigestResult>({ url: '/ai/daily-digest', method: 'get' })
+}
+
+export function pushDailyDigest(summary: string, highlights: string[]) {
+  return request<{ channel: string }>({
+    url: '/ai/daily-digest/push',
+    method: 'post',
+    data: { summary, highlights },
+  })
+}
+
+export function askKnowledge(question: string) {
+  return request<KnowledgeAskResult>({ url: '/ai/knowledge/ask', method: 'post', data: { question } })
+}
+
+export function searchKnowledge(q: string) {
+  return request<{ entries: KnowledgeEntry[] }>({
+    url: '/ai/knowledge/search',
+    method: 'get',
+    params: { q },
+  })
+}
+
+export function listKnowledgeEntries(params: ListQuery & { category?: string }) {
+  return request<PageResult<KnowledgeEntry>>({
+    url: '/admin/ai/knowledge',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function createKnowledgeEntry(data: { title: string; category: string; content: string }) {
+  return request<{ id: number }>({ url: '/admin/ai/knowledge', method: 'post', data })
+}
+
+export function updateKnowledgeEntry(id: number, data: { title: string; category: string; content: string }) {
+  return request<{ id: number }>({ url: `/admin/ai/knowledge/${id}`, method: 'put', data })
+}
+
+export function deleteKnowledgeEntry(id: number) {
+  return request<void>({ url: `/admin/ai/knowledge/${id}`, method: 'delete' })
+}
+
+export function uploadKnowledgeAttachment(id: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<{ id: number; attachmentName: string }>({
+    url: `/admin/ai/knowledge/${id}/attachment`,
+    method: 'post',
+    data: form,
+  })
+}
+
+export function downloadKnowledgeAttachment(id: number, fileName = 'attachment') {
+  return download({ url: `/admin/ai/knowledge/${id}/attachment`, method: 'get' }, fileName)
 }

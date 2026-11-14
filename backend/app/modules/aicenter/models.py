@@ -1,6 +1,6 @@
-"""AI 中心：ai_usage_log（全站 AI 调用用量日志，网关统一落行）。"""
+"""AI 中心：ai_usage_log（全站 AI 调用用量日志，网关统一落行）+ ai_knowledge（知识库条目）。"""
 
-from sqlalchemy import BigInteger, Index, Integer, String
+from sqlalchemy import BigInteger, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.models import BaseModel
@@ -29,3 +29,16 @@ class AiUsageLog(BaseModel):
     biz_type: Mapped[str] = mapped_column(String(32), default="", comment="关联业务类型")
     biz_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联业务 id")
     prompt_version: Mapped[str] = mapped_column(String(16), default="")
+
+
+class KnowledgeEntry(BaseModel):
+    """AI 知识库条目：标题/分类/正文 + 可选附件；供全局助手与知识库问答检索。"""
+
+    __tablename__ = "ai_knowledge"
+    __table_args__ = (Index("ix_ai_knowledge_category", "category"),)
+
+    title: Mapped[str] = mapped_column(String(128), comment="条目标题")
+    category: Mapped[str] = mapped_column(String(64), default="", comment="分类（自由文本）")
+    content: Mapped[str] = mapped_column(Text, default="", comment="正文")
+    attachment_path: Mapped[str] = mapped_column(String(255), default="", comment="附件相对路径（空=无）")
+    attachment_name: Mapped[str] = mapped_column(String(255), default="", comment="附件原始文件名")

@@ -19,6 +19,9 @@ export interface CreateSettlementPayload {
 export interface UpdateInvoicePayload {
   invoiceNo: string
   amount: number
+  taxRate?: number | null
+  buyerName?: string
+  sellerName?: string
   invoiceDate?: string
 }
 

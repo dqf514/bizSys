@@ -95,7 +95,7 @@
 
 ### AI 中心 /admin/ai（统一网关 + 用量监控 + 功能开关/配额；详见 docs/ai-center.md）
 - 能力探测（登录即可，前端据此举入口显隐/提示）：`GET /ai/capabilities` →
-  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary,approval_assist,contract_risk,report_assist,nl_query,hr_prefill,oa_prefill,flow_route,flow_anomaly,tender_assist}}`（feature=false 表示总开关未开/未配置/该功能被停用）
+  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary,approval_assist,contract_risk,report_assist,nl_query,hr_prefill,oa_prefill,flow_route,flow_anomaly,tender_assist,sample_ocr,invoice_ocr,price_ref,assistant,daily_digest,knowledge}}`（feature=false 表示总开关未开/未配置/该功能被停用）
 - 自然语言问数（登录即可，feature `nl_query`）：`POST /ai/nl-query` `{question,context?:{domain?,timeFrom?,timeTo?}}` →
   `{domain,domainLabel,text,rows:[{label,value}],link,timeRange:{from,to},criteria}`；
   AI 只产白名单意图（task_volume/contract_amount/receivable/settlement/work_hours/procurement/quotation），
@@ -111,7 +111,24 @@
   - `PUT /admin/ai/settings` `{features?,quota?}`（quota 0=不限；审计 ai_settings_update）
 - 连接参数仍在系统设置 AI 卡片：`ai.enabled/ai.base_url/ai.api_key(加密)/ai.model/ai.vision_model(空=复用 model)/ai.timeout`
 - 错误码（65xxx）：65001 AI 未配置或功能已停用 / 65002 功能停用 / 65003 配额超限（quota:reason）/ 65004 AI 输出解析失败
-- 权限码：`admin:ai:usage` / `admin:ai:usage:export` / `admin:ai:settings`（默认仅 super）
+- 权限码：`admin:ai:usage` / `admin:ai:usage:export` / `admin:ai:settings` / `admin:ai:knowledge`（默认仅 super）
+- AI-4（全局助手/每日摘要/知识库问答，登录即可；知识库管理 admin:ai:knowledge）：
+  - `POST /ai/assistant` `{message,menus?:[{title,path}]}` → `{type:query|navigate|guide,text,path,menuName,data?,sources[],entries?,degraded?}`；
+    意图白名单路由：query 复用 nl_query（再次权限校验）；navigate 的 path 须在「服务端权限菜单树 ∩ 前端候选 + 静态深链」
+    交集内才返回（幻觉路径降级为 guide）；guide 走知识库检索作答；只读接口，不产生任何业务写入（审计 ai_assistant）；
+    AI 未配置时降级：菜单关键词命中→导航建议，否则知识库关键词搜索
+  - `GET /ai/daily-digest`（feature `daily_digest`）→ `{summary,highlights[],degraded,todos:{approvalCount,approvals[],overdueTasks[],dueSoonTasks[]}}`；
+    聚合当前用户待审批（approval_task pending）+ 进行中任务（3 天内/已逾期）；AI 不可用时回退模板摘要（degraded=true）
+  - `POST /ai/daily-digest/push` `{summary,highlights}` → `{channel:wecom|notify}`；企微凭据就绪且已绑定 wecom_userid 推企微，
+    否则（或企微失败）落 sys_notify 站内通知（biz_type=daily_digest，链接 /workbench）；审计 ai_digest_push
+  - 知识库（feature `knowledge`；表 ai_knowledge）：
+    - `POST /ai/knowledge/ask` `{question}` → `{answer,sources:[{id,title,category}],entries[],degraded}`；
+      关键词检索 top3（标点分词 + 长词 2-gram）→ AI 仅基于条目作答并标注来源（usedIds 与命中取交集，空则兜底全部命中）；
+      AI 未配置/停用/失败 → degraded=true，返回命中条目原文摘录（降级搜索）
+    - `GET /ai/knowledge/search?q=` → `{entries[]}`（纯检索）
+    - 管理端：`GET/POST /admin/ai/knowledge`、`PUT/DELETE /admin/ai/knowledge/{id}`（q 关键词/分类过滤，逻辑删除）；
+      附件 `POST/GET /admin/ai/knowledge/{id}/attachment`（上传限 admin:ai:knowledge，下载登录即可）
+    - 预置操作手册 7 条：alembic `l1a2b3c4d5e6` 插入 + seeds 兜底（同标题幂等）
 
 ## CRM 往来单位 /crm（客户/供应商统一档案，partner_type ∈ customer/supplier/both）
 - `GET /crm/customers` 分页：字段
@@ -150,6 +167,10 @@
   · `POST /{id}/void` · `POST /requests/export`
 - `POST /procurement/requests/{id}/generate-contract` `{supplierId,name?,amount?,payCycle?,delivery?,remark?}`
   （仅 approved 申请，否则 95003；供应商须为启用的 supplier/both 往来单位，否则 95002；幂等：一申请一合同）
+- `GET /procurement/price-reference?itemName=&price=`（procurement:request:list）→
+  `{stats:{count,avg,min,max,latestPrice,latestAt},deviationPercent,comment}`；
+  同品名历史价格聚合（申请明细预估价 + 已确认入库单成交价，各取最近 200 条，纯计算不受开关影响）；
+  comment 为 AI 偏离点评（feature `price_ref` 关闭/未配置/失败时为空串）
 - `GET /procurement/contracts` · counts · `GET /{id}`（含 timeline + stockOrders 互跳）
   · POST/PUT/DELETE · `POST /{id}/submit`（发 CG 编号 + purchase_contract_approve：节点1 会签 sign_mode=and
   （manager1+leader1 全员通过）→ 节点2 分管领导终审）· `POST /{id}/void` · `POST /contracts/export`
@@ -413,6 +434,8 @@
   嵌套路由 `POST /task/tasks/{id}/items` · `PUT /task/items/{itemId}` · `DELETE /task/items/{itemId}`
   `needReport=true` → 自动分配 `reportNo`（BG 规则）
 - 样品 `task_sample`：`{id,sampleNo,name,model,vin,vehicleType,sampleDate,inStock:"in"|"out",pendingOrder}`
+- `POST /task/samples/ai-ocr`（task:edit，feature `sample_ocr`，multipart file：jpg/jpeg/png）→
+  `{name,model,vin,vehicleType,sampleDate,source:"ai"}`；样品标签照片多模态提取草稿，不落库（人工核对后随任务/样品保存）
   `POST /task/tasks/{id}/samples`（sampleNo 自动 `任务号-01`）
   · `PUT /task/samples/{sid}`（存在未确认出入库单时禁止改 in_stock，60001）
   · `DELETE`（存在未确认出入库单时禁止，60001）
@@ -467,7 +490,11 @@
 - `POST /finance/settlements/{id}/apply-invoice` `{comment?}` → 启动开票审批
   （bizType=invoice，definition=invoice_apply），结算单 → invoicing；审批通过 → invoiced 并生成发票行；
   **前置：confirmStatus=confirmed，否则 80001**
-- `PUT /finance/invoices/{id}` `{invoiceNo,amount,invoiceDate?}` → 财务登记发票信息
+- `PUT /finance/invoices/{id}` `{invoiceNo,amount,taxRate?,buyerName?,sellerName?,invoiceDate?}` → 财务登记发票信息
+- `POST /finance/invoices/{id}/ai-ocr`（finance:invoice:edit，feature `invoice_ocr`，multipart file：pdf/jpg/jpeg/png）→
+  `{fields:{invoiceNo,amount,taxRate,buyer,seller,invoiceDate},amountCheck:{settlementAmount,matches,diff},source:"ai"}`；
+  pdf 走文本提取、图片走多模态；字段截断归一；amountCheck 为服务端对结算金额的确定性复核（|diff|≤0.01 为一致），
+  仅提示人工核对，登记落库仍走 PUT（审计 invoice_ai_ocr）
 - `GET /finance/invoices` 分页：
   `{id,invoiceNo,settlementId,settlementNo,taskNo,customerName,amount,invoiceDate,status,statusText,createBy,createTime}`
   （settlementNo/taskNo/customerName 关联 fin_settlement 带出；status ∈ `approving 审批中 / issued 已开票`）

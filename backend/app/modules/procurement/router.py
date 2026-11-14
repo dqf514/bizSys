@@ -179,6 +179,19 @@ def _request_filtered(db: Session, request: Request, page: PageParams):
     )
 
 
+@router.get("/price-reference")
+def price_reference(
+    itemName: str = Query("", max_length=255),
+    price: float | None = Query(None, ge=0),
+    current: User = Depends(require_perm("procurement:request:list")),
+    db: Session = Depends(get_db),
+):
+    """采购价格参考：同品名历史均价/区间/最近价（纯计算）+ AI 偏离点评（功能关闭时仅无点评）。"""
+    from app.modules.procurement import ai_price_ref
+
+    return ai_price_ref.price_reference(db, current, itemName, price)
+
+
 @router.get("/requests")
 def list_requests(
     request: Request,

@@ -697,6 +697,9 @@ export interface InvoiceListItem {
   customerId?: number | null
   customerName: string
   amount: number | string
+  taxRate?: number | null
+  buyerName?: string
+  sellerName?: string
   invoiceDate: string
   status: InvoiceStatus
   statusText?: string
@@ -1500,6 +1503,12 @@ export type AiFeatureKey =
   | 'flow_route'
   | 'flow_anomaly'
   | 'tender_assist'
+  | 'sample_ocr'
+  | 'invoice_ocr'
+  | 'price_ref'
+  | 'assistant'
+  | 'daily_digest'
+  | 'knowledge'
 export type AiUsageStatus = 'success' | 'error' | 'fallback'
 
 export interface AiUsageRow {
@@ -1666,4 +1675,91 @@ export interface NlQueryAnswer {
   link: string
   timeRange: { from: string; to: string }
   criteria: string
+}
+
+// ---------------- AI-4：OCR / 价格参考 / 助手 / 摘要 / 知识库 ----------------
+
+export interface SampleOcrResult {
+  name: string
+  model: string
+  vin: string
+  vehicleType: string
+  sampleDate: string
+  source: string
+}
+
+export interface InvoiceOcrResult {
+  fields: {
+    invoiceNo: string
+    amount: number
+    taxRate: number | null
+    buyer: string
+    seller: string
+    invoiceDate: string
+  }
+  amountCheck: {
+    settlementAmount: number | null
+    matches: boolean | null
+    diff: number | null
+  }
+  source: string
+}
+
+export interface PriceReferenceResult {
+  itemName: string
+  stats: {
+    count: number
+    avg: number | null
+    min: number | null
+    max: number | null
+    latestPrice: number | null
+    latestAt: string
+  }
+  deviationPercent: number | null
+  comment: string
+}
+
+export type AssistantReplyType = 'query' | 'navigate' | 'guide'
+
+export interface AssistantReply {
+  type: AssistantReplyType
+  text: string
+  path: string
+  menuName: string
+  data: NlQueryAnswer | null
+  sources: { id: number; title: string; category: string }[]
+  entries?: KnowledgeEntry[]
+  degraded?: boolean
+}
+
+export interface DailyDigestResult {
+  summary: string
+  highlights: string[]
+  degraded: boolean
+  todos: {
+    date: string
+    approvalCount: number
+    approvals: { title: string; node: string }[]
+    overdueTasks: { title: string; dueDate: string }[]
+    dueSoonTasks: { title: string; dueDate: string }[]
+  }
+}
+
+export interface KnowledgeEntry {
+  id: number
+  title: string
+  category: string
+  content: string
+  excerpt: string
+  attachmentName: string
+  hasAttachment: boolean
+  createTime: string
+  updateTime: string
+}
+
+export interface KnowledgeAskResult {
+  answer: string
+  sources: { id: number; title: string; category: string }[]
+  entries: KnowledgeEntry[]
+  degraded: boolean
 }

@@ -77,7 +77,10 @@
     "status": {
       "approving": "审批中",
       "issued": "已开票"
-    }
+    },
+    "taxRate": "税率 %",
+    "buyerName": "购买方",
+    "sellerName": "销售方"
   },
   "payment": {
     "title": "到账信息",

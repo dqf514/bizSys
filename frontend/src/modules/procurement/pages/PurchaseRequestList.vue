@@ -27,8 +27,10 @@ import {
 } from '@/api/procurement'
 import { listTasks } from '@/api/task'
 import { customerOptions } from '@/api/crm'
+import { getPriceReference } from '@/api/ai'
 import type {
   CustomerOption,
+  PriceReferenceResult,
   PurchaseRequest,
   PurchaseRequestDetail,
   PurchaseRequestItem,
@@ -163,6 +165,29 @@ async function searchTasks(q: string) {
 
 function blankItem(): PurchaseRequestItem {
   return { itemName: '', spec: '', unit: '', quantity: 1, estimatePrice: null, remark: '' }
+}
+
+/* ---------- 价格参考（同品名历史聚合 + AI 点评） ---------- */
+const priceRefVisible = ref(false)
+const priceRefLoading = ref(false)
+const priceRef = ref<PriceReferenceResult | null>(null)
+
+async function openPriceRef(row: PurchaseRequestItem) {
+  if (!row.itemName.trim() || priceRefLoading.value) return
+  priceRefVisible.value = true
+  priceRefLoading.value = true
+  priceRef.value = null
+  try {
+    const price =
+      row.estimatePrice === null || row.estimatePrice === undefined || row.estimatePrice === ''
+        ? undefined
+        : Number(row.estimatePrice)
+    priceRef.value = await getPriceReference(row.itemName.trim(), price)
+  } catch {
+    priceRefVisible.value = false
+  } finally {
+    priceRefLoading.value = false
+  }
 }
 
 function openCreate() {
@@ -502,8 +527,17 @@ function fmtAmount(v: unknown) {
                 <el-input-number v-model="row.estimatePrice" :min="0" :precision="2" :controls="false" style="width: 100%" />
               </template>
             </el-table-column>
-            <el-table-column :label="t('common.action.operate')" width="70" align="center">
-              <template #default="{ $index }">
+            <el-table-column :label="t('common.action.operate')" width="130" align="center">
+              <template #default="{ row, $index }">
+                <el-button
+                  link
+                  type="primary"
+                  class="price-ref-btn"
+                  :disabled="!row.itemName.trim()"
+                  @click="openPriceRef(row)"
+                >
+                  {{ t('ai.priceRef.button') }}
+                </el-button>
                 <el-button link type="danger" @click="form.items.splice($index, 1)">{{ t('common.action.delete') }}</el-button>
               </template>
             </el-table-column>
@@ -522,6 +556,38 @@ function fmtAmount(v: unknown) {
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
       <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
     </template>
+  </el-dialog>
+
+  <!-- 价格参考对话框 -->
+  <el-dialog v-model="priceRefVisible" :title="t('ai.priceRef.title')" width="480px" append-to-body>
+    <div v-loading="priceRefLoading" class="price-ref-dialog">
+      <template v-if="priceRef">
+        <el-empty v-if="!priceRef.stats.count" :description="t('ai.priceRef.noData')" :image-size="60" />
+        <template v-else>
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item :label="t('ai.priceRef.count')">{{ priceRef.stats.count }}</el-descriptions-item>
+            <el-descriptions-item :label="t('ai.priceRef.avg')">¥{{ priceRef.stats.avg?.toLocaleString() }}</el-descriptions-item>
+            <el-descriptions-item :label="t('ai.priceRef.range')">
+              ¥{{ priceRef.stats.min?.toLocaleString() }} ~ ¥{{ priceRef.stats.max?.toLocaleString() }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="t('ai.priceRef.latest')">
+              ¥{{ priceRef.stats.latestPrice?.toLocaleString() }}（{{ priceRef.stats.latestAt }}）
+            </el-descriptions-item>
+            <el-descriptions-item v-if="priceRef.deviationPercent !== null" :label="t('ai.priceRef.deviation')" :span="2">
+              {{ priceRef.deviationPercent }}%
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-alert
+            v-if="priceRef.comment"
+            :title="t('ai.priceRef.aiComment')"
+            :description="priceRef.comment"
+            type="info"
+            :closable="false"
+            class="price-ref-comment"
+          />
+        </template>
+      </template>
+    </div>
   </el-dialog>
 
   <el-drawer v-model="detailVisible" size="720px">
@@ -660,5 +726,9 @@ function fmtAmount(v: unknown) {
 
 .add-item {
   margin-top: var(--bs-space-2);
+}
+
+.price-ref-comment {
+  margin-top: var(--bs-space-3);
 }
 </style>

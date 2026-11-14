@@ -47,5 +47,7 @@
   "quoteTemplates": "报价模板",
   "aiCenter": "AI 中心",
   "aiUsage": "用量监控",
-  "aiSettings": "AI 设置"
+  "aiSettings": "AI 设置",
+  "aiKnowledge": "知识库",
+  "knowledgeAsk": "知识库问答"
 }

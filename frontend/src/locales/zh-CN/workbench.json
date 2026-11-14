@@ -19,7 +19,8 @@
     "quickLinks": "快捷入口",
     "aiQuery": "AI 问数",
     "oaQuickApply": "OA 快捷发起",
-    "financeOverview": "财务概览"
+    "financeOverview": "财务概览",
+    "aiDigest": "AI 每日摘要"
   },
   "customize": "自定义",
   "customizeTitle": "自定义工作台",

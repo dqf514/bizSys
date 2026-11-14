@@ -25,3 +25,25 @@ class NlQueryContext(BaseModel):
 class NlQueryIn(BaseModel):
     question: str = Field(..., min_length=1, max_length=200)
     context: NlQueryContext | None = None
+
+
+class AssistantIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=500)
+    menus: list[dict] = Field(default_factory=list, max_length=100)
+
+
+class KnowledgeEntryIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=128)
+    category: str = Field("", max_length=64)
+    content: str = Field("", max_length=20000)
+
+
+class KnowledgeAskIn(BaseModel):
+    question: str = Field(..., min_length=1, max_length=200)
+
+
+class DigestPushIn(BaseModel):
+    """推送内容回传 GET 摘要结果，避免重复 AI 调用。"""
+
+    summary: str = Field(..., min_length=1, max_length=2000)
+    highlights: list[str] = Field(default_factory=list, max_length=10)

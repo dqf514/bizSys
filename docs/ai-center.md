@@ -18,7 +18,7 @@
 - 配置全部存 sys_config：
   - 连接（系统设置 → AI 设置卡片）：`ai.enabled` / `ai.base_url` / `ai.api_key`（AES-GCM 加密）/
     `ai.model` / `ai.vision_model`（空 = 复用 model，图片类功能使用）/ `ai.timeout`
-  - 功能开关（AI 中心 → AI 设置）：`ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query|hr_prefill|oa_prefill|flow_route|flow_anomaly|tender_assist}`，缺省启用
+  - 功能开关（AI 中心 → AI 设置）：`ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query|hr_prefill|oa_prefill|flow_route|flow_anomaly|tender_assist|sample_ocr|invoice_ocr|price_ref|assistant|daily_digest|knowledge}`，缺省启用
   - 配额：`ai.quota.user_daily_calls` / `ai.quota.user_daily_tokens` / `ai.quota.global_daily_tokens`，0 = 不限
 - 环回/内网端点（127.0.0.1/localhost/::1）自动绕过系统代理（httpx trust_env 在 Windows 会读注册表代理）。
 
@@ -51,6 +51,12 @@
 | `flow_route` | 流程定义编辑弹窗「AI 建议审批链」 | 业务类型 + 金额/分类 + 启用用户/角色清单 + 同类定义节点摘要 → 建议节点链 + 设计理由；USER/ROLE 审批人服务端逐一核验存在且启用（非法节点丢弃、全丢 65004），人工「采纳」才替换编辑中的节点 |
 | `flow_anomaly` | OA 流程处理行操作「AI 异常分析」 | 滞留节点/待办人/时长 + 服务端确定性信号（审批人停用锁定、超同表单历史中位处理时长、组织节点解析不到人）+ 最近时间线 → 原因分析 + 处理建议（催办/转办/退回；转办人选只信服务端按姓名匹配回的 userId）；「发送催办通知」走独立非 AI 端点写 sys_notify + 审计 oa_urge |
 | `tender_assist` | 招标详情投标区「AI 评标辅助」（评标中/定标中/已定标） | 公告要求提取（≤10 条）+ 各投标文件文本（≤10 份、每份截 4000，提取失败全项待确认）→ 逐项 符合/偏离/待人工确认（verdict 白名单归一、bidId 白名单过滤、缺失补齐 manual）；同弹窗附报价比对表（确定性计算、非 AI、可导出 xlsx）；仅辅助，评分定标仍人工 |
+| `sample_ocr` | 任务编辑页样品区「拍照识别」 | 样品标签照片 → 多模态提取 名称/型号/VIN/车型/日期 草稿 → 回填首个空行或追加新行；不落库，人工核对后随任务保存 |
+| `invoice_ocr` | 发票登记弹窗「发票识别」 | 发票图片/PDF → 发票号/金额/税率/购买方/销售方/日期草稿回填；金额服务端对照结算金额复核（不一致弹内告警提示人工核对）；登记落库仍走原 PUT |
+| `price_ref` | 采购申请明细行「价格参考」 | 同品名历史聚合（申请预估价 + 已确认入库成交价）：次数/均价/区间/最近价 + 当前价偏离度（纯计算，不受开关影响）；AI 点评仅功能开启时附加，失败/停用为空不阻断 |
+| `assistant` | 右下角常驻「AI 助手」面板（桌面+移动，移动端避开 Dock） | 意图白名单路由：query=复用 nl_query（再次权限校验）/ navigate=仅允许服务端权限菜单树 ∩ 前端候选 ∩ 静态深链交集内的 path（幻觉路径降级 guide）/ guide=知识库检索作答；每条回复标注类型（查数/导航/指引），导航给确认按钮再跳转；只读，不产生任何业务写入；AI 未配置降级为菜单关键词/知识库搜索 |
+| `daily_digest` | 工作台「AI 每日摘要」卡片 | 聚合当前用户待审批 + 进行中临期/逾期任务 → 一段话摘要 + ≤3 条重点；AI 不可用回退模板摘要（degraded）；「推送给自己」企微就绪且已绑定推企微，否则落站内通知（sys_notify + 审计留痕） |
+| `knowledge` | 管理端「AI 中心 → 知识库」CRUD + 独立「知识库问答」页（/ai/knowledge，登录可用） | 关键词检索（标点分词 + 长词 2-gram，标题权重 ×3）top3 → AI 仅基于条目作答并标注来源（usedIds 取交集，空则兜底全部命中）；AI 未配置/停用/失败降级为命中条目原文展示；预置 7 条操作手册（迁移 l1a2b3c4d5e6 + seeds 幂等兜底） |
 
 ### 问数白名单域（`app/modules/aicenter/nl_query.py`）
 

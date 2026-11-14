@@ -82,6 +82,19 @@ export const extraRoutes: RouteRecordRaw[] = [
       componentName: 'TodoList',
     },
   },
+  // 知识库问答：登录可用，不占菜单（全局助手面板入口）
+  {
+    path: '/ai/knowledge',
+    name: 'KnowledgeAsk',
+    component: () => import('@/modules/ai/pages/KnowledgeAsk.vue'),
+    meta: {
+      tabKey: '/ai/knowledge',
+      titleKey: 'menu.knowledgeAsk',
+      title: 'Knowledge Q&A',
+      keepAlive: true,
+      componentName: 'KnowledgeAsk',
+    },
+  },
   {
     path: '/contract/contracts/new',
     name: 'ContractEditNew',

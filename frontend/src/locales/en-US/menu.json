@@ -47,5 +47,7 @@
   "quoteTemplates": "Quote Templates",
   "aiCenter": "AI Center",
   "aiUsage": "Usage Monitor",
-  "aiSettings": "AI Settings"
+  "aiSettings": "AI Settings",
+  "aiKnowledge": "Knowledge Base",
+  "knowledgeAsk": "Knowledge Q&A"
 }

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -151,6 +151,9 @@ def _invoice_out(i: Invoice, s: Settlement | None = None, users: dict[int, str] 
         "contractId": s.contract_id if s else None,
         "customerId": s.customer_id if s else None,
         "amount": _money(i.amount),
+        "taxRate": _money(i.tax_rate) if i.tax_rate is not None else None,
+        "buyerName": i.buyer_name or "",
+        "sellerName": i.seller_name or "",
         "invoiceDate": _d(i.invoice_date),
         "status": i.status,
         "approvalInstanceId": i.approval_instance_id,
@@ -655,6 +658,25 @@ def export_invoices(
     )
 
 
+@router.post("/invoices/{iid}/ai-ocr")
+def ai_ocr_invoice(
+    iid: int,
+    file: UploadFile,
+    current: User = Depends(require_perm("finance:invoice:edit")),
+    db: Session = Depends(get_db),
+):
+    """发票识别：返回字段草稿 + 金额复核（不落库，人工确认后走 PUT 登记）。"""
+    from app.modules.finance import ai_invoice_ocr
+
+    i = db.get(Invoice, iid)
+    if not i or i.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    data = ai_invoice_ocr.ai_ocr_invoice(db, current, i, file.filename or "", file.file.read())
+    audit(db, user_id=current.id, module="finance", action="invoice_ai_ocr", biz_type="invoice", biz_id=iid)
+    db.commit()
+    return data
+
+
 @router.put("/invoices/{iid}")
 def register_invoice(
     iid: int,
@@ -667,6 +689,9 @@ def register_invoice(
         raise BizException(R.GENERIC_NOT_FOUND)
     i.invoice_no = body.invoice_no
     i.amount = body.amount
+    i.tax_rate = body.tax_rate
+    i.buyer_name = body.buyer_name.strip()
+    i.seller_name = body.seller_name.strip()
     i.invoice_date = body.invoice_date
     i.update_by = current.id
     i.update_time = datetime.now()

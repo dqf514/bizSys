@@ -9,6 +9,7 @@ import CommandPalette from './CommandPalette.vue'
 import MobileDock from './MobileDock.vue'
 import MobileNavDrawer from './MobileNavDrawer.vue'
 import DockSettingsDialog from './DockSettingsDialog.vue'
+import AiAssistant from '@/components/assistant/AiAssistant.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCommandPalette } from '@/composables/useHotkeys'
 import { useIsMobile } from '@/composables/useIsMobile'
@@ -66,6 +67,7 @@ const gridStyle = computed(() => {
       <DockSettingsDialog />
     </template>
     <CommandPalette v-model:visible="commandVisible" />
+    <AiAssistant />
   </div>
 </template>
 

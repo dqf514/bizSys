@@ -15,6 +15,7 @@ import MonthCalendar from '../components/MonthCalendar.vue'
 import QuickLinks from '../components/QuickLinks.vue'
 import OaQuickApply from '../components/OaQuickApply.vue'
 import AiQueryCard from '../components/AiQueryCard.vue'
+import DigestCard from '../components/DigestCard.vue'
 import FinanceOverview from '../components/FinanceOverview.vue'
 import CustomizeDialog from '../components/CustomizeDialog.vue'
 
@@ -52,6 +53,7 @@ const WIDGET_META: WidgetMeta[] = [
   { key: 'myTasks', labelKey: 'workbench.widget.myTasks', component: MyTasksCard, span: 6, perm: 'task:list' },
   { key: 'calendar', labelKey: 'workbench.widget.calendar', component: MonthCalendar, span: 6, perm: 'task:list' },
   { key: 'aiQuery', labelKey: 'workbench.widget.aiQuery', component: AiQueryCard, span: 6 },
+  { key: 'aiDigest', labelKey: 'workbench.widget.aiDigest', component: DigestCard, span: 6 },
   { key: 'quickLinks', labelKey: 'workbench.widget.quickLinks', component: QuickLinks, span: 12 },
 ]
 

@@ -12,7 +12,13 @@
     "oa_prefill": "Form Prefill",
     "flow_route": "Approval Chain Suggestion",
     "flow_anomaly": "Stuck Flow Analysis",
-    "tender_assist": "Bid Evaluation Assistant"
+    "tender_assist": "Bid Evaluation Assistant",
+    "sample_ocr": "Sample Photo OCR",
+    "invoice_ocr": "Invoice OCR",
+    "price_ref": "Price Reference",
+    "assistant": "AI Assistant",
+    "daily_digest": "AI Daily Digest",
+    "knowledge": "AI Knowledge Base"
   },
   "status": {
     "success": "Success",
@@ -173,5 +179,74 @@
     "appendRemark": "Add to Remark",
     "remarkAppended": "Appended to the remark field; takes effect after saving the contract",
     "onlyShowTip": "Review results are for reference only and are not saved. Please double-check manually."
+  },
+  "sampleOcr": {
+    "button": "Photo OCR",
+    "tip": "Upload a sample label photo; verify AI results manually",
+    "success": "Recognized into a new sample row; please verify before saving",
+    "failed": "Recognition failed; please fill manually"
+  },
+  "invoiceOcr": {
+    "button": "Invoice OCR",
+    "tip": "Upload invoice image or PDF; verify AI results manually",
+    "success": "Recognized and filled; please verify before submitting",
+    "amountMatch": "Amount matches settlement",
+    "amountMismatch": "Recognized amount differs from settlement (¥{amount}) by {diff}; please verify"
+  },
+  "priceRef": {
+    "button": "Price Ref",
+    "title": "Price Reference",
+    "count": "Samples",
+    "avg": "Average",
+    "range": "Range",
+    "latest": "Latest",
+    "deviation": "Deviation vs Avg",
+    "noData": "No historical prices for this item",
+    "aiComment": "AI Comment",
+    "currentPrice": "Current Price"
+  },
+  "assistant": {
+    "entry": "AI Assistant",
+    "title": "AI Assistant",
+    "placeholder": "Ask data / open a page / how-to…",
+    "send": "Send",
+    "typeQuery": "Query",
+    "typeNavigate": "Navigate",
+    "typeGuide": "Guide",
+    "goto": "Go",
+    "navConfirm": "Open \"{name}\" for you?",
+    "gotoKnowledge": "Knowledge Q&A",
+    "sources": "Sources",
+    "empty": "I can query data, open pages, and answer how-to questions."
+  },
+  "digest": {
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "push": "Push to Me",
+    "pushed": "Pushed ({channel})",
+    "channelWecom": "WeCom",
+    "channelNotify": "In-app",
+    "highlights": "Highlights",
+    "degradedTip": "AI unavailable; showing template summary"
+  },
+  "knowledge": {
+    "askTitle": "Knowledge Q&A",
+    "askPlaceholder": "Ask a question; AI answers from knowledge entries…",
+    "ask": "Ask",
+    "sources": "Sources",
+    "degradedTip": "AI unavailable; showing keyword-matched originals",
+    "noHit": "No matching entries",
+    "manage": "Knowledge Base",
+    "addEntry": "New Entry",
+    "editEntry": "Edit Entry",
+    "entryTitle": "Title",
+    "entryCategory": "Category",
+    "entryContent": "Content",
+    "attachment": "Attachment",
+    "uploadAttachment": "Upload",
+    "download": "Download",
+    "confirmDelete": "Delete this entry?",
+    "saveOk": "Saved",
+    "deleteOk": "Deleted"
   }
 }

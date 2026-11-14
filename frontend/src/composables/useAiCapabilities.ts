@@ -20,6 +20,12 @@ const EMPTY: AiCapabilities = {
     flow_route: false,
     flow_anomaly: false,
     tender_assist: false,
+    sample_ocr: false,
+    invoice_ocr: false,
+    price_ref: false,
+    assistant: false,
+    daily_digest: false,
+    knowledge: false,
   },
 }
 

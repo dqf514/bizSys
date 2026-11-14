@@ -23,6 +23,12 @@ const FEATURES: AiFeatureKey[] = [
   'flow_route',
   'flow_anomaly',
   'tender_assist',
+  'sample_ocr',
+  'invoice_ocr',
+  'price_ref',
+  'assistant',
+  'daily_digest',
+  'knowledge',
 ]
 
 const loading = ref(false)
@@ -42,6 +48,12 @@ const features = reactive<Record<AiFeatureKey, boolean>>({
   flow_route: true,
   flow_anomaly: true,
   tender_assist: true,
+  sample_ocr: true,
+  invoice_ocr: true,
+  price_ref: true,
+  assistant: true,
+  daily_digest: true,
+  knowledge: true,
 })
 const quota = reactive({
   userDailyCalls: 0,

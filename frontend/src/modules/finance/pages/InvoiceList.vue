@@ -11,6 +11,8 @@ import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
+import { aiInvoiceOcr } from '@/api/ai'
 import {
   listInvoices,
   invoiceCounts,
@@ -54,7 +56,10 @@ async function loadCounts() {
   }
 }
 
-onMounted(() => void loadCounts())
+onMounted(() => {
+  void aiCaps.ensureLoaded()
+  void loadCounts()
+})
 
 const list = useListPage<InvoiceListItem>({
   fetch: async (params) => {
@@ -108,16 +113,60 @@ const invoiceForm = reactive({
   invoiceId: null as number | null,
   invoiceNo: '',
   amount: undefined as number | undefined,
+  taxRate: undefined as number | undefined,
+  buyerName: '',
+  sellerName: '',
   invoiceDate: '',
 })
+
+// 发票识别：AI 提取字段草稿回填（金额与结算金额不一致时提示人工核对）
+const aiCaps = useAiCapabilities()
+const invoiceOcrInput = ref<HTMLInputElement | null>(null)
+const invoiceOcring = ref(false)
+const amountCheckTip = ref('')
+
+function openInvoiceOcr() {
+  invoiceOcrInput.value?.click()
+}
+
+async function onInvoiceOcrFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !invoiceForm.invoiceId || invoiceOcring.value) return
+  invoiceOcring.value = true
+  try {
+    const r = await aiInvoiceOcr(invoiceForm.invoiceId, file)
+    invoiceForm.invoiceNo = r.fields.invoiceNo || invoiceForm.invoiceNo
+    if (r.fields.amount) invoiceForm.amount = r.fields.amount
+    invoiceForm.taxRate = r.fields.taxRate ?? undefined
+    invoiceForm.buyerName = r.fields.buyer
+    invoiceForm.sellerName = r.fields.seller
+    invoiceForm.invoiceDate = r.fields.invoiceDate || invoiceForm.invoiceDate
+    const chk = r.amountCheck
+    amountCheckTip.value =
+      chk.matches === false && chk.settlementAmount !== null
+        ? t('ai.invoiceOcr.amountMismatch', { amount: chk.settlementAmount.toLocaleString(), diff: chk.diff })
+        : ''
+    ElMessage.success(t('ai.invoiceOcr.success'))
+  } catch {
+    /* http 层已提示 */
+  } finally {
+    invoiceOcring.value = false
+  }
+}
 
 function openInvoiceRegister(row: InvoiceListItem) {
   Object.assign(invoiceForm, {
     invoiceId: row.id,
     invoiceNo: row.invoiceNo ?? '',
     amount: row.amount === undefined || row.amount === null ? undefined : Number(row.amount),
+    taxRate: row.taxRate === undefined || row.taxRate === null ? undefined : Number(row.taxRate),
+    buyerName: row.buyerName ?? '',
+    sellerName: row.sellerName ?? '',
     invoiceDate: row.invoiceDate ?? '',
   })
+  amountCheckTip.value = ''
   invoiceVisible.value = true
 }
 
@@ -130,6 +179,9 @@ async function saveInvoice() {
     await updateInvoice(invoiceForm.invoiceId, {
       invoiceNo: invoiceForm.invoiceNo,
       amount: Number(invoiceForm.amount),
+      taxRate: invoiceForm.taxRate ?? null,
+      buyerName: invoiceForm.buyerName,
+      sellerName: invoiceForm.sellerName,
       invoiceDate: invoiceForm.invoiceDate || undefined,
     })
     ElMessage.success(t('common.message.updateSuccess'))
@@ -262,11 +314,39 @@ async function doApply() {
       >
         <el-input-number v-model="invoiceForm.amount" :min="0" :precision="2" style="width: 100%" />
       </el-form-item>
+      <el-form-item :label="t('finance.invoice.taxRate')">
+        <el-input-number v-model="invoiceForm.taxRate" :min="0" :max="100" :precision="2" style="width: 100%" />
+      </el-form-item>
+      <el-form-item :label="t('finance.invoice.buyerName')">
+        <el-input v-model="invoiceForm.buyerName" maxlength="128" />
+      </el-form-item>
+      <el-form-item :label="t('finance.invoice.sellerName')">
+        <el-input v-model="invoiceForm.sellerName" maxlength="128" />
+      </el-form-item>
       <el-form-item :label="t('finance.invoice.invoiceDate')">
         <el-date-picker v-model="invoiceForm.invoiceDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
       </el-form-item>
+      <el-alert
+        v-if="amountCheckTip"
+        :title="amountCheckTip"
+        type="warning"
+        :closable="false"
+        class="invoice-amount-check"
+      />
     </el-form>
     <template #footer>
+      <template v-if="aiCaps.featureOn('invoice_ocr')">
+        <el-button class="ai-invoice-ocr-btn" :loading="invoiceOcring" @click="openInvoiceOcr">
+          {{ t('ai.invoiceOcr.button') }}
+        </el-button>
+        <input
+          ref="invoiceOcrInput"
+          type="file"
+          accept="image/jpeg,image/png,application/pdf"
+          style="display: none"
+          @change="onInvoiceOcrFile"
+        />
+      </template>
       <el-button @click="invoiceVisible = false">{{ t('common.action.cancel') }}</el-button>
       <el-button type="primary" :loading="invoiceSaving" @click="saveInvoice">{{ t('common.action.save') }}</el-button>
     </template>

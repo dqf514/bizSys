@@ -6,7 +6,9 @@ import { useI18n } from 'vue-i18n'
 import ContractSelect from '@/components/form/ContractSelect.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { getTask, createTask, updateTask, taskAction } from '@/api/task'
+import { aiSampleOcr } from '@/api/ai'
 import { listDepts } from '@/api/admin'
+import { useAiCapabilities } from '@/composables/useAiCapabilities'
 import type { Dept, TaskItem, TaskSample } from '@/api/types'
 
 defineOptions({ name: 'TaskEdit' })
@@ -14,6 +16,7 @@ defineOptions({ name: 'TaskEdit' })
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const aiCaps = useAiCapabilities()
 
 const savingDraft = ref(false)
 const savingSubmit = ref(false)
@@ -90,6 +93,40 @@ function newSample(): TaskSample {
   }
 }
 
+// 样品拍照识别：AI 提取字段 → 追加新样品行（人工核对后随任务保存才落库）
+const sampleOcrInput = ref<HTMLInputElement | null>(null)
+const sampleOcring = ref(false)
+
+function openSampleOcr() {
+  sampleOcrInput.value?.click()
+}
+
+async function onSampleOcrFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || sampleOcring.value) return
+  sampleOcring.value = true
+  try {
+    const r = await aiSampleOcr(file)
+    const row = newSample()
+    row.name = r.name
+    row.model = r.model
+    row.vin = r.vin
+    row.vehicleType = r.vehicleType
+    row.sampleDate = r.sampleDate
+    // 优先回填首个全空行，否则追加新行
+    const empty = samples.value.find((s) => !s.name && !s.model && !s.vin && !s.sampleNo)
+    if (empty) Object.assign(empty, row)
+    else samples.value.push(row)
+    ElMessage.success(t('ai.sampleOcr.success'))
+  } catch {
+    /* http 层已提示 */
+  } finally {
+    sampleOcring.value = false
+  }
+}
+
 async function load() {
   const idParam = route.params.id
   try {
@@ -137,7 +174,10 @@ async function load() {
   }
 }
 
-onMounted(() => void load())
+onMounted(() => {
+  void aiCaps.ensureLoaded()
+  void load()
+})
 
 // 选中合同后自动带出关联信息：客户名、付款/接收单位（仍可手改）
 function onContractChange(v: number | string | null, opt?: { label?: string; customerName?: string; paymentOrg?: string }) {
@@ -358,6 +398,26 @@ async function saveAndSubmit() {
             <el-button size="small" type="primary" plain @click="samples.push(newSample())">
               {{ t('task.task.addSample') }}
             </el-button>
+            <template v-if="aiCaps.featureOn('sample_ocr')">
+              <el-button
+                size="small"
+                type="primary"
+                plain
+                class="ai-sample-ocr-btn"
+                :loading="sampleOcring"
+                :title="t('ai.sampleOcr.tip')"
+                @click="openSampleOcr"
+              >
+                {{ t('ai.sampleOcr.button') }}
+              </el-button>
+              <input
+                ref="sampleOcrInput"
+                type="file"
+                accept="image/jpeg,image/png"
+                style="display: none"
+                @change="onSampleOcrFile"
+              />
+            </template>
           </div>
           <el-table :data="samples" border size="small">
             <el-table-column :label="t('task.task.sampleName')" min-width="130">

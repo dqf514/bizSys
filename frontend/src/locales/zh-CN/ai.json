@@ -12,7 +12,13 @@
     "oa_prefill": "表单预填",
     "flow_route": "审批链建议",
     "flow_anomaly": "异常流程分析",
-    "tender_assist": "评标辅助"
+    "tender_assist": "评标辅助",
+    "sample_ocr": "样品拍照识别",
+    "invoice_ocr": "发票识别",
+    "price_ref": "采购价格参考",
+    "assistant": "AI 全局助手",
+    "daily_digest": "AI 每日摘要",
+    "knowledge": "AI 知识库"
   },
   "status": {
     "success": "成功",
@@ -173,5 +179,74 @@
     "appendRemark": "加入备注",
     "remarkAppended": "已追加到备注字段，保存合同后生效",
     "onlyShowTip": "审查结果仅供参考，不落库；请人工复核"
+  },
+  "sampleOcr": {
+    "button": "拍照识别",
+    "tip": "上传样品标签照片，AI 提取后请人工核对",
+    "success": "已识别并回填新样品行，请核对后保存",
+    "failed": "识别失败，请手工填写"
+  },
+  "invoiceOcr": {
+    "button": "发票识别",
+    "tip": "上传发票图片或 PDF，AI 提取后请人工核对",
+    "success": "已识别回填，请核对后提交",
+    "amountMatch": "金额与结算金额一致",
+    "amountMismatch": "识别金额与结算金额（¥{amount}）相差 {diff}，请人工核对"
+  },
+  "priceRef": {
+    "button": "价格参考",
+    "title": "价格参考",
+    "count": "历史次数",
+    "avg": "均价",
+    "range": "区间",
+    "latest": "最近价",
+    "deviation": "相对均价偏离",
+    "noData": "暂无同品名历史价格数据",
+    "aiComment": "AI 点评",
+    "currentPrice": "当前单价"
+  },
+  "assistant": {
+    "entry": "AI 助手",
+    "title": "AI 全局助手",
+    "placeholder": "问数据 / 打开页面 / 操作咨询…",
+    "send": "发送",
+    "typeQuery": "查数",
+    "typeNavigate": "导航",
+    "typeGuide": "指引",
+    "goto": "前往",
+    "navConfirm": "确认为你打开「{name}」？",
+    "gotoKnowledge": "知识库问答",
+    "sources": "来源",
+    "empty": "我可以帮你查数据、打开页面、解答操作问题。"
+  },
+  "digest": {
+    "generate": "生成摘要",
+    "regenerate": "重新生成",
+    "push": "推送给自己",
+    "pushed": "已推送（{channel}）",
+    "channelWecom": "企微",
+    "channelNotify": "站内通知",
+    "highlights": "重点提示",
+    "degradedTip": "AI 不可用，以下为模板摘要"
+  },
+  "knowledge": {
+    "askTitle": "知识库问答",
+    "askPlaceholder": "输入问题，检索知识库并由 AI 作答…",
+    "ask": "提问",
+    "sources": "参考来源",
+    "degradedTip": "AI 不可用，以下为关键词匹配原文",
+    "noHit": "未检索到相关条目",
+    "manage": "知识库管理",
+    "addEntry": "新增条目",
+    "editEntry": "编辑条目",
+    "entryTitle": "标题",
+    "entryCategory": "分类",
+    "entryContent": "正文",
+    "attachment": "附件",
+    "uploadAttachment": "上传附件",
+    "download": "下载附件",
+    "confirmDelete": "确认删除该条目？",
+    "saveOk": "已保存",
+    "deleteOk": "已删除"
   }
 }

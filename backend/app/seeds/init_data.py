@@ -544,6 +544,15 @@ MENU_TREE = [
                         "admin:ai:settings",
                         [],
                     ),
+                    (
+                        "menu.aiKnowledge",
+                        "AiKnowledge",
+                        "/admin/ai/knowledge",
+                        "admin/AiKnowledge",
+                        "Collection",
+                        "admin:ai:knowledge",
+                        [],
+                    ),
                 ],
             ),
         ],
@@ -1325,8 +1334,69 @@ def _seed_quote_templates(db: Session) -> None:
                 sort=sort,
                 layout_json=json.dumps(layout, ensure_ascii=False),
                 published_at=datetime.now(),
-            )
-        )
+            )        )
+
+
+KNOWLEDGE_PRESETS = [
+    (
+        "工时填报操作指引",
+        "工时",
+        "路径：工作台 → 我的工时 → 填报。选择日期（默认今天），每行选择合同与任务后填写工时（0.5-24 小时）"
+        "与工作内容；支持 AI 预填草稿（需人工核对后提交）。草稿可保存，提交后进入审批；"
+        "被驳回的工时可修改后重新提交。",
+    ),
+    (
+        "OA 申请操作指引",
+        "OA",
+        "路径：OA → 发起申请。选择表单类型后填写字段并提交，进入审批流；"
+        "同表单支持 AI 预填（参考本人历史已批准申请，需人工核对）。"
+        "「我的申请」可查看进度与撤回；审批通过后会回写表单状态。",
+    ),
+    (
+        "合同创建与审批指引",
+        "合同",
+        "路径：合同 → 新增合同。支持 AI 合同识别（上传 pdf/docx/txt/jpg/png 抽取字段草稿）"
+        "与 AI 风险审查（仅提示不拦截）。提交后按审批流逐级审批，通过后发放正式合同编号 HT...。",
+    ),
+    (
+        "开票登记指引",
+        "财务",
+        "路径：财务 → 发票。结算单经客户确认后发起开票申请，审批通过生成发票记录；"
+        "财务在发票列表点「登记」补录发票号/金额/税率/购买方/销售方/日期，"
+        "支持上传发票图片或 PDF 进行 AI 识别回填，金额与结算金额不一致时系统会提示核对。",
+    ),
+    (
+        "采购申请操作指引",
+        "采购",
+        "路径：采购 → 采购申请 → 新增。逐行填写物资名称/规格/单位/数量/预估单价；"
+        "每行可用「价格参考」查看同品名历史采购均价/区间/最近价与 AI 点评。"
+        "提交后走会签审批，通过后可转采购合同。",
+    ),
+    (
+        "样品管理指引",
+        "任务",
+        "样品随任务登记：任务编辑页「样品信息」区逐行填写名称/型号/VIN/车型/日期，"
+        "支持「拍照识别」上传样品标签照片自动回填（需人工核对）。"
+        "任务提交审批时发放样品编号（任务号-01 起）；出入库在样品列表操作并留存流水。",
+    ),
+    (
+        "AI 功能通用说明",
+        "AI",
+        "全站 AI 能力由管理员在「AI 中心 → AI 设置」统一开关与限配额；"
+        "AI 产出均为草稿/建议，须人工确认后才会保存或提交；"
+        "AI 未配置或功能停用时，相关入口自动隐藏或降级为手工/搜索模式。",
+    ),
+]
+
+
+def _seed_knowledge(db: Session) -> None:
+    """预置知识库操作手册（幂等：同标题存在即跳过；dev 库由 alembic 迁移插入，此处兜底测试/新装库）。"""
+    from app.modules.aicenter.models import KnowledgeEntry  # noqa: PLC0415
+
+    for title, category, content in KNOWLEDGE_PRESETS:
+        if db.scalar(select(KnowledgeEntry).where(KnowledgeEntry.title == title, KnowledgeEntry.deleted == 0)):
+            continue
+        db.add(KnowledgeEntry(title=title, category=category, content=content))
 
 
 def main() -> None:
@@ -1342,6 +1412,7 @@ def main() -> None:
         _seed_flows(db)
         _seed_oa_forms(db)
         _seed_quote_templates(db)
+        _seed_knowledge(db)
         db.commit()
         print(f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}")
     except Exception:
