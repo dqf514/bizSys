@@ -17,6 +17,13 @@ if os.environ.get("DB_URL"):
 TEST_URL = re.sub(r"(//[^/]+/)[^?/]+", r"\1bizsys_test", _URL, count=1)
 os.environ["DB_URL"] = TEST_URL
 
+# 隔离上传目录：test_zz_purge 会执行真实 purge()，其中删除 uploads 业务子目录是
+# 文件系统操作（不随测试库回滚）。必须在导入 app（settings 单例化）之前重定向，
+# 否则每次全量测试都会清空生产 uploads（report/contract/partner/portal/task_progress）。
+import tempfile  # noqa: E402
+
+os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="bizsys_test_uploads_"))
+
 import pytest  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
