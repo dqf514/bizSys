@@ -768,6 +768,7 @@ export interface Report {
   sealBy?: string
   sealTime?: string
   remark?: string
+  conclusion?: string
   approvalInstanceId?: number | null
   createBy: string
   createTime: string
@@ -1492,6 +1493,8 @@ export type AiFeatureKey =
   | 'report_summary'
   | 'approval_assist'
   | 'contract_risk'
+  | 'report_assist'
+  | 'nl_query'
 export type AiUsageStatus = 'success' | 'error' | 'fallback'
 
 export interface AiUsageRow {
@@ -1619,4 +1622,43 @@ export interface TaskProgressAiDraft {
 export interface ReportSummaryDraft {
   summary: string
   source: string
+}
+
+// ---------------- AI 报告全文辅助 / 自然语言问数 ----------------
+
+export type ReportAssistKind = 'conclusion' | 'proofread' | 'completeness'
+
+export interface ReportAssistIssue {
+  position: string
+  original: string
+  suggestion: string
+}
+
+export interface ReportAssistCheckItem {
+  key: string
+  ok: boolean
+  detail: string
+}
+
+export interface ReportAssistResult {
+  kind: ReportAssistKind
+  conclusion?: string
+  issues?: ReportAssistIssue[]
+  items?: ReportAssistCheckItem[]
+}
+
+export interface NlQueryContext {
+  domain?: string
+  timeFrom?: string
+  timeTo?: string
+}
+
+export interface NlQueryAnswer {
+  domain: string
+  domainLabel: string
+  text: string
+  rows: { label: string; value: string | number }[]
+  link: string
+  timeRange: { from: string; to: string }
+  criteria: string
 }

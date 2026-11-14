@@ -12,3 +12,16 @@ class AiQuotaIn(BaseModel):
 class AiCenterSettingsIn(BaseModel):
     features: dict[str, bool] | None = None
     quota: AiQuotaIn | None = None
+
+
+class NlQueryContext(BaseModel):
+    """对话式追问上下文：回传上一轮的域与时间范围，AI 可只补时间。"""
+
+    domain: str = ""
+    timeFrom: str = ""
+    timeTo: str = ""
+
+
+class NlQueryIn(BaseModel):
+    question: str = Field(..., min_length=1, max_length=200)
+    context: NlQueryContext | None = None

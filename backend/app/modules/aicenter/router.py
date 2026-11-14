@@ -81,3 +81,22 @@ def ai_capabilities(
 ):
     """登录即可：前端按此显隐 AI 入口（未配置/功能停用时给明确提示而不是静默失败）。"""
     return svc.capabilities(db)
+
+
+@cap_router.post("/nl-query")
+def nl_query(
+    body: S.NlQueryIn,
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """自然语言问数：登录可用；AI 只产白名单意图，后端按模板执行并按域校验列表权限。"""
+    from app.modules.aicenter import nl_query as nlq
+
+    data = nlq.ask(
+        db, current, body.question.strip(),
+        body.context.model_dump() if body.context else None,
+    )
+    record(db, user_id=current.id, module="ai", action="ai_nl_query",
+           detail={"question": body.question[:200], "domain": data["domain"]})
+    db.commit()
+    return data

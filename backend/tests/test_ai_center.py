@@ -3,6 +3,7 @@
 import io
 import json
 import uuid
+from datetime import date, timedelta
 
 from openpyxl import load_workbook
 
@@ -616,4 +617,302 @@ def test_contract_risk_review_guards(client, admin_headers, monkeypatch):
     # 未登录 → 401
     r = client.post("/api/v1/contract/contracts/ai-risk-review", data={"payload": _RISK_FIELDS})
     assert r.status_code == 401 or r.json()["code"] == 20001
+    _disable_ai(client, admin_headers)
+
+
+# ---------------- AI 报告全文辅助（结论草稿 / 校对 / 完整性检查） ----------------
+
+
+def test_report_ai_assist_conclusion(client, admin_headers, monkeypatch):
+    """结论草稿：不落库 → 人工编辑后经 PUT conclusion 采用落库。"""
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, json.dumps({"conclusion": "结论：样品满足 GB/T 1234 要求。不确定度：U=0.5%（k=2）。"}))
+    rid = _make_report(client, admin_headers)
+
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "conclusion"}).json()
+    assert r["code"] == 0 and "不确定度" in r["data"]["conclusion"], r
+    # 未采用前 conclusion 不落库
+    detail = client.get(f"/api/v1/report/reports/{rid}", headers=admin_headers).json()["data"]
+    assert not detail.get("conclusion")
+
+    r2 = client.put(f"/api/v1/report/reports/{rid}/conclusion", headers=admin_headers,
+                    json={"conclusion": "人工修订：样品满足标准要求，不确定度 U=0.5%（k=2）。"}).json()
+    assert r2["code"] == 0, r2
+    detail2 = client.get(f"/api/v1/report/reports/{rid}", headers=admin_headers).json()["data"]
+    assert detail2["conclusion"].startswith("人工修订")
+    assert not (detail2["remark"] or "").startswith("人工修订"), "结论不应写入 remark"
+    _disable_ai(client, admin_headers)
+
+
+def test_report_ai_assist_proofread(client, admin_headers, monkeypatch):
+    """校对：问题清单清洗（无 original/suggestion 的项丢弃），只展示不落库。"""
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, json.dumps({
+        "issues": [
+            {"position": "第2页", "original": "风洞试验结果为 0,5", "suggestion": "小数点应为半角：0.5"},
+            {"position": "第3页", "original": "", "suggestion": "无原文应丢弃"},
+            "not-a-dict",
+        ]
+    }))
+    rid = _make_report(client, admin_headers)
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "proofread"}).json()
+    assert r["code"] == 0, r
+    issues = r["data"]["issues"]
+    assert len(issues) == 1 and issues[0]["original"].startswith("风洞") and issues[0]["suggestion"]
+    _disable_ai(client, admin_headers)
+
+
+def test_report_ai_assist_completeness(client, admin_headers, monkeypatch):
+    """完整性：规则项（编号/日期/签章/条目缺漏）+ AI 缺失项合并为检查清单，不落库。"""
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, json.dumps({"issues": ["报告文本缺少不确定度说明"]}))
+    rid = _make_report(client, admin_headers)
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "completeness"}).json()
+    assert r["code"] == 0, r
+    items = {i["key"]: i for i in r["data"]["items"]}
+    assert items["reportNo"]["ok"] is True
+    assert items["noMatch"]["ok"] is True
+    assert items["sealInfo"]["ok"] is False  # 未签章
+    assert items["aiCheck"]["ok"] is False and "不确定度" in items["aiCheck"]["detail"]
+    # 不落库：详情不含检查痕迹
+    detail = client.get(f"/api/v1/report/reports/{rid}", headers=admin_headers).json()["data"]
+    assert not detail.get("conclusion")
+    _disable_ai(client, admin_headers)
+
+
+def test_report_ai_assist_guards(client, admin_headers, monkeypatch):
+    rid = _make_report(client, admin_headers)
+    # 未配置 → 65001
+    _disable_ai(client, admin_headers)
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "conclusion"}).json()
+    assert r["code"] == 65001, r
+    # 功能停用 → 65002
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, json.dumps({"conclusion": "x"}))
+    _set_center(client, admin_headers, {"features": {"report_assist": False}})
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "conclusion"}).json()
+    assert r["code"] == 65002, r
+    _set_center(client, admin_headers, {"features": {"report_assist": True}})
+    # AI 输出非法 → 65004
+    _mock_chat(monkeypatch, "不是 JSON")
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "proofread"}).json()
+    assert r["code"] == 65004, r
+    # 非法 kind → 10001（参数校验）
+    r = client.post(f"/api/v1/report/reports/{rid}/ai-assist", headers=admin_headers,
+                    json={"kind": "hack"}).json()
+    assert r["code"] == 10001, r
+    _disable_ai(client, admin_headers)
+
+
+# ---------------- 自然语言问数（白名单意图 → 模板执行） ----------------
+
+
+def _approved_contract(client, headers, prefix="pa2_") -> tuple[int, str]:
+    """客户(pa2_ 前缀)+合同提交并两级审批通过，返回 (合同 id, 客户名)。"""
+    suf = uuid.uuid4().hex[:8]
+    cust_name = f"{prefix}客户_{suf}"
+    cust = client.post(
+        "/api/v1/crm/customers", headers=headers,
+        json={"name": cust_name, "tax_no": f"913401P2{suf}", "status": "enabled"},
+    ).json()
+    con = client.post(
+        "/api/v1/contract/contracts", headers=headers,
+        json={"name": f"{prefix}合同_{suf}", "customer_id": cust["data"]["id"], "amount": 10000},
+    ).json()
+    cid = con["data"]["id"]
+    assert client.post(f"/api/v1/contract/contracts/{cid}/submit", headers=headers, json={}).json()["code"] == 0
+
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.approval import service as approval
+    from app.modules.approval.models import ApprovalInstance, ApprovalTask
+    from app.modules.auth.models import User
+
+    db = SessionLocal()
+    try:
+        for _ in range(2):
+            target = None
+            pend = db.scalars(select(ApprovalTask).where(ApprovalTask.status == "pending", ApprovalTask.deleted == 0))
+            for t in pend:
+                inst = db.get(ApprovalInstance, t.instance_id)
+                if inst and inst.biz_type == "contract" and inst.biz_id == cid:
+                    target = t
+                    break
+            assert target, "contract pending task not found"
+            approval.approve(db, target.id, db.get(User, target.assignee_id), "ok")
+            db.commit()
+    finally:
+        db.close()
+    return cid, cust_name
+
+
+def _nlq(client, headers, question="问数"):
+    return client.post("/api/v1/ai/nl-query", headers=headers, json={"question": question}).json()
+
+
+def test_nl_query_task_volume(client, admin_headers, monkeypatch):
+    """任务量：客户名参数过滤数值正确 + 用量日志 feature=nl_query。"""
+    _enable_ai(client, admin_headers)
+    cid, cust_name = _approved_contract(client, admin_headers)
+    for i in range(2):
+        r = client.post(
+            "/api/v1/task/tasks", headers=admin_headers,
+            json={"task_name": f"pa2_任务{i}", "contract_id": cid, "items": [{"name": "条目A"}]},
+        ).json()
+        assert r["code"] == 0, r
+
+    _mock_chat(monkeypatch, json.dumps({
+        "domain": "task_volume",
+        "params": {"customerName": cust_name, "hack": "drop table"},  # 非法参数键应被丢弃
+        "timeRange": {"from": None, "to": None},
+        "subject": None,
+    }))
+    r = _nlq(client, admin_headers, "这个客户有多少任务")
+    assert r["code"] == 0, r
+    d = r["data"]
+    assert d["domain"] == "task_volume" and d["link"] == "/task/tasks"
+    assert "共 2 个任务" in d["text"] and d["criteria"] and d["rows"]
+
+    lst = client.get("/api/v1/admin/ai/usage", headers=admin_headers, params={"feature": "nl_query"}).json()
+    assert lst["data"]["items"][0]["status"] == "success"
+    _disable_ai(client, admin_headers)
+
+
+def test_nl_query_receivable(client, admin_headers, monkeypatch):
+    """应收未收：口径=已开票/已到账结算金额 − 已登记到账（pa2_ 数据，直接写库，测完清理）。"""
+    _enable_ai(client, admin_headers)
+    suf = uuid.uuid4().hex[:8]
+    cust_name = f"pa2_应收_{suf}"
+
+    from app.core.db import SessionLocal
+    from app.modules.finance.models import Payment, Settlement
+
+    db = SessionLocal()
+    s1 = s2 = None
+    try:
+        base_tid = 9_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        s1 = Settlement(settlement_no=f"pa2_HK{suf}A", task_id=base_tid, task_no="", contract_no="",
+                        customer_name=cust_name, amount=1000, invoiceable_amount=1000, status="invoiced")
+        s2 = Settlement(settlement_no=f"pa2_HK{suf}B", task_id=base_tid + 1, task_no="", contract_no="",
+                        customer_name=cust_name, amount=500, invoiceable_amount=500, status="invoiced")
+        db.add_all([s1, s2])
+        db.flush()
+        p1 = Payment(payment_no=f"pa2_DZ{suf}", settlement_id=s1.id, payer_name=cust_name,
+                     payer_account="", amount=400, bank="", paid_at=date.today())
+        db.add(p1)
+        db.commit()
+
+        _mock_chat(monkeypatch, json.dumps({
+            "domain": "receivable",
+            "params": {"customerName": cust_name},
+            "timeRange": {"from": None, "to": None},
+            "subject": None,
+        }))
+        r = _nlq(client, admin_headers, "这个客户应收未收多少")
+        assert r["code"] == 0, r
+        d = r["data"]
+        assert d["domain"] == "receivable" and d["link"] == "/finance/settlements"
+        assert "1,100.00" in d["text"], d["text"]  # 1000+500-400
+        assert any("600.00" in row["value"] for row in d["rows"])  # s1 未收 600
+        assert "口径" in d["criteria"]
+    finally:
+        db.query(Payment).filter(Payment.payment_no.like("pa2_%")).delete()
+        db.query(Settlement).filter(Settlement.settlement_no.like("pa2_%")).delete()
+        db.commit()
+        db.close()
+    _disable_ai(client, admin_headers)
+
+
+def test_nl_query_work_hours_self(client, admin_headers, monkeypatch):
+    """工时：subject=self 解析为当前用户（pa2_ 任务名，直接写库，测完清理）。"""
+    _enable_ai(client, admin_headers)
+    tid = _in_progress_task(client, admin_headers)
+    suf = uuid.uuid4().hex[:8]
+
+    from app.core.db import SessionLocal
+    from app.modules.auth.models import User
+    from app.modules.hr.models import HrTimesheet
+
+    db = SessionLocal()
+    rows = []
+    try:
+        admin = db.query(User).filter(User.username == "admin").one()
+        today = date.today()
+        for i, hours in enumerate((2.0, 3.0)):
+            t = HrTimesheet(user_id=admin.id, user_name=admin.name, work_date=today - timedelta(days=i),
+                            task_id=tid, task_name=f"pa2_工时_{suf}", contract_id=1, contract_no="",
+                            customer_id=1, customer_name="", hours=hours, content="", status="submitted")
+            db.add(t)
+            rows.append(t)
+        db.commit()
+
+        _mock_chat(monkeypatch, json.dumps({
+            "domain": "work_hours",
+            "params": {},
+            "timeRange": {"from": (today - timedelta(days=1)).isoformat(), "to": today.isoformat()},
+            "subject": "self",
+        }))
+        r = _nlq(client, admin_headers, "我这两天工时多少")
+        assert r["code"] == 0, r
+        d = r["data"]
+        assert d["domain"] == "work_hours" and d["link"] == "/hr/timesheets"
+        assert "5.0 小时" in d["text"], d["text"]
+        assert any("pa2_工时" in row["label"] for row in d["rows"])
+    finally:
+        for t in rows:
+            db.delete(t)
+        db.commit()
+        db.close()
+    _disable_ai(client, admin_headers)
+
+
+def test_nl_query_guards(client, admin_headers, monkeypatch):
+    _enable_ai(client, admin_headers)
+    # 非法域 → 65004
+    _mock_chat(monkeypatch, json.dumps({"domain": "drop_table", "params": {}, "timeRange": {}, "subject": None}))
+    assert _nlq(client, admin_headers)["code"] == 65004
+    # 解析失败 → 65004
+    _mock_chat(monkeypatch, "我不知道")
+    assert _nlq(client, admin_headers)["code"] == 65004
+    # 功能停用 → 65002
+    _set_center(client, admin_headers, {"features": {"nl_query": False}})
+    _mock_chat(monkeypatch, json.dumps({"domain": "task_volume", "params": {}, "timeRange": {}, "subject": None}))
+    assert _nlq(client, admin_headers)["code"] == 65002
+    _set_center(client, admin_headers, {"features": {"nl_query": True}})
+    _disable_ai(client, admin_headers)
+    # 未配置 → 65001
+    assert _nlq(client, admin_headers)["code"] == 65001
+
+
+def test_nl_query_perm_denied(client, admin_headers, monkeypatch):
+    """无对应列表权限的域 → 20002（空权限角色用户问任务量）。"""
+    _enable_ai(client, admin_headers)
+    _mock_chat(monkeypatch, json.dumps({"domain": "task_volume", "params": {}, "timeRange": {}, "subject": None}))
+    suf = uuid.uuid4().hex[:8]
+    role = client.post(
+        "/api/v1/admin/roles", headers=admin_headers, json={"code": f"pa2_nlq_{suf}", "name": "无权限角色"}
+    ).json()
+    assert role["code"] == 0, role
+    uname = f"pa2_nlq_{suf}"
+    r = client.post(
+        "/api/v1/admin/users", headers=admin_headers,
+        json={"username": uname, "password": "Test@123456", "name": "问数越权", "roleIds": [role["data"]["id"]]},
+    ).json()
+    assert r["code"] == 0, r
+    cap = client.get("/api/v1/auth/captcha").json()["data"]
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": uname, "password": "Test@123456",
+              "captchaId": cap["captchaId"], "captchaText": cap.get("debugText", "")},
+    ).json()
+    headers = {"Authorization": f"Bearer {login['data']['access_token']}"}
+    r = _nlq(client, headers, "有多少任务")
+    assert r["code"] == 20002, r
     _disable_ai(client, admin_headers)

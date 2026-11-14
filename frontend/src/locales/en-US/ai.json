@@ -5,7 +5,9 @@
     "task_photo": "Photo Progress",
     "report_summary": "Report Summary",
     "approval_assist": "Approval Assistant",
-    "contract_risk": "Contract Risk Review"
+    "contract_risk": "Contract Risk Review",
+    "report_assist": "Report Assistant",
+    "nl_query": "AI Data Query"
   },
   "status": {
     "success": "Success",
@@ -91,6 +93,35 @@
     "adopt": "Adopt & Save",
     "adopted": "Summary saved to report remark",
     "lockedTip": "Summary cannot be modified in current status (only uploaded/rejected)"
+  },
+  "reportAssist": {
+    "section": "AI Report Assistant",
+    "conclusion": "Conclusion Draft",
+    "proofread": "Proofreading",
+    "completeness": "Completeness Check",
+    "generating": "AI generating…",
+    "title": {
+      "conclusion": "AI Conclusion & Uncertainty Draft",
+      "proofread": "AI Proofreading",
+      "completeness": "AI Completeness Check"
+    },
+    "adopt": "Adopt & Save",
+    "adopted": "Conclusion saved to the report",
+    "lockedTip": "Conclusion cannot be modified in current status (only uploaded/rejected)",
+    "onlyShowTip": "Results are for reference only and are not saved; adopt/ignore only marks the UI. Please verify against the original text.",
+    "noIssues": "No formatting or typo issues found",
+    "original": "Original",
+    "suggestion": "Suggestion",
+    "adoptIssue": "Adopt",
+    "adoptedState": "Adopted",
+    "ignoreIssue": "Ignore",
+    "ignoredState": "Ignored"
+  },
+  "nlQuery": {
+    "placeholder": "e.g. How many new tasks this month? My total hours? Outstanding receivables?",
+    "ask": "Ask",
+    "gotoList": "Open list",
+    "examples": "Try: How many new tasks this month?\nMy total work hours?\nHow much is outstanding?"
   },
   "approvalAssist": {
     "title": "AI Approval Assistant",

@@ -13,6 +13,8 @@ const EMPTY: AiCapabilities = {
     report_summary: false,
     approval_assist: false,
     contract_risk: false,
+    report_assist: false,
+    nl_query: false,
   },
 }
 

@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
@@ -259,6 +260,217 @@ def update_remark(db: Session, r: Report, remark: str, user: User) -> Report:
     if r.status not in ("uploaded", "rejected"):
         raise BizException(R.REPORT_INVALID_STATE, "当前报告状态不允许修改摘要")
     r.remark = remark.strip()
+    r.update_by = user.id
+    r.update_time = datetime.now()
+    db.flush()
+    return r
+
+
+# ---------------- AI 全文辅助（结论草稿 / 校对 / 完整性检查；仅结论采用后落库） ----------------
+
+ASSIST_PROMPT_VERSION = "v1"
+
+CONCLUSION_SYSTEM = (
+    "你是检测报告结论撰写助手。根据任务/条目信息与报告文本，撰写「结论与测量不确定度」段落草稿："
+    "包含检测结论（样品是否满足依据标准的技术要求）与测量不确定度说明；信息不足处用【待补充：…】标注，"
+    "不得编造数值。仅输出 JSON：{\"conclusion\": \"段落文本\"}。"
+)
+
+PROOFREAD_SYSTEM = (
+    "你是检测报告校对助手。检查报告文本的错别字、标点误用、数字与单位格式、明显语病。"
+    "仅输出 JSON：{\"issues\": [{\"position\": \"章节或位置\", \"original\": \"原文片段\", "
+    "\"suggestion\": \"修改建议\"}]}；未发现问题时 issues 输出空数组。只列问题，不要改写全文。"
+)
+
+COMPLETENESS_SYSTEM = (
+    "你是检测报告完整性审查助手。检查报告文本是否缺少以下要素：报告编号、检测日期、签名/签章信息、"
+    "依据标准、结论段、测量不确定度说明、样品信息。仅输出 JSON：{\"issues\": [\"缺失项描述\", ...]}；"
+    "无缺失时输出空数组。"
+)
+
+
+def _assist_context(db: Session, r: Report) -> str:
+    """任务/条目/报告文件文本上下文（与摘要共用提取通道，截断由 extract_text 保证）。"""
+    from app.modules.task.models import Task
+    from app.services import ai as ai_svc
+
+    item = db.get(TaskItem, r.task_item_id)
+    task = db.get(Task, r.task_id)
+    context = [
+        f"报告编号：{r.report_no}",
+        f"任务：{task.task_name if task else ''}（{task.task_no or '' if task else ''}）",
+        f"客户：{task.customer_name if task else ''}",
+        f"条目：{item.name if item else ''}（依据标准：{item.std if item else ''}）",
+        f"工作内容：{(task.content or '')[:500] if task else ''}",
+        f"已有结论段：{(r.conclusion or '')[:500]}",
+    ]
+    text_note = ""
+    f = db.get(ReportFile, r.file_id)
+    if f:
+        try:
+            path = file_path(f)
+            if path.exists():
+                extracted = ai_svc.extract_text(f.file_name, path.read_bytes())
+                text_note = f"\n\n报告文件文本（节选）：\n{extracted}"
+        except BizException:
+            text_note = "\n\n（报告文件文本不可提取，请基于任务信息判断并标注待补充）"
+    return "\n".join(context) + text_note
+
+
+def _parse_issues(raw: str, *, limit: int = 50) -> list[dict]:
+    """proofread 输出清洗：保留 original/suggestion 非空的项，字段截断，条数封顶。"""
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 校对结果解析失败，请重试") from exc
+    issues = data.get("issues") if isinstance(data, dict) else None
+    if not isinstance(issues, list):
+        raise BizException(R.AI_PARSE_FAILED, "AI 校对结果结构不符，请重试")
+    out = []
+    for it in issues:
+        if not isinstance(it, dict):
+            continue
+        original = str(it.get("original") or "").strip()
+        suggestion = str(it.get("suggestion") or "").strip()
+        if not original or not suggestion:
+            continue
+        out.append(
+            {
+                "position": str(it.get("position") or "")[:100],
+                "original": original[:500],
+                "suggestion": suggestion[:500],
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _completeness_rules(db: Session, r: Report) -> list[dict]:
+    """确定性规则检查（编号一致性/签章信息/日期/条目缺漏），先于 AI 文本检查。"""
+    from app.modules.task.models import Task
+
+    items: list[dict] = []
+    items.append(
+        {
+            "key": "reportNo",
+            "ok": bool(r.report_no),
+            "detail": f"报告编号：{r.report_no}" if r.report_no else "缺少报告编号",
+        }
+    )
+    item = db.get(TaskItem, r.task_item_id)
+    no_match_ok = bool(item and item.report_no == r.report_no)
+    items.append(
+        {
+            "key": "noMatch",
+            "ok": no_match_ok,
+            "detail": "报告编号与条目编号一致"
+            if no_match_ok
+            else f"编号不一致：报告 {r.report_no} / 条目 {item.report_no if item else '-'}",
+        }
+    )
+    task = db.get(Task, r.task_id)
+    date_ok = bool(task and task.plan_finish_date)
+    items.append(
+        {
+            "key": "dates",
+            "ok": date_ok,
+            "detail": f"任务计划完成日期：{task.plan_finish_date}" if date_ok else "任务缺少计划完成日期",
+        }
+    )
+    seal_ok = bool(r.seal_by and r.seal_time)
+    items.append(
+        {
+            "key": "sealInfo",
+            "ok": seal_ok,
+            "detail": "已签章" if seal_ok else "尚未签章（签章人/签章时间缺失）",
+        }
+    )
+    missing = list(
+        db.scalars(
+            select(TaskItem).where(
+                TaskItem.task_id == r.task_id,
+                TaskItem.deleted == 0,
+                TaskItem.need_report == 1,
+                TaskItem.report_no != "",
+                TaskItem.id != r.task_item_id,
+                ~select(Report.id).where(Report.task_item_id == TaskItem.id, Report.deleted == 0).exists(),
+            )
+        )
+    )
+    items.append(
+        {
+            "key": "missingItems",
+            "ok": not missing,
+            "detail": "任务内应出报告的条目均已上传"
+            if not missing
+            else "条目缺漏：" + "、".join(i.report_no or i.name for i in missing[:5]),
+        }
+    )
+    return items
+
+
+def ai_assist(db: Session, r: Report, user: User, kind: str) -> dict:
+    """AI 全文辅助：conclusion 结论草稿 / proofread 校对清单 / completeness 完整性清单（规则+AI）。
+
+    只返回草稿与清单，不落库；结论由人工编辑后经 PUT conclusion 采用。
+    """
+    from app.services import ai as ai_svc
+
+    if not ai_svc.ai_ready(db):
+        raise BizException(R.AI_NOT_CONFIGURED, "AI 未配置，请联系管理员")
+    # 功能停用由 gateway_chat 抛 AiFeatureDisabled（65002），与配额 65003 一并透传
+
+    system = {"conclusion": CONCLUSION_SYSTEM, "proofread": PROOFREAD_SYSTEM, "completeness": COMPLETENESS_SYSTEM}[
+        kind
+    ]
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": _assist_context(db, r)},
+    ]
+    try:
+        raw = ai_svc.gateway_chat(
+            db, feature="report_assist", messages=messages, user=user,
+            biz_type="report", biz_id=r.id, prompt_version=ASSIST_PROMPT_VERSION,
+            json_mode=True, max_tokens=2000,
+        )
+    except ai_svc.AiUnavailable as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 服务调用失败，请稍后重试") from exc
+
+    if kind == "conclusion":
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            raise BizException(R.AI_PARSE_FAILED, "AI 结论草稿解析失败，请重试") from exc
+        conclusion = str(data.get("conclusion") or "").strip() if isinstance(data, dict) else ""
+        if not conclusion:
+            raise BizException(R.AI_PARSE_FAILED, "AI 未返回结论草稿，请重试")
+        return {"kind": kind, "conclusion": conclusion[:4000]}
+
+    if kind == "proofread":
+        return {"kind": kind, "issues": _parse_issues(raw)}
+
+    items = _completeness_rules(db, r)
+    try:
+        data = json.loads(raw)
+        ai_issues = data.get("issues") if isinstance(data, dict) else None
+        if not isinstance(ai_issues, list):
+            raise ValueError("issues not list")
+    except ValueError as exc:
+        raise BizException(R.AI_PARSE_FAILED, "AI 完整性检查结果解析失败，请重试") from exc
+    ai_issues = [str(x).strip()[:300] for x in ai_issues if str(x).strip()][:20]
+    if ai_issues:
+        items.extend({"key": "aiCheck", "ok": False, "detail": x} for x in ai_issues)
+    else:
+        items.append({"key": "aiCheck", "ok": True, "detail": "AI 未发现其他缺失要素"})
+    return {"kind": kind, "items": items}
+
+
+def update_conclusion(db: Session, r: Report, conclusion: str, user: User) -> Report:
+    """采用结论段（AI 草稿人工编辑后）：仅 uploaded/rejected 可改（审批中/已签章锁定）。"""
+    if r.status not in ("uploaded", "rejected"):
+        raise BizException(R.REPORT_INVALID_STATE, "当前报告状态不允许修改结论")
+    r.conclusion = conclusion.strip()
     r.update_by = user.id
     r.update_time = datetime.now()
     db.flush()

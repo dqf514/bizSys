@@ -95,7 +95,12 @@
 
 ### AI 中心 /admin/ai（统一网关 + 用量监控 + 功能开关/配额；详见 docs/ai-center.md）
 - 能力探测（登录即可，前端据此举入口显隐/提示）：`GET /ai/capabilities` →
-  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary}}`（feature=false 表示总开关未开/未配置/该功能被停用）
+  `{enabled,visionModel,features:{quote,contract_ocr,task_photo,report_summary,approval_assist,contract_risk,report_assist,nl_query}}`（feature=false 表示总开关未开/未配置/该功能被停用）
+- 自然语言问数（登录即可，feature `nl_query`）：`POST /ai/nl-query` `{question,context?:{domain?,timeFrom?,timeTo?}}` →
+  `{domain,domainLabel,text,rows:[{label,value}],link,timeRange:{from,to},criteria}`；
+  AI 只产白名单意图（task_volume/contract_amount/receivable/settlement/work_hours/procurement/quotation），
+  后端按域校验列表权限（无权限 20002）并以手写聚合模板执行（禁止自由 SQL）；
+  subject=self 由后端解析为当前用户；非法域/解析失败 65004，未配置 65001，停用 65002；审计 ai_nl_query
 - 用量监控（admin:ai:usage）：
   - `GET /admin/ai/usage` 分页（q=userName/error；filters[feature,status]；range[create_time]=起|止；sort 白名单
     `id,create_time,feature,status,user_name`）→ 行 `{id,userName,feature,model,promptTokens,completionTokens,totalTokens,durationMs,status:success|error|fallback,error,bizType,bizId,createTime}`
@@ -477,7 +482,7 @@
   → 批准自动转 PDF → 签章（seal_by/seal_time 留痕）→ sealed；**存在未签章报告条目的任务 finish 拒绝（60003）**。
 - `GET /report/reports` 分页：
   `{id,reportNo,taskId,taskNo,taskItemId,itemName,contractId,contractNo,customerId,customerName,fileName,status,statusText,pdfReady,
-    sealBy,sealTime,remark,approvalInstanceId,createBy,createTime}`
+    sealBy,sealTime,remark,conclusion,approvalInstanceId,createBy,createTime}`
   检索：`q`（reportNo/fileName/任务号/任务名/条目名/客户名）、`status` 页签
 - `GET /report/reports/counts`（沿用 report:list）→ `{uploaded,approving,approved,rejected,sealed,all}`（状态页签计数）
 - `GET /report/reports/item-options?q=` → `[{value,label,sub}]`
@@ -498,6 +503,14 @@
   未配置/停用 65001，调用失败 65004
 - `PUT /report/reports/{id}/remark`（report:create）`{remark}`：采用 AI 摘要/人工编辑结论，
   仅 uploaded/rejected 可改（审批中/已签章锁定，否则 61002）
+- `POST /report/reports/{id}/ai-assist`（report:create）`{kind:"conclusion"|"proofread"|"completeness"}`：
+  AI 全文辅助（feature `report_assist`），只展示不落库。
+  conclusion → `{kind,conclusion}`（结论与不确定度段落草稿，人工编辑后经 PUT conclusion 采用）；
+  proofread → `{kind,issues:[{position,original,suggestion}]}`（格式/错别字清单，采纳/忽略仅 UI 态）；
+  completeness → `{kind,items:[{key,ok,detail}]}`（规则先行：编号一致性/签章信息/日期/条目缺漏，合并 AI 缺失项 aiCheck）。
+  未配置 65001，功能停用 65002，解析失败 65004
+- `PUT /report/reports/{id}/conclusion`（report:create）`{conclusion}`：采用结论段落库（report.conclusion 字段），
+  仅 uploaded/rejected 可改（否则 61002）
 - 权限码：`report:list/create/submit/seal/export`
 - 错误码：60003 存在未完成签章的报告，任务不能结束 / 61001 该条目已存在报告 / 61002 当前报告状态不允许该操作
 - 菜单：报告管理（Reports，`/report/reports`，componentKey `report/ReportList`）

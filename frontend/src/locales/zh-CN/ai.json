@@ -5,7 +5,9 @@
     "task_photo": "拍照记进度",
     "report_summary": "报告摘要",
     "approval_assist": "审批助手",
-    "contract_risk": "合同风险审查"
+    "contract_risk": "合同风险审查",
+    "report_assist": "报告全文辅助",
+    "nl_query": "AI 问数"
   },
   "status": {
     "success": "成功",
@@ -91,6 +93,35 @@
     "adopt": "采用并保存",
     "adopted": "摘要已保存到报告备注",
     "lockedTip": "当前状态不可修改摘要（仅已上传待审/已驳回可改）"
+  },
+  "reportAssist": {
+    "section": "AI 全文辅助",
+    "conclusion": "结论草稿",
+    "proofread": "格式校对",
+    "completeness": "完整性检查",
+    "generating": "AI 生成中…",
+    "title": {
+      "conclusion": "AI 结论与不确定度草稿",
+      "proofread": "AI 格式与错别字校对",
+      "completeness": "AI 完整性检查"
+    },
+    "adopt": "采用并保存",
+    "adopted": "结论已保存到报告",
+    "lockedTip": "当前状态不可修改结论（仅已上传待审/已驳回可改）",
+    "onlyShowTip": "检查结果仅供参考，不落库；采纳/忽略仅为界面标记，请人工复核原文",
+    "noIssues": "未发现格式或错别字问题",
+    "original": "原文",
+    "suggestion": "建议",
+    "adoptIssue": "采纳",
+    "adoptedState": "已采纳",
+    "ignoreIssue": "忽略",
+    "ignoredState": "已忽略"
+  },
+  "nlQuery": {
+    "placeholder": "例如：本月新增多少任务？我的工时合计？应收未收多少？",
+    "ask": "问数",
+    "gotoList": "前往列表查看",
+    "examples": "试试：本月新增多少任务？\n我的工时合计？\n应收未收多少钱？"
   },
   "approvalAssist": {
     "title": "AI 审批助手",

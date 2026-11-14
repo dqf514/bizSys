@@ -12,6 +12,7 @@
     "sealBy": "签章人",
     "sealTime": "签章时间",
     "remark": "备注",
+    "conclusion": "结论与不确定度",
     "searchQ": "关键词",
     "placeholderQ": "请输入报告编号/任务号/条目/客户",
     "upload": "上传报告",

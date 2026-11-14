@@ -18,7 +18,7 @@
 - 配置全部存 sys_config：
   - 连接（系统设置 → AI 设置卡片）：`ai.enabled` / `ai.base_url` / `ai.api_key`（AES-GCM 加密）/
     `ai.model` / `ai.vision_model`（空 = 复用 model，图片类功能使用）/ `ai.timeout`
-  - 功能开关（AI 中心 → AI 设置）：`ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk}`，缺省启用
+  - 功能开关（AI 中心 → AI 设置）：`ai.feature.{quote|contract_ocr|task_photo|report_summary|approval_assist|contract_risk|report_assist|nl_query}`，缺省启用
   - 配额：`ai.quota.user_daily_calls` / `ai.quota.user_daily_tokens` / `ai.quota.global_daily_tokens`，0 = 不限
 - 环回/内网端点（127.0.0.1/localhost/::1）自动绕过系统代理（httpx trust_env 在 Windows 会读注册表代理）。
 
@@ -44,6 +44,20 @@
 | `report_summary` | 报告详情抽屉「AI 生成摘要」 | 报告文本 + 任务信息 → 摘要草稿 → 人工编辑 → 「采用并保存」写 report.remark（仅 uploaded/rejected） |
 | `approval_assist` | 审批中心详情抽屉「AI 审批助手」 | 单据快照（值截断）+提交说明+合同类单据按权限附客户历史统计（合同数/均价/偏离/近90天相近单/累计到账）→ 要点/风险（high/mid/low）/意见草稿 → 「引用到审批意见」填意见框，人工修改后随审批动作提交；不落库。限实例相关人（发起/审批/抄送）或 approval:view |
 | `contract_risk` | 合同新建/编辑页「AI 风险审查」 | 已填字段白名单 + 可选合同原文（新传 pdf/docx/txt、图片走视觉，或引用已上传附件）→ 风险清单（级别+条款+问题+建议）+ 缺失条款 + 总评 → 仅展示，可复制或人工「加入备注」；不落库 |
+| `report_assist` | 报告详情抽屉「AI 全文辅助」（签章前入口） | 三类：结论与不确定度草稿（人工编辑后「采用并保存」写 report.conclusion，仅 uploaded/rejected）；格式与错别字校对（issues 清单，采纳/忽略仅 UI 态）；完整性检查（编号一致性/签章信息/日期/条目缺漏规则 + AI 缺失项合并为检查清单）。校对与检查不落库 |
+| `nl_query` | 工作台「AI 问数」卡片 | 自然语言 → AI 仅产白名单意图（七域：任务量/合同额/应收未收/结算/工时/采购申请/报价，禁止自由 SQL）→ 后端按域校验列表权限（无权限 20002）+ 手写聚合模板执行 → 答案卡（文本+明细行+口径说明+时间范围）+ 跳转对应列表；「我」由后端解析为当前用户；追问回传上轮时间范围；用量记 feature=nl_query |
+
+### 问数白名单域（`app/modules/aicenter/nl_query.py`）
+
+| domain | 权限码 | 口径 |
+|---|---|---|
+| `task_volume` | task:list | 按创建时间；subject=self → 负责人=当前用户 |
+| `contract_amount` | contract:list | 按创建时间；金额合计；subject=self → 经办人 |
+| `receivable` | finance:settlement:list + finance:payment:list | 已开票/已到账结算金额 − 已登记到账 |
+| `settlement` | finance:settlement:list | 按创建时间分状态计数/金额 |
+| `work_hours` | hr:timesheet:list | 仅本人填报（草稿+已提交），按工作日期 |
+| `procurement` | procurement:request:list | 按创建时间；预算合计；subject=self → 创建人 |
+| `quotation` | sales:quote:list | 按创建时间；报价合计；subject=self → 创建人 |
 
 ## 4. 用量监控
 

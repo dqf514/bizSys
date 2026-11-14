@@ -37,6 +37,9 @@ class Report(BaseModel):
     seal_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="签章人")
     seal_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="签章时间")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conclusion: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="结论与不确定度段（AI 草稿人工采用后落库）"
+    )
     approval_instance_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, index=True, comment="最近一次签批审批实例"
     )

@@ -16,6 +16,8 @@ const FEATURES: AiFeatureKey[] = [
   'report_summary',
   'approval_assist',
   'contract_risk',
+  'report_assist',
+  'nl_query',
 ]
 
 const loading = ref(false)
@@ -28,6 +30,8 @@ const features = reactive<Record<AiFeatureKey, boolean>>({
   report_summary: true,
   approval_assist: true,
   contract_risk: true,
+  report_assist: true,
+  nl_query: true,
 })
 const quota = reactive({
   userDailyCalls: 0,

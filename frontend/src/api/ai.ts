@@ -8,7 +8,11 @@ import type {
   ContractParseResult,
   ContractRiskResult,
   ListQuery,
+  NlQueryAnswer,
+  NlQueryContext,
   PageResult,
+  ReportAssistKind,
+  ReportAssistResult,
   ReportSummaryDraft,
   TaskProgressAiDraft,
   TaskProgressLogItem,
@@ -113,5 +117,29 @@ export function updateReportRemark(reportId: number, remark: string) {
     url: `/report/reports/${reportId}/remark`,
     method: 'put',
     data: { remark },
+  })
+}
+
+export function aiReportAssist(reportId: number, kind: ReportAssistKind) {
+  return request<ReportAssistResult>({
+    url: `/report/reports/${reportId}/ai-assist`,
+    method: 'post',
+    data: { kind },
+  })
+}
+
+export function updateReportConclusion(reportId: number, conclusion: string) {
+  return request<{ id: number; conclusion: string }>({
+    url: `/report/reports/${reportId}/conclusion`,
+    method: 'put',
+    data: { conclusion },
+  })
+}
+
+export function aiNlQuery(question: string, context?: NlQueryContext) {
+  return request<NlQueryAnswer>({
+    url: '/ai/nl-query',
+    method: 'post',
+    data: { question, context },
   })
 }

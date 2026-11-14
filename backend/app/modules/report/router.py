@@ -95,6 +95,7 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
         "sealBy": users.get(r.seal_by, "") if r.seal_by else "",
         "sealTime": _t(r.seal_time),
         "remark": r.remark or "",
+        "conclusion": r.conclusion or "",
         "approvalInstanceId": r.approval_instance_id,
         "createBy": users.get(r.create_by, "") if r.create_by else "",
         "createTime": _t(r.create_time),
@@ -392,3 +393,37 @@ def put_remark(
     audit(db, user_id=current.id, module="report", action="report_remark_update", biz_type="report", biz_id=rid)
     db.commit()
     return {"id": r.id, "remark": r.remark or ""}
+
+
+# ---------------- AI 全文辅助（结论草稿/校对/完整性检查） ----------------
+
+
+@router.post("/reports/{rid}/ai-assist")
+def ai_assist(
+    rid: int,
+    body: S.AssistIn,
+    current: User = Depends(require_perm("report:create")),
+    db: Session = Depends(get_db),
+):
+    """AI 全文辅助：结论草稿 / 校对清单 / 完整性清单。只展示不落库（结论经 PUT conclusion 采用）。"""
+    r = _load_report(db, rid)
+    data = svc.ai_assist(db, r, current, body.kind)
+    audit(db, user_id=current.id, module="report", action="report_ai_assist", biz_type="report", biz_id=rid,
+          detail={"kind": body.kind})
+    db.commit()
+    return data
+
+
+@router.put("/reports/{rid}/conclusion")
+def put_conclusion(
+    rid: int,
+    body: S.ConclusionIn,
+    current: User = Depends(require_perm("report:create")),
+    db: Session = Depends(get_db),
+):
+    """采用结论段（人工编辑后落库）：仅 uploaded/rejected 可改。"""
+    r = _load_report(db, rid)
+    svc.update_conclusion(db, r, body.conclusion, current)
+    audit(db, user_id=current.id, module="report", action="report_conclusion_update", biz_type="report", biz_id=rid)
+    db.commit()
+    return {"id": r.id, "conclusion": r.conclusion or ""}
