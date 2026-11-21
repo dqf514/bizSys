@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
+import TaskProcessPanel from './TaskProcessPanel.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
 import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.vue'
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
@@ -662,6 +663,21 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
           <el-descriptions-item :label="t('task.task.receiverUnit')">{{ detail.receiverUnit || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.planFinishDate')">{{ detail.planFinishDate || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.partySystem')">{{ detail.partySystem || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.planStartDate')">{{ detail.planStartDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.durationHours')">{{ detail.durationHours || 0 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.priority')">{{ detail.priority || 5 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.roleGroup')">
+            {{ detail.roleGroupText || detail.roleGroup || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.current')">
+            {{ detail.processStage || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.progress')">{{ detail.progress || 0 }}%</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.meshCount')">{{ detail.meshCount ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.solver')">{{ detail.solver || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.computeResource')">{{ detail.computeResource || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.computeCores')">{{ detail.computeCores || 0 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.process.computeNodes')">{{ detail.computeNodes || 0 }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.content')" :span="2">{{ detail.content || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
@@ -849,6 +865,14 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
           </el-descriptions-item>
         </el-descriptions>
         <ApprovalTimeline :records="detail.flow.timeline ?? []" />
+      </el-tab-pane>
+
+      <!-- B5：工序流转 / 七维分配 / 全过程追溯 / 操作流程图 -->
+      <el-tab-pane name="process">
+        <template #label>
+          {{ t('task.process.title') }}
+        </template>
+        <TaskProcessPanel :task-id="taskId" @changed="load" />
       </el-tab-pane>
     </el-tabs>
 

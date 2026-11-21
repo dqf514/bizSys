@@ -1,5 +1,7 @@
 """任务入参模型。"""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from app.core.schemas import CamelModel, OptionalDate
@@ -46,6 +48,81 @@ class TaskIn(CamelModel):
     version: int | None = None
     items: list[ItemIn] = Field(default_factory=list)
     samples: list[SampleIn] = Field(default_factory=list)
+    # --- B5 任务字段扩展（CSV 18–21）---
+    plan_start_date: OptionalDate = None
+    duration_hours: float = Field(8, ge=0, le=8760)
+    priority: int = Field(5, ge=1, le=9)
+    role_group: str = Field("", max_length=32)
+    mesh_count: int | None = Field(None, ge=0)
+    solver: str = Field("", max_length=32)
+    compute_resource: str = Field("", max_length=64)
+    compute_cores: int = Field(0, ge=0)
+    compute_nodes: int = Field(0, ge=0)
+
+
+class ProcessIn(CamelModel):
+    """工序定义。"""
+
+    seq: int = 0
+    process_code: str = Field("", max_length=32)
+    process_name: str = Field("", max_length=64)
+    planned_start: OptionalDate = None
+    planned_end: OptionalDate = None
+    operator_id: int | None = None
+    operator_name: str = Field("", max_length=64)
+    dept_id: int | None = None
+    dept_name: str = Field("", max_length=64)
+    remark: str = Field("", max_length=500)
+
+
+class ProcessUpdateIn(CamelModel):
+    seq: int | None = None
+    process_code: str | None = Field(None, max_length=32)
+    process_name: str | None = Field(None, max_length=64)
+    planned_start: OptionalDate = None
+    planned_end: OptionalDate = None
+    operator_id: int | None = None
+    operator_name: str | None = Field(None, max_length=64)
+    dept_id: int | None = None
+    dept_name: str | None = Field(None, max_length=64)
+    remark: str | None = Field(None, max_length=500)
+
+
+class AssignmentIn(CamelModel):
+    """七维分配（人/机/料/法/环/测/安/样车）。"""
+
+    dimension: str = Field("person", max_length=16)
+    resource_id: int | None = None
+    resource_code: str = Field("", max_length=64)
+    resource_name: str = Field("", max_length=128)
+    qty: float = Field(0, ge=0)
+    unit: str = Field("", max_length=16)
+    status: str = Field("pending", max_length=16)
+    planned_at: datetime | None = None
+    remark: str = Field("", max_length=500)
+
+
+class AssignmentUpdateIn(CamelModel):
+    dimension: str | None = Field(None, max_length=16)
+    resource_id: int | None = None
+    resource_code: str | None = Field(None, max_length=64)
+    resource_name: str | None = Field(None, max_length=128)
+    qty: float | None = Field(None, ge=0)
+    unit: str | None = Field(None, max_length=16)
+    status: str | None = Field(None, max_length=16)
+    planned_at: datetime | None = None
+    remark: str | None = Field(None, max_length=500)
+
+
+class TraceIn(CamelModel):
+    """全过程追溯节点。"""
+
+    node_code: str = Field("input", max_length=32)
+    node_name: str = Field("", max_length=64)
+    seq: int = 0
+    happen_at: datetime | None = None
+    ref_no: str = Field("", max_length=64)
+    remark: str = Field("", max_length=500)
 
 
 class ProgressIn(CamelModel):

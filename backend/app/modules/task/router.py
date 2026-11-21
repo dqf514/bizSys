@@ -17,6 +17,7 @@ from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
+from app.modules.task import extension as ext
 from app.modules.task import schemas as S
 from app.modules.task import service as svc
 from app.modules.task.models import Task, TaskItem, TaskSample, TaskSampleFlow
@@ -122,6 +123,18 @@ def _out(c: Task, labels: tuple[dict, dict], counts: tuple[int, int] = (0, 0), s
         "receiver": c.receiver,
         "receiverUnit": c.receiver_unit,
         "planFinishDate": _d(c.plan_finish_date),
+        "planStartDate": _d(c.plan_start_date),
+        "durationHours": float(c.duration_hours or 0),
+        "priority": c.priority or 5,
+        "roleGroup": c.role_group or "",
+        "roleGroupText": ext.GROUP_CN.get(c.role_group or "", c.role_group or ""),
+        "progress": c.progress or 0,
+        "processStage": c.process_stage or "",
+        "meshCount": c.mesh_count,
+        "solver": c.solver or "",
+        "computeResource": c.compute_resource or "",
+        "computeCores": c.compute_cores or 0,
+        "computeNodes": c.compute_nodes or 0,
         "status": c.status,
         "statusText": STATUS_CN.get(c.status, c.status),
         "settleStatus": settle_status,
@@ -174,8 +187,11 @@ def _pending_map(db: Session, sample_ids: list[int]) -> dict:
     return proc_svc.pending_sample_stock_map(db, sample_ids)
 
 
-def _filtered(db: Session, request: Request, page: PageParams):
+def _filtered(db: Session, request: Request, page: PageParams, groups: list[str] | None = None):
     stmt = select(Task)
+    if groups is not None:
+        # 角色分组可见性（B5 CSV 21）：只被授予 task:group:* 的用户仅见本组任务
+        stmt = stmt.where(Task.role_group.in_(groups))
     return apply_list_filters(
         stmt,
         Task,
@@ -183,11 +199,15 @@ def _filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["task_no", "task_name", "customer_name"],
-        filter_cols={"status", "task_type", "biz_block", "dept_id", "owner_id", "contract_id", "customer_id"},
-        range_cols={"plan_finish_date", "create_time"},
+        filter_cols={
+            "status", "task_type", "biz_block", "dept_id", "owner_id",
+            "contract_id", "customer_id", "role_group",
+        },
+        range_cols={"plan_finish_date", "plan_start_date", "create_time"},
         sort_cols={
             "update_time", "create_time", "id", "task_no", "plan_finish_date",
-            "task_name", "task_type", "customer_name", "biz_block", "status",
+            "plan_start_date", "task_name", "task_type", "customer_name",
+            "biz_block", "status", "priority",
         },
     )
 
@@ -200,7 +220,7 @@ def list_tasks(
     user: User = Depends(require_perm("task:list")),
     db: Session = Depends(get_db),
 ):
-    stmt, total = _filtered(db, request, PageParams(page=page, size=size))
+    stmt, total = _filtered(db, request, PageParams(page=page, size=size), ext.visible_role_groups(db, user))
     rows = db.scalars(stmt).all()
     labels = _labels(db)
     cnts = _counts_for(db, [r.id for r in rows])
@@ -247,6 +267,45 @@ def _apply(t: Task, body: S.TaskIn) -> None:
     t.owner_name = body.owner_name
     t.party_system = body.party_system
     t.plan_finish_date = body.plan_finish_date
+    # --- B5 扩展字段：仅在请求显式携带时覆盖，避免部分更新被默认值冲掉 ---
+    given = body.model_fields_set
+    if "plan_start_date" in given:
+        t.plan_start_date = body.plan_start_date
+    if "duration_hours" in given:
+        t.duration_hours = body.duration_hours
+    if "priority" in given:
+        t.priority = body.priority
+    if "role_group" in given:
+        t.role_group = (body.role_group or "").strip()
+    if "mesh_count" in given:
+        t.mesh_count = body.mesh_count
+    if "solver" in given:
+        t.solver = body.solver
+    if "compute_resource" in given:
+        t.compute_resource = body.compute_resource
+    if "compute_cores" in given:
+        t.compute_cores = body.compute_cores
+    if "compute_nodes" in given:
+        t.compute_nodes = body.compute_nodes
+
+
+def _derive(t: Task, db: Session, body: S.TaskIn, current: User) -> None:
+    """派生角色分组与默认负责人（B5 CSV 20/21）。
+
+    - 角色分组：请求未指定时按任务类型推导（仿真 / 模型 / 试验 / 委外）；
+    - 负责人：请求未指定时按任务类型在字典 `task_owner_rule` 中解析对应角色负责人，
+      解析不到才落到当前登录人。
+    """
+    if not t.role_group:
+        t.role_group = ext.role_group_of(t.task_type)
+    if not t.owner_id:
+        owner_id, owner_name = ext.resolve_owner(db, t.task_type, t.dept_id)
+        if owner_id:
+            t.owner_id = owner_id
+            t.owner_name = owner_name
+    if not t.owner_id:
+        t.owner_id = current.id
+        t.owner_name = t.owner_name or current.name or current.username
 
 
 def _bind_contract(db: Session, t: Task, contract_id: int | None) -> None:
@@ -275,9 +334,7 @@ def create_task(
     t = Task(task_no=None, status="draft", create_by=current.id)
     _apply(t, body)
     _bind_contract(db, t, body.contract_id)
-    if not t.owner_id:
-        t.owner_id = current.id
-        t.owner_name = t.owner_name or current.name or current.username
+    _derive(t, db, body, current)
     db.add(t)
     db.flush()
     svc.sync_items(db, t, body.items)
@@ -347,7 +404,9 @@ def get_task(
     user: User = Depends(require_perm("task:list")),
     db: Session = Depends(get_db),
 ):
-    return _detail(db, _load(db, tid))
+    t = _load(db, tid)
+    ext.assert_task_visible(db, t, user)
+    return _detail(db, t)
 
 
 @router.put("/tasks/{tid}")
@@ -358,12 +417,14 @@ def update_task(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
+    ext.assert_task_visible(db, t, current)
     if t.status not in ("draft", "rejected"):
         raise BizException(R.TASK_INVALID_STATE, "仅草稿/已驳回任务可编辑")
     if body.version is not None and body.version != t.version:
         raise BizException(R.GENERIC_OPTIMISTIC_LOCK)
     _apply(t, body)
     _bind_contract(db, t, body.contract_id)
+    _derive(t, db, body, current)
     t.version += 1
     t.update_time = datetime.now()
     svc.sync_items(db, t, body.items)
@@ -380,6 +441,7 @@ def delete_task(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
+    ext.assert_task_visible(db, t, current)
     if t.status != "draft":
         raise BizException(R.TASK_INVALID_STATE, "仅草稿任务可删除")
     t.deleted = 1
@@ -810,7 +872,9 @@ def export_tasks(
     current: User = Depends(require_perm("task:list:export")),
     db: Session = Depends(get_db),
 ):
-    stmt, _ = _filtered(db, request, SimpleNamespace(page=1, size=100_000))
+    stmt, _ = _filtered(
+        db, request, SimpleNamespace(page=1, size=100_000), ext.visible_role_groups(db, current)
+    )
     rows = db.scalars(stmt).all()
     labels = _labels(db)
     cnts = _counts_for(db, [r.id for r in rows])

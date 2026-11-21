@@ -1,12 +1,16 @@
 import { request, download, toQuery } from './http'
 import type {
   ListQuery,
+  OperationFlow,
   PageResult,
   SampleRow,
   Task,
+  TaskAssignment,
   TaskCounts,
   TaskItem,
+  TaskProcess,
   TaskSample,
+  TaskTrace,
 } from './types'
 
 export function listTasks(params: ListQuery) {
@@ -107,4 +111,100 @@ export function exportTasks(params: ListQuery) {
     },
     'tasks.xlsx',
   )
+}
+
+/* ---------- B5 工序流转 ---------- */
+
+export function listProcesses(taskId: number) {
+  return request<{ items: TaskProcess[]; total: number }>({
+    url: `/task/tasks/${taskId}/processes`,
+    method: 'get',
+  })
+}
+
+export function createProcess(taskId: number, data: Partial<TaskProcess>) {
+  return request<TaskProcess>({
+    url: `/task/tasks/${taskId}/processes`,
+    method: 'post',
+    data,
+  })
+}
+
+export function updateProcess(id: number, data: Partial<TaskProcess>) {
+  return request<TaskProcess>({ url: `/task/processes/${id}`, method: 'put', data })
+}
+
+export function startProcess(id: number) {
+  return request<TaskProcess>({ url: `/task/processes/${id}/start`, method: 'post' })
+}
+
+export function finishProcess(id: number) {
+  return request<TaskProcess>({ url: `/task/processes/${id}/finish`, method: 'post' })
+}
+
+export function skipProcess(id: number) {
+  return request<TaskProcess>({ url: `/task/processes/${id}/skip`, method: 'post' })
+}
+
+export function deleteProcess(id: number) {
+  return request<void>({ url: `/task/processes/${id}`, method: 'delete' })
+}
+
+/* ---------- B5 七维分配 ---------- */
+
+export function listAssignments(taskId: number) {
+  return request<{ items: TaskAssignment[]; total: number }>({
+    url: `/task/tasks/${taskId}/assignments`,
+    method: 'get',
+  })
+}
+
+export function createAssignment(taskId: number, data: Partial<TaskAssignment>) {
+  return request<TaskAssignment>({
+    url: `/task/tasks/${taskId}/assignments`,
+    method: 'post',
+    data,
+  })
+}
+
+export function updateAssignment(id: number, data: Partial<TaskAssignment>) {
+  return request<TaskAssignment>({ url: `/task/assignments/${id}`, method: 'put', data })
+}
+
+export function deleteAssignment(id: number) {
+  return request<void>({ url: `/task/assignments/${id}`, method: 'delete' })
+}
+
+/* ---------- B5 全过程追溯 ---------- */
+
+export function listTraces(taskId: number) {
+  return request<{ items: TaskTrace[]; total: number }>({
+    url: `/task/tasks/${taskId}/traces`,
+    method: 'get',
+  })
+}
+
+export function createTrace(taskId: number, data: Partial<TaskTrace>) {
+  return request<TaskTrace>({ url: `/task/tasks/${taskId}/traces`, method: 'post', data })
+}
+
+export function deleteTrace(id: number) {
+  return request<void>({ url: `/task/traces/${id}`, method: 'delete' })
+}
+
+/* ---------- B5 操作流程图 / 负责人建议 ---------- */
+
+export function operationFlow(taskId: number) {
+  return request<OperationFlow>({ url: `/task/tasks/${taskId}/operation-flow`, method: 'get' })
+}
+
+export function ownerSuggestion(taskId: number) {
+  return request<{
+    taskId: number
+    taskType: string
+    roleGroup: string
+    roleGroupText: string
+    ownerId: number | null
+    ownerName: string
+  }>({ url: `/task/tasks/${taskId}/owner-suggestion`, method: 'get' })
 }

@@ -34,12 +34,108 @@ class Task(BaseModel):
     plan_finish_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
     flow_instance_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    # --- B5 任务字段扩展（CSV 18–21）---
+    plan_start_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="计划开始日期")
+    duration_hours: Mapped[float] = mapped_column(
+        Numeric(10, 2), default=8, comment="预计工时（小时），排程用"
+    )
+    progress: Mapped[int] = mapped_column(Integer, default=0, comment="进度百分比 0-100")
+    priority: Mapped[int] = mapped_column(Integer, default=5, comment="优先级 1(最高)~9(最低)")
+    role_group: Mapped[str] = mapped_column(
+        String(32), default="", index=True, comment="角色分组（字典 task_role_group）：sim/model/test/outsource"
+    )
+    process_stage: Mapped[str] = mapped_column(String(32), default="", comment="当前工序编码")
+    # CFD 专属字段（CSV 19）
+    mesh_count: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="网格数（万单元）")
+    solver: Mapped[str] = mapped_column(String(32), default="", comment="求解器")
+    compute_resource: Mapped[str] = mapped_column(String(64), default="", comment="算力资源池")
+    compute_cores: Mapped[int] = mapped_column(Integer, default=0, comment="核数")
+    compute_nodes: Mapped[int] = mapped_column(Integer, default=0, comment="节点数")
     items = relationship(
         "TaskItem", foreign_keys="TaskItem.task_id", cascade="all, delete-orphan", lazy="selectin"
     )
     samples = relationship(
         "TaskSample", foreign_keys="TaskSample.task_id", cascade="all, delete-orphan", lazy="selectin"
     )
+    processes = relationship(
+        "TaskProcess", foreign_keys="TaskProcess.task_id", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class TaskProcess(BaseModel):
+    """工序流转（B5 CSV 19）：油泥 / CNC / 表面处理 等加工工序的流转记录。
+
+    状态机：pending → running → done（可 skipped 跳过）；同一任务同一时刻只有一个
+    `is_current=1` 的工序，用于在任务列表上直接展示"当前处于哪道工序"。
+    """
+
+    __tablename__ = "task_process"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("task_task.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer, default=1, comment="工序序号")
+    process_code: Mapped[str] = mapped_column(String(32), default="", index=True, comment="字典 task_process")
+    process_name: Mapped[str] = mapped_column(String(64), default="", comment="工序名称冗余")
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", index=True, comment="pending/running/done/skipped"
+    )
+    is_current: Mapped[int] = mapped_column(Integer, default=0, comment="是否当前工序")
+    planned_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    planned_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actual_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    actual_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    operator_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    operator_name: Mapped[str] = mapped_column(String(64), default="")
+    dept_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    dept_name: Mapped[str] = mapped_column(String(64), default="")
+    remark: Mapped[str] = mapped_column(String(500), default="")
+
+
+class TaskAssignment(BaseModel):
+    """任务分配（B5 CSV 20）：人 / 机 / 料 / 法 / 环 / 测 / 安 七维资源分配。
+
+    `dimension` 取值：person 人员 · equipment 设备 · material 物料 ·
+    method 方法 · env 环境 · test 试验条件 · safety 安全措施 · vehicle 样车。
+    排程（production 域）会读取本表的 equipment / person / vehicle（时段独占）
+    与 material（数量占用）维度做资源占用。
+    """
+
+    __tablename__ = "task_assignment"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("task_task.id"), index=True)
+    dimension: Mapped[str] = mapped_column(String(16), default="person", index=True)
+    resource_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    resource_code: Mapped[str] = mapped_column(String(64), default="")
+    resource_name: Mapped[str] = mapped_column(String(128), default="")
+    qty: Mapped[float] = mapped_column(Numeric(12, 2), default=0, comment="需求量")
+    unit: Mapped[str] = mapped_column(String(16), default="")
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", index=True, comment="pending/allocated/confirmed/rejected"
+    )
+    assigner_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    assigner_name: Mapped[str] = mapped_column(String(64), default="")
+    planned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    remark: Mapped[str] = mapped_column(String(500), default="")
+
+
+class TaskTrace(BaseModel):
+    """任务全过程追溯（B5 CSV 19）：输入 → 报告输出 / 样车归还 / 模型车发运。
+
+    `node_code` 取值：input 输入 · output_report 报告输出 · vehicle_return 样车归还 ·
+    model_ship 模型车发运 · accept 验收 · settle 结算。
+    """
+
+    __tablename__ = "task_trace"
+
+    task_id: Mapped[int] = mapped_column(ForeignKey("task_task.id"), index=True)
+    node_code: Mapped[str] = mapped_column(String(32), default="input", index=True)
+    node_name: Mapped[str] = mapped_column(String(64), default="")
+    seq: Mapped[int] = mapped_column(Integer, default=1)
+    happen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ref_no: Mapped[str] = mapped_column(String(64), default="", comment="关联单号（报告号 / 样车 VIN）")
+    operator_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    operator_name: Mapped[str] = mapped_column(String(64), default="")
+    remark: Mapped[str] = mapped_column(String(500), default="")
 
 
 class TaskItem(BaseModel):
