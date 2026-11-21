@@ -3,7 +3,8 @@ import { computed, h, resolveComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElDrawer, ElIcon } from 'element-plus'
-import { useNavZones } from './useNavZones'
+import { ArrowRight } from '@element-plus/icons-vue'
+import { countZoneItems, useNavZones } from './useNavZones'
 import { useBrandingStore } from '@/stores/branding'
 import type { MenuNode } from '@/api/types'
 
@@ -14,7 +15,7 @@ const router = useRouter()
 const { t } = useI18n()
 const branding = useBrandingStore()
 
-const { topMenus, zones, systemZone, menuTitle } = useNavZones()
+const { topMenus, zones, systemZone, menuTitle, toggleZone, isZoneOpen } = useNavZones()
 
 const brandText = computed(() => branding.siteName || t('common.app.short'))
 
@@ -31,7 +32,14 @@ function go(node: MenuNode) {
 }
 
 function isActive(node: MenuNode) {
-  return Boolean(node.path) && route.path === node.path
+  if (!node.path) return false
+  return route.path === node.path || route.path.startsWith(`${node.path}/`)
+}
+
+/** 分区头按钮的无障碍描述：分区名 + 展开/收起动作 */
+function zoneToggleLabel(zone: MenuNode) {
+  const action = isZoneOpen(zone) ? t('common.nav.collapseZone') : t('common.nav.expandZone')
+  return `${menuTitle(zone)} - ${action}`
 }
 </script>
 
@@ -61,35 +69,47 @@ function isActive(node: MenuNode) {
         <span class="nav-text">{{ menuTitle(node) }}</span>
       </button>
 
-      <div v-for="zone in zones" :key="zone.id" class="nav-group">
-        <div class="nav-group-title">{{ menuTitle(zone) }}</div>
-        <template v-for="child in zone.children" :key="child.id">
-          <!-- 二级目录直接展开平铺（移动端不做手风琴，减少点击层级） -->
-          <template v-if="child.menuType === 'dir'">
-            <div v-if="child.children?.length" class="nav-sub-title">{{ menuTitle(child) }}</div>
+      <!-- 分区手风琴：与桌面侧栏共用同一展开状态（bs.navZoneOpen） -->
+      <div v-for="zone in zones" :key="zone.id" class="nav-group" :class="{ open: isZoneOpen(zone) }">
+        <button
+          type="button"
+          class="nav-group-title nav-group-toggle"
+          :aria-expanded="isZoneOpen(zone)"
+          :aria-label="zoneToggleLabel(zone)"
+          @click="toggleZone(zone)"
+        >
+          <ElIcon class="nav-group-caret"><ArrowRight /></ElIcon>
+          <span class="nav-group-name">{{ menuTitle(zone) }}</span>
+          <span class="nav-group-count">{{ countZoneItems(zone) }}</span>
+        </button>
+        <div v-show="isZoneOpen(zone)" class="nav-group-body">
+          <template v-for="child in zone.children" :key="child.id">
+            <template v-if="child.menuType === 'dir'">
+              <div v-if="child.children?.length" class="nav-sub-title">{{ menuTitle(child) }}</div>
+              <button
+                v-for="leaf in child.children"
+                :key="leaf.id"
+                type="button"
+                class="nav-item nested"
+                :class="{ active: isActive(leaf) }"
+                @click="go(leaf)"
+              >
+                <ElIcon v-if="leaf.icon"><component :is="renderIcon(leaf.icon)" /></ElIcon>
+                <span class="nav-text">{{ menuTitle(leaf) }}</span>
+              </button>
+            </template>
             <button
-              v-for="leaf in child.children"
-              :key="leaf.id"
+              v-else
               type="button"
-              class="nav-item nested"
-              :class="{ active: isActive(leaf) }"
-              @click="go(leaf)"
+              class="nav-item"
+              :class="{ active: isActive(child) }"
+              @click="go(child)"
             >
-              <ElIcon v-if="leaf.icon"><component :is="renderIcon(leaf.icon)" /></ElIcon>
-              <span class="nav-text">{{ menuTitle(leaf) }}</span>
+              <ElIcon v-if="child.icon"><component :is="renderIcon(child.icon)" /></ElIcon>
+              <span class="nav-text">{{ menuTitle(child) }}</span>
             </button>
           </template>
-          <button
-            v-else
-            type="button"
-            class="nav-item"
-            :class="{ active: isActive(child) }"
-            @click="go(child)"
-          >
-            <ElIcon v-if="child.icon"><component :is="renderIcon(child.icon)" /></ElIcon>
-            <span class="nav-text">{{ menuTitle(child) }}</span>
-          </button>
-        </template>
+        </div>
       </div>
 
       <div v-if="systemZone" class="nav-group system-group">
@@ -148,6 +168,52 @@ function isActive(node: MenuNode) {
   letter-spacing: 0.06em;
   color: var(--bs-color-fg-muted);
   user-select: none;
+}
+
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--bs-space-2);
+  border: none;
+  border-radius: var(--bs-radius-md);
+  background: transparent;
+  font-size: var(--bs-typography-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--bs-color-fg-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-group-toggle:hover {
+  background: var(--bs-color-fill-hover);
+  color: var(--bs-color-fg-default);
+}
+
+.nav-group-caret {
+  transition: transform var(--bs-motion-fast) var(--bs-motion-curve);
+}
+
+.nav-group.open .nav-group-caret {
+  transform: rotate(90deg);
+}
+
+.nav-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-group-count {
+  flex: none;
+  font-weight: 400;
+  letter-spacing: 0;
+  opacity: 0.8;
 }
 
 .nav-sub-title {

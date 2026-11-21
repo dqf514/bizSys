@@ -1,4 +1,5 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import * as authApi from '@/api/auth'
@@ -10,6 +11,9 @@ export const navSortVisible = ref(false)
 export function openNavSort() {
   navSortVisible.value = true
 }
+
+/** 分区展开状态记忆键（localStorage，与 bs.navCollapsed 同风格） */
+export const NAV_ZONE_OPEN_KEY = 'bs.navZoneOpen'
 
 function visibleMenus(nodes: MenuNode[]): MenuNode[] {
   return nodes
@@ -34,12 +38,75 @@ export function splitSystemZone(dirs: MenuNode[]): { navZones: MenuNode[]; syste
 }
 
 /**
+ * 路径是否落在该节点（含子孙）内。
+ * 详情页路径是菜单路径的下一级（如 /contract/contracts/12），按路径分隔符前缀匹配一并算命中。
+ */
+export function zoneHasPath(node: MenuNode, path: string): boolean {
+  if (!path) return false
+  if (node.path && (node.path === path || path.startsWith(`${node.path}/`))) return true
+  return (node.children ?? []).some((c) => zoneHasPath(c, path))
+}
+
+/** 找到包含指定路径的分区（分区自身或其子孙命中即算）；找不到返回 null */
+export function findZoneByPath(zones: MenuNode[], path: string): MenuNode | null {
+  if (!path) return null
+  return zones.find((z) => zoneHasPath(z, path)) ?? null
+}
+
+/** 分区内可见叶子菜单数（menuType==='menu' 且 visible!==0），用于分区头计数徽标 */
+export function countZoneItems(node: MenuNode): number {
+  return (node.children ?? []).reduce((sum, c) => {
+    if (c.visible === 0) return sum
+    if (c.menuType === 'menu') return sum + 1
+    if (c.menuType === 'dir') return sum + countZoneItems(c)
+    return sum
+  }, 0)
+}
+
+/**
+ * 解析记忆的分区 id。
+ * 'none'（用户主动全部收起）/ 非法值 / 不在当前可见分区集合内 → null。
+ */
+export function parseOpenZoneId(raw: string | null, validIds: number[]): number | null {
+  if (!raw || raw === 'none') return null
+  const id = Number(raw)
+  if (!Number.isFinite(id)) return null
+  return validIds.includes(id) ? id : null
+}
+
+function readStoredZoneRaw(): string | null {
+  try {
+    return localStorage.getItem(NAV_ZONE_OPEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+/** 记忆的展开分区原始值（尚未与可见分区集合求交集） */
+const storedZoneRaw = ref<string | null>(readStoredZoneRaw())
+/** 当前展开的分区 id（null = 全部收起）。模块级共享，桌面侧栏与移动抽屉同步。 */
+const openZoneId = ref<number | null>(null)
+/** 用户是否手动操作过展开状态；false 表示尚未操作，首次按当前路由自动定位 */
+const zoneOpenTouched = ref(storedZoneRaw.value !== null)
+
+function persistOpenZone() {
+  const raw = openZoneId.value == null ? 'none' : String(openZoneId.value)
+  storedZoneRaw.value = raw
+  try {
+    localStorage.setItem(NAV_ZONE_OPEN_KEY, raw)
+  } catch {
+    /* localStorage 不可用时静默降级，功能不受影响 */
+  }
+}
+
+/**
  * 三区结构：顶层独立菜单（工作台）钉在顶部，顶级业务目录渲染为滚动「区」；
  * 系统管理区固定在导航底部入口，不参与区排序。
  */
 export function useNavZones() {
   const auth = useAuthStore()
   const { t } = useI18n()
+  const route = useRoute()
 
   const visibleTree = computed(() => visibleMenus(auth.menus))
   /** 顶层独立菜单（工作台），不属于任何区，固定最前 */
@@ -91,5 +158,67 @@ export function useNavZones() {
     if (auth.user) auth.user.prefs = { ...(auth.user.prefs ?? {}), navOrder: csv }
   }
 
-  return { topMenus, zoneDirs, navZoneDirs, systemZone, zones, customOrder, validOrder, menuTitle, persistOrder }
+  /**
+   * 展开状态自愈：
+   * - 分区集合为空 → 全部收起；
+   * - 用户从未操作过 → 默认展开当前路由所在分区（没有则第一个分区）；
+   * - 记忆的分区已失效（权限调整/菜单改版）→ 重新定位到当前路由所在分区。
+   * 注意：路由变化**不**触发重新展开（按用户选择记住上次展开的分区）。
+   */
+  watch(
+    () => navZoneDirs.value.map((z) => z.id),
+    (ids) => {
+      if (!ids.length) {
+        openZoneId.value = null
+        return
+      }
+      if (!zoneOpenTouched.value) {
+        openZoneId.value = findZoneByPath(navZoneDirs.value, route.path)?.id ?? ids[0] ?? null
+        persistOpenZone()
+        return
+      }
+      if (openZoneId.value === null) {
+        // 首次按记忆值求交集：'none' 表示用户主动收起，保持 null
+        openZoneId.value = parseOpenZoneId(storedZoneRaw.value, ids)
+        return
+      }
+      if (!ids.includes(openZoneId.value)) {
+        openZoneId.value = findZoneByPath(navZoneDirs.value, route.path)?.id ?? null
+        persistOpenZone()
+      }
+    },
+    { immediate: true },
+  )
+
+  /** 点击分区头：切换展开；再次点击同一分区则全部收起 */
+  function toggleZone(zone: MenuNode) {
+    openZoneId.value = openZoneId.value === zone.id ? null : zone.id
+    zoneOpenTouched.value = true
+    persistOpenZone()
+  }
+
+  function isZoneOpen(zone: MenuNode) {
+    return openZoneId.value === zone.id
+  }
+
+  /** 当前路由是否落在该分区内（分区收起时也要给分区头高亮） */
+  function isZoneActive(zone: MenuNode) {
+    return zoneHasPath(zone, route.path)
+  }
+
+  return {
+    topMenus,
+    zoneDirs,
+    navZoneDirs,
+    systemZone,
+    zones,
+    customOrder,
+    validOrder,
+    menuTitle,
+    persistOrder,
+    openZoneId,
+    toggleZone,
+    isZoneOpen,
+    isZoneActive,
+  }
 }

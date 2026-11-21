@@ -244,6 +244,9 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 
 - 分区切分由 `src/layout/useNavZones.ts` 完成：顶层 `dir` 是"分区"（可排序），`System` 是固定分区（`isSystemZone` 匹配 `name === 'System' || titleKey === 'menu.system'`）。
 - 分区顺序存在用户 prefs `navOrder`（顶层菜单 id 列表）；分区集合变化后旧偏好失效，`validOrder` 已内置回退。
+- **分区手风琴**：展开态只渲染「工作台 + 分区头 + 当前展开的一个分区」，分区头可点击折叠（带 caret、条目计数徽标、`aria-expanded`）；再次点击同一分区 → 全部收起。展开状态记在 `localStorage['bs.navZoneOpen']`（分区 id，`'none'` 表示全部收起），**记住上次展开的分区，不随路由自动切换**；仅在记忆的分区已失效（权限调整/菜单改版）时重新定位到当前路由所在分区。
+- **折叠态 = 图标轨 + 浮层**：64px 折叠态只显示「工作台 + 各分区图标」，悬停/聚焦分区图标弹出 `ElPopover` 浮层（`placement="right-start"`，`popper-class="nav-zone-flyout"`），面板内二级目录作分组标题、叶子菜单作条目，面板自身滚动。**必须用 `ElPopover` 而非自绘 absolute 浮层**（`.app-shell`/`.side-nav` 是 `overflow: hidden`，自绘浮层会被裁掉）。
+- 分区相关纯函数都在 `useNavZones.ts`（可单测）：`zoneHasPath` / `findZoneByPath`（当前路由落在哪个分区，按路径前缀匹配详情页）/ `countZoneItems`（分区条目数）/ `parseOpenZoneId`（记忆值求交集）。
 - **菜单结构在后端**：`app/seeds/init_data.py::MENU_TREE`。种子按 `name` 匹配已有行并同步 `title_key/path/component_key/icon/permission/menu_type`，**不回写 `parent_id`/`sort`** —— 结构调整必须跑 `uv run python scripts/migrate_nav_zones.py`（幂等，规范结构直接从 `MENU_TREE` 推导）。
 - `perm_to_id[perm] = m.id`：**一个权限码只能挂一个菜单**，撞车会让后者顶掉前者，超管与角色都拿不到被顶掉的菜单（种子会打印 `WARN duplicate permission`）。
 - `HIDDEN_MENUS` 里的菜单强制 `visible=0`（入口并入他页，但权限点仍由它承载）。
@@ -273,8 +276,8 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 - **表格占满内容区**：`el-table` 只拉伸**没有固定 `width`** 的列（EP 内部 `flexColumns = columns.filter(c => !isNumber(c.width))`）；一旦所有列都写死 `width`，表格宽度 = 列宽之和，右侧会留出大片空白，与其他板块观感不一致。列表页至少保留一列弹性列（写 `min-width` 而不是 `width`）；`ListTable.vue` 已内置兜底（自动把最后一列转成弹性列），但原生 `<el-table>` 必须自己保证。
 - **状态页签**：每个 tab 显示计数（含 `all`），`all` 永远最左；缺计数接口时按 `task counts` 的模式补 `…/counts`。
 - **关闭/返回/页脚**：抽屉与弹窗只用内置右上角 `X`，不要额外的自定义关闭按钮；页面级返回用 `src/components/common/BackButton.vue` 放右上角。弹窗页脚：次要操作在左、主要操作在右。
-- **导航**：系统管理区固定在侧边导航**底部**（图标 + 文字，仅在存在可见的管理菜单时显示，点击弹出向上的 popover）。折叠/展开按钮同在该底部工具条，**绝不在左上角**。折叠态只显示图标（原生 `title` 提示），系统管理入口折叠态仅图标但 popover 仍可用。导航分区排序在 `NavSortDialog`，入口在 TopBar 头像菜单（同时承载外观/语言）。
-- **移动端外壳**（<768px，`useIsMobile`）：侧边导航收进汉堡抽屉（`MobileNavDrawer`，同样的分区/菜单数据与权限过滤）；右侧上下文面板变浮动按钮 + 右抽屉；状态栏隐藏。底部常驻 `MobileDock`：放大的中间 Workbench 按钮 + 4 个可自定义快捷项（长按 Dock 或头像菜单「Dock Shortcuts」打开 `DockSettingsDialog`；存用户 prefs `dockShortcuts`，按权限过滤，默认 todo/tasks/contracts/OA-apply）。全局覆盖样式在 `src/styles/mobile.css`。
+- **导航**：系统管理区固定在侧边导航**底部**（图标 + 文字，仅在存在可见的管理菜单时显示，展开态点击弹出向上的 popover、折叠态向右弹出）。折叠/展开按钮同在该底部工具条，**绝不在左上角**。折叠态只显示图标（原生 `title` 提示），系统管理入口折叠态仅图标但 popover 仍可用。导航分区排序在 `NavSortDialog`，入口在 TopBar 头像菜单（同时承载外观/语言）。展开态分区**手风琴**（一次只展开一个分区，分区头可点击折叠 + 计数徽标；展开状态记 `localStorage['bs.navZoneOpen']`）；折叠态为**图标轨 + 分区浮层**（悬停分区图标弹出该分区菜单）。
+- **移动端外壳**（<768px，`useIsMobile`）：侧边导航收进汉堡抽屉（`MobileNavDrawer`，同样的分区/菜单数据与权限过滤，分区头同样可手风琴折叠，与桌面共用 `bs.navZoneOpen`）；右侧上下文面板变浮动按钮 + 右抽屉；状态栏隐藏。底部常驻 `MobileDock`：放大的中间 Workbench 按钮 + 4 个可自定义快捷项（长按 Dock 或头像菜单「Dock Shortcuts」打开 `DockSettingsDialog`；存用户 prefs `dockShortcuts`，按权限过滤，默认 todo/tasks/contracts/OA-apply）。全局覆盖样式在 `src/styles/mobile.css`。
 - **动效**：见上文「样式与动效」。
 
 ## 代码风格

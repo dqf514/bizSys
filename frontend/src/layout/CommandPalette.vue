@@ -2,19 +2,19 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
 import { useTabsStore } from '@/stores/tabs'
 import { useThemeStore } from '@/stores/theme'
+import { useNavZones } from './useNavZones'
 import type { MenuNode } from '@/api/types'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: 'update:visible', v: boolean): void }>()
 
 const router = useRouter()
-const auth = useAuthStore()
 const tabsStore = useTabsStore()
 const theme = useThemeStore()
 const { t } = useI18n()
+const { topMenus, zones, systemZone, menuTitle } = useNavZones()
 const keyword = ref('')
 const inputRef = ref<HTMLInputElement>()
 const activeIndex = ref(0)
@@ -26,24 +26,49 @@ interface CommandItem {
   run: () => void
 }
 
-function flattenMenus(nodes: MenuNode[], out: MenuNode[] = []): MenuNode[] {
-  for (const n of nodes) {
-    if (n.menuType === 'menu' && n.path) out.push(n)
-    if (n.children?.length) flattenMenus(n.children, out)
+/** 收集节点下的全部可见叶子菜单（递归目录） */
+function collectLeaves(node: MenuNode, out: MenuNode[] = []): MenuNode[] {
+  for (const c of node.children ?? []) {
+    if (c.visible === 0) continue
+    if (c.menuType === 'menu') out.push(c)
+    else if (c.menuType === 'dir') collectLeaves(c, out)
   }
   return out
 }
+
+/** 菜单条目 + 所属分区名（分区名可参与检索，搜分区名即列出其下页面） */
+const menuEntries = computed(() => {
+  const out: { node: MenuNode; zone: string }[] = []
+  for (const n of topMenus.value) out.push({ node: n, zone: '' })
+  for (const zone of zones.value) {
+    const title = menuTitle(zone)
+    for (const leaf of collectLeaves(zone)) out.push({ node: leaf, zone: title })
+  }
+  if (systemZone.value) {
+    const title = menuTitle(systemZone.value)
+    for (const leaf of collectLeaves(systemZone.value)) out.push({ node: leaf, zone: title })
+  }
+  return out
+})
 
 const items = computed<CommandItem[]>(() => {
   const kw = keyword.value.trim().toLowerCase()
   const list: CommandItem[] = []
 
-  for (const m of flattenMenus(auth.menus)) {
+  for (const entry of menuEntries.value) {
+    const m = entry.node
     const label = m.titleKey ? t(m.titleKey) : m.name
-    if (!kw || label.toLowerCase().includes(kw) || m.path.toLowerCase().includes(kw)) {
+    const zone = entry.zone
+    const display = zone ? `${zone} / ${label}` : label
+    const hit =
+      !kw ||
+      label.toLowerCase().includes(kw) ||
+      m.path.toLowerCase().includes(kw) ||
+      (!!zone && zone.toLowerCase().includes(kw))
+    if (hit) {
       list.push({
         id: `menu-${m.id}`,
-        label,
+        label: display,
         group: t('common.command.groupMenu'),
         run: () => router.push(m.path),
       })

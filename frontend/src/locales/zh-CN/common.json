@@ -226,7 +226,9 @@
     "backToWorkbench": "返回工作台"
   },
   "nav": {
-    "customize": "自定义排序"
+    "customize": "自定义排序",
+    "expandZone": "展开分区",
+    "collapseZone": "收起分区"
   },
   "dock": {
     "settings": "快捷导航设置",

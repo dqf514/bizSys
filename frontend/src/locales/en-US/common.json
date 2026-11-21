@@ -226,7 +226,9 @@
     "backToWorkbench": "Back to Workbench"
   },
   "nav": {
-    "customize": "Customize Order"
+    "customize": "Customize Order",
+    "expandZone": "Expand section",
+    "collapseZone": "Collapse section"
   },
   "dock": {
     "settings": "Dock Shortcuts",
