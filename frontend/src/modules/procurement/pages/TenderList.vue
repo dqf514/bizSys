@@ -544,7 +544,7 @@ function fmtAmount(v: unknown) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-lg)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('procurement.tender.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.name" :maxlength="255" />
@@ -605,7 +605,7 @@ function fmtAmount(v: unknown) {
     </template>
   </el-dialog>
 
-  <el-drawer v-model="detailVisible" size="860px">
+  <el-drawer v-model="detailVisible" size="var(--bs-layout-drawer-xl)">
     <template #header>
       <div class="drawer-header">
         <span class="drawer-title">{{ detail?.name || t('procurement.tender.detail') }}</span>
@@ -773,7 +773,7 @@ function fmtAmount(v: unknown) {
   <el-dialog
     v-model="assistVisible"
     :title="t('procurement.tender.aiAssistTitle')"
-    width="760px"
+    width="var(--bs-layout-dialog-lg)"
     append-to-body
     v-loading="assistLoading"
   >

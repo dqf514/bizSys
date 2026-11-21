@@ -1,0 +1,83 @@
+/**
+ * 全站页面骨架 —— 唯一的页面容器 / 宽度体系入口。
+ *
+ * 规则（改代码前必读）：
+ * 1. `.bs-page` 基类不得带 `min-height: 100%`。列表页依赖
+ *    `height: 100%` 的父链给 `el-table` 的 `height="100%"` 提供确定高度，
+ *    链一断表格会塌成 0 高。需要"填满"请显式加 `.bs-page--fill`。
+ * 2. `.bs-page--narrow` 是**页面根的修饰类**，与 `.bs-page` 同时使用：
+ *    单栏表单/文档页用它把内容列限宽居中。限宽后根容器两侧露出的
+ *    底色由外层 `.tab-content` 提供（同样是 `--bs-color-bg-app`），
+ *    视觉上与"满宽根 + 内层窄容器"完全一致，因此不必再套一层 div。
+ * 3. 不要改变页面的滚动模型（表格内滚 / 页面自滚 / tab-content 滚）。
+ */
+
+/* ---------- 页面根容器 ---------- */
+.bs-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-layout-section-gap);
+  padding: var(--bs-layout-content-padding);
+  background: var(--bs-color-bg-app);
+}
+
+/* 填满滚动视口：列表页模型（表格内部滚动，页面本身不滚） */
+.bs-page--fill {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 页面自身滚动：详情页模型 */
+.bs-page--scroll {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 窄内容页：单栏表单/文档页把内容列限宽居中。
+   宽度含 `.bs-page` 的 16px 内边距，故实际内容列比令牌值少 32px。 */
+.bs-page--narrow {
+  width: 100%;
+  max-width: var(--bs-layout-content-narrow-max-width);
+  margin-inline: auto;
+}
+
+/* 无内边距：容器已由 ListPage 等提供 */
+.bs-page--flush {
+  padding: 0;
+}
+
+/* ---------- 页面头部 ---------- */
+.bs-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bs-space-2);
+  flex-shrink: 0;
+}
+
+.bs-page-title {
+  margin: 0;
+  font-size: var(--bs-typography-font-size-lg);
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+}
+
+.bs-page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+/* ---------- 内容卡片 ---------- */
+.bs-page-card {
+  background: var(--bs-color-bg-surface);
+  border: 1px solid var(--bs-color-border-subtle);
+  border-radius: var(--bs-radius-md);
+  padding: var(--bs-layout-content-padding);
+}
+
+/* 卡片内不再二次内边距（如 el-table / el-descriptions 自带边框时） */
+.bs-page-card--flush {
+  padding: 0;
+}

@@ -306,7 +306,7 @@ onMounted(() => {
     </template>
   </ListPage>
 
-  <el-dialog v-model="anomalyVisible" :title="t('oa.handle.aiAnomalyTitle')" width="560px" v-loading="anomalyLoading">
+  <el-dialog v-model="anomalyVisible" :title="t('oa.handle.aiAnomalyTitle')" width="var(--bs-layout-dialog-md)" v-loading="anomalyLoading">
     <template v-if="anomalyResult">
       <div class="anomaly-section">
         <div class="anomaly-label">{{ t('oa.handle.stuckNode') }}：{{ anomalyResult.stuck.nodeName || '-' }}</div>
@@ -344,7 +344,7 @@ onMounted(() => {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="reassignVisible" :title="t('oa.handle.reassignTitle')" width="440px">
+  <el-dialog v-model="reassignVisible" :title="t('oa.handle.reassignTitle')" width="var(--bs-layout-dialog-xs)">
     <el-form label-width="110px">
       <el-form-item :label="t('oa.handle.reassignTask')">
         <el-select v-model="reassignTaskId" style="width: 100%">
@@ -373,7 +373,7 @@ onMounted(() => {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="restartVisible" :title="t('oa.handle.restartTitle')" width="440px">
+  <el-dialog v-model="restartVisible" :title="t('oa.handle.restartTitle')" width="var(--bs-layout-dialog-xs)">
     <el-form label-width="110px">
       <el-form-item :label="t('oa.handle.restartSeq')">
         <el-input-number v-model="restartSeq" :min="1" :max="99" />

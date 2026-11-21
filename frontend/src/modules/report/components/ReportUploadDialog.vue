@@ -80,7 +80,7 @@ async function save() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" :title="t('report.report.upload')" width="560px" append-to-body>
+  <el-dialog v-model="visible" :title="t('report.report.upload')" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form label-width="110px">
       <el-form-item :label="t('report.report.selectItem')" required>
         <RemoteSelect v-model="form.itemId" :fetch="fetchItemOptions" />

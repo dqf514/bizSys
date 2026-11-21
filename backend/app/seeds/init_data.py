@@ -28,14 +28,13 @@ from app.modules.auth.models import User
 # (title_key, name, path, component_key, icon, permission, children)
 # children 中 permission 为空串表示纯目录
 # 入口并入他页、仅作权限载体的隐藏菜单（种子里强制 visible=0）
-# ApprovalCenter：并入工作台；PartnerAccounts：并入往来单位（CRM）
-HIDDEN_MENUS = {"ApprovalCenter", "PartnerAccounts"}
+# PartnerAccounts：并入往来单位（CRM）
+HIDDEN_MENUS = {"PartnerAccounts"}
 
-MENU_TREE = [
-    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
-    # 业务系统分组：客户/合同/任务/报告/样品/财务（开票→结算→到账 保持既有顺序）
+MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
+    # 业务中心：往来单位/合同/任务/报告/项目/财务（开票→结算→到账 保持既有顺序）
     (
-        "menu.bizSystem",
+        "menu.bizCenter",
         "BizSystem",
         "",
         "",
@@ -102,15 +101,13 @@ MENU_TREE = [
                 ],
             ),
             (
-                "menu.sample",
-                "Samples",
-                "/task/samples",
-                "task/SampleList",
-                "Box",
-                "task:sample:list",
-                [
-                    (None, "sample-export", "", "", "", "task:sample:list:export", []),
-                ],
+                "menu.project",
+                "Projects",
+                "/projects",
+                "project/ProjectList",
+                "Files",
+                "project:list",
+                [],
             ),
             (
                 "menu.finance",
@@ -157,6 +154,65 @@ MENU_TREE = [
                             (None, "payment-create", "", "", "", "finance:payment:create", []),
                             (None, "payment-export", "", "", "", "finance:payment:export", []),
                         ],
+                    ),
+                ],
+            ),
+        ],
+    ),
+    # 生产资源：设备资产/排程甘特/样品与物料/采购管理/产能看板
+    (
+        "menu.resources",
+        "Resources",
+        "",
+        "",
+        "Cpu",
+        "",
+        [
+            (
+                "menu.equipment",
+                "Equipment",
+                "/assets/equipment",
+                "asset/EquipmentList",
+                "Monitor",
+                "asset:equipment:list",
+                [],
+            ),
+            (
+                "menu.schedule",
+                "ProductionSchedules",
+                "/production/schedule",
+                "production/ScheduleBoard",
+                "Calendar",
+                "production:schedule:list",
+                [],
+            ),
+            (
+                "menu.assetsSamples",
+                "AssetsSamples",
+                "",
+                "",
+                "Grid",
+                "",
+                [
+                    (
+                        "menu.sample",
+                        "Samples",
+                        "/task/samples",
+                        "task/SampleList",
+                        "Box",
+                        "task:sample:list",
+                        [
+                            (None, "sample-export", "", "", "", "task:sample:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.material",
+                        "Materials",
+                        "/assets/materials",
+                        "asset/MaterialList",
+                        "Goods",
+                        "asset:material:list",
+                        [],
                     ),
                 ],
             ),
@@ -249,57 +305,222 @@ MENU_TREE = [
                     ),
                 ],
             ),
-        ],
-    ),
-    (
-        "menu.oaSystem",
-        "OaSystem",
-        "",
-        "",
-        "Suitcase",
-        "",
-        [
-            ("menu.oaApply", "OaApply", "/oa/apply", "oa/ApplyForm", "Promotion", "oa:apply", []),
-            ("menu.oaMy", "OaMy", "/oa/my", "oa/MyInstances", "Document", "oa:my", []),
-            ("menu.oaRelated", "OaRelated", "/oa/related", "oa/Related", "Bell", "oa:related", []),
-            ("menu.oaStats", "OaStats", "/oa/stats", "oa/StatsBoard", "DataAnalysis", "oa:stats:view", []),
-        ],
-    ),
-    (
-        "menu.hrSystem",
-        "HrSystem",
-        "",
-        "",
-        "Avatar",
-        "",
-        [
             (
-                "menu.timesheetFill",
-                "TimesheetFill",
-                "/hr/timesheets",
-                "hr/TimesheetFill",
-                "AlarmClock",
-                "hr:timesheet:list",
-                [
-                    (None, "timesheet-create", "", "", "", "hr:timesheet:create", []),
-                    (None, "timesheet-export", "", "", "", "hr:timesheet:list:export", []),
-                ],
-            ),
-            (
-                "menu.timesheetStats",
-                "TimesheetStats",
-                "/hr/timesheet-stats",
-                "hr/TimesheetStats",
+                "menu.capacity",
+                "ProductionCapacity",
+                "/production/capacity",
+                "production/CapacityBoard",
                 "PieChart",
-                "hr:timesheet:stats",
+                "production:capacity:list",
+                [],
+            ),
+        ],
+    ),
+    # 库存与资产：进出库管理（仓储/库存）+ 资产财务（折旧/处置/工具）
+    (
+        "menu.stockAsset",
+        "StockAsset",
+        "",
+        "",
+        "Coin",
+        "",
+        [
+            (
+                "menu.stockMgmt",
+                "StockManagement",
+                "",
+                "",
+                "Box",
+                "",
                 [
-                    (None, "timesheet-stats-export", "", "", "", "hr:timesheet:stats:export", []),
+                    (
+                        "menu.purchaseOrder",
+                        "PurchaseOrders",
+                        "/asset/purchase-orders",
+                        "asset/PurchaseOrderList",
+                        "ShoppingCart",
+                        "asset:purchaseOrder:list",
+                        [
+                            (None, "apo-create", "", "", "", "asset:purchaseOrder:create", []),
+                            (None, "apo-edit", "", "", "", "asset:purchaseOrder:edit", []),
+                            (None, "apo-confirm", "", "", "", "asset:purchaseOrder:confirm", []),
+                            (None, "apo-close", "", "", "", "asset:purchaseOrder:close", []),
+                            (None, "apo-delete", "", "", "", "asset:purchaseOrder:delete", []),
+                            (None, "apo-export", "", "", "", "asset:purchaseOrder:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.receipt",
+                        "Receipts",
+                        "/asset/receipts",
+                        "asset/ReceiptList",
+                        "CircleCheck",
+                        "asset:receipt:list",
+                        [
+                            (None, "rc-create", "", "", "", "asset:receipt:create", []),
+                            (None, "rc-edit", "", "", "", "asset:receipt:edit", []),
+                            (None, "rc-accept", "", "", "", "asset:receipt:accept", []),
+                            (None, "rc-delete", "", "", "", "asset:receipt:delete", []),
+                            (None, "rc-export", "", "", "", "asset:receipt:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.warehouse",
+                        "Warehouses",
+                        "/asset/warehouses",
+                        "asset/WarehouseList",
+                        "Grid",
+                        "asset:warehouse:list",
+                        [
+                            (None, "wh-create", "", "", "", "asset:warehouse:create", []),
+                            (None, "wh-edit", "", "", "", "asset:warehouse:edit", []),
+                            (None, "wh-delete", "", "", "", "asset:warehouse:delete", []),
+                            (None, "wh-export", "", "", "", "asset:warehouse:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.inventoryItem",
+                        "InventoryItems",
+                        "/asset/items",
+                        "asset/InventoryItemList",
+                        "Goods",
+                        "asset:item:list",
+                        [
+                            (None, "it-create", "", "", "", "asset:item:create", []),
+                            (None, "it-edit", "", "", "", "asset:item:edit", []),
+                            (None, "it-delete", "", "", "", "asset:item:delete", []),
+                            (None, "it-export", "", "", "", "asset:item:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.stockLedger",
+                        "StockLedger",
+                        "/asset/ledger",
+                        "asset/StockLedgerList",
+                        "List",
+                        "asset:ledger:list",
+                        [
+                            (None, "lg-create", "", "", "", "asset:ledger:create", []),
+                            (None, "lg-edit", "", "", "", "asset:ledger:edit", []),
+                            (None, "lg-delete", "", "", "", "asset:ledger:delete", []),
+                            (None, "lg-export", "", "", "", "asset:ledger:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.stockCount",
+                        "StockCounts",
+                        "/asset/counts",
+                        "asset/StockCountList",
+                        "Tickets",
+                        "asset:count:list",
+                        [
+                            (None, "sc-create", "", "", "", "asset:count:create", []),
+                            (None, "sc-edit", "", "", "", "asset:count:edit", []),
+                            (None, "sc-start", "", "", "", "asset:count:start", []),
+                            (None, "sc-finish", "", "", "", "asset:count:finish", []),
+                            (None, "sc-delete", "", "", "", "asset:count:delete", []),
+                            (None, "sc-export", "", "", "", "asset:count:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.prototype",
+                        "Prototypes",
+                        "/asset/prototypes",
+                        "asset/PrototypeList",
+                        "Monitor",
+                        "asset:prototype:list",
+                        [
+                            (None, "pt-create", "", "", "", "asset:prototype:create", []),
+                            (None, "pt-edit", "", "", "", "asset:prototype:edit", []),
+                            (None, "pt-delete", "", "", "", "asset:prototype:delete", []),
+                            (None, "pt-export", "", "", "", "asset:prototype:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.prototypeLoan",
+                        "PrototypeLoans",
+                        "/asset/prototype-loans",
+                        "asset/PrototypeLoanList",
+                        "SwitchButton",
+                        "asset:prototypeLoan:list",
+                        [
+                            (None, "pl-create", "", "", "", "asset:prototypeLoan:create", []),
+                            (None, "pl-edit", "", "", "", "asset:prototypeLoan:edit", []),
+                            (None, "pl-return", "", "", "", "asset:prototypeLoan:return", []),
+                            (None, "pl-delete", "", "", "", "asset:prototypeLoan:delete", []),
+                            (None, "pl-export", "", "", "", "asset:prototypeLoan:list:export", []),
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "menu.assetFinance",
+                "AssetFinance",
+                "",
+                "",
+                "Wallet",
+                "",
+                [
+                    (
+                        "menu.fixedAsset",
+                        "FixedAssets",
+                        "/asset/assets",
+                        "asset/FixedAssetList",
+                        "Money",
+                        "asset:asset:list",
+                        [
+                            (None, "fa-create", "", "", "", "asset:asset:create", []),
+                            (None, "fa-edit", "", "", "", "asset:asset:edit", []),
+                            (None, "fa-delete", "", "", "", "asset:asset:delete", []),
+                            (None, "fa-depreciate", "", "", "", "asset:depreciation:create", []),
+                            (None, "fa-depreciation-edit", "", "", "", "asset:depreciation:edit", []),
+                            (None, "fa-depreciation-delete", "", "", "", "asset:depreciation:delete", []),
+                            (None, "fa-depreciation-list", "", "", "", "asset:depreciation:list", []),
+                            (None, "fa-export", "", "", "", "asset:asset:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.disposal",
+                        "Disposals",
+                        "/asset/disposals",
+                        "asset/DisposalList",
+                        "FolderDelete",
+                        "asset:disposal:list",
+                        [
+                            (None, "dp-create", "", "", "", "asset:disposal:create", []),
+                            (None, "dp-edit", "", "", "", "asset:disposal:edit", []),
+                            (None, "dp-approve", "", "", "", "asset:disposal:approve", []),
+                            (None, "dp-complete", "", "", "", "asset:disposal:complete", []),
+                            (None, "dp-delete", "", "", "", "asset:disposal:delete", []),
+                            (None, "dp-export", "", "", "", "asset:disposal:list:export", []),
+                        ],
+                    ),
+                    (
+                        "menu.toolLoan",
+                        "ToolLoans",
+                        "/asset/tools",
+                        "asset/ToolList",
+                        "Tools",
+                        "asset:tool:list",
+                        [
+                            (None, "tl-create", "", "", "", "asset:tool:create", []),
+                            (None, "tl-edit", "", "", "", "asset:tool:edit", []),
+                            (None, "tl-delete", "", "", "", "asset:tool:delete", []),
+                            (None, "tl-export", "", "", "", "asset:tool:list:export", []),
+                            (None, "tll-list", "", "", "", "asset:toolLoan:list", []),
+                            (None, "tll-create", "", "", "", "asset:toolLoan:create", []),
+                            (None, "tll-edit", "", "", "", "asset:toolLoan:edit", []),
+                            (None, "tll-return", "", "", "", "asset:toolLoan:return", []),
+                            (None, "tll-delete", "", "", "", "asset:toolLoan:delete", []),
+                            (None, "tll-export", "", "", "", "asset:toolLoan:list:export", []),
+                        ],
+                    ),
                 ],
             ),
         ],
     ),
     (
-        "menu.salesSystem",
+        "menu.salesCenter",
         "SalesSystem",
         "",
         "",
@@ -335,6 +556,130 @@ MENU_TREE = [
                     (None, "template-edit", "", "", "", "sales:template:edit", []),
                     (None, "template-publish", "", "", "", "sales:template:publish", []),
                 ],
+            ),
+            (
+                "menu.revenue",
+                "SalesRevenue",
+                "/sales/revenue",
+                "sales/RevenueBoard",
+                "TrendCharts",
+                "sales:revenue:view",
+                [],
+            ),
+        ],
+    ),
+    # 经营与协同：客户自助/在线委托/知识库
+    (
+        "menu.collaboration",
+        "Collaboration",
+        "",
+        "",
+        "Connection",
+        "",
+        [
+            # 合作方门户是独立认证的独立 shell，菜单只做入口跳转（无前端组件）
+            ("menu.portalHome", "PortalHome", "/portal", "", "User", "portal:self:view", []),
+            (
+                "menu.portalOrders",
+                "PortalOrders",
+                "/portal/orders",
+                "portal/PortalOrders",
+                "Tickets",
+                "portal:order:create",
+                [],
+            ),
+            (
+                "menu.knowledge",
+                "KnowledgeBase",
+                "/ai/knowledge",
+                "ai/KnowledgeAsk",
+                "Collection",
+                "ai:knowledge:view",
+                [],
+            ),
+        ],
+    ),
+    (
+        "menu.hrCenter",
+        "HrSystem",
+        "",
+        "",
+        "Avatar",
+        "",
+        [
+            (
+                "menu.timesheetFill",
+                "TimesheetFill",
+                "/hr/timesheets",
+                "hr/TimesheetFill",
+                "AlarmClock",
+                "hr:timesheet:list",
+                [
+                    (None, "timesheet-create", "", "", "", "hr:timesheet:create", []),
+                    (None, "timesheet-export", "", "", "", "hr:timesheet:list:export", []),
+                ],
+            ),
+            (
+                "menu.timesheetStats",
+                "TimesheetStats",
+                "/hr/timesheet-stats",
+                "hr/TimesheetStats",
+                "PieChart",
+                "hr:timesheet:stats",
+                [
+                    (None, "timesheet-stats-export", "", "", "", "hr:timesheet:stats:export", []),
+                ],
+            ),
+            ("menu.staff", "Staff", "/hr/staff", "hr/StaffList", "UserFilled", "hr:staff:list", []),
+        ],
+    ),
+    (
+        "menu.workflowOffice",
+        "OaSystem",
+        "",
+        "",
+        "Stamp",
+        "",
+        [
+            ("menu.oaApply", "OaApply", "/oa/apply", "oa/ApplyForm", "Promotion", "oa:apply", []),
+            ("menu.oaMy", "OaMy", "/oa/my", "oa/MyInstances", "Document", "oa:my", []),
+            ("menu.oaRelated", "OaRelated", "/oa/related", "oa/Related", "Bell", "oa:related", []),
+            ("menu.oaStats", "OaStats", "/oa/stats", "oa/StatsBoard", "DataAnalysis", "oa:stats:view", []),
+            # 作业申请（叉车/吊装/高处/动火）：权限码独立，避免与新申请的 oa:apply 撞车
+            ("menu.workApply", "WorkApply", "/oa/work-apply", "oa/WorkApplyList", "Tools", "oa:workapply:list", []),
+            # 流程待办：原顶层隐藏菜单，解除隐藏并迁入「流程与办公」
+            ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
+            ("menu.messages", "Messages", "/messages", "message/MessageCenter", "Bell", "message:center:view", []),
+        ],
+    ),
+    # 访客与安全：访客登记/区域权限/保密协议/安全巡检
+    (
+        "menu.visitorSafety",
+        "VisitorSafety",
+        "",
+        "",
+        "Lock",
+        "",
+        [
+            ("menu.visit", "Visits", "/visitor/visits", "visitor/VisitList", "User", "visitor:visit:list", []),
+            (
+                "menu.zone",
+                "VisitorZones",
+                "/visitor/zones",
+                "visitor/ZoneList",
+                "OfficeBuilding",
+                "visitor:zone:list",
+                [],
+            ),
+            ("menu.nda", "VisitorNda", "/visitor/nda", "visitor/NdaList", "Memo", "visitor:nda:list", []),
+            (
+                "menu.inspection",
+                "SafetyInspections",
+                "/safety/inspections",
+                "safety/InspectionList",
+                "FirstAidKit",
+                "safety:inspection:list",
+                [],
             ),
         ],
     ),
@@ -557,8 +902,6 @@ MENU_TREE = [
             ),
         ],
     ),
-    # 流程中心并入工作台门户：菜单隐藏保留（权限点 approval:view 仍由它承载），/approval 走前端静态路由深链
-    ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
 ]
 
 
@@ -608,6 +951,7 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("工程咨询部", "Consulting Dept", "consulting_dept"),
             ("模型加工中心", "Model Center", "model_center"),
             ("风洞试验部", "Wind Tunnel Dept", "windtunnel_dept"),
+            ("CFD仿真中心", "CFD Simulation Center", "cfd"),
         ],
     ),
     "pay_cycle": (
@@ -671,6 +1015,65 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("其他", "Other", "other"),
         ],
     ),
+    "stock_category": (
+        "存货类别",
+        [
+            ("原材料", "Raw Material", "raw"),
+            ("备品备件", "Spare Part", "spare"),
+            ("耗材", "Consumable", "consumable"),
+            ("包装材料", "Packing Material", "packing"),
+            ("其他", "Other", "other"),
+        ],
+    ),
+    "stock_reason": (
+        "出入库原因",
+        [
+            ("采购入库", "Purchase", "purchase"),
+            ("验收入库", "Receipt", "receipt"),
+            ("盘点调整", "Stock Count", "count"),
+            ("领用出库", "Borrow", "borrow"),
+            ("归还入库", "Return", "return"),
+            ("报废出库", "Scrap", "scrap"),
+            ("手工登记", "Manual", "manual"),
+        ],
+    ),
+    "prototype_kind": (
+        "样件类型",
+        [
+            ("样车", "Vehicle", "vehicle"),
+            ("样件", "Part", "part"),
+            ("样机", "Prototype", "prototype"),
+            ("其他", "Other", "other"),
+        ],
+    ),
+    "asset_category": (
+        "资产类别",
+        [
+            ("设备", "Equipment", "equipment"),
+            ("车辆", "Vehicle", "vehicle"),
+            ("家具", "Furniture", "furniture"),
+            ("仪器仪表", "Instrument", "instrument"),
+            ("软件", "Software", "software"),
+            ("其他", "Other", "other"),
+        ],
+    ),
+    "depreciation_method": (
+        "折旧方法",
+        [
+            ("平均年限法", "Straight Line", "straight_line"),
+            ("双倍余额递减法", "Double Declining", "double_declining"),
+            ("年数总和法", "Sum of Years", "sum_of_years"),
+        ],
+    ),
+    "disposal_type": (
+        "处置方式",
+        [
+            ("报废", "Scrap", "scrap"),
+            ("出售", "Sell", "sell"),
+            ("捐赠", "Donate", "donate"),
+            ("调拨", "Transfer", "transfer"),
+        ],
+    ),
 }
 
 NUMBER_RULES = [
@@ -690,6 +1093,13 @@ NUMBER_RULES = [
     ("stock_out", "", "CK", 4, 2, 2, 4, 1, "", "daily", "CK202610090001"),
     ("tender", "", "ZB", 4, 2, 2, 4, 1, "", "daily", "ZB202610090001"),
     ("quotation", "", "BJ", 4, 2, 2, 4, 1, "", "daily", "BJ202610090001"),
+    # 资产与库存域单号
+    ("asset_purchase_order", "", "PO", 4, 2, 2, 4, 1, "", "daily", "PO202611210001"),
+    ("asset_receipt", "", "YS", 4, 2, 2, 4, 1, "", "daily", "YS202611210001"),
+    ("asset_count", "", "PD", 4, 2, 2, 4, 1, "", "daily", "PD202611210001"),
+    ("asset_prototype_loan", "", "LJ", 4, 2, 2, 4, 1, "", "daily", "LJ202611210001"),
+    ("asset_tool_loan", "", "LY", 4, 2, 2, 4, 1, "", "daily", "LY202611210001"),
+    ("asset_disposal", "", "CZ", 4, 2, 2, 4, 1, "", "daily", "CZ202611210001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -744,6 +1154,12 @@ def _seed_menus(db: Session) -> dict[str, int]:
                 if name in HIDDEN_MENUS:
                     m.visible = 0
             if perm:
+                if perm in perm_to_id:
+                    # 权限码一菜单一归属：撞车会让后者顶掉前者，超管/角色都拿不到被顶掉的菜单
+                    print(
+                        f"[seed] WARN duplicate permission {perm!r} on menu {name!r}, "
+                        f"{m.id} shadows {perm_to_id[perm]}"
+                    )
                 perm_to_id[perm] = m.id
             walk(children, m.id)
 
@@ -855,10 +1271,29 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "sales:quote:feedback",
         "sales:quote:to-contract",
         "sales:quote:list:export",
+        # —— 新导航分区与骨架功能（2026-11 需求批次 B1）——
+        "message:center:view",
+        "ai:knowledge:view",
+        "project:list",
+        "asset:equipment:list",
+        "asset:material:list",
+        "production:schedule:list",
+        "production:capacity:list",
+        "sales:revenue:view",
+        "hr:staff:list",
+        "oa:workapply:list",
+        "portal:self:view",
+        "portal:order:create",
+        # 访客与安全域（安防/合规）暂只授予超管，业务角色不默认可见
     ]
     for p in biz_perms:
         if p in perm_to_id:
             db.add(RoleMenu(role_id=biz_role.id, menu_id=perm_to_id[p]))
+    # 资产与库存域整域授权（按前缀批量，避免新增页面漏挂权限）
+    granted = set(biz_perms)
+    for perm, mid in perm_to_id.items():
+        if perm.startswith("asset:") and perm not in granted:
+            db.add(RoleMenu(role_id=biz_role.id, menu_id=mid))
     return super_role
 
 

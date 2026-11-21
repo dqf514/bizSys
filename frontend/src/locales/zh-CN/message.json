@@ -1,0 +1,31 @@
+{
+  "title": "消息中心",
+  "keyword": "关键词",
+  "keywordPlaceholder": "标题或正文",
+  "tabAll": "全部",
+  "tabUnread": "未读",
+  "colTitle": "标题",
+  "colContent": "内容",
+  "colType": "业务类型",
+  "colStatus": "状态",
+  "colTime": "时间",
+  "read": "已读",
+  "unread": "未读",
+  "markRead": "标为已读",
+  "markAllRead": "全部已读",
+  "markAllReadSuccess": "已全部标记为已读",
+  "markedRead": "已标记为已读",
+  "empty": "暂无消息",
+  "bizType": {
+    "contract": "合同",
+    "task": "任务",
+    "report": "报告",
+    "invoice": "开票",
+    "oa": "OA 申请",
+    "purchase_request": "采购申请",
+    "purchase_contract": "采购合同",
+    "tender_award": "招标中标",
+    "sales_quotation": "报价",
+    "settlement": "结算"
+  }
+}

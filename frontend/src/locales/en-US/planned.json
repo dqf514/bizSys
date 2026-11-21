@@ -1,0 +1,114 @@
+{
+  "labels": {
+    "no": "Requirement No.",
+    "desc": "Detailed Requirement",
+    "batch": "Planned Batch",
+    "status": "Status",
+    "title": "Requirement Register"
+  },
+  "status": {
+    "planned": "Planned",
+    "inProgress": "In Progress",
+    "done": "Delivered"
+  },
+  "items": {
+    "projectList": {
+      "no": "31",
+      "name": "Project Management",
+      "desc": "Full life-cycle management of large projects; auto-generate a project Gantt chart from task inputs and schedule (custom editing allowed)",
+      "batch": "B5",
+      "status": "planned"
+    },
+    "equipmentList": {
+      "no": "23 / 67-69",
+      "name": "Equipment & Asset Ledger",
+      "desc": "Replace with unified asset / prototype vehicle / sample / material management; equipment ledger, alerts, energy consumption and digital twin (detailed logic to be supplied)",
+      "batch": "B6",
+      "status": "planned"
+    },
+    "materialList": {
+      "no": "23",
+      "name": "Material Ledger",
+      "desc": "Material management needs inventory alerts and BOM management",
+      "batch": "B4",
+      "status": "planned"
+    },
+    "scheduleBoard": {
+      "no": "22",
+      "name": "Smart Scheduling & Gantt",
+      "desc": "Auto-schedule under equipment / staff / prototype vehicle / material constraints; schedulers may adjust before publishing the task schedule",
+      "batch": "B5",
+      "status": "planned"
+    },
+    "capacityBoard": {
+      "no": "4",
+      "name": "Capacity Utilization Board",
+      "desc": "Wind-tunnel run utilization, wind-tunnel center equipment utilization, model center equipment utilization; must integrate with the asset management platform",
+      "batch": "B7",
+      "status": "planned"
+    },
+    "revenueBoard": {
+      "no": "3",
+      "name": "Revenue Analysis Board",
+      "desc": "The existing statistics board needs revenue dimension analysis and a split of revenue across wind tunnel / CFD / model processing",
+      "batch": "B7",
+      "status": "planned"
+    },
+    "portalOrders": {
+      "no": "5",
+      "name": "Online Task Orders",
+      "desc": "Customers submit task orders online against contracts, covering simulation, modeling and testing; business managers may also submit on their behalf",
+      "batch": "B2",
+      "status": "planned"
+    },
+    "staffList": {
+      "no": "26",
+      "name": "Staff Directory",
+      "desc": "Human resources module (details in the third-party lab platform HR module specification; document pending from requester)",
+      "batch": "B8",
+      "status": "planned"
+    },
+    "workApplyList": {
+      "no": "32",
+      "name": "Work Permit Flow",
+      "desc": "Add work application flows: forklift, lifting, working at height, hot work, etc.",
+      "batch": "B8",
+      "status": "planned"
+    },
+    "messageCenter": {
+      "no": "30",
+      "name": "Unified Message Center",
+      "desc": "Existing todo flows need a unified message center. Delivered this round: message list, keyword search, business-category tabs with counts, mark read / mark all read",
+      "batch": "B1",
+      "status": "done"
+    },
+    "visitList": {
+      "no": "6-10",
+      "name": "Visitor Registration & Approval",
+      "desc": "Multi-channel booking and registration (WeChat, mini program, web booking, staff invitation, front-desk walk-in); host / department approval with extra approval for sensitive areas; credential access, sign-in / sign-out closure, blacklist and alerts",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "zoneList": {
+      "no": "11",
+      "name": "Zoned Access Control",
+      "desc": "Public reception / prototype handover / test / preparation / production & processing / tool & instrument rooms / data center; visitors only enter authorized zones, tool rooms and prototype storage are denied by default",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "ndaList": {
+      "no": "14",
+      "name": "NDA E-Signing",
+      "desc": "Sign the confidentiality undertaking before or on arrival; no access without a signature; aligned with CNAS confidentiality requirements (customer data, raw data, spectra, report leakage prevention)",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "inspectionList": {
+      "no": "24",
+      "name": "Safety Inspection",
+      "desc": "Safety inspection management",
+      "batch": "B8",
+      "status": "planned"
+    }
+  }
+}

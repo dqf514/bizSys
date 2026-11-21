@@ -280,7 +280,7 @@ async function doDisable(row: PartnerAccount) {
     </div>
   </div>
 
-  <el-dialog v-model="reviewVisible" :title="t('crm.account.review')" width="520px" append-to-body>
+  <el-dialog v-model="reviewVisible" :title="t('crm.account.review')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <p class="muted review-tip">{{ t('crm.account.bindPartnerTip') }}</p>
     <el-form :model="reviewForm" label-width="100px">
       <el-form-item :label="t('crm.account.companyName')">

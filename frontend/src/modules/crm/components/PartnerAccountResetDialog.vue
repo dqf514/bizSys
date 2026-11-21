@@ -69,7 +69,7 @@ function close() {
   <el-dialog
     :model-value="modelValue"
     :title="t('crm.account.resetPwd')"
-    width="480px"
+    width="var(--bs-layout-dialog-sm)"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >

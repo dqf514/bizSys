@@ -436,10 +436,10 @@ function appendReviewToRemark() {
 </script>
 
 <template>
-  <div class="contract-edit" v-loading="loading">
-    <div class="edit-header">
-      <h2 class="edit-title">{{ isEdit ? t('contract.contract.edit') : t('contract.contract.create') }}</h2>
-      <div>
+  <div class="bs-page bs-page--scroll bs-page--narrow" v-loading="loading">
+    <div class="bs-page-header">
+      <h2 class="bs-page-title">{{ isEdit ? t('contract.contract.edit') : t('contract.contract.create') }}</h2>
+      <div class="bs-page-actions">
         <el-button v-permission="'contract:create'" class="ai-parse-btn" @click="openAiParse">
           {{ t('ai.contractParse.button') }}
         </el-button>
@@ -594,7 +594,7 @@ function appendReviewToRemark() {
       @change="onParseFileChange"
     />
 
-    <el-dialog v-model="parseDialogVisible" :title="t('ai.contractParse.dialogTitle')" width="640px" append-to-body>
+    <el-dialog v-model="parseDialogVisible" :title="t('ai.contractParse.dialogTitle')" width="var(--bs-layout-dialog-md)" append-to-body>
       <div v-loading="parsing">
         <template v-if="parsing">
           <div class="parse-loading">{{ t('ai.contractParse.parsing') }}</div>
@@ -676,7 +676,7 @@ function appendReviewToRemark() {
       @change="onReviewFileChange"
     />
 
-    <el-dialog v-model="riskDialogVisible" :title="t('ai.contractRisk.dialogTitle')" width="720px" append-to-body>
+    <el-dialog v-model="riskDialogVisible" :title="t('ai.contractRisk.dialogTitle')" width="var(--bs-layout-dialog-lg)" append-to-body>
       <div v-loading="reviewing" class="risk-review">
         <el-alert type="info" :closable="false" :title="t('ai.contractRisk.onlyShowTip')" />
         <el-form label-width="130px" class="review-source">
@@ -746,31 +746,6 @@ function appendReviewToRemark() {
 </template>
 
 <style scoped>
-.contract-edit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  padding: var(--bs-space-4);
-  height: 100%;
-  overflow: auto;
-  background: var(--bs-color-bg-surface);
-}
-
-.edit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.edit-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-}
-
-.edit-form {
-  max-width: 960px;
-}
-
 .att-groups {
   display: flex;
   flex-direction: column;

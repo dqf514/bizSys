@@ -536,7 +536,7 @@ async function disableAccount(row: PartnerAccount) {
 <template>
   <el-drawer
     :model-value="props.modelValue"
-    size="720px"
+    size="var(--bs-layout-drawer-lg)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <template #header>
@@ -862,7 +862,7 @@ async function disableAccount(row: PartnerAccount) {
     <el-dialog
       v-model="contactDialogVisible"
       :title="editingContactId ? t('crm.contact.edit') : t('crm.contact.add')"
-      width="520px"
+      width="var(--bs-layout-dialog-sm)"
       append-to-body
     >
       <el-form ref="contactFormRef" :model="contactForm" label-width="100px">
@@ -891,7 +891,7 @@ async function disableAccount(row: PartnerAccount) {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="uploadDialogVisible" :title="t('crm.attachment.upload')" width="520px" append-to-body>
+    <el-dialog v-model="uploadDialogVisible" :title="t('crm.attachment.upload')" width="var(--bs-layout-dialog-sm)" append-to-body>
       <el-form label-width="100px">
         <el-form-item :label="t('crm.attachment.category')" required>
           <el-select v-model="uploadForm.category" style="width: 100%">

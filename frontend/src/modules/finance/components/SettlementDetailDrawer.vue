@@ -131,7 +131,7 @@ async function doMark() {
   <el-drawer
     :model-value="props.modelValue"
     :title="t('finance.settlement.detail')"
-    size="640px"
+    size="var(--bs-layout-drawer-md)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-loading="loading" class="drawer-body">
@@ -236,7 +236,7 @@ async function doMark() {
       </template>
     </div>
 
-    <el-dialog v-model="sendVisible" :title="t('finance.settlement.sendConfirm')" width="480px" append-to-body>
+    <el-dialog v-model="sendVisible" :title="t('finance.settlement.sendConfirm')" width="var(--bs-layout-dialog-sm)" append-to-body>
       <el-form label-width="90px">
         <el-form-item :label="t('finance.settlement.confirmReceiver')" required>
           <RemoteSelect v-model="sendForm.receiverId" :fetch="fetchUsers" />
@@ -256,7 +256,7 @@ async function doMark() {
     <el-dialog
       v-model="markVisible"
       :title="markForm.action === 'confirm' ? t('finance.settlement.markConfirmed') : t('finance.settlement.markObjected')"
-      width="480px"
+      width="var(--bs-layout-dialog-sm)"
       append-to-body
     >
       <el-form label-width="90px">

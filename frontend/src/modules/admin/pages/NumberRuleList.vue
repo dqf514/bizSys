@@ -311,7 +311,7 @@ function onAction(key: string, row: NumberRule) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="130px">
       <el-row :gutter="16">
         <el-col :span="12">

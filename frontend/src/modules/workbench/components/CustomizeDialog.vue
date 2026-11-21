@@ -54,7 +54,7 @@ function confirm() {
   <el-dialog
     :model-value="modelValue"
     :title="t('workbench.customizeTitle')"
-    width="440px"
+    width="var(--bs-layout-dialog-xs)"
     @update:model-value="close"
   >
     <p class="tip">{{ t('workbench.customizeTip') }}</p>

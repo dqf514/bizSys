@@ -21,36 +21,23 @@ function onRemoved() {
 </script>
 
 <template>
-  <div class="task-detail">
-    <div class="detail-header">
+  <div class="bs-page bs-page--scroll">
+    <div class="bs-page-header">
       <h2 class="detail-title">{{ loaded?.taskName || t('task.task.detail') }}</h2>
       <BackButton to="/task/tasks" />
     </div>
-    <TaskDetailPanel :task-id="taskId" @loaded="loaded = $event" @removed="onRemoved" />
+    <div class="bs-page-card">
+      <TaskDetailPanel :task-id="taskId" @loaded="loaded = $event" @removed="onRemoved" />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.task-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  padding: var(--bs-space-4);
-  height: 100%;
-  overflow: auto;
-  background: var(--bs-color-bg-surface);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .detail-title {
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);
+  margin: 0;
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
 }

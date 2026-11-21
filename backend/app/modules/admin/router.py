@@ -978,12 +978,24 @@ def list_notifies(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    stmt = select(Notify).where(Notify.user_id == current.id, Notify.deleted == 0)
-    unread = (request.query_params.get("status") or "") == "unread"
-    if unread:
-        stmt = stmt.where(Notify.read_flag == 0)
-    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    rows = db.scalars(stmt.order_by(Notify.id.desc()).offset((page - 1) * size).limit(size)).all()
+    """我的站内通知。支持 q 关键词（标题/正文）、filters[biz_type] 分类、status=unread。"""
+    extra = []
+    if (request.query_params.get("status") or "") == "unread":
+        extra.append(Notify.read_flag == 0)
+    stmt = select(Notify).where(Notify.user_id == current.id)
+    stmt, total = apply_list_filters(
+        stmt,
+        Notify,
+        request.query_params,
+        db,
+        PageParams(page=page, size=size),
+        search_cols=["title", "content"],
+        filter_cols={"biz_type"},
+        sort_cols={"create_time", "update_time", "id"},
+        default_sort=("create_time", "desc"),
+        extra_where=extra,
+    )
+    rows = db.scalars(stmt).all()
     return {
         "items": [
             {
@@ -1002,6 +1014,29 @@ def list_notifies(
         "page": page,
         "size": size,
     }
+
+
+@router.get("/notifies/counts")
+def notify_counts(
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """消息中心页签计数：all / unread / 按业务分类（biz_type → 条数）。"""
+    rows = db.execute(
+        select(Notify.biz_type, Notify.read_flag, func.count())
+        .where(Notify.user_id == current.id, Notify.deleted == 0)
+        .group_by(Notify.biz_type, Notify.read_flag)
+    ).all()
+    by_biz_type: dict[str, int] = {}
+    total = 0
+    unread = 0
+    for biz_type, read_flag, cnt in rows:
+        total += cnt
+        if not read_flag:
+            unread += cnt
+        if biz_type:
+            by_biz_type[biz_type] = by_biz_type.get(biz_type, 0) + cnt
+    return {"all": total, "unread": unread, "byBizType": by_biz_type}
 
 
 @router.get("/notifies/unread-count")

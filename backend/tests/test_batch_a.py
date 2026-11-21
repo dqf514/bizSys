@@ -97,11 +97,11 @@ def manager_headers(client):
 
 
 def test_menu_tree_biz_group(client, admin_headers):
-    """业务系统分组含客户/合同/任务/报告/样品/财务；流程中心隐藏但仍挂权限点。
+    """业务中心含客户/合同/任务/报告/项目/财务；样品与采购已迁到生产资源。
 
-    测试库跨运行复用、种子不回写 parent_id/sort，先执行批次E迁移脚本（幂等）再断言目标结构。
+    测试库跨运行复用、种子不回写 parent_id/sort，先执行导航分区迁移脚本（幂等）再断言目标结构。
     """
-    from scripts.migrate_nav_batch_e import main as migrate_nav
+    from scripts.migrate_nav_zones import main as migrate_nav
 
     migrate_nav()
     tree = client.get("/api/v1/admin/menus/tree", headers=admin_headers).json()["data"]
@@ -118,18 +118,23 @@ def test_menu_tree_biz_group(client, admin_headers):
     biz = find(tree, "BizSystem")
     assert biz and biz["menuType"] == "dir", biz
     child_names = [c["name"] for c in biz["children"]]
-    expected = ["Customers", "Contracts", "Tasks", "Reports", "Samples", "Procurement", "Finance"]
+    expected = ["Customers", "Contracts", "Tasks", "Reports", "Projects", "Finance"]
     assert child_names == expected, child_names
-    sample = find(tree, "Samples")
-    assert sample["path"] == "/task/samples" and sample["permission"] == "task:sample:list"
     finance = find(tree, "Finance")
     fin_names = [c["name"] for c in finance["children"]]
     assert fin_names == ["FinanceInvoices", "FinanceSettlements", "FinancePayments"], fin_names
+    sample = find(tree, "Samples")
+    assert sample["path"] == "/task/samples" and sample["permission"] == "task:sample:list"
+    # 样品已迁入「生产资源 → 样品与物料」
+    assert find(tree, "AssetsSamples"), "样品与物料目录缺失"
+    assert sample["parentId"] == find(tree, "AssetsSamples")["id"]
+    # 流程待办已解除隐藏，成为「流程与办公」下的正式入口
     approval = find(tree, "ApprovalCenter")
-    assert approval and approval["visible"] == 0  # 隐藏但保留（approval:view 权限载体）
+    assert approval and approval["visible"] == 1, approval
+    assert approval["parentId"] == find(tree, "OaSystem")["id"]
 
-    # /auth/me：导航树不含隐藏的流程中心，allMenuPaths 包含 /approval（深链）
+    # /auth/me：导航树含流程待办（可见），allMenuPaths 包含 /approval
     me = client.get("/api/v1/auth/me", headers=admin_headers).json()["data"]
     nav_names = [n["name"] for n in me["menus"]]
-    assert "ApprovalCenter" not in nav_names
+    assert "ApprovalCenter" not in nav_names  # 已不是顶层项
     assert "/approval" in me["allMenuPaths"]

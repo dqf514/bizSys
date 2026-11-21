@@ -429,7 +429,7 @@ async function doImport() {
     <PartnerAccountPanel v-else class="page-body account-body" @changed="loadAccountCount" />
   </div>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="120px">
       <el-row :gutter="12">
         <el-col :span="12">
@@ -575,7 +575,7 @@ async function doImport() {
 
   <CustomerDetailDrawer v-model="detailVisible" :customer-id="detailId" />
 
-  <el-dialog v-model="importVisible" :title="t('crm.customer.importTitle')" width="440px" append-to-body>
+  <el-dialog v-model="importVisible" :title="t('crm.customer.importTitle')" width="var(--bs-layout-dialog-xs)" append-to-body>
     <p class="import-tip">{{ t('crm.customer.importTip') }}</p>
     <el-upload :auto-upload="false" :limit="1" accept=".xlsx,.xls" :on-change="onImportFile">
       <el-button>{{ t('common.action.select') }}</el-button>
@@ -597,7 +597,7 @@ async function doImport() {
 
 .view-tabs-row {
   flex-shrink: 0;
-  padding: var(--bs-space-3) var(--bs-space-3) 0;
+  padding: var(--bs-layout-content-padding) var(--bs-layout-content-padding) 0;
 }
 
 .page-body {
@@ -610,7 +610,7 @@ async function doImport() {
 }
 
 .account-body {
-  padding: var(--bs-space-2) var(--bs-space-3) var(--bs-space-3);
+  padding: var(--bs-space-2) var(--bs-layout-content-padding) var(--bs-layout-content-padding);
 }
 
 .import-tip {

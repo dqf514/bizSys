@@ -347,7 +347,7 @@ onMounted(() => {
     </template>
   </ListPage>
 
-  <el-drawer v-model="drawerVisible" :title="t('approval.approval.detail')" size="560px">
+  <el-drawer v-model="drawerVisible" :title="t('approval.approval.detail')" size="var(--bs-layout-drawer-sm)">
     <div v-if="current" class="drawer-body" v-loading="detailLoading">
       <el-descriptions :column="1" border>
         <el-descriptions-item :label="t('approval.approval.titleField')">{{ current.title }}</el-descriptions-item>

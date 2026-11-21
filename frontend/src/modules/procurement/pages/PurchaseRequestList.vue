@@ -456,7 +456,7 @@ function fmtAmount(v: unknown) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="860px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-xl)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-row :gutter="12">
         <el-col :span="12">
@@ -559,7 +559,7 @@ function fmtAmount(v: unknown) {
   </el-dialog>
 
   <!-- 价格参考对话框 -->
-  <el-dialog v-model="priceRefVisible" :title="t('ai.priceRef.title')" width="480px" append-to-body>
+  <el-dialog v-model="priceRefVisible" :title="t('ai.priceRef.title')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <div v-loading="priceRefLoading" class="price-ref-dialog">
       <template v-if="priceRef">
         <el-empty v-if="!priceRef.stats.count" :description="t('ai.priceRef.noData')" :image-size="60" />
@@ -590,7 +590,7 @@ function fmtAmount(v: unknown) {
     </div>
   </el-dialog>
 
-  <el-drawer v-model="detailVisible" size="720px">
+  <el-drawer v-model="detailVisible" size="var(--bs-layout-drawer-lg)">
     <template #header>
       <div class="drawer-header">
         <span class="drawer-title">{{ detail?.title || t('procurement.request.detail') }}</span>
@@ -649,7 +649,7 @@ function fmtAmount(v: unknown) {
     </div>
   </el-drawer>
 
-  <el-dialog v-model="genVisible" :title="t('procurement.request.generateContract')" width="520px" append-to-body>
+  <el-dialog v-model="genVisible" :title="t('procurement.request.generateContract')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <p class="muted gen-tip">{{ t('procurement.request.generateTip') }}</p>
     <el-form :model="genForm" label-width="100px">
       <el-form-item :label="t('procurement.contract.supplier')" required>

@@ -1,0 +1,114 @@
+{
+  "labels": {
+    "no": "需求项编号",
+    "desc": "详细要求",
+    "batch": "计划批次",
+    "status": "状态",
+    "title": "需求登记"
+  },
+  "status": {
+    "planned": "待开发",
+    "inProgress": "开发中",
+    "done": "已交付"
+  },
+  "items": {
+    "projectList": {
+      "no": "31",
+      "name": "项目管理",
+      "desc": "大型项目全生命周期管理，可根据任务输入及排期自动生成项目甘特图（允许自定义编辑）",
+      "batch": "B5",
+      "status": "planned"
+    },
+    "equipmentList": {
+      "no": "23 / 67-69",
+      "name": "设备资产台账",
+      "desc": "替换为资产&样车&样品&物料统一管理；设备台账、预警、能耗统计与数字孪生（详细逻辑由需求方提供）",
+      "batch": "B6",
+      "status": "planned"
+    },
+    "materialList": {
+      "no": "23",
+      "name": "物料台账",
+      "desc": "物料管理需增加库存预警、BOM 管理",
+      "batch": "B4",
+      "status": "planned"
+    },
+    "scheduleBoard": {
+      "no": "22",
+      "name": "智能排程甘特",
+      "desc": "可基于设备/人员/样车/物料等约束完成自动排期，排期人员可根据实际情况调整后再发布任务排期",
+      "batch": "B5",
+      "status": "planned"
+    },
+    "capacityBoard": {
+      "no": "4",
+      "name": "产能利用率看板",
+      "desc": "风洞台次利用率、风洞中心设备利用率、加工中心设备利用率；须与资产管理平台的相关功能联动",
+      "batch": "B7",
+      "status": "planned"
+    },
+    "revenueBoard": {
+      "no": "3",
+      "name": "营收分析看板",
+      "desc": "已有统计看板，需增加营收维度分析、风洞/CFD/加工三大业务收入拆分",
+      "batch": "B7",
+      "status": "planned"
+    },
+    "portalOrders": {
+      "no": "5",
+      "name": "在线任务委托",
+      "desc": "基于合同的客户在线任务提交，包含仿真、模型、试验等业务需求；业务经理也有代为提交任务委托的权限",
+      "batch": "B2",
+      "status": "planned"
+    },
+    "staffList": {
+      "no": "26",
+      "name": "人员档案",
+      "desc": "人力资源管理模块（详细要求见《第三方检测机构运营平台_人力资源管理模块功能说明.docx》，文件待需求方提供）",
+      "batch": "B8",
+      "status": "planned"
+    },
+    "workApplyList": {
+      "no": "32",
+      "name": "作业申请流程",
+      "desc": "增加作业申请流程：叉车、吊装、高处作业、动火等",
+      "batch": "B8",
+      "status": "planned"
+    },
+    "messageCenter": {
+      "no": "30",
+      "name": "统一消息中心",
+      "desc": "已有待办流程，需统一消息中心。本轮已交付：消息列表、关键词检索、业务分类页签与计数、已读/全部已读",
+      "batch": "B1",
+      "status": "done"
+    },
+    "visitList": {
+      "no": "6-10",
+      "name": "访客登记与审批",
+      "desc": "多渠道预约与登记（微信、小程序、网页预约、员工邀请、前台现场登记）；被访人/部门审批，敏感区域额外审批；凭证通行、签入签出闭环、黑名单与预警",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "zoneList": {
+      "no": "11",
+      "name": "区域分级管控",
+      "desc": "公共接待区/样车接收区/试验区/准备区/生产加工区/工具仪器间/数据机房；不同访客只进授权区，工具仪器间和样车存储区默认禁入",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "ndaList": {
+      "no": "14",
+      "name": "保密协议电子签",
+      "desc": "来访前或现场签保密承诺，未签不放行；关联 CNAS 保密性要求（客户信息、原始数据、谱图、报告防泄露）",
+      "batch": "B3",
+      "status": "planned"
+    },
+    "inspectionList": {
+      "no": "24",
+      "name": "安全巡检管理",
+      "desc": "安全巡检管理",
+      "batch": "B8",
+      "status": "planned"
+    }
+  }
+}

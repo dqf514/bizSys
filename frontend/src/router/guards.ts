@@ -8,6 +8,18 @@ import { registerMenuRoutes, isRoutesRegistered } from './index'
 const PUBLIC_PATHS = ['/login']
 // 门户公告对外公开：仅「我的参与」需要门户 token，其余 /portal 页面免登录可浏览
 const PORTAL_AUTH_REQUIRED = ['/portal/my']
+// 合作方门户 shell 内的路径（独立认证体系，公开浏览）
+const PORTAL_SHELL_PATHS = ['/portal/tenders', '/portal/my', '/portal/register', '/portal/login']
+
+/**
+ * 是否属于合作方门户 shell。
+ * /portal 本身是 shell 根；/portal/orders 等是**员工壳内**的页面（在线委托台账），
+ * 走员工登录与动态路由注册，不能被门户的公开浏览规则放行。
+ */
+function isPortalShellPath(path: string): boolean {
+  if (path === '/portal') return true
+  return PORTAL_SHELL_PATHS.some((p) => path === p || path.startsWith(`${p}/`))
+}
 
 /** 动态 chunk 加载失败的特征（发版/重启后浏览器仍持有旧模块图时的典型报错） */
 function isChunkLoadError(err: unknown): boolean {
@@ -39,10 +51,13 @@ export function setupGuards(router: Router) {
 
     // 合作方门户：公告公开浏览，仅个人工作台需要门户 token；登录已并入主登录页合作方 tab
     if (to.path.startsWith('/portal')) {
-      if (PORTAL_AUTH_REQUIRED.some((p) => to.path.startsWith(p)) && !getPortalToken()) {
-        return { path: '/login', query: { redirect: to.fullPath, tab: 'partner' } }
+      if (isPortalShellPath(to.path)) {
+        if (PORTAL_AUTH_REQUIRED.some((p) => to.path.startsWith(p)) && !getPortalToken()) {
+          return { path: '/login', query: { redirect: to.fullPath, tab: 'partner' } }
+        }
+        return true
       }
-      return true
+      // 员工壳内的 /portal/* 页面：继续往下走员工登录 + 动态路由注册
     }
 
     if (PUBLIC_PATHS.includes(to.path)) {
@@ -92,7 +107,7 @@ export function setupGuards(router: Router) {
   router.afterEach((to) => {
     // 导航成功即清除该路径的自动刷新标记，下次发版仍可自愈
     sessionStorage.removeItem(`bs.chunkReload:${to.fullPath}`)
-    if (to.path.startsWith('/login') || to.path.startsWith('/portal')) return
+    if (to.path.startsWith('/login') || isPortalShellPath(to.path)) return
     // redirect / NotFound / Forbidden are transient — never open tabs for them
     if (to.meta?.tabless || to.name === 'NotFound' || to.name === 'Forbidden') return
     const tabs = useTabsStore()

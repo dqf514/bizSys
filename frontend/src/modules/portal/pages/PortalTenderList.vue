@@ -79,7 +79,7 @@ watch(filtered, (list) => {
     <!-- 左：公告清单 -->
     <aside class="tender-list-panel">
       <div class="list-head">
-        <h2 class="page-title">{{ t('portal.portal.tenders') }}</h2>
+        <h2 class="bs-page-title">{{ t('portal.portal.tenders') }}</h2>
         <span class="list-count">{{ filtered.length }}</span>
       </div>
       <el-input
@@ -174,13 +174,6 @@ watch(filtered, (list) => {
   display: flex;
   align-items: baseline;
   gap: var(--bs-space-2);
-}
-
-.page-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
-  margin: 0;
 }
 
 .list-count {

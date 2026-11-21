@@ -20,11 +20,10 @@ export const DOCK_MAX = 4
 export const DEFAULT_DOCK_PATHS = ['/approval', '/task/tasks', '/contract/contracts', '/oa/apply']
 /**
  * 不占菜单但可上 Dock 的深链页面：路径 → 访问权限/图标/标题。
- * （流程中心并入工作台后 /approval 仅剩深链，菜单树查不到，需按权限码放行）
+ * 已是正式菜单项的页面（如 /approval，现为「流程与办公」下的流程待办）不在此表 ——
+ * 菜单树查得到即可上 Dock，表里再登记一份会在定制弹窗的候选列表里重复出现。
  */
-export const EXTRA_DOCK_PAGES: Record<string, { perm: string; icon: string; titleKey: string }> = {
-  '/approval': { perm: 'approval:view', icon: 'Stamp', titleKey: 'menu.approval' },
-}
+export const EXTRA_DOCK_PAGES: Record<string, { perm: string; icon: string; titleKey: string }> = {}
 // 与快捷方式同策：用户清空全部时的哨兵，区分「从未定制」
 const EMPTY_CSV = '-'
 
@@ -150,7 +149,14 @@ export function useDock() {
             children: [],
           }) as MenuNode,
       )
-    return [...pages, ...extras]
+    // 深链页可能已经变成正式菜单项（如 /approval 迁入「流程与办公」），按 path 去重
+    const seen = new Set<string>()
+    return [...pages, ...extras].filter((n) => {
+      const key = n.path ?? ''
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   })
 
   async function persist(list: string[]) {

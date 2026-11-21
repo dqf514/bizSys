@@ -116,7 +116,7 @@ async function submit() {
   <el-dialog
     :model-value="modelValue"
     :title="t(isEdit ? 'crm.account.edit' : 'crm.account.create')"
-    width="560px"
+    width="var(--bs-layout-dialog-md)"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >

@@ -1,0 +1,31 @@
+{
+  "title": "Message Center",
+  "keyword": "Keyword",
+  "keywordPlaceholder": "Title or content",
+  "tabAll": "All",
+  "tabUnread": "Unread",
+  "colTitle": "Title",
+  "colContent": "Content",
+  "colType": "Business Type",
+  "colStatus": "Status",
+  "colTime": "Time",
+  "read": "Read",
+  "unread": "Unread",
+  "markRead": "Mark as read",
+  "markAllRead": "Mark all read",
+  "markAllReadSuccess": "All messages marked as read",
+  "markedRead": "Marked as read",
+  "empty": "No messages",
+  "bizType": {
+    "contract": "Contract",
+    "task": "Task",
+    "report": "Report",
+    "invoice": "Invoice",
+    "oa": "OA Application",
+    "purchase_request": "Purchase Request",
+    "purchase_contract": "Purchase Contract",
+    "tender_award": "Tender Award",
+    "sales_quotation": "Quotation",
+    "settlement": "Settlement"
+  }
+}

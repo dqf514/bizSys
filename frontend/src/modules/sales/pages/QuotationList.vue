@@ -293,7 +293,7 @@ function fmtAmount(row: Record<string, unknown>) {
 
     <QuotationDetailDrawer v-model="detailVisible" :quotation-id="detailId" @changed="list.refresh()" />
 
-    <el-dialog v-model="sendVisible" :title="t('sales.quotation.sendTitle')" width="420px">
+    <el-dialog v-model="sendVisible" :title="t('sales.quotation.sendTitle')" width="var(--bs-layout-dialog-xs)">
       <el-form label-position="top">
         <el-form-item :label="t('sales.quotation.sendChannel')">
           <el-radio-group v-model="sendChannel">
@@ -312,7 +312,7 @@ function fmtAmount(row: Record<string, unknown>) {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="fbVisible" :title="t('sales.quotation.feedbackTitle')" width="420px">
+    <el-dialog v-model="fbVisible" :title="t('sales.quotation.feedbackTitle')" width="var(--bs-layout-dialog-xs)">
       <el-form label-position="top">
         <el-form-item>
           <el-radio-group v-model="fbAction">

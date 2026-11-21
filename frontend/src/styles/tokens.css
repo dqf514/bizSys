@@ -84,6 +84,21 @@
   --bs-layout-tabbar-height: 36px;
   --bs-layout-sidenav-width: 200px;
   --bs-layout-sidenav-collapsed-width: 64px;
+  --bs-layout-content-padding: 16px;
+  --bs-layout-content-narrow-max-width: 960px;
+  --bs-layout-form-max-width: 640px;
+  --bs-layout-field-max-width: 420px;
+  --bs-layout-section-gap: 12px;
+  --bs-layout-drawer-xs: 460px;
+  --bs-layout-drawer-sm: 560px;
+  --bs-layout-drawer-md: 640px;
+  --bs-layout-drawer-lg: 720px;
+  --bs-layout-drawer-xl: 860px;
+  --bs-layout-dialog-xs: 420px;
+  --bs-layout-dialog-sm: 520px;
+  --bs-layout-dialog-md: 640px;
+  --bs-layout-dialog-lg: 760px;
+  --bs-layout-dialog-xl: 1080px;
   /* light theme colors */
   --bs-color-bg-app: #f4f5f7;
   --bs-color-bg-surface: #ffffff;

@@ -249,7 +249,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="profile-page" v-loading="loading">
+  <div class="bs-page bs-page--narrow" v-loading="loading">
     <section class="profile-hero">
       <button
         class="avatar-wrap"
@@ -401,7 +401,7 @@ onMounted(() => {
     </el-tabs>
 
     <!-- 头像预览确认 -->
-    <el-dialog v-model="avatarDialog" :title="t('auth.profile.avatarPreview')" width="360px" append-to-body>
+    <el-dialog v-model="avatarDialog" :title="t('auth.profile.avatarPreview')" width="var(--bs-layout-dialog-xs)" append-to-body>
       <div class="avatar-preview">
         <img :src="avatarPreview" class="avatar-preview-img" alt="" />
         <p class="section-tip">{{ t('auth.profile.avatarTip') }}</p>
@@ -418,7 +418,7 @@ onMounted(() => {
     <el-dialog
       v-model="contactDialog"
       :title="t(contactEditingId ? 'auth.profile.editContact' : 'auth.profile.addContact')"
-      width="440px"
+      width="var(--bs-layout-dialog-xs)"
       append-to-body
     >
       <el-form label-width="90px">
@@ -447,7 +447,7 @@ onMounted(() => {
     <el-dialog
       v-model="bankDialog"
       :title="t(bankEditingId ? 'auth.profile.editBank' : 'auth.profile.addBank')"
-      width="440px"
+      width="var(--bs-layout-dialog-xs)"
       append-to-body
     >
       <el-form label-width="90px">
@@ -479,21 +479,14 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.profile-page {
-  padding: var(--bs-space-4);
-  max-width: 960px;
-  margin: 0 auto;
-}
-
 .profile-hero {
   display: flex;
   align-items: center;
   gap: var(--bs-space-4);
-  padding: var(--bs-space-5);
+  padding: var(--bs-layout-content-padding);
   border-radius: var(--bs-radius-lg);
   background: var(--bs-color-bg-surface);
   border: 1px solid var(--bs-color-border-subtle);
-  margin-bottom: var(--bs-space-4);
 }
 
 .avatar-wrap {
@@ -565,11 +558,7 @@ onMounted(() => {
 }
 
 .profile-tabs {
-  padding: 0 var(--bs-space-2);
-}
-
-.profile-desc {
-  max-width: 720px;
+  padding: 0;
 }
 
 .section-tip {
@@ -579,7 +568,7 @@ onMounted(() => {
 }
 
 .contact-form {
-  max-width: 480px;
+  max-width: var(--bs-layout-form-max-width);
 }
 
 .table-bar {

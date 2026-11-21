@@ -317,7 +317,7 @@ function onMenuAction(key: string, row: MenuNode) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="120px">
       <el-form-item :label="t('admin.menu.menuType')">
         <el-radio-group v-model="form.menuType">

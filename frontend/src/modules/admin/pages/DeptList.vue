@@ -179,7 +179,7 @@ const memberRowActions: ActionItem[] = [{ key: 'remove', tip: 'common.action.del
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.dept.name')" prop="name" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.name" />
@@ -210,7 +210,7 @@ const memberRowActions: ActionItem[] = [{ key: 'remove', tip: 'common.action.del
   <el-dialog
     v-model="membersVisible"
     :title="`${t('admin.dept.membersTitle')} - ${membersDept?.name ?? ''}`"
-    width="640px"
+    width="var(--bs-layout-dialog-md)"
     append-to-body
   >
     <el-alert type="info" :closable="false" :title="t('admin.dept.leaderHint')" class="members-hint" />

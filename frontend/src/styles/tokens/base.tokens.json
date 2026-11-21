@@ -110,6 +110,21 @@
     "statusbarHeight": "26px",
     "tabbarHeight": "36px",
     "sidenavWidth": "200px",
-    "sidenavCollapsedWidth": "64px"
+    "sidenavCollapsedWidth": "64px",
+    "contentPadding": "16px",
+    "contentNarrowMaxWidth": "960px",
+    "formMaxWidth": "640px",
+    "fieldMaxWidth": "420px",
+    "sectionGap": "12px",
+    "drawerXs": "460px",
+    "drawerSm": "560px",
+    "drawerMd": "640px",
+    "drawerLg": "720px",
+    "drawerXl": "860px",
+    "dialogXs": "420px",
+    "dialogSm": "520px",
+    "dialogMd": "640px",
+    "dialogLg": "760px",
+    "dialogXl": "1080px"
   }
 }

@@ -396,7 +396,7 @@ function fmtAmount(v: unknown) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="860px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-xl)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-row :gutter="12">
         <el-col :span="12">
@@ -482,7 +482,7 @@ function fmtAmount(v: unknown) {
     </template>
   </el-dialog>
 
-  <el-drawer v-model="detailVisible" size="720px">
+  <el-drawer v-model="detailVisible" size="var(--bs-layout-drawer-lg)">
     <template #header>
       <div class="drawer-header">
         <span class="drawer-title">{{ detail?.orderNo || t('procurement.stock.detail') }}</span>

@@ -231,7 +231,7 @@ onMounted(async () => {
     <el-drawer
       v-model="drillVisible"
       :title="drillUser ? t('hr.stats.drillTitle', { name: drillUser.userName }) : ''"
-      size="720px"
+      size="var(--bs-layout-drawer-lg)"
     >
       <el-table :data="drillItems" v-loading="drillLoading" border>
         <el-table-column prop="workDate" :label="t('hr.stats.workDate')" width="110" />

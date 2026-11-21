@@ -41,7 +41,7 @@ function fmtAmount(v: unknown) {
 
 <template>
   <div v-loading="loading" class="portal-my">
-    <h2 class="page-title">{{ t('portal.portal.myRegistrations') }}</h2>
+    <h2 class="bs-page-title">{{ t('portal.portal.myRegistrations') }}</h2>
     <el-table :data="registrations" border stripe>
       <el-table-column :label="t('portal.portal.tenderNo')" prop="tenderNo" width="150" />
       <el-table-column :label="t('portal.portal.tenderName')" min-width="180">
@@ -83,7 +83,7 @@ function fmtAmount(v: unknown) {
       <template #empty>{{ t('portal.portal.empty') }}</template>
     </el-table>
 
-    <h2 class="page-title">{{ t('portal.portal.myBids') }}</h2>
+    <h2 class="bs-page-title">{{ t('portal.portal.myBids') }}</h2>
     <el-table :data="bids" border stripe>
       <el-table-column :label="t('portal.portal.tenderNo')" prop="tenderNo" width="150" />
       <el-table-column :label="t('portal.portal.tenderName')" min-width="180">
@@ -126,7 +126,7 @@ function fmtAmount(v: unknown) {
       <template #empty>{{ t('portal.portal.empty') }}</template>
     </el-table>
 
-    <h2 class="page-title">{{ t('portal.portal.myResults') }}</h2>
+    <h2 class="bs-page-title">{{ t('portal.portal.myResults') }}</h2>
     <el-table :data="results" border stripe>
       <el-table-column :label="t('portal.portal.tenderNo')" prop="tenderNo" width="150" />
       <el-table-column :label="t('portal.portal.tenderName')" min-width="180">
@@ -156,13 +156,6 @@ function fmtAmount(v: unknown) {
   display: flex;
   flex-direction: column;
   gap: var(--bs-space-4);
-}
-
-.page-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
-  margin: 0;
 }
 
 .deadline {

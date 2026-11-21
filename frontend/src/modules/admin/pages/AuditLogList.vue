@@ -95,7 +95,7 @@ function viewDetail(row: AuditLog) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="detailVisible" :title="t('admin.audit.viewDetail')" width="560px" append-to-body>
+  <el-dialog v-model="detailVisible" :title="t('admin.audit.viewDetail')" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-descriptions v-if="detailRow" :column="1" border>
       <el-descriptions-item :label="t('admin.audit.username')">{{ detailRow.username }}</el-descriptions-item>
       <el-descriptions-item :label="t('admin.audit.module')">{{ detailRow.module }}</el-descriptions-item>

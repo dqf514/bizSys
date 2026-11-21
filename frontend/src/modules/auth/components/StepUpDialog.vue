@@ -54,7 +54,7 @@ defineExpose({ open })
   <el-dialog
     v-model="visible"
     :title="t('auth.profile.stepUpTitle')"
-    width="400px"
+    width="var(--bs-layout-dialog-xs)"
     append-to-body
     @closed="onClosed"
   >

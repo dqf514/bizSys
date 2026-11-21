@@ -377,7 +377,7 @@ function fmtAmount(v: unknown) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-lg)" append-to-body>
     <p class="muted tip">{{ t('procurement.contract.countersignTip') }}</p>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-row :gutter="12">
@@ -449,7 +449,7 @@ function fmtAmount(v: unknown) {
     </template>
   </el-dialog>
 
-  <el-drawer v-model="detailVisible" size="720px">
+  <el-drawer v-model="detailVisible" size="var(--bs-layout-drawer-lg)">
     <template #header>
       <div class="drawer-header">
         <span class="drawer-title">{{ detail?.name || t('procurement.contract.detail') }}</span>

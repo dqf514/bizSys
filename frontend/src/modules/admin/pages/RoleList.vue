@@ -176,7 +176,7 @@ function onTreeCheck(_data: unknown, info: { checkedKeys: number[]; checkedNodes
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.role.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.code" />
@@ -207,7 +207,7 @@ function onTreeCheck(_data: unknown, info: { checkedKeys: number[]; checkedNodes
     </template>
   </el-dialog>
 
-  <el-dialog v-model="grantVisible" :title="t('admin.role.menuTree')" width="480px" append-to-body>
+  <el-dialog v-model="grantVisible" :title="t('admin.role.menuTree')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-tree
       :data="menuTreeData"
       node-key="id"

@@ -82,7 +82,7 @@ async function save() {
   <el-dialog
     v-model="dockSettingsVisible"
     :title="t('common.dock.settings')"
-    width="520px"
+    width="var(--bs-layout-dialog-sm)"
     append-to-body
     class="dock-settings-dialog"
   >

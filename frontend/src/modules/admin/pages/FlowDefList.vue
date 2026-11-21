@@ -470,7 +470,7 @@ function onDefAction(key: string, row: FlowDef) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" :width="mode === 'chain' ? '1080px' : '720px'" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" :width="mode === 'chain' ? 'var(--bs-layout-dialog-xl)' : 'var(--bs-layout-dialog-lg)'" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.flow.code')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.code" :disabled="Boolean(editingId)" />
@@ -586,7 +586,7 @@ function onDefAction(key: string, row: FlowDef) {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="suggestVisible" :title="t('admin.flow.aiSuggest')" width="560px" append-to-body>
+  <el-dialog v-model="suggestVisible" :title="t('admin.flow.aiSuggest')" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form label-position="top" size="small">
       <el-form-item :label="t('admin.flow.aiSuggestAmount')">
         <el-input-number v-model="suggestAmount" :min="0" :precision="2" class="suggest-amount" />
@@ -617,7 +617,7 @@ function onDefAction(key: string, row: FlowDef) {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="previewVisible" :title="t('admin.flow.preview')" width="480px" append-to-body>
+  <el-dialog v-model="previewVisible" :title="t('admin.flow.preview')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form label-position="top" size="small">
       <el-form-item :label="t('admin.flow.previewVariables')">
         <el-input v-model="previewVariables" type="textarea" :rows="4" placeholder='{"amount": 200000}' />

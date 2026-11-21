@@ -167,7 +167,7 @@ defineExpose({ setComment })
       </el-button>
     </div>
 
-    <el-dialog v-model="transferVisible" :title="t('approval.approval.transferTo')" width="420px" append-to-body>
+    <el-dialog v-model="transferVisible" :title="t('approval.approval.transferTo')" width="var(--bs-layout-dialog-xs)" append-to-body>
       <el-select v-model="targetUserId" :placeholder="t('approval.approval.selectUser')" filterable style="width: 100%">
         <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" />
       </el-select>
@@ -177,7 +177,7 @@ defineExpose({ setComment })
       </template>
     </el-dialog>
 
-    <el-dialog v-model="addSignVisible" :title="t('approval.approval.addSignTo')" width="420px" append-to-body>
+    <el-dialog v-model="addSignVisible" :title="t('approval.approval.addSignTo')" width="var(--bs-layout-dialog-xs)" append-to-body>
       <el-select v-model="targetUserId" :placeholder="t('approval.approval.selectUser')" filterable style="width: 100%">
         <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" />
       </el-select>

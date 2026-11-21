@@ -799,6 +799,13 @@ export interface NotifyItem {
   createTime: string
 }
 
+/** 消息中心页签计数（GET /admin/notifies/counts） */
+export interface NotifyCounts {
+  all: number
+  unread: number
+  byBizType: Record<string, number>
+}
+
 /** Dashboard widget layout entry, persisted in user prefs (`dashboard` key, JSON string) */
 export interface DashboardWidgetPref {
   key: string

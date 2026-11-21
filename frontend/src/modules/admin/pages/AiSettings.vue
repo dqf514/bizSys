@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { getAiCenterSettings, listAiPrompts, updateAiCenterSettings } from '@/api/ai'
 import type { AiFeatureKey, AiMaskingLevel, AiModelPrice, AiPromptInfo } from '@/api/types'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 defineOptions({ name: 'AiSettings' })
 
@@ -114,8 +115,8 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="ai-settings-page" v-loading="loading">
-    <div class="page-title">{{ t('ai.settings.title') }}</div>
+  <div class="bs-page bs-page--scroll bs-page--narrow" v-loading="loading">
+    <PageHeader :title="t('ai.settings.title')" />
 
     <el-alert
       v-if="!globalEnabled"
@@ -217,29 +218,6 @@ onMounted(load)
 </template>
 
 <style scoped>
-.ai-settings-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
-  padding: var(--bs-space-3);
-}
-
-.page-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
-}
-
-.settings-card {
-  max-width: 720px;
-}
-
-.settings-card-wide {
-  max-width: 960px;
-}
 
 .field-tip {
   color: var(--bs-color-fg-muted);
@@ -257,7 +235,6 @@ onMounted(load)
 }
 
 .save-bar {
-  max-width: 960px;
   display: flex;
   justify-content: flex-end;
 }

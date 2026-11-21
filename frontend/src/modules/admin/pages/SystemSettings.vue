@@ -4,6 +4,7 @@ import { ElMessage, type UploadRequestOptions } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { getSettings, updateSettings, uploadLogo, uploadFavicon, clearFavicon, testMessaging } from '@/api/settings'
 import { useBrandingStore } from '@/stores/branding'
+import PageHeader from '@/components/common/PageHeader.vue'
 
 defineOptions({ name: 'SystemSettings' })
 
@@ -337,8 +338,8 @@ async function copyCallback() {
 </script>
 
 <template>
-  <div v-loading="loading" class="settings-page">
-    <h2 class="page-title">{{ t('settings.title') }}</h2>
+  <div v-loading="loading" class="bs-page bs-page--scroll">
+    <PageHeader :title="t('settings.title')" />
 
     <div class="settings-grid">
       <el-card class="settings-card" shadow="never">
@@ -691,7 +692,7 @@ async function copyCallback() {
     </div>
 
     <!-- 消息通道测试发送 -->
-    <el-dialog v-model="testDialog" :title="t('settings.messaging.testTitle')" width="420px" append-to-body>
+    <el-dialog v-model="testDialog" :title="t('settings.messaging.testTitle')" width="var(--bs-layout-dialog-xs)" append-to-body>
       <el-form label-width="100px">
         <el-form-item
           :label="testChannel === 'email' ? t('settings.messaging.testTargetEmail') : t('settings.messaging.testTargetPhone')"
@@ -711,27 +712,12 @@ async function copyCallback() {
 </template>
 
 <style scoped>
-.settings-page {
-  height: 100%;
-  overflow: auto;
-  padding: var(--bs-space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-4);
-}
-
 /* full-width responsive grid: 2+ columns on wide screens, wraps on narrow */
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr));
-  gap: var(--bs-space-4);
+  gap: var(--bs-layout-section-gap);
   align-items: start;
-}
-
-.page-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
 }
 
 .settings-card {
@@ -754,11 +740,11 @@ async function copyCallback() {
 }
 
 .settings-form {
-  max-width: 640px;
+  max-width: var(--bs-layout-form-max-width);
 }
 
 .form-input {
-  max-width: 420px;
+  max-width: var(--bs-layout-field-max-width);
 }
 
 .form-tip {

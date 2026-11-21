@@ -258,7 +258,7 @@ function statusTagType(s: string) {
 </script>
 
 <template>
-  <div class="ai-usage-page">
+  <div class="bs-page bs-page--scroll ai-usage-page">
     <div class="stats-block" v-loading="statsLoading">
       <div class="stat-cards" v-if="stats">
         <div class="stat-card">
@@ -367,13 +367,9 @@ function statusTagType(s: string) {
 </template>
 
 <style scoped>
+/* 统计卡与内嵌列表共用页面边距，列表自身不再二次内边距 */
 .ai-usage-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
+  --list-page-padding: 0;
 }
 
 .detail-block {

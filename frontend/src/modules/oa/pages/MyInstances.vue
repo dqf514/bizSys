@@ -196,7 +196,7 @@ async function doWithdraw() {
     </template>
   </ListPage>
 
-  <el-drawer v-model="drawerVisible" :title="detail ? `${detail.displayNo} ${detail.formName}` : ''" size="620px">
+  <el-drawer v-model="drawerVisible" :title="detail ? `${detail.displayNo} ${detail.formName}` : ''" size="var(--bs-layout-drawer-md)">
     <div v-if="detail" class="drawer-body" v-loading="detailLoading">
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="t('oa.my.displayNo')">{{ detail.displayNo }}</el-descriptions-item>

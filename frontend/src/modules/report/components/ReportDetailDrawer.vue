@@ -159,7 +159,7 @@ async function adoptConclusion() {
 </script>
 
 <template>
-  <el-drawer v-model="visible" :title="t('report.report.detail')" size="640px" append-to-body>
+  <el-drawer v-model="visible" :title="t('report.report.detail')" size="var(--bs-layout-drawer-md)" append-to-body>
     <div v-loading="loading" class="drawer-body">
       <template v-if="detail">
         <div class="drawer-actions">
@@ -226,7 +226,7 @@ async function adoptConclusion() {
       </template>
     </div>
 
-    <el-dialog v-model="summaryVisible" :title="t('ai.reportSummary.dialogTitle')" width="640px" append-to-body>
+    <el-dialog v-model="summaryVisible" :title="t('ai.reportSummary.dialogTitle')" width="var(--bs-layout-dialog-md)" append-to-body>
       <div v-loading="summaryLoading">
         <template v-if="summaryLoading">
           <div class="summary-loading">{{ t('ai.reportSummary.generating') }}</div>
@@ -256,7 +256,7 @@ async function adoptConclusion() {
         </el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="assistVisible" :title="assistTitle" width="680px" append-to-body>
+    <el-dialog v-model="assistVisible" :title="assistTitle" width="var(--bs-layout-dialog-lg)" append-to-body>
       <div v-loading="assistLoading">
         <template v-if="assistLoading">
           <div class="summary-loading">{{ t('ai.reportAssist.generating') }}</div>

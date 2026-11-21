@@ -104,7 +104,7 @@ async function save() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" :title="t('finance.payment.create')" width="560px" append-to-body>
+  <el-dialog v-model="visible" :title="t('finance.payment.create')" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item
         :label="t('finance.payment.selectSettlement')"

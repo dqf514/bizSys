@@ -96,7 +96,7 @@ const aiSource = computed(() => {
   <el-drawer
     :model-value="modelValue"
     :title="detail ? `${detail.quoteNo || ''} ${detail.title}`.trim() : t('sales.quotation.detail')"
-    size="720px"
+    size="var(--bs-layout-drawer-lg)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-loading="loading" class="quote-detail">

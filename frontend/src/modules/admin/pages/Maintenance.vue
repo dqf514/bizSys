@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/common/PageHeader.vue'
 import {
   deleteBackup,
   downloadBackup,
@@ -272,8 +273,8 @@ async function doPurge() {
 </script>
 
 <template>
-  <div v-loading="loading" class="maintenance-page">
-    <h2 class="page-title">{{ t('admin.maintenance.title') }}</h2>
+  <div v-loading="loading" class="bs-page bs-page--scroll">
+    <PageHeader :title="t('admin.maintenance.title')" />
 
     <div class="maintenance-grid">
       <el-card class="maintenance-card" shadow="never">
@@ -434,7 +435,7 @@ async function doPurge() {
       </el-card>
     </div>
 
-    <el-dialog v-model="purgeVisible" :title="t('admin.maintenance.purgeDialogTitle')" width="480px">
+    <el-dialog v-model="purgeVisible" :title="t('admin.maintenance.purgeDialogTitle')" width="var(--bs-layout-dialog-sm)">
       <el-alert type="error" :closable="false" class="purge-alert">
         <p>{{ t('admin.maintenance.purgeWarn1') }}</p>
         <p>{{ t('admin.maintenance.purgeWarn2') }}</p>
@@ -463,26 +464,11 @@ async function doPurge() {
 </template>
 
 <style scoped>
-.maintenance-page {
-  height: 100%;
-  overflow: auto;
-  padding: var(--bs-space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-4);
-}
-
 .maintenance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr));
-  gap: var(--bs-space-4);
+  gap: var(--bs-layout-section-gap);
   align-items: start;
-}
-
-.page-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-  color: var(--bs-color-fg-default);
 }
 
 .maintenance-card {
@@ -500,11 +486,11 @@ async function doPurge() {
 }
 
 .maintenance-form {
-  max-width: 640px;
+  max-width: var(--bs-layout-form-max-width);
 }
 
 .form-input {
-  max-width: 420px;
+  max-width: var(--bs-layout-field-max-width);
 }
 
 .time-input {

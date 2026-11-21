@@ -343,7 +343,7 @@ function onReset() {
     </template>
   </ListPage>
 
-  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" append-to-body>
+  <el-dialog v-model="dialogVisible" :title="dialogTitle" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="formRef" :model="form" label-width="110px">
       <el-form-item :label="t('admin.user.username')" prop="username" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="form.username" :placeholder="t('admin.user.usernamePlaceholder')" />

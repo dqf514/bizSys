@@ -224,7 +224,7 @@ defineExpose({ validate, exportGraph })
     <el-drawer
       v-model="drawerVisible"
       :title="current ? t(`admin.flow.nodeType.${current.nodeType}`) : ''"
-      size="460px"
+      size="var(--bs-layout-drawer-xs)"
       append-to-body
       destroy-on-close
     >

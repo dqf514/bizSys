@@ -69,19 +69,6 @@ export const extraRoutes: RouteRecordRaw[] = [
       componentName: 'ProfilePage',
     },
   },
-  // 流程中心并入工作台后不再单列菜单，/approval 深链（收藏/快捷方式/通知跳转）保持可用
-  {
-    path: '/approval',
-    name: 'ApprovalCenter',
-    component: () => import('@/modules/approval/pages/TodoList.vue'),
-    meta: {
-      tabKey: '/approval',
-      titleKey: 'menu.approval',
-      title: 'Approval Center',
-      keepAlive: true,
-      componentName: 'TodoList',
-    },
-  },
   // 知识库问答：登录可用，不占菜单（全局助手面板入口）
   {
     path: '/ai/knowledge',

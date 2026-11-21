@@ -142,7 +142,7 @@ watch(keyword, () => {
   <el-dialog
     :model-value="props.visible"
     :title="t('common.command.title')"
-    width="560px"
+    width="var(--bs-layout-dialog-md)"
     append-to-body
     class="cmd-dialog"
     @update:model-value="emit('update:visible', $event)"

@@ -251,10 +251,10 @@ async function saveAndSubmit() {
 </script>
 
 <template>
-  <div class="task-edit" v-loading="loading">
-    <div class="edit-header">
-      <h2 class="edit-title">{{ isEdit ? t('task.task.edit') : t('task.task.create') }}</h2>
-      <div class="edit-actions">
+  <div class="bs-page bs-page--scroll" v-loading="loading">
+    <div class="bs-page-header edit-header">
+      <h2 class="bs-page-title">{{ isEdit ? t('task.task.edit') : t('task.task.create') }}</h2>
+      <div class="bs-page-actions">
         <el-button @click="router.push('/task/tasks')">{{ t('common.action.cancel') }}</el-button>
         <el-button :loading="savingDraft" @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
         <el-button type="primary" :loading="savingSubmit" @click="saveAndSubmit">
@@ -484,36 +484,15 @@ async function saveAndSubmit() {
 </template>
 
 <style scoped>
-.task-edit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  padding: var(--bs-space-4);
-  height: 100%;
-  overflow: auto;
-  background: var(--bs-color-bg-surface);
-}
-
 .edit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   position: sticky;
   top: 0;
   z-index: 5;
+  /* 通栏吸顶工具条：抵消页面内边距，滚动时左右不露灰底 */
+  margin: calc(-1 * var(--bs-layout-content-padding)) calc(-1 * var(--bs-layout-content-padding)) 0;
+  padding: var(--bs-layout-content-padding) var(--bs-layout-content-padding) var(--bs-space-2);
   background: var(--bs-color-bg-surface);
-  padding-bottom: var(--bs-space-2);
   border-bottom: 1px solid var(--bs-color-border-subtle);
-}
-
-.edit-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-}
-
-.edit-actions {
-  display: flex;
-  gap: var(--bs-space-2);
 }
 
 .edit-main {
@@ -536,6 +515,7 @@ async function saveAndSubmit() {
   border: 1px solid var(--bs-color-border-subtle);
   border-radius: var(--bs-radius-md);
   padding: var(--bs-space-3) var(--bs-space-4);
+  background: var(--bs-color-bg-surface);
   scroll-margin-top: 72px;
 }
 
@@ -561,6 +541,7 @@ async function saveAndSubmit() {
   border: 1px solid var(--bs-color-border-subtle);
   border-radius: var(--bs-radius-md);
   padding: var(--bs-space-3);
+  background: var(--bs-color-bg-surface);
   display: flex;
   flex-direction: column;
   gap: var(--bs-space-2);

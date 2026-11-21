@@ -3,8 +3,6 @@
 import json
 import uuid
 
-from sqlalchemy import select
-
 
 def _uniq(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex[:8]}"

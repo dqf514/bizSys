@@ -196,9 +196,9 @@ async function newVersion() {
 </script>
 
 <template>
-  <div class="tpl-designer" v-loading="loading">
-    <div class="td-header">
-      <div class="td-title">
+  <div class="bs-page" v-loading="loading">
+    <div class="bs-page-header">
+      <div class="bs-page-title">
         {{ editId ? `${t('sales.template.designTitle')} · ${form.name} V${tplVersion}` : t('sales.template.createTitle') }}
       </div>
       <BackButton />
@@ -287,24 +287,6 @@ async function newVersion() {
 </template>
 
 <style scoped>
-.tpl-designer {
-  padding: var(--bs-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-}
-
-.td-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.td-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-}
-
 .td-body {
   display: grid;
   grid-template-columns: minmax(320px, 460px) 1fr;

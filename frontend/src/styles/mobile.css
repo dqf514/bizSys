@@ -45,6 +45,8 @@
   /* ---- 字号底线：正文 ≥14px、辅助文字 ≥12px（紧凑密度在移动端放宽） ---- */
   :root {
     --bs-typography-font-size-sm: 14px;
+    /* 窄屏内容边距回落 12px，保持既有密度不被桌面 16px 撑开 */
+    --bs-layout-content-padding: 12px;
   }
 
   /* 与 tokens.css 的 html[data-density="compact"] 同优先级，靠加载顺序（mobile.css 最后）覆盖 */

@@ -262,9 +262,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="quotation-edit" v-loading="loading">
-    <div class="qe-header">
-      <div class="qe-title">{{ editId ? t('sales.quotation.editTitle') : t('sales.quotation.createTitle') }}</div>
+  <div class="bs-page" v-loading="loading">
+    <div class="bs-page-header">
+      <div class="bs-page-title">{{ editId ? t('sales.quotation.editTitle') : t('sales.quotation.createTitle') }}</div>
       <BackButton />
     </div>
 
@@ -423,24 +423,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.quotation-edit {
-  padding: var(--bs-space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-}
-
-.qe-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.qe-title {
-  font-size: var(--bs-typography-font-size-lg);
-  font-weight: 600;
-}
-
 .qe-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

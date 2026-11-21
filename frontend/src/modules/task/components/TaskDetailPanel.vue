@@ -856,7 +856,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
     <el-dialog
       v-model="itemVisible"
       :title="editingItemId ? t('task.task.editItem') : t('task.task.addItem')"
-      width="640px"
+      width="var(--bs-layout-dialog-md)"
       append-to-body
     >
       <el-form ref="itemFormRef" :model="itemForm" label-width="110px">
@@ -920,7 +920,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
     <el-dialog
       v-model="sampleVisible"
       :title="editingSampleId ? t('task.task.editSample') : t('task.task.registerSample')"
-      width="640px"
+      width="var(--bs-layout-dialog-md)"
       append-to-body
     >
       <el-form ref="sampleFormRef" :model="sampleForm" label-width="110px">
@@ -982,7 +982,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
     <el-dialog
       v-model="photoVisible"
       :title="photoManual ? t('ai.taskPhoto.manual') : t('ai.taskPhoto.dialogTitle')"
-      width="560px"
+      width="var(--bs-layout-dialog-md)"
       append-to-body
     >
       <div v-loading="photoAnalyzing">

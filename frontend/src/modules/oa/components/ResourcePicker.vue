@@ -101,7 +101,7 @@ function clear() {
       {{ t('common.action.clear') }}
     </el-button>
 
-    <el-dialog v-model="open" :title="t('oa.form.resourcePick')" width="640px" append-to-body>
+    <el-dialog v-model="open" :title="t('oa.form.resourcePick')" width="var(--bs-layout-dialog-md)" append-to-body>
       <div class="res-search">
         <el-input
           v-model="q"

@@ -315,13 +315,13 @@ async function doVoid() {
 </script>
 
 <template>
-  <div class="contract-detail" v-loading="loading">
-    <div class="detail-header">
+  <div class="bs-page bs-page--scroll" v-loading="loading">
+    <div class="bs-page-header">
       <h2 class="detail-title">
         {{ detail?.name || t('contract.contract.detail') }}
         <StatusTag v-if="detail" :status="detail.status" i18n-prefix="contract.contract.status" />
       </h2>
-      <div class="header-actions">
+      <div class="bs-page-actions">
         <el-button
           v-if="detail && ['draft', 'rejected', 'approved'].includes(detail.status)"
           v-permission="'contract:edit'"
@@ -358,7 +358,7 @@ async function doVoid() {
       </div>
     </div>
 
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" class="bs-page-card">
       <el-tab-pane :label="t('contract.contract.tabBasic')" name="basic">
         <el-descriptions v-if="detail" :column="2" border>
           <el-descriptions-item :label="t('contract.contract.contractNo')">{{ detail.contractNo }}</el-descriptions-item>
@@ -516,34 +516,13 @@ async function doVoid() {
 </template>
 
 <style scoped>
-.contract-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-3);
-  padding: var(--bs-space-4);
-  height: 100%;
-  overflow: auto;
-  background: var(--bs-color-bg-surface);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .detail-title {
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);
+  margin: 0;
   font-size: var(--bs-typography-font-size-lg);
   font-weight: 600;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--bs-space-2);
 }
 
 .file-list {
@@ -598,7 +577,7 @@ async function doVoid() {
   padding: var(--bs-space-3) var(--bs-space-4);
   border: 1px solid var(--bs-color-border-subtle);
   border-radius: var(--bs-radius-md);
-  background: var(--bs-color-bg-app);
+  background: var(--bs-color-bg-surface);
 }
 
 .stat-label {

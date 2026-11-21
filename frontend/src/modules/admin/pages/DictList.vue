@@ -255,7 +255,7 @@ function onItemAction(key: string, row: DictItem) {
     </div>
   </ListPage>
 
-  <el-dialog v-model="typeDialog" :title="t('admin.dict.createType')" width="480px" append-to-body>
+  <el-dialog v-model="typeDialog" :title="t('admin.dict.createType')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="typeFormRef" :model="typeForm" label-width="100px">
       <el-form-item :label="t('admin.dict.typeCode')" prop="code" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="typeForm.code" />
@@ -273,7 +273,7 @@ function onItemAction(key: string, row: DictItem) {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="itemDialog" :title="editingItemId ? t('admin.dict.editItem') : t('admin.dict.createItem')" width="520px" append-to-body>
+  <el-dialog v-model="itemDialog" :title="editingItemId ? t('admin.dict.editItem') : t('admin.dict.createItem')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="itemFormRef" :model="itemForm" label-width="110px">
       <el-form-item :label="t('admin.dict.itemLabel')" prop="label" :rules="[{ required: true, message: t('common.form.required') }]">
         <el-input v-model="itemForm.label" />

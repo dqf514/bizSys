@@ -135,7 +135,7 @@ watch(
 </script>
 
 <template>
-  <div class="dashboard">
+  <div class="bs-page bs-page--scroll">
     <div class="page-header">
       <div class="welcome">
         <h2 class="welcome-title">
@@ -169,15 +169,6 @@ watch(
 </template>
 
 <style scoped>
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--bs-space-4);
-  padding: var(--bs-space-5);
-  height: 100%;
-  overflow: auto;
-}
-
 .page-header {
   display: flex;
   align-items: flex-start;

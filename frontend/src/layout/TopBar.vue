@@ -342,7 +342,7 @@ async function submitPassword() {
       </ElPopover>
     </div>
 
-    <el-dialog v-model="pwdVisible" :title="t('auth.user.changePassword')" width="420px" append-to-body>
+    <el-dialog v-model="pwdVisible" :title="t('auth.user.changePassword')" width="var(--bs-layout-dialog-xs)" append-to-body>
       <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="110px">
         <el-form-item :label="t('auth.user.oldPassword')" prop="oldPassword">
           <el-input v-model="pwdForm.oldPassword" type="password" show-password />

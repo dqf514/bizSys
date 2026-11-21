@@ -365,7 +365,7 @@ function openPaymentRegister(row: Settlement) {
     </template>
   </ListPage>
 
-  <el-dialog v-model="createVisible" :title="t('finance.settlement.create')" width="560px" append-to-body>
+  <el-dialog v-model="createVisible" :title="t('finance.settlement.create')" width="var(--bs-layout-dialog-md)" append-to-body>
     <el-form ref="createFormRef" :model="createForm" label-width="110px">
       <el-form-item
         :label="t('finance.settlement.selectTask')"
@@ -400,7 +400,7 @@ function openPaymentRegister(row: Settlement) {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="invoiceVisible" :title="t('finance.settlement.registerInvoice')" width="520px" append-to-body>
+  <el-dialog v-model="invoiceVisible" :title="t('finance.settlement.registerInvoice')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="invoiceFormRef" :model="invoiceForm" label-width="110px">
       <el-form-item
         :label="t('finance.settlement.invoiceNo')"

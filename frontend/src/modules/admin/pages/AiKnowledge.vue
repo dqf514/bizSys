@@ -175,7 +175,7 @@ async function onAttachFile(e: Event) {
   <el-dialog
     v-model="dialogVisible"
     :title="editingId ? t('ai.knowledge.editEntry') : t('ai.knowledge.addEntry')"
-    width="640px"
+    width="var(--bs-layout-dialog-md)"
     append-to-body
   >
     <el-form ref="formRef" :model="form" label-width="90px">

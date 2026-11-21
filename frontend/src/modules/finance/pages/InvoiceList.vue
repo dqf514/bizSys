@@ -298,7 +298,7 @@ async function doApply() {
     </template>
   </ListPage>
 
-  <el-dialog v-model="invoiceVisible" :title="t('finance.invoice.register')" width="520px" append-to-body>
+  <el-dialog v-model="invoiceVisible" :title="t('finance.invoice.register')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form ref="invoiceFormRef" :model="invoiceForm" label-width="110px">
       <el-form-item
         :label="t('finance.invoice.invoiceNo')"
@@ -352,7 +352,7 @@ async function doApply() {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="applyVisible" :title="t('finance.invoice.apply')" width="520px" append-to-body>
+  <el-dialog v-model="applyVisible" :title="t('finance.invoice.apply')" width="var(--bs-layout-dialog-sm)" append-to-body>
     <el-form label-width="110px">
       <el-form-item :label="t('finance.invoice.selectSettlement')" required>
         <RemoteSelect v-model="applySettlementId" :fetch="fetchPendingSettlements" />

@@ -290,7 +290,7 @@ onMounted(() => void aiCaps.ensureLoaded())
   display: flex;
   flex-direction: column;
   gap: var(--bs-space-4);
-  padding: var(--bs-space-3);
+  padding: 0;
   overflow: auto;
 }
 
@@ -354,7 +354,7 @@ onMounted(() => void aiCaps.ensureLoaded())
 }
 
 .apply-body {
-  max-width: 760px;
+  max-width: var(--bs-layout-content-narrow-max-width);
   margin: 0 auto;
   width: 100%;
 }

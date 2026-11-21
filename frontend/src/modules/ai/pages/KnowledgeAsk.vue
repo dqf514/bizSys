@@ -31,7 +31,7 @@ async function ask() {
 </script>
 
 <template>
-  <div class="kb-ask">
+  <div class="bs-page bs-page--narrow kb-ask">
     <div class="kb-ask-head">
       <h3 class="kb-title">{{ t('ai.knowledge.askTitle') }}</h3>
     </div>
@@ -91,11 +91,6 @@ async function ask() {
 </template>
 
 <style scoped>
-.kb-ask {
-  padding: var(--bs-space-5);
-  max-width: 760px;
-}
-
 .kb-title {
   margin: 0 0 var(--bs-space-3);
   font-size: var(--bs-typography-font-size-lg);

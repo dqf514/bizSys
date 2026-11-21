@@ -194,8 +194,8 @@ async function doLogout() {
 
 .portal-main {
   flex: 1;
-  padding: var(--bs-space-6);
-  max-width: 1080px;
+  padding: var(--bs-layout-content-padding);
+  max-width: var(--bs-layout-content-narrow-max-width);
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
