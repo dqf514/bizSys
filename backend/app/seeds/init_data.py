@@ -84,6 +84,15 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                     (None, "task-assign", "", "", "", "task:assign", []),
                     (None, "task-submit", "", "", "", "task:submit", []),
                     (None, "task-export", "", "", "", "task:list:export", []),
+                    # 工序流转 / 七维分配 / 全过程追溯（B5）
+                    (None, "task-process-edit", "", "", "", "task:process:edit", []),
+                    (None, "task-assignment-edit", "", "", "", "task:assignment:edit", []),
+                    (None, "task-trace-edit", "", "", "", "task:trace:edit", []),
+                    # 角色分组可见性（B5 CSV 21）：授予后仅见本组任务
+                    (None, "task-group-sim", "", "", "", "task:group:sim", []),
+                    (None, "task-group-model", "", "", "", "task:group:model", []),
+                    (None, "task-group-test", "", "", "", "task:group:test", []),
+                    (None, "task-group-outsource", "", "", "", "task:group:outsource", []),
                 ],
             ),
             (
@@ -107,7 +116,12 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "project/ProjectList",
                 "Files",
                 "project:list",
-                [],
+                [
+                    (None, "project-create", "", "", "", "project:create", []),
+                    (None, "project-edit", "", "", "", "project:edit", []),
+                    (None, "project-delete", "", "", "", "project:delete", []),
+                    (None, "project-export", "", "", "", "project:list:export", []),
+                ],
             ),
             (
                 "menu.finance",
@@ -184,7 +198,14 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "production/ScheduleBoard",
                 "Calendar",
                 "production:schedule:list",
-                [],
+                [
+                    (None, "ps-create", "", "", "", "production:schedule:create", []),
+                    (None, "ps-edit", "", "", "", "production:schedule:edit", []),
+                    (None, "ps-delete", "", "", "", "production:schedule:delete", []),
+                    (None, "ps-auto", "", "", "", "production:schedule:auto", []),
+                    (None, "ps-publish", "", "", "", "production:schedule:publish", []),
+                    (None, "ps-export", "", "", "", "production:schedule:list:export", []),
+                ],
             ),
             (
                 "menu.assetsSamples",
@@ -1063,7 +1084,7 @@ def _menu_type(children, comp: str, perm: str, path: str) -> str:
     return "menu"
 
 
-DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
+DICTS: dict[str, tuple[str, list[tuple[str, ...]]]] = {
     # code: (name, [(label, label_en, value)...])
     "customer_type": (
         "客户类型",
@@ -1104,6 +1125,56 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("模型制作", "Model Making", "model"),
             ("试验测试", "Test", "test"),
             ("委外测试", "Outsourced Test", "outsource"),
+        ],
+    ),
+    # —— B5 任务扩展字典 ——
+    "task_role_group": (
+        "任务角色分组",
+        [
+            ("仿真", "Simulation", "sim"),
+            ("模型", "Model", "model"),
+            ("试验", "Test", "test"),
+            ("委外", "Outsourced", "outsource"),
+        ],
+    ),
+    "task_process": (
+        "任务工序",
+        [
+            ("需求评审", "Requirement Review", "demand_review"),
+            ("方案设计", "Scheme Design", "design"),
+            ("油泥制作", "Clay Model Making", "clay_model"),
+            ("CNC加工", "CNC Machining", "cnc"),
+            ("表面处理", "Surface Treatment", "surface"),
+            ("模型装配", "Model Assembly", "assembly"),
+            ("风洞试验", "Wind Tunnel Test", "wind_tunnel"),
+            ("CFD仿真", "CFD Simulation", "cfd"),
+            ("检测检验", "Inspection", "inspection"),
+            ("报告编制", "Report Writing", "report"),
+            ("委外加工", "Outsourced Machining", "outsource"),
+            ("验收交付", "Acceptance & Delivery", "accept"),
+        ],
+    ),
+    "task_dimension": (
+        "七维资源维度",
+        [
+            ("人", "Personnel", "person"),
+            ("机", "Equipment", "equipment"),
+            ("料", "Material", "material"),
+            ("法", "Method", "method"),
+            ("环", "Environment", "env"),
+            ("测", "Test Condition", "test"),
+            ("安", "Safety", "safety"),
+            ("样车", "Vehicle", "vehicle"),
+        ],
+    ),
+    # 任务类型 → 默认负责人角色（extra = 角色编码）
+    "task_owner_rule": (
+        "任务默认负责人规则",
+        [
+            ("CFD仿真", "CFD Simulation", "cfd", "sim_engineer"),
+            ("风洞实验", "Wind Tunnel Test", "windtunnel", "test_engineer"),
+            ("模型加工中心", "Model Processing Center", "model", "model_engineer"),
+            ("委外测试", "Outsourced Testing", "outsource", "outsource_specialist"),
         ],
     ),
     "partner_staff_type": (
@@ -1314,6 +1385,10 @@ NUMBER_RULES = [
     ("visitor_credential", "", "VC", 4, 2, 2, 4, 1, "", "daily", "VC202611210001"),
     ("visitor_handover", "", "SH", 4, 2, 2, 4, 1, "", "daily", "SH202611210001"),
     ("visitor_nda", "", "ND", 4, 2, 2, 4, 1, "", "daily", "ND202611210001"),
+    # 生产排程与项目域单号（B5）
+    ("production_plan", "", "PL", 4, 2, 2, 4, 1, "", "daily", "PL202611210001"),
+    ("production_schedule", "", "SC", 4, 2, 2, 4, 1, "", "daily", "SC202611210001"),
+    ("project", "", "PJ", 4, 2, 2, 4, 1, "", "daily", "PJ202611210001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -1447,6 +1522,10 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "task:list:export",
         "task:sample:list",
         "task:sample:list:export",
+        # —— 任务扩展（B5）：工序流转 / 七维分配 / 全过程追溯 ——
+        "task:process:edit",
+        "task:assignment:edit",
+        "task:trace:edit",
         "finance:settlement:list",
         "finance:settlement:create",
         "finance:settlement:export",
@@ -1515,9 +1594,19 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "message:center:view",
         "ai:knowledge:view",
         "project:list",
+        "project:create",
+        "project:edit",
+        "project:delete",
+        "project:list:export",
         "asset:equipment:list",
         "asset:material:list",
         "production:schedule:list",
+        "production:schedule:create",
+        "production:schedule:edit",
+        "production:schedule:delete",
+        "production:schedule:auto",
+        "production:schedule:publish",
+        "production:schedule:list:export",
         "production:capacity:list",
         "sales:revenue:view",
         "hr:staff:list",
@@ -1548,6 +1637,34 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
     for perm, mid in perm_to_id.items():
         if perm.startswith("asset:") and perm not in granted:
             db.add(RoleMenu(role_id=biz_role.id, menu_id=mid))
+
+    # 业务分组角色（B5 CSV 21）：仿真 / 模型 / 试验 / 委外
+    # 授予 task:group:<组> 后，该角色用户只能看到并操作本组任务
+    for code, name, group in (
+        ("sim_engineer", "仿真工程师", "sim"),
+        ("model_engineer", "模型工程师", "model"),
+        ("test_engineer", "试验工程师", "test"),
+        ("outsource_specialist", "委外专员", "outsource"),
+    ):
+        grp_role = db.scalar(select(Role).where(Role.code == code, Role.deleted == 0))
+        if not grp_role:
+            grp_role = Role(code=code, name=name, data_scope="dept")
+            db.add(grp_role)
+            db.flush()
+        db.query(RoleMenu).filter(RoleMenu.role_id == grp_role.id).delete()
+        for p in (
+            "task:list",
+            "task:edit",
+            "task:assign",
+            "task:process:edit",
+            "task:assignment:edit",
+            "task:trace:edit",
+            f"task:group:{group}",
+            "report:list",
+            "workbench:view",
+        ):
+            if p in perm_to_id:
+                db.add(RoleMenu(role_id=grp_role.id, menu_id=perm_to_id[p]))
 
     # 安保员（访客与安全域 B3）：安防/合规职责与业务岗分离，整域最小权限授权
     security_role = db.scalar(select(Role).where(Role.code == "security_officer", Role.deleted == 0))
@@ -1593,6 +1710,29 @@ def _seed_admin(db: Session, super_role: Role) -> None:
         if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
             db.add(UserRole(user_id=u.id, role_id=biz_role.id))
 
+    # 演示分组角色用户（B5：仿真 / 模型 / 试验 / 委外专员）
+    for username, name, role_code in (
+        ("sim1", "仿真工程师", "sim_engineer"),
+        ("model1", "模型工程师", "model_engineer"),
+        ("test1", "试验工程师", "test_engineer"),
+        ("outsource1", "委外专员", "outsource_specialist"),
+    ):
+        grp_role = db.scalar(select(Role).where(Role.code == role_code, Role.deleted == 0))
+        if not grp_role:
+            continue
+        u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+        if not u:
+            u = User(
+                username=username,
+                password_hash=hash_password("Test@123456"),
+                name=name,
+                status="enabled",
+            )
+            db.add(u)
+            db.flush()
+        if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
+            db.add(UserRole(user_id=u.id, role_id=grp_role.id))
+
     # 演示安保员（访客与安全域 B3 专用角色）
     security_role = db.scalar(select(Role).where(Role.code == "security_officer", Role.deleted == 0)) or super_role
     u = db.scalar(select(User).where(User.username == "security1", User.deleted == 0))
@@ -1616,12 +1756,24 @@ def _seed_dicts(db: Session) -> None:
             t = DictType(code=code, name=name)
             db.add(t)
             db.flush()
-        for label, label_en, value in items:
+        for item in items:
+            # 支持 3 元组 (label, label_en, value) 与 4 元组 (label, label_en, value, extra)
+            label, label_en, value = item[0], item[1], item[2]
+            extra = item[3] if len(item) > 3 else ""
             exists = db.scalar(
                 select(DictItem).where(DictItem.dict_type_code == code, DictItem.value == value, DictItem.deleted == 0)
             )
             if not exists:
-                db.add(DictItem(dict_type_code=code, label=label, label_en=label_en, value=value, sort=0))
+                db.add(
+                    DictItem(
+                        dict_type_code=code,
+                        label=label,
+                        label_en=label_en,
+                        value=value,
+                        extra=extra,
+                        sort=0,
+                    )
+                )
 
 
 def _seed_number_rules(db: Session) -> None:

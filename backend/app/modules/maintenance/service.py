@@ -70,17 +70,22 @@ from app.modules.procurement.models import (
     TenderProject,
     TenderRegistration,
 )
+from app.modules.production.models import ProdPlan, ProdSchedule
+from app.modules.project.models import Project, ProjectTask
 from app.modules.report.models import Report, ReportFile
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
 from app.modules.task.models import (
     Task,
+    TaskAssignment,
     TaskEntrust,
     TaskEntrustItem,
     TaskItem,
+    TaskProcess,
     TaskProgressLog,
     TaskSample,
     TaskSampleFlow,
+    TaskTrace,
 )
 from app.modules.visitor.models import (
     VisitorAccessLog,
@@ -106,6 +111,15 @@ DEFAULT_RETENTION = 7
 
 # 清空表清单（子表在前，注意外键顺序）
 _PURGE_TABLES = [
+    # 生产排程 / 项目与甘特域（B5，子表在前）
+    ProdSchedule,
+    ProdPlan,
+    ProjectTask,
+    Project,
+    # 任务扩展（B5）：工序流转 / 七维分配 / 全过程追溯
+    TaskTrace,
+    TaskAssignment,
+    TaskProcess,
     # 访客与安全域（子表在前）：合规审计日志 vis_access_log 一并清空
     VisitorAlert,
     VisitorSampleHandover,

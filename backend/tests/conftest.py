@@ -71,6 +71,24 @@ _ensure_columns(
     },
 )
 
+# B5 补充：任务字段扩展（task_task）
+_ensure_columns(
+    "task_task",
+    {
+        "plan_start_date": "plan_start_date DATE NULL COMMENT '计划开始日期'",
+        "duration_hours": "duration_hours NUMERIC(10,2) NULL DEFAULT 8 COMMENT '预计工时（小时）'",
+        "progress": "progress INT NULL DEFAULT 0 COMMENT '进度百分比 0-100'",
+        "priority": "priority INT NULL DEFAULT 5 COMMENT '优先级 1(最高)~9(最低)'",
+        "role_group": "role_group VARCHAR(32) NULL DEFAULT '' COMMENT '角色分组 sim/model/test/outsource'",
+        "process_stage": "process_stage VARCHAR(32) NULL DEFAULT '' COMMENT '当前工序编码'",
+        "mesh_count": "mesh_count INT NULL COMMENT '网格数（万单元）'",
+        "solver": "solver VARCHAR(32) NULL DEFAULT '' COMMENT '求解器'",
+        "compute_resource": "compute_resource VARCHAR(64) NULL DEFAULT '' COMMENT '算力资源池'",
+        "compute_cores": "compute_cores INT NULL DEFAULT 0 COMMENT '核数'",
+        "compute_nodes": "compute_nodes INT NULL DEFAULT 0 COMMENT '节点数'",
+    },
+)
+
 from app.seeds import init_data as seed  # noqa: E402
 
 _seed_session = SessionLocal()

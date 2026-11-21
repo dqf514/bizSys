@@ -107,11 +107,14 @@ from app.modules.oa.router import router as oa_router  # noqa: E402  导入即�
 from app.modules.portal.router import router as portal_router  # noqa: E402  合作方门户（独立认证）
 from app.modules.procurement.router import router as procurement_router  # noqa: E402  导入即订阅采购审批事件回写
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
+from app.modules.production.router import router as production_router  # noqa: E402  生产排程（B5）
+from app.modules.project.router import router as project_router  # noqa: E402  项目与甘特（B5）
 from app.modules.report.router import router as report_router  # noqa: E402
 from app.modules.sales.router import router as sales_router  # noqa: E402  导入即订阅报价审批事件回写
 from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
 from app.modules.task.entrust_router import router as task_entrust_router  # noqa: E402  在线任务委托（B2）
+from app.modules.task.process_router import router as task_process_router  # noqa: E402  工序/分配/追溯（B5）
 from app.modules.task.router import router as task_router  # noqa: E402
 from app.modules.visitor.router import router as visitor_router  # noqa: E402  访客与安全（B3）
 
@@ -125,6 +128,7 @@ app.include_router(crm_router, prefix="/api/v1")
 app.include_router(crm_self_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(task_router, prefix="/api/v1")
+app.include_router(task_process_router, prefix="/api/v1")
 app.include_router(task_entrust_router, prefix="/api/v1")
 app.include_router(visitor_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
@@ -140,6 +144,8 @@ app.include_router(asset_router, prefix="/api/v1")
 app.include_router(asset_bom_router, prefix="/api/v1")
 app.include_router(asset_finance_router, prefix="/api/v1")
 app.include_router(portal_router, prefix="/api/v1")
+app.include_router(production_router, prefix="/api/v1")
+app.include_router(project_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 app.include_router(maintenance_router, prefix="/api/v1")
 
