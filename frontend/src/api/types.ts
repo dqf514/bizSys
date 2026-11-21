@@ -1791,3 +1791,369 @@ export interface KnowledgeAskResult {
   entries: KnowledgeEntry[]
   degraded: boolean
 }
+
+/* ---------- 库存与资产（asset 域） ---------- */
+
+/** 通用基类：所有 ast_* 单据共有。 */
+export interface AssetBase {
+  id: number
+  version: number | null
+  createTime?: string
+  updateTime?: string
+}
+
+export interface AssetWarehouse extends AssetBase {
+  code: string
+  name: string
+  deptId?: number | null
+  deptName: string
+  address: string
+  managerId?: number | null
+  managerName: string
+  capacity?: number | null
+  locationCount: number
+  qtyOnHand: number
+  stockAmount: number
+  phone: string
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetLocation extends AssetBase {
+  warehouseId: number | null
+  code: string
+  name: string
+  area: string
+  capacity: number | null
+  used: number
+  qtyOnHand: number
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetLocationOption {
+  id: number
+  warehouseId: number
+  warehouseName: string
+  code: string
+  name: string
+  area: string
+}
+
+export interface AssetWarehouseStats {
+  warehouseCount: number
+  locationCount: number
+  batchCount: number
+  stockAmount: number
+  stockMap: Record<string, number>
+}
+
+export interface AssetItem extends AssetBase {
+  code: string
+  name: string
+  spec: string
+  unit: string
+  category: string
+  categoryText: string
+  unitPrice: number | null
+  safetyStock: number
+  maxStock: number
+  defaultWarehouseId?: number | null
+  defaultLocationId?: number | null
+  supplierId?: number | null
+  supplierName: string
+  manufacturer: string
+  deptId?: number | null
+  deptName: string
+  qtyOnHand: number
+  lowStock: boolean
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetItemOption {
+  id: number
+  code: string
+  name: string
+  spec: string
+  unit: string
+  unitPrice: number
+}
+
+export interface AssetPurchaseOrderItem {
+  id?: number
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  spec: string
+  unit: string
+  quantity: number
+  price: number | null
+  remark: string
+}
+
+export interface AssetPurchaseOrder extends AssetBase {
+  orderNo: string
+  title: string
+  supplierId: number | null
+  supplierName: string
+  deptId?: number | null
+  deptName: string
+  orderDate?: string | null
+  arriveDate?: string | null
+  totalAmount: number | null
+  handlerId?: number | null
+  handlerName: string
+  remark: string
+  status: string
+  statusText: string
+  items: AssetPurchaseOrderItem[]
+}
+
+export interface AssetReceiptItem {
+  id?: number
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  spec: string
+  unit: string
+  quantity: number
+  qualifiedQty: number
+  locationId?: number | null
+  locationCode: string
+  price: number | null
+  remark: string
+}
+
+export interface AssetReceipt extends AssetBase {
+  receiptNo: string
+  orderId?: number | null
+  orderNo: string
+  warehouseId?: number | null
+  warehouseName: string
+  supplierId?: number | null
+  supplierName: string
+  arriveDate?: string | null
+  totalQty: number
+  qualifiedQty: number
+  inspectorId?: number | null
+  inspectorName: string
+  remark: string
+  status: string
+  statusText: string
+  items: AssetReceiptItem[]
+}
+
+export interface AssetLedger extends AssetBase {
+  direction: string
+  directionText: string
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  unit: string
+  warehouseId?: number | null
+  warehouseName: string
+  locationId?: number | null
+  locationCode: string
+  quantity: number
+  unitPrice: number | null
+  amount: number
+  reason: string
+  reasonText: string
+  bizType: string
+  bizId?: number | null
+  bizNo: string
+  operatorId?: number | null
+  operatorName: string
+  deptId?: number | null
+  deptName: string
+  happenAt?: string | null
+  remark: string
+  editable: boolean
+}
+
+export interface AssetStockCountItem {
+  id?: number
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  unit: string
+  locationId?: number | null
+  locationCode: string
+  bookQty: number
+  actualQty: number
+  diffQty: number
+  price: number | null
+  diffAmount: number
+  reason: string
+}
+
+export interface AssetStockCount extends AssetBase {
+  countNo: string
+  warehouseId?: number | null
+  warehouseName: string
+  countDate?: string | null
+  totalQty: number
+  diffCount: number
+  operatorId?: number | null
+  operatorName: string
+  remark: string
+  status: string
+  statusText: string
+  items: AssetStockCountItem[]
+}
+
+export interface AssetPrototype extends AssetBase {
+  code: string
+  name: string
+  kind: string
+  kindText: string
+  model: string
+  vin: string
+  deptId?: number | null
+  deptName: string
+  locationId?: number | null
+  locationName: string
+  purchaseDate?: string | null
+  value: number | null
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetPrototypeOption {
+  id: number
+  code: string
+  name: string
+  model: string
+  status: string
+}
+
+export interface AssetPrototypeLoan extends AssetBase {
+  loanNo: string
+  prototypeId: number | null
+  prototypeCode: string
+  prototypeName: string
+  borrowerId?: number | null
+  borrowerName: string
+  deptId?: number | null
+  deptName: string
+  loanDate?: string | null
+  dueDate?: string | null
+  returnDate?: string | null
+  purpose: string
+  handlerId?: number | null
+  handlerName: string
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetFixedAsset extends AssetBase {
+  assetNo: string
+  name: string
+  category: string
+  categoryText: string
+  model: string
+  spec: string
+  deptId?: number | null
+  deptName: string
+  custodianId?: number | null
+  custodianName: string
+  location: string
+  purchaseDate?: string | null
+  originalValue: number | null
+  salvageRate: number
+  usefulLifeMonths: number
+  accumDepreciation: number
+  netValue: number
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetDepreciation extends AssetBase {
+  assetId: number
+  assetNo: string
+  assetName: string
+  period: string
+  amount: number
+  accumAmount: number
+  netValue: number
+  method: string
+  methodText: string
+  operatorId?: number | null
+  operatorName: string
+  happenAt?: string | null
+  remark: string
+}
+
+export interface AssetDisposal extends AssetBase {
+  disposalNo: string
+  assetId: number | null
+  assetNo: string
+  assetName: string
+  disposalType: string
+  disposalTypeText: string
+  applyDate?: string | null
+  originalValue: number | null
+  netValue: number | null
+  disposalAmount: number | null
+  reason: string
+  handlerId?: number | null
+  handlerName: string
+  approverId?: number | null
+  approverName: string
+  approveAt?: string | null
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetTool extends AssetBase {
+  toolNo: string
+  name: string
+  spec: string
+  model: string
+  category: string
+  categoryText: string
+  unit: string
+  warehouseId?: number | null
+  warehouseName: string
+  deptId?: number | null
+  deptName: string
+  purchaseDate?: string | null
+  value: number | null
+  remark: string
+  status: string
+  statusText: string
+}
+
+export interface AssetToolOption {
+  id: number
+  toolNo: string
+  name: string
+  spec: string
+  status: string
+}
+
+export interface AssetToolLoan extends AssetBase {
+  loanNo: string
+  toolId: number | null
+  toolNo: string
+  toolName: string
+  borrowerId?: number | null
+  borrowerName: string
+  deptId?: number | null
+  deptName: string
+  loanDate?: string | null
+  dueDate?: string | null
+  returnDate?: string | null
+  purpose: string
+  remark: string
+  status: string
+  statusText: string
+}

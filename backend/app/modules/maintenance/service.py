@@ -3,7 +3,8 @@
 清空范围（显式表清单，失败整体回滚）：
 - 业务数据：合同+附件、任务+明细+样品+样品流转、报告+文件、结算/开票/收款、客户、OA 表单+实例、
   采购申请+明细、采购合同、出入库单+明细、招标项目+报名+投标+评标、门户合作方账号、工时填报、
-  报价单+明细+发送留痕+报价模板；
+  报价单+明细+发送留痕+报价模板、资产与库存域（仓库/库位/物料/采购订单/验收单/流水/盘点/样件/
+  固定资产/折旧/处置/工具）、知识库条目、员工紧急联系人与银行账号；
 - 审批运行数据：实例/待办/时间线/抄送/已读水位；
 - 系统运行数据：通知、审计日志、登录日志、编号序列（归零）；
 - 用户：除 username=admin 外的全部用户及其角色绑定/任职/偏好；
@@ -21,7 +22,7 @@ from app.core.config import settings
 from app.core.exceptions import BizException
 from app.core.security import verify_password
 from app.modules.admin.models import AuditLog, LoginLog, Notify, NumberSeq, UserDept, UserPref, UserRole
-from app.modules.aicenter.models import AiUsageLog
+from app.modules.aicenter.models import AiUsageLog, KnowledgeEntry
 from app.modules.approval.models import (
     ApprovalCc,
     ApprovalInstance,
@@ -29,10 +30,29 @@ from app.modules.approval.models import (
     ApprovalTask,
     ApprovalViewState,
 )
-from app.modules.auth.models import User
+from app.modules.asset.models import (
+    Depreciation,
+    Disposal,
+    FixedAsset,
+    Item,
+    Location,
+    Prototype,
+    PrototypeLoan,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    Receipt,
+    ReceiptItem,
+    StockCount,
+    StockCountItem,
+    StockLedger,
+    Tool,
+    ToolLoan,
+    Warehouse,
+)
+from app.modules.auth.models import User, UserBankAccount, UserEmergencyContact
 from app.modules.contract.models import Contract, ContractAttachment
 from app.modules.crm.models import Customer, PartnerAttachment, PartnerContact
-from app.modules.finance.models import Invoice, Payment, Settlement
+from app.modules.finance.models import Invoice, Payment, Settlement, SettlementConfirmRecord
 from app.modules.hr.models import HrTimesheet
 from app.modules.maintenance import backup as backup_svc
 from app.modules.oa.models import OaForm, OaInstance
@@ -74,6 +94,7 @@ _PURGE_TABLES = [
     OaForm,
     HrTimesheet,
     AiUsageLog,
+    KnowledgeEntry,
     SalesQuoteSendLog,
     SalesQuotationItem,
     SalesQuotation,
@@ -97,9 +118,29 @@ _PURGE_TABLES = [
     Task,
     ReportFile,
     Report,
+    SettlementConfirmRecord,
     Invoice,
     Payment,
     Settlement,
+    # 资产与库存域（子表在前）：编号序列与业务数据必须一起清空，
+    # 否则计数器归零后会与存量单号撞唯一键
+    StockLedger,
+    PurchaseOrderItem,
+    ReceiptItem,
+    StockCountItem,
+    Depreciation,
+    Location,
+    PurchaseOrder,
+    Receipt,
+    StockCount,
+    PrototypeLoan,
+    Prototype,
+    Disposal,
+    ToolLoan,
+    Tool,
+    FixedAsset,
+    Item,
+    Warehouse,
     PartnerAttachment,
     PartnerContact,
     Customer,
@@ -107,6 +148,8 @@ _PURGE_TABLES = [
     AuditLog,
     LoginLog,
     NumberSeq,
+    UserEmergencyContact,
+    UserBankAccount,
 ]
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）

@@ -1,14 +1,15 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from app.core.config import settings
 from app.core.db import Base
 
 # 导入全部含表模型，保证 autogenerate 可见
 from app.modules.admin import models as admin_models  # noqa: F401
 from app.modules.approval import models as approval_models  # noqa: F401
+from app.modules.asset import models as asset_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.contract import models as contract_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401

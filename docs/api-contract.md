@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -90,8 +90,13 @@
     `{sent,mode:"real"|"debug"}`（非生产调试通道回显 debugCode；审计 settings_messaging_test）
   - `POST /admin/settings/logo`（admin:setting:edit，multipart file；限 png/jpg/svg/webp ≤2MB）→ `{logoUrl}`
 - 免登录公共接口：`GET /public/branding` → `{siteName,logoUrl,wecomEnabled}` · `GET /public/logo` → Logo 文件流
-- 站内通知（登录即可，读自己的）：`GET /admin/notifies?status=unread&page&size`
-  `GET /admin/notifies/unread-count` → `{count}` · `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
+- 站内通知 / 消息中心（登录即可，读自己的）：
+  - `GET /admin/notifies?page&size&q&filters[biz_type]&status=unread&sort=create_time:desc`
+    → `{items:[{id,title,content,bizType,bizId,link,readFlag,createTime}],total,page,size}`
+    （`q` 匹配标题/正文；`filters[biz_type]` 业务分类；`status=unread` 只看未读；默认按创建时间倒序）
+  - `GET /admin/notifies/counts` → `{all,unread,byBizType:{biz_type:条数}}`（消息中心页签计数，`all` 最左）
+  - `GET /admin/notifies/unread-count` → `{count}`
+  - `POST /admin/notifies/{id}/read` · `POST /admin/notifies/read-all`
 
 ### AI 中心 /admin/ai（统一网关 + 用量监控 + 功能开关/配额；详见 docs/ai-center.md）
 - 能力探测（登录即可，前端据此举入口显隐/提示）：`GET /ai/capabilities` →
@@ -516,22 +521,167 @@
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
 
-## 导航结构（批次A 定形 / 批次E 归一 / HR 批次扩展）
-- 顶层：工作台（Workbench）→ 业务系统（BizSystem 目录）→ OA系统（OaSystem）→ 人事行政（HrSystem）→ 销售系统（SalesSystem）→ 系统管理（System）；
-  流程中心（ApprovalCenter）visible=0 隐藏保留（approval:view 权限载体），/approval 走前端静态路由深链。
-  前端侧栏将顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）。
-- 系统管理区尾部：AI 中心（AiCenter 目录）→ AI 用量监控（AiUsage，`/admin/ai/usage`，admin:ai:usage）/
-  AI 设置（AiSettings，`/admin/ai/settings`，admin:ai:settings）；连接参数仍在 系统设置 页 AI 卡片。
-- 人事行政子级：工时填报（TimesheetFill，`/hr/timesheets`，填报+我的工时双视图）/ 工时统计（TimesheetStats，`/hr/timesheet-stats`，hr:timesheet:stats）。
-- 销售系统子级：报价管理（Quotations，`/sales/quotations`）/ 报价模板（QuoteTemplates，`/sales/templates`）。
-- 业务系统子级顺序：往来单位（Customers，`/crm/customers`，页面级视图：往来单位/合作方账号）/ 合同管理 / 任务管理 / 报告管理 /
-  样品管理（Samples，`/task/samples`，componentKey `task/SampleList`）/ 采购管理（Procurement，子级
-  采购申请→采购合同→出入库→招标管理；合作方账号 PartnerAccounts visible=0 隐藏保留作权限载体）/
-  财务管理（子级 开票申请→结算信息→到账信息 不变）。
-- 存量库结构归并靠 `backend/scripts/migrate_nav_batch_e.py`（幂等：name 主键 + path 兜底，
-  去重同名目录、归位异名同 path 残留、parent_id/sort 归一，HR 区已纳入 TARGET_TREE；
-  批次入口 `backend/scripts/migrate_nav_hr.py` 直接委托批次E）；种子只保证新库直接产出目标结构
-  （_seed_menus 不回写 parent_id/sort，保留管理员结构调整）。
+## 资产与库存 /asset（进出库管理 + 资产财务）
+
+> 两个 router 同前缀 `/asset`：`router.py`（进出库管理）、`finance_router.py`（资产财务）。
+> **统一框架**：不新建组织/公司/权限表 —— 部门取 `sys_dept`，供应公司取 `crm_customer`
+> （`partner_type ∈ supplier/both` 且 `status=enabled`，否则 97006），权限码由 `sys_menu.permission` 承载。
+
+- 错误码（97xxx 资产域）：
+  97001 状态不允许该操作 · 97002 资产/单据不存在 · 97003 库存不足 · 97004 编码重复 ·
+  97005 仓库无效 · 97006 供应公司无效 · 97007 借用未归还 · 97008 库位无效
+- 单号规则（`app/services/numbering`，日周期）：`PO` 采购订单 · `YS` 验收单 · `PD` 盘点单 ·
+  `LJ` 样件借出 · `LY` 工具领用 · `CZ` 处置单；计数器落后于存量数据时自动跳过已占用号。
+- 所有列表统一 `apply_list_filters` 协议（`q` / `status` / `filters[k]` / `range[k]` / `sort=`），
+  配 `…/counts` 页签计数接口；导出统一 `…/export`（xlsx 流）。
+
+### 仓储与库位
+- `GET /asset/warehouses` 分页：`{id,code,name,deptId,deptName,address,managerId,managerName,capacity,locationCount,qtyOnHand,stockAmount,phone,remark,status,statusText,version,createTime,updateTime}`
+  检索：`q`（code/name/address/manager_name）、`status`、`filters[dept_id]`
+- `GET /asset/warehouses/counts` → `{enabled,disabled,all}`
+- `GET /asset/warehouses/stats` → `{warehouseCount,locationCount,batchCount,stockAmount,stockMap}`（页头统计卡）
+- `GET /asset/warehouses/{id}` · `POST /asset/warehouses`（201）· `PUT /asset/warehouses/{id}` · `DELETE /asset/warehouses/{id}`
+  - 入参 `{code*,name*,deptId?,address?,managerId?,managerName?,capacity?,phone?,remark?,status?,version?}`；
+    `version` 为乐观锁（不匹配 10003）；编码全库重复 97004
+  - 删除前置：仓库下仍有库位 97001；删除后详情 10002
+- `GET /asset/locations`（`filters[warehouse_id]`）· `GET /asset/locations/all`（下拉全量）
+  · `POST` / `PUT /asset/locations/{id}` / `DELETE /asset/locations/{id}`
+  - 入参 `{warehouseId*,code*,name?,area?,capacity?,remark?,status?,version?}`；同仓编码重复 97004
+  - 库位有库存时不可删除 97001；仓库有库位时不可删除 97001
+- `GET /asset/locations/all` / `GET /asset/items/all` / `GET /asset/prototypes/all` / `GET /asset/tools/all`：下拉选项，不分页
+
+### 库存物料
+- `GET /asset/items` 分页：`{id,code,name,spec,unit,category,categoryText,unitPrice,safetyStock,maxStock,defaultWarehouseId,defaultLocationId,supplierId,supplierName,manufacturer,deptId,deptName,qtyOnHand,lowStock,remark,status,statusText,version,createTime,updateTime}`
+  检索：`q`（code/name/spec/supplier_name）、`status`、`filters[category]`、`filters[supplier_id]`、`filters[dept_id]`、`filters[default_warehouse_id]`
+  （`filters[low_stock]=1` 为**分页后过滤**：`lowStock = 安全库存 > 0 且现存量 < 安全库存`）
+- `GET /asset/items/counts` → `{enabled,disabled,all}`
+- `GET /asset/items/{id}` · `POST /asset/items`（201）· `PUT /asset/items/{id}` · `DELETE /asset/items/{id}`
+  - 入参 `{code*,name*,spec?,unit?,category?,unitPrice?,safetyStock?,maxStock?,defaultWarehouseId?,defaultLocationId?,supplierId?,manufacturer?,deptId?,remark?,status?,version?}`
+  - 编码重复 97004；`supplierId` 必须是启用的 supplier/both 往来单位，否则 97006
+  - 删除前置：物料仍有在库数量（结存 ≠ 0）97001
+
+### 采购订单（状态机 draft → confirmed → closed）
+- `GET /asset/purchase-orders` 分页：`{id,orderNo,title,supplierId,supplierName,deptId,deptName,orderDate,arriveDate,totalAmount,handlerId,handlerName,remark,status,statusText,items[],version,createTime,updateTime}`
+- `GET /asset/purchase-orders/counts` → `{draft,confirmed,closed,all}`
+- `GET /asset/purchase-orders/{id}`（含 `items[]` 与该单的 `receipts[]`）· `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{title*,supplierId*,deptId?,orderDate?,arriveDate?,totalAmount?,handlerId?,handlerName?,remark?,items:[{itemId?,itemCode?,itemName*,spec?,unit?,quantity*,price?,remark?}],version?}`
+  - `orderNo` 走 PO 规则；仅 `draft` 可编辑/删除，否则 97001；`closed` 不可再确认
+- `POST /asset/purchase-orders/{id}/confirm` · `POST /asset/purchase-orders/{id}/close`（状态推进）
+- `POST /asset/purchase-orders/export`
+
+### 验收单（出入库入口）
+- `GET /asset/receipts` 分页：`{id,receiptNo,orderId,orderNo,warehouseId,warehouseName,supplierId,supplierName,arriveDate,totalQty,qualifiedQty,inspectorId,inspectorName,remark,status,statusText,items[],version,createTime,updateTime}`
+- `GET /asset/receipts/counts` → `{draft,accepted,partial,rejected,all}`
+- `GET /asset/receipts/{id}`（含 `items[]`）· `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{orderId?,warehouseId?,supplierId?,arriveDate?,inspectorId?,inspectorName?,remark?,items:[{itemId?,itemCode?,itemName*,spec?,unit?,quantity*,qualifiedQty*,locationId?,price?,remark?}],version?}`
+  - `receiptNo` 走 YS 规则；`qualifiedQty ≤ quantity`；来源采购订单未确认（draft）不可验收 97001；
+    对 `confirmed` 的订单建单即置 `closed`；验收（accept）后不可再改/删 97001
+- `POST /asset/receipts/{id}/accept`：按合格数量写入库存流水（`direction=in`, `biz_type=receipt`）+ 回写库位在库数量；
+  单据状态按合格比例落 `accepted`（全合格）/ `partial`（部分合格）/ `rejected`（无合格）
+- `POST /asset/receipts/export`
+
+### 库存流水（台账）
+- `GET /asset/ledger` 分页：`{id,direction,directionText,itemId,itemCode,itemName,unit,warehouseId,warehouseName,locationId,locationCode,quantity,unitPrice,amount,reason,reasonText,bizType,bizId,bizNo,operatorId,operatorName,deptId,deptName,happenAt,remark,editable,version,createTime}`
+  检索：`q`（bizNo/itemName）、`filters[biz_type]`、`filters[item_id]`、`filters[warehouse_id]`、`filters[direction]`、`range[happen_at]`
+  （`editable=false` 表示系统流水（验收/盘点/借出写入），只读）
+- `GET /asset/ledger/counts` → `{all,in,out}`
+- `GET /asset/ledger/{id}` · `POST`（201，手工出入库）· `PUT` · `DELETE`
+  - 入参 `{direction*(in|out),itemId*,warehouseId?,locationId?,quantity*,unitPrice?,reason?,deptId?,happenAt?,remark?,version?}`
+  - 出库超库存 97003；**系统流水只读**（`biz_type ≠ manual`，由验收/盘点/借出写入），编辑/删除 97001；
+    手工流水（`biz_type=manual`）可改可删并回滚结存
+- `POST /asset/ledger/export`
+
+### 库存盘点
+- `GET /asset/counts` 分页：`{id,countNo,warehouseId,warehouseName,countDate,totalQty,diffCount,operatorId,operatorName,remark,status,statusText,items[],version,createTime}`
+  （明细行含 `bookQty/actualQty/diffQty/diffAmount`）
+- `GET /asset/counts/counts` → `{draft,counting,finished,all}`
+- `GET /asset/counts/{id}`（含 `items[]`）· `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{warehouseId?,countDate?,operatorId?,operatorName?,remark?,items:[{itemId?,itemCode?,itemName*,unit?,locationId?,bookQty?,actualQty?,reason?}],version?}`
+  - `countNo` 走 PD 规则；`draft → counting（start）→ finished（finish）`；
+    完成后按盘盈/盘亏写流水（`in`/`out`）并更新结存；`finished` 不可删 97001
+- `POST /asset/counts/export`
+
+### 样件与借出
+- `GET /asset/prototypes` 分页：`{id,code,name,kind,kindText,model,vin,deptId,deptName,locationId,locationName,purchaseDate,value,remark,status,statusText,version,createTime,updateTime}`
+- `GET /asset/prototypes/counts` → `{all,in_stock,loaned,maintenance,scrapped}`
+- `GET /asset/prototypes/{id}` · `POST` · `PUT` · `DELETE`（入参 `{code*,name*,kind?,model?,vin?,deptId?,locationId?,purchaseDate?,value?,remark?,status?,version?}`；编码重复 97004）
+- `GET /asset/prototype-loans` 分页：`{id,loanNo,prototypeId,prototypeCode,prototypeName,borrowerId,borrowerName,deptId,deptName,loanDate,dueDate,returnDate,purpose,handlerId,handlerName,remark,status,statusText,version,createTime,updateTime}`
+  检索：`q`（loanNo/prototypeName）、`status`、`filters[prototype_id]`、`range[due_date]`（逾期口径）
+  （借出单状态 `borrowed`/`returned`；逾期由 `statusText` 标注）
+- `GET /asset/prototype-loans/counts` → `{borrowed,returned,overdue,all}`
+- `GET /asset/prototype-loans/{id}` · `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{prototypeId*,borrowerId?,borrowerName?,deptId?,loanDate?,dueDate?,purpose?,handlerId?,handlerName?,remark?,version?}`
+  - `loanNo` 走 LJ 规则；借出后样件状态 `in_stock → loaned`；归还后 `loaned → in_stock`
+- `POST /asset/prototype-loans/{id}/return` `{returnDate?,remark?}`；未归还时删样件 97007，归还后借出单不可改/删 97001
+- `POST /asset/prototypes/export` · `POST /asset/prototype-loans/export`
+
+### 固定资产与折旧
+- `GET /asset/assets` 分页：`{id,assetNo,name,category,categoryText,model,spec,deptId,deptName,custodianId,custodianName,location,purchaseDate,originalValue,salvageRate,usefulLifeMonths,accumDepreciation,netValue,remark,status,statusText,version,createTime,updateTime}`
+- `GET /asset/assets/counts` → `{in_use,idle,repaired,scrapped,all}`
+- `GET /asset/assets/{id}`（含 `depreciations[]` 与 `disposals[]`）· `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{assetNo*,name*,category?,model?,spec?,deptId?,custodianId?,custodianName?,location?,purchaseDate?,originalValue?,salvageRate?,usefulLifeMonths?,remark?,status?,version?}`
+  - 资产编号重复 97004；不存在 97002；`netValue = 原值 − 累计折旧 − 残值`
+- `POST /asset/assets/{id}/depreciate` `{period*(YYYY-MM),method?(straight_line|double_declining|sum_of_years),remark?}`
+  - 按折旧方法计算本期折旧并落一条折旧记录（同一期间重复计提 97001）；已报废资产不可计提 97001
+- `GET /asset/depreciations`（`filters[asset_id]`）· `POST /asset/depreciations`（手工折旧）· `PUT/DELETE /asset/depreciations/{id}`
+  - 入参 `{assetId*,period*,amount*,method?,remark?,version?}`
+- `POST /asset/assets/export` · `POST /asset/depreciations/export`
+
+### 处置与报废
+- `GET /asset/disposals` 分页：`{id,disposalNo,assetId,assetNo,assetName,disposalType,disposalTypeText,applyDate,originalValue,netValue,disposalAmount,reason,handlerId,handlerName,approverId,approverName,approveAt,remark,status,statusText,version,createTime,updateTime}`
+- `GET /asset/disposals/counts` → `{draft,approved,done,rejected,all}`
+- `GET /asset/disposals/{id}` · `POST`（201）· `PUT` · `DELETE`
+  - 入参 `{assetId*,disposalType?(scrap|sell|donate|transfer),applyDate?,disposalAmount?,reason?,handlerId?,handlerName?,remark?,version?}`
+  - `disposalNo` 走 CZ 规则；同一资产存在未完结处置单 97001
+- `POST /asset/disposals/{id}/approve` · `POST /asset/disposals/{id}/complete`
+  - 状态机 `draft → approved → done`；`done` 时资产置 `scrapped`（scrap）或 `idle`（transfer）
+- `POST /asset/disposals/export`
+
+### 工具与领用
+- `GET /asset/tools` 分页：`{id,toolNo,name,spec,model,category,unit,warehouseId,warehouseName,deptId,deptName,purchaseDate,value,remark,status,statusText,version,createTime,updateTime}`
+- `GET /asset/tools/counts` → `{in_stock,loaned,maintenance,scrapped,all}`
+- `GET /asset/tools/{id}` · `POST` · `PUT` · `DELETE`（入参 `{toolNo*,name*,spec?,model?,category?,unit?,warehouseId?,deptId?,purchaseDate?,value?,remark?,status?,version?}`；编号重复 97004）
+- `GET /asset/tool-loans` 分页 · `GET /asset/tool-loans/counts` → `{borrowed,returned,overdue,all}`
+  · `GET /asset/tool-loans/{id}` · `POST`（201）· `PUT` · `DELETE` · `POST /asset/tool-loans/{id}/return`
+  - 入参 `{toolId*,borrowerId?,borrowerName?,deptId?,loanDate?,dueDate?,purpose?,remark?,version?}`；`loanNo` 走 LY 规则
+- `POST /asset/tools/export` · `POST /asset/tool-loans/export`
+
+### 权限码与菜单
+- 权限码：`asset:warehouse:*` `asset:location:*` `asset:item:*` `asset:purchaseOrder:*` `asset:receipt:*`
+  `asset:ledger:*` `asset:count:*` `asset:prototype:*` `asset:prototypeLoan:*` `asset:asset:*`
+  `asset:depreciation:*` `asset:disposal:*` `asset:tool:*` `asset:toolLoan:*`
+  （`:list` `:create` `:edit` `:delete` `:list:export`，另有 `asset:receipt:accept` `asset:prototypeLoan:return`
+  `asset:toolLoan:return` `asset:disposal:approve` `asset:disposal:complete` `asset:asset:depreciate` 等动作点；
+  种子对 `biz_user` 角色按 `asset:` 前缀批量授权）
+- 菜单：库存与资产（StockAsset 目录）→ 进出库管理（StockManagement：采购订单 / 验收单 / 仓库 / 库存物料 /
+  库存流水 / 库存盘点 / 样件管理 / 样件借出）· 资产财务（AssetFinance：固定资产 / 处置报废 / 工具领用）
+
+## 导航结构（工作台 + 8 业务分区 + 底部系统管理）
+- 顶层（顺序即侧栏顺序）：工作台（Workbench）→ 业务中心（BizSystem）→ 生产资源（Resources）→
+  库存与资产（StockAsset）→ 销售中心（SalesSystem）→ 经营与协同（Collaboration）→ 行政人事（HrSystem）→
+  流程与办公（OaSystem）→ 访客与安全（VisitorSafety）→ 系统管理（System，固定在侧栏底部）。
+  前端侧栏把顶级目录渲染为「区」（工作台钉顶部，各区带标题，无权限的区整区隐藏）；
+  流程中心（ApprovalCenter）已解除隐藏，作为 OaSystem 子项（`/approval` 仍可深链）。
+- 业务中心（BizSystem）：往来单位 Customers / 合同管理 Contracts / 任务管理 Tasks / 报告管理 Reports /
+  项目管理 Projects / 财务管理 Finance（开票申请 → 结算信息 → 到账信息）。
+- 生产资源（Resources）：设备资产 Equipment / 排程甘特 ProductionSchedules /
+  样品与物料 AssetsSamples（样品 Samples · 物料 Materials）/ 采购管理 Procurement / 产能看板 ProductionCapacity。
+- 库存与资产（StockAsset）：进出库管理 StockManagement（采购订单 PurchaseOrders → 验收单 Receipts →
+  仓库 Warehouses → 库存物料 InventoryItems → 库存流水 StockLedger → 库存盘点 StockCounts →
+  样件管理 Prototypes → 样件借出 PrototypeLoans）· 资产财务 AssetFinance（固定资产 FixedAssets →
+  处置报废 Disposals → 工具领用 ToolLoans）。
+- 销售中心（SalesSystem）：报价管理 Quotations / 报价模板 QuoteTemplates / 营收分析 SalesRevenue。
+- 经营与协同（Collaboration）：客户自助 PortalHome / 在线委托 PortalOrders / 知识库 KnowledgeBase。
+- 行政人事（HrSystem）：工时填报 TimesheetFill / 工时统计 TimesheetStats / 人员档案 Staff。
+- 流程与办公（OaSystem）：新申请 OaApply / 我的申请 OaMy / 相关申请 OaRelated / 申请统计 OaStats /
+  作业申请 WorkApply / 流程中心 ApprovalCenter / 消息中心 Messages。
+- 访客与安全（VisitorSafety）：访客登记 Visits / 区域与权限 VisitorZones / 保密协议 VisitorNda / 安全巡检 SafetyInspections。
+- 系统管理（System）：组织与权限 SysOrg / 基础数据 SysData / 流程管理 OaAdmin / 运维中心 SysOps / AI 中心 AiCenter
+  （AI 用量监控 AiUsage `admin:ai:usage` / AI 设置 AiSettings `admin:ai:settings`；连接参数仍在 系统设置 页 AI 卡片）。
+- 存量库结构归并靠 `backend/scripts/migrate_nav_zones.py`（幂等，规范结构由种子 `MENU_TREE` 推导：
+  name 主键 + path 兜底，去重同名目录、归位异名同 path 残留、parent_id/sort 归一）；
+  种子只保证新库直接产出目标结构（_seed_menus 不回写 parent_id/sort，保留管理员结构调整），
+  旧入口 `backend/scripts/migrate_nav_batch_e.py` 转发到新脚本。
 
 ## 报告 /report
 - 状态机：`uploaded 已上传待审 → approving 审批中 → approved 批准通过 → sealed 签章完成`；
@@ -586,10 +736,13 @@ approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
 admin/AiUsage  admin/AiSettings
+asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/InventoryItemList
+asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
+asset/FixedAssetList  asset/DisposalList  asset/ToolList
 ```
 
 ## 字典（sys_dict）
-`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type / purchase_method / supply_category / warehouse / tender_method`
+`customer_type / customer_grade / contract_type / task_type / biz_block / pay_cycle / delivery_way / pay_type / oa_category / purchase_method / supply_category / warehouse / tender_method / partner_attachment_category / stock_category / stock_reason / prototype_kind / asset_category / depreciation_method / disposal_type`
 读取：`GET /admin/dict/items?type={code}`（仅 enabled，按 sort 排序）
 
 ## 种子账号

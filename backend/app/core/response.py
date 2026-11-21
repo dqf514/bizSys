@@ -4,7 +4,8 @@ from typing import Any
 
 # --- 错误码分域 ---
 # 0 成功；1xxxx 通用；2xxxx 认证授权；3xxxx 系统管理
-# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位；95xxx 采购；96xxx 招投标/门户
+# 4xxxx CRM；5xxxx 合同；6xxxx 任务；7xxxx 审批；8xxxx 财务；9xxxx 集成占位
+# 95xxx 采购；96xxx 招投标/门户；97xxx 资产与库存
 # 63xxx 人事行政（HR）；64xxx 销售（AI 报价）；65xxx AI 中心
 OK = 0
 
@@ -91,6 +92,16 @@ PORTAL_ACCOUNT_EXISTS = 96005
 TENDER_NOT_AWARDED = 96006
 PORTAL_ACCOUNT_HAS_RECORDS = 96007
 
+# 97xxx 资产与库存（仓储/库存/资产财务）
+ASSET_INVALID_STATE = 97001
+ASSET_ITEM_NOT_FOUND = 97002
+ASSET_STOCK_NOT_ENOUGH = 97003
+ASSET_CODE_DUPLICATE = 97004
+ASSET_WAREHOUSE_INVALID = 97005
+ASSET_SUPPLIER_INVALID = 97006
+ASSET_LOAN_NOT_RETURNED = 97007
+ASSET_LOCATION_INVALID = 97008
+
 DEFAULT_MESSAGES: dict[int, str] = {
     OK: "ok",
     GENERIC_PARAM: "参数校验失败",
@@ -157,6 +168,14 @@ DEFAULT_MESSAGES: dict[int, str] = {
     PORTAL_ACCOUNT_EXISTS: "账号已存在",
     TENDER_NOT_AWARDED: "项目尚未定标",
     PORTAL_ACCOUNT_HAS_RECORDS: "该账号已有报名/投标记录，不能删除，可改为停用",
+    ASSET_INVALID_STATE: "当前资产/库存单据状态不允许该操作",
+    ASSET_ITEM_NOT_FOUND: "存货/资产不存在",
+    ASSET_STOCK_NOT_ENOUGH: "出库数量超过可用库存",
+    ASSET_CODE_DUPLICATE: "编码已存在",
+    ASSET_WAREHOUSE_INVALID: "仓库不存在或已停用",
+    ASSET_SUPPLIER_INVALID: "供应公司不存在或非供应商往来单位",
+    ASSET_LOAN_NOT_RETURNED: "该实物尚未归还，不能再次借出",
+    ASSET_LOCATION_INVALID: "库位不存在",
 }
 
 
