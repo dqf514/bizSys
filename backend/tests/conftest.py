@@ -39,6 +39,30 @@ from app.main import app  # noqa: E402  导入即注册全部模块表
 
 Base.metadata.create_all(bind=engine)
 
+
+def _ensure_columns(table: str, cols: dict[str, str]) -> None:
+    """测试库跨次运行残留：create_all 只建新表，不会给已存在的表补列。
+
+    这里按需补齐后续新增的列（幂等），保证本地旧测试库也能跑新用例。
+    """
+    with engine.begin() as conn:
+        existing = {r[0] for r in conn.execute(text(f"SHOW COLUMNS FROM {table}")).all()}
+        for name, ddl in cols.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
+
+
+_ensure_columns(
+    "partner_user",
+    {
+        "account_type": "account_type VARCHAR(16) NULL DEFAULT 'supplier' COMMENT 'customer/supplier'",
+        "perm_scope": "perm_scope VARCHAR(64) NULL DEFAULT 'tender' COMMENT 'tender/entrust/staff'",
+        "manager_id": "manager_id BIGINT NULL COMMENT '归属客户经理'",
+        "manager_name": "manager_name VARCHAR(64) NULL DEFAULT '' COMMENT '归属客户经理姓名'",
+        "staff_limit": "staff_limit INT NULL DEFAULT 5 COMMENT '人员登记名额上限'",
+    },
+)
+
 from app.seeds import init_data as seed  # noqa: E402
 
 _seed_session = SessionLocal()

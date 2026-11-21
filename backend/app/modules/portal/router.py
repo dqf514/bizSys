@@ -13,7 +13,26 @@ from app.core.route import EnvelopeRoute
 from app.modules.portal import service as svc
 from app.modules.portal.deps import get_current_partner, get_optional_partner
 from app.modules.portal.models import PartnerUser
-from app.modules.portal.schemas import PortalLoginIn, PortalRegisterIn
+from app.modules.portal.schemas import PortalLoginIn, PortalRegisterIn, PortalStaffIn
+from app.modules.portal.selfservice import (
+    cancel_entrust as self_cancel_entrust,
+)
+from app.modules.portal.selfservice import (
+    create_entrust as self_create_entrust,
+)
+from app.modules.portal.selfservice import (
+    my_contracts as self_my_contracts,
+)
+from app.modules.portal.selfservice import (
+    my_entrusts as self_my_entrusts,
+)
+from app.modules.portal.selfservice import (
+    my_staff as self_my_staff,
+)
+from app.modules.portal.selfservice import (
+    register_staff as self_register_staff,
+)
+from app.modules.task import schemas as task_schemas
 
 router = APIRouter(prefix="/portal", tags=["portal"], route_class=EnvelopeRoute)
 
@@ -129,3 +148,52 @@ def my_bid_proposal(bid: int, partner: PartnerUser = Depends(get_current_partner
     if not b or b.deleted or b.partner_user_id != partner.id or not b.proposal_path:
         raise BizException(R.GENERIC_NOT_FOUND)
     return _download(b.proposal_path, b.proposal_name)
+
+
+# ---------------- 客户自助（B2）：在线委托 + 外来人员备案 ----------------
+
+
+@router.get("/contracts")
+def my_contracts(partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
+    """本单位的已审批合同：委托下单的合同来源。"""
+    return {"items": self_my_contracts(db, partner)}
+
+
+@router.get("/entrusts")
+def my_entrusts(partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
+    return {"items": self_my_entrusts(db, partner)}
+
+
+@router.post("/entrusts", status_code=201)
+def create_entrust(
+    body: task_schemas.EntrustIn,
+    partner: PartnerUser = Depends(get_current_partner),
+    db: Session = Depends(get_db),
+):
+    """在线提交任务委托（仿真 / 模型 / 试验 / 委外）。"""
+    return self_create_entrust(db, partner, body)
+
+
+@router.post("/entrusts/{eid}/cancel")
+def cancel_entrust(
+    eid: int,
+    partner: PartnerUser = Depends(get_current_partner),
+    db: Session = Depends(get_db),
+):
+    """撤回尚未受理的委托。"""
+    return self_cancel_entrust(db, partner, eid)
+
+
+@router.get("/staff")
+def my_staff(partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
+    return {"items": self_my_staff(db, partner)}
+
+
+@router.post("/staff", status_code=201)
+def register_staff(
+    body: PortalStaffIn,
+    partner: PartnerUser = Depends(get_current_partner),
+    db: Session = Depends(get_db),
+):
+    """外来试验人员 / 跟踪支持人员自助登记备案（客户经理审核后生效）。"""
+    return self_register_staff(db, partner, body)

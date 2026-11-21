@@ -1,6 +1,8 @@
 """CRM 客户表。"""
 
-from sqlalchemy import BigInteger, ForeignKey, String, Text
+from datetime import date, datetime
+
+from sqlalchemy import BigInteger, Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.models import BaseModel
@@ -62,3 +64,51 @@ class PartnerAttachment(BaseModel):
     content_type: Mapped[str] = mapped_column(String(128), default="")
     path: Mapped[str] = mapped_column(String(255), comment="相对 upload_dir 的路径")
     remark: Mapped[str] = mapped_column(String(500), default="", comment="说明")
+
+
+class PartnerStaff(BaseModel):
+    """客户方人员档案（B2 外来试验人员 / 跟踪支持人员登记备案）。
+
+    客户通过门户自助登记 → 客户经理审核 → 抄送业务负责人与访客管理人员，
+    审核通过后即可作为访客主数据（B3 访客系统据此预登记访客档案与通行凭证）。
+    状态机：pending → approved / rejected；approved → disabled。
+    """
+
+    __tablename__ = "crm_partner_staff"
+
+    customer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    customer_name: Mapped[str] = mapped_column(String(128), default="", index=True)
+    name: Mapped[str] = mapped_column(String(64), index=True, comment="姓名")
+    gender: Mapped[str] = mapped_column(String(8), default="", comment="male/female")
+    id_no: Mapped[str] = mapped_column(String(64), default="", comment="证件号（一人一号，通行凭证依据）")
+    position: Mapped[str] = mapped_column(String(64), default="", comment="职务")
+    phone: Mapped[str] = mapped_column(String(32), default="", index=True)
+    email: Mapped[str] = mapped_column(String(128), default="")
+    plate_no: Mapped[str] = mapped_column(String(32), default="", comment="车牌号（车牌凭证）")
+    company: Mapped[str] = mapped_column(String(255), default="", comment="所属单位（默认客户名）")
+    staff_type: Mapped[str] = mapped_column(
+        String(32), default="", index=True, comment="字典 partner_staff_type：试验人员/支持人员/见证专家/厂商工程师"
+    )
+    visit_purpose: Mapped[str] = mapped_column(String(255), default="", comment="来访事由")
+    plan_visit_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    nda_signed: Mapped[int] = mapped_column(Integer, default=0, comment="是否已签 NDA（未签不放行）")
+    visit_perm: Mapped[str] = mapped_column(String(255), default="", comment="可进入区域 id 列表（逗号分隔）")
+    source: Mapped[str] = mapped_column(
+        String(16), default="portal", index=True, comment="portal 客户自助 / internal 代登记"
+    )
+    applicant_account_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    applicant_name: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    review_by: Mapped[int | None] = mapped_column(BigInteger)
+    review_name: Mapped[str] = mapped_column(String(64), default="")
+    review_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    review_comment: Mapped[str] = mapped_column(String(500), default="")
+    biz_owner_id: Mapped[int | None] = mapped_column(BigInteger, index=True, comment="业务负责人（审核后抄送）")
+    biz_owner_name: Mapped[str] = mapped_column(String(64), default="")
+    notify_visitor_admin: Mapped[int] = mapped_column(
+        Integer, default=1, comment="是否抄送访客管理人员并勾选访客系统权限"
+    )
+    visitor_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="访客档案 id（B3 预登记）"
+    )
+    remark: Mapped[str] = mapped_column(String(500), default="")

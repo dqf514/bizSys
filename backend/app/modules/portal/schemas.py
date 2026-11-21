@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from app.core.schemas import CamelModel
+from app.core.schemas import CamelModel, OptionalDate
 
 
 class PortalRegisterIn(CamelModel):
@@ -12,6 +12,8 @@ class PortalRegisterIn(CamelModel):
     contact_name: str = Field(default="", max_length=64)
     phone: str = Field(default="", max_length=32)
     email: str = Field(default="", max_length=128)
+    # B2 客户自助：账号类型（supplier 供应商投标 / customer 客户自助下单）
+    company_type: str = Field(default="supplier", pattern="^(customer|supplier)$")
 
 
 class PortalLoginIn(CamelModel):
@@ -51,3 +53,19 @@ class PartnerPasswordResetIn(CamelModel):
     """重置门户账号密码：缺省由服务端生成一次性随机密码（响应仅展示一次）。"""
 
     password: str | None = Field(default=None, min_length=8, max_length=64)
+
+
+class PortalStaffIn(CamelModel):
+    """门户侧外来试验人员登记备案（B2）。"""
+
+    name: str = Field(min_length=1, max_length=64)
+    gender: str = Field(default="", max_length=8)
+    id_no: str = Field(default="", max_length=64)
+    position: str = Field(default="", max_length=64)
+    phone: str = Field(default="", max_length=32)
+    email: str = Field(default="", max_length=128)
+    plate_no: str = Field(default="", max_length=32)
+    staff_type: str = Field(default="", max_length=32)
+    visit_purpose: str = Field(default="", max_length=255)
+    plan_visit_date: OptionalDate = None
+    nda_signed: bool = False

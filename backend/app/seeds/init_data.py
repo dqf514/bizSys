@@ -580,13 +580,57 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
             # 合作方门户是独立认证的独立 shell，菜单只做入口跳转（无前端组件）
             ("menu.portalHome", "PortalHome", "/portal", "", "User", "portal:self:view", []),
             (
+                # 在线委托：门户 shell 内的下单页（/portal/orders），不走内部动态路由
                 "menu.portalOrders",
                 "PortalOrders",
                 "/portal/orders",
-                "portal/PortalOrders",
+                "",
                 "Tickets",
                 "portal:order:create",
                 [],
+            ),
+            (
+                # 在线任务委托（B2）：委托单受理与派发
+                "menu.entrustList",
+                "EntrustList",
+                "/task/entrusts",
+                "task/EntrustList",
+                "Tickets",
+                "task:entrust:list",
+                [
+                    (None, "entrust-create", "", "", "", "task:entrust:create", []),
+                    (None, "entrust-review", "", "", "", "task:entrust:review", []),
+                    (None, "entrust-dispatch", "", "", "", "task:entrust:dispatch", []),
+                    (None, "entrust-export", "", "", "", "task:entrust:export", []),
+                ],
+            ),
+            (
+                # 客户自助账号（B2）：注册审核、绑定往来单位与客户经理
+                "menu.customerAccounts",
+                "CustomerAccounts",
+                "/crm/accounts",
+                "crm/CustomerAccountList",
+                "User",
+                "crm:account:list",
+                [
+                    (None, "account-review", "", "", "", "crm:account:review", []),
+                    (None, "account-edit", "", "", "", "crm:account:edit", []),
+                ],
+            ),
+            (
+                # 客户方人员备案（B2）：外来试验人员 / 跟踪支持人员登记审核
+                "menu.partnerStaff",
+                "PartnerStaff",
+                "/crm/partner-staffs",
+                "crm/PartnerStaffList",
+                "Avatar",
+                "crm:staff:list",
+                [
+                    (None, "staff-create", "", "", "", "crm:staff:create", []),
+                    (None, "staff-review", "", "", "", "crm:staff:review", []),
+                    (None, "staff-edit", "", "", "", "crm:staff:edit", []),
+                    (None, "staff-export", "", "", "", "crm:staff:export", []),
+                ],
             ),
             (
                 "menu.knowledge",
@@ -943,6 +987,26 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("工程咨询", "Engineering Consulting", "consulting"),
             ("模型加工中心", "Model Processing Center", "model"),
             ("风洞实验", "Wind Tunnel Test", "windtunnel"),
+            ("CFD仿真", "CFD Simulation", "cfd"),
+            ("委外测试", "Outsourced Testing", "outsource"),
+        ],
+    ),
+    "entrust_type": (
+        "委托类型",
+        [
+            ("仿真分析", "Simulation", "sim"),
+            ("模型制作", "Model Making", "model"),
+            ("试验测试", "Test", "test"),
+            ("委外测试", "Outsourced Test", "outsource"),
+        ],
+    ),
+    "partner_staff_type": (
+        "外来人员类型",
+        [
+            ("试验人员", "Test Engineer", "tester"),
+            ("支持人员", "Support Staff", "support"),
+            ("见证专家", "Witness Expert", "witness"),
+            ("厂商工程师", "Vendor Engineer", "vendor"),
         ],
     ),
     "biz_block": (
@@ -1083,6 +1147,7 @@ NUMBER_RULES = [
     # 分类映射示例：检测校准类合同单独编号
     ("contract", "testing", "JC", 4, 2, 2, 4, 1, "", "daily", "JC202610090001"),
     ("task", "", "RW", 4, 2, 2, 4, 1, "", "daily", "RW202610090001"),
+    ("entrust", "", "WT", 4, 2, 2, 4, 1, "", "daily", "WT202611210001"),
     ("report", "", "BG", 4, 2, 2, 4, 1, "", "daily", "BG202610090001"),
     ("settlement", "", "HK", 4, 2, 2, 4, 1, "", "daily", "HK202610090001"),
     ("payment", "", "DZ", 4, 2, 2, 4, 1, "", "daily", "DZ202610090001"),
@@ -1284,6 +1349,20 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "oa:workapply:list",
         "portal:self:view",
         "portal:order:create",
+        # —— 客户自助体系（B2）——
+        "task:entrust:list",
+        "task:entrust:create",
+        "task:entrust:review",
+        "task:entrust:dispatch",
+        "task:entrust:export",
+        "crm:account:list",
+        "crm:account:review",
+        "crm:account:edit",
+        "crm:staff:list",
+        "crm:staff:create",
+        "crm:staff:review",
+        "crm:staff:edit",
+        "crm:staff:export",
         # 访客与安全域（安防/合规）暂只授予超管，业务角色不默认可见
     ]
     for p in biz_perms:

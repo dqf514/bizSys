@@ -80,6 +80,11 @@ def transition(db: Session, task: Task, action: str, user: User) -> Task:
     task.status = target
     task.version += 1
     task.update_time = datetime.now()
+    if action == "finish":
+        # 任务完成 → 关闭来源委托单（客户侧可见"已关闭"）
+        from app.modules.task import entrust as entrust_svc
+
+        entrust_svc.close_by_task(db, task.id)
     return task
 
 

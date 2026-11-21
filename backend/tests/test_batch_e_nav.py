@@ -132,7 +132,14 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
 
     # 销售中心 / 经营与协同 / 行政人事
     assert _children(_find(tree, "SalesSystem")) == ["Quotations", "QuoteTemplates", "SalesRevenue"]
-    assert _children(_find(tree, "Collaboration")) == ["PortalHome", "PortalOrders", "KnowledgeBase"]
+    assert _children(_find(tree, "Collaboration")) == [
+        "PortalHome",
+        "PortalOrders",
+        "EntrustList",
+        "CustomerAccounts",
+        "PartnerStaff",
+        "KnowledgeBase",
+    ]
     assert _children(_find(tree, "HrSystem")) == ["TimesheetFill", "TimesheetStats", "Staff"]
 
     # 流程与办公：流程待办已解除隐藏并挂到本区，消息中心为正式入口

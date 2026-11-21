@@ -51,7 +51,7 @@ from app.modules.asset.models import (
 )
 from app.modules.auth.models import User, UserBankAccount, UserEmergencyContact
 from app.modules.contract.models import Contract, ContractAttachment
-from app.modules.crm.models import Customer, PartnerAttachment, PartnerContact
+from app.modules.crm.models import Customer, PartnerAttachment, PartnerContact, PartnerStaff
 from app.modules.finance.models import Invoice, Payment, Settlement, SettlementConfirmRecord
 from app.modules.hr.models import HrTimesheet
 from app.modules.maintenance import backup as backup_svc
@@ -71,7 +71,15 @@ from app.modules.procurement.models import (
 from app.modules.report.models import Report, ReportFile
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
-from app.modules.task.models import Task, TaskItem, TaskProgressLog, TaskSample, TaskSampleFlow
+from app.modules.task.models import (
+    Task,
+    TaskEntrust,
+    TaskEntrustItem,
+    TaskItem,
+    TaskProgressLog,
+    TaskSample,
+    TaskSampleFlow,
+)
 
 # ---- 配置键 ----
 KEY_BACKUP_ENABLED = "backup.enabled"
@@ -115,6 +123,8 @@ _PURGE_TABLES = [
     TaskSampleFlow,
     TaskSample,
     TaskItem,
+    TaskEntrustItem,
+    TaskEntrust,
     Task,
     ReportFile,
     Report,
@@ -143,6 +153,7 @@ _PURGE_TABLES = [
     Warehouse,
     PartnerAttachment,
     PartnerContact,
+    PartnerStaff,
     Customer,
     Notify,
     AuditLog,

@@ -54,6 +54,8 @@ def partner_out(p: PartnerUser) -> dict:
         "email": p.email,
         "status": p.status,
         "customerId": p.customer_id,
+        "accountType": p.account_type,
+        "permScope": p.perm_scope or "",
     }
 
 
@@ -69,6 +71,9 @@ def register(db: Session, body: PortalRegisterIn, ip: str = "") -> dict:
         phone=body.phone,
         email=body.email,
         status="pending",
+        account_type=body.company_type or "supplier",
+        # 客户自助账号默认开通「在线委托 + 人员备案」；供应商账号只开通招投标
+        perm_scope="entrust,staff" if body.company_type == "customer" else "tender",
     )
     db.add(p)
     db.flush()
