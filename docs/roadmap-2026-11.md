@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- |
 | **B1** | 基础设施：全站布局统一 + 导航分区重构 + 新模块骨架 + 消息中心 | 30 | — | **已交付** |
 | **B2** | 客户自助账号体系 + 在线任务委托 | 5 | B1 导航分区 | **已交付** |
-| **B3** | 访客系统（预约/审批/通行/签离/区域/NDA/联动/审计） | 6–17 | B2 账号体系、门禁与人脸接口 | 待开发 |
+| **B3** | 访客系统（预约/审批/通行/签离/区域/NDA/联动/审计） | 6–17 | B2 账号体系、门禁与人脸接口 | **已交付** |
 | **B4** | 资产 & 样车 & 样品 & 物料统一管理 + 库存预警 + BOM | 23 | B1 骨架、需求方提供的详细逻辑 | **已交付（第一轮，BOM 待开发）** |
 | **B5** | 任务字段扩展 + 智能排程甘特 + 项目管理 | 18–22、31 | B4 资产与物料 | 待开发 |
 | **B6** | 设备台账 + 设备预警 + 设备能耗 + 数字孪生 | 67–69 | B4 资产、B5 排程 | 待需求澄清 |
@@ -66,17 +66,41 @@
 - **依赖前置**：B1 的导航分区（`经营与协同 → 客户自助 / 在线委托` 入口已就位）。
 - **涉及模块**：`crm`（客户账号）、`portal`（合作方门户壳）、`task`（任务创建）。
 - **风险**：客户账号与员工账号共用 `sys_user` 会污染权限模型 —— 实际改为扩展 `partner_user`（独立认证体系已具备），不新建 `crm_partner_account`。
-- **遗留**：访客系统权限的"勾选"目前落在 `crm_partner_staff.visit_perm`（可进入区域），与 B3 访客域的凭证下发对接在 B3 一并落地。
+- **遗留**：访客系统权限的"勾选"目前落在 `crm_partner_staff.visit_perm`（可进入区域），与 B3 访客域的凭证下发对接**已在 B3 落地**（`visitor_visit.zone_ids` → `visitor_credential` 授权区域）。
 
 ---
 
 ## B3 — 访客系统（CSV 6–17）
+
+> **状态：已交付（2026-11-21）**
+
+### 已交付
+
+| 项 | 内容 |
+| --- | --- |
+| 新增域 | `visitor`（`app/modules/visitor/`，models/schemas/service/router 四件套），表前缀 `visitor_`；错误码段 **98xxx**（98001–98008） |
+| 区域分级 | `visitor_zone`：编码/名称/类型（公共接待区、样车接收区、试验区、准备区、生产加工区、工具仪器间、数据机房）/安全等级 L1–L4/是否额外审批/需陪同/需 NDA/双人作业/相机管控/联动设备/人数上限；工具仪器间与样车存储区默认禁入 |
+| 访客单 | `visitor_visit` + `visitor_approval`：状态机 `pending→approved→visiting→left`，旁路 `rejected/cancelled/overdue`；审批链 `host→dept→(zone)`；`VT` 单号；访客类型与预约来源字典；陪同见证、授权区域、计划时间窗、签入/签离闭环 |
+| 通行凭证 | `visitor_credential`：按"人 + 时间 + 区域"下发最小权限；核验方式 qrcode/face/ic/plate/manual；`POST /visitor/credentials/verify` 供门禁/闸机/梯控调用，放行与否均写审计 |
+| 合规审计 | `visitor_access_log` **只追加不可删改**：`AppendOnlyModel`（无 `deleted`/`version`/`update_*`），API 不提供任何 PUT/PATCH/DELETE；事件类型签入/签离/区域进入/区域离开/拒绝通行；`summary` 应急报表按天/按事件聚合，`days` 上限 180（保留期 ≥180 天） |
+| 黑名单 | `visitor_blacklist`：姓名/证件/电话/单位/原因/生效失效期/来源（manual/system），命中即拒绝放行并生成预警 |
+| 预警 | `visitor_alert`：滞留超时（`POST /visitor/alerts/scan` 扫描生成）/尾随进入/闯入禁区/越权访问/黑名单命中；处置闭环 `open→handled|ignored`；**拒绝放行时先提交事务再抛错，保证告警与审计不丢** |
+| NDA | `visitor_nda`：电子签署 + `evidence_hash` 存证哈希防篡改 + 有效期 + 作废；区域 `need_nda=1` 且未签 **不予放行**（98007） |
+| 样品/样车交接 | `visitor_sample_handover`：交接单号/样品编号/名称/条码/类型（样品/样车/模型）/数量/送样人/接收人/交接时间，可关联访客单反查带入物 |
+| 角色隔离 | 访客与安全域权限**不挂业务角色**（`biz_user` 无任何 `visitor:*` 权限），单独设 `security_officer`（安保员）角色，演示账号 `security1 / Test@123456` |
+| 权限码 | `visitor:visit:list/create/review/checkin/export`、`visitor:zone:list/edit`、`visitor:nda:list/sign`、`visitor:credential:list/verify/edit`、`visitor:blacklist:list/edit`、`visitor:audit:list/export/report`、`visitor:handover:list/create`、`visitor:alert:list/handle`（菜单挂在 `访客与安全` 分区） |
+| 表与迁移 | `visitor_zone` `visitor_visit` `visitor_approval` `visitor_credential` `visitor_access_log` `visitor_nda` `visitor_blacklist` `visitor_sample_handover` `visitor_alert` —— 迁移 `n3a2b3c4d5e6_b3_visitor_module.py`（9 张表全部登记进「一键清空」清单） |
+| 前端 | `modules/visitor/pages/` 8 个页面：`VisitList` `ZoneList` `NdaList` `CredentialList` `BlacklistList` `AccessLogList` `HandoverList` `AlertList`（`src/api/visitor.ts` + `src/locales/{zh-CN,en-US}/visitor.json`） |
+| 测试 | `tests/test_b3_visitor.py`（16 条 HTTP 黑盒：区域 CRUD 与重名、登记→审批→签入→签离全链路、追加审批级、未签 NDA 拦截、驳回/取消、黑名单拦截签入、凭证区域范围核验、审计只读与汇总、导出、交接、预警处置与扫描、NDA 计数与作废、统计计数、业务角色 403） |
+
+### 原始需求与风险（存档）
 
 - **需求要点**：多渠道预约与登记（微信/小程序/网页/员工邀请/前台现场）；被访人 + 部门审批，敏感区域额外审批；访客类型（客户、监管评审、供应商、快递、临时工、外包维修）；凭证通行（二维码/人脸/IC 卡/车牌，按"人+时间+区域"下发最小权限）；签入签出闭环与滞留告警；黑名单与闯入/尾随预警；区域分级（公共接待区/样车接收区/试验区/准备区/生产加工区/工具仪器间/数据机房）；样品样车交接联动（送样人 + 样品条码 + 交接时间 + 接收人，可反查）；陪同与见证；NDA 电子签；设备/环境隔离（手机相机管控、危化品双人）；门禁/闸机/梯控/视频/LIMS/OA/消防联动；合规审计（日志不可删改、保存 ≥180 天，分级权限，一人一号，应急报表）。
 - **依赖前置**：B2 客户账号与访客人员主数据；门禁/人脸/车牌厂商接口。
 - **涉及模块**：`visitor`（新增域）、`safety`（巡检与门禁联动）、`crm`（客户主体）、`task`/`sample`（样品交接）。
 - **交付物**：`visitor_visit`（预约/登记）、`visitor_zone`（区域与分级）、`visitor_credential`（凭证与有效期）、`visitor_access_log`（不可删改审计）、`visitor_nda`（签署与存证）；审批走现有流程引擎（`ApprovalDefinition`）。
 - **风险**：合规审计要求"日志不可删改 + ≥180 天保留"与平台统一的软删机制冲突 —— 审计表需单独实现只追加（无 `deleted` 语义、禁止 UPDATE/DELETE），并把保留期写进备份策略。
+- **遗留**：① 多渠道预约的**外部渠道入口**（微信/小程序）尚未对接，当前统一为前台/员工代登记 + 门户预登记（B2 的 `crm_partner_staff`）；② 门禁/视频/LIMS/消防的**厂商接口**未接入，凭证核验已提供 `POST /visitor/credentials/verify` 作为对接点；③ 访客审批走**域内审批链**（host→dept→zone）而非通用流程引擎 `ApprovalDefinition`，以便与区域分级策略强绑定。
 
 ---
 

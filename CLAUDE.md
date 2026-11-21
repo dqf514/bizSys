@@ -66,7 +66,7 @@ CI（`.github/workflows/ci.yml`）：backend job = MySQL 8.4 + Redis 7 → ruff 
 
 `app/common/`（跨模块构件）：`models.py`（`BaseModel`：id + 审计四列 + `version` 乐观锁 + `deleted` 逻辑删除）、`pagination.py`、`filters.py`（白名单驱动的列表检索）、`audit.py`、`events.py`（进程内同步事件总线）。
 
-`app/modules/<domain>/` 共 18 个域：`admin` `aicenter` `approval` `asset` `auth` `contract` `crm` `finance` `hr` `integration` `maintenance` `oa` `portal` `procurement` `report` `sales` `settings` `task`。每域遵循四件套：
+`app/modules/<domain>/` 共 19 个域：`admin` `aicenter` `approval` `asset` `auth` `contract` `crm` `finance` `hr` `integration` `maintenance` `oa` `portal` `procurement` `report` `sales` `settings` `task` `visitor`。每域遵循四件套：
 
 - `models.py` — SQLAlchemy 2.0 `Mapped[]` 声明式，继承 `BaseModel`，表名按域前缀（`sys_*` `crm_*` `task_*` `rpt_*` …）
 - `schemas.py` — Pydantic v2，入参 `XxxIn(CamelModel)`（camelCase 别名，`populate_by_name=True`），出参 `XxxOut(BaseModel)`；输出 dict 手工构造成 camelCase
@@ -89,7 +89,7 @@ B2 客户自助体系沿用同一"同前缀分文件"惯例：`crm/selfservice_r
 {"code": 0, "message": "ok", "data": {}, "traceId": "..."}
 ```
 
-错误码按域分段定义在 `app/core/response.py`（`0` 成功、`1xxxx` 通用、`2xxxx` 认证、`3xxxx` 管理、`4xxxx` CRM、`5xxxx` 合同、`6xxxx` 任务/报告、`7xxxx` 审批、`62xxx` OA、`63xxx` HR、`64xxx` 销售、`65xxx` AI、`8xxxx` 财务、`9xxxx` 集成、`95xxx` 采购、`96xxx` 招投标/门户、`97xxx` 资产与库存），前端镜像在 `src/api/types.ts`。新增业务错误码必须同时在两侧登记。
+错误码按域分段定义在 `app/core/response.py`（`0` 成功、`1xxxx` 通用、`2xxxx` 认证、`3xxxx` 管理、`4xxxx` CRM、`5xxxx` 合同、`6xxxx` 任务/报告、`7xxxx` 审批、`62xxx` OA、`63xxx` HR、`64xxx` 销售、`65xxx` AI、`8xxxx` 财务、`9xxxx` 集成、`95xxx` 采购、`96xxx` 招投标/门户、`97xxx` 资产与库存、`98xxx` 访客与安全），前端镜像在 `src/api/types.ts`。新增业务错误码必须同时在两侧登记。
 
 ### 鉴权与权限
 
@@ -144,13 +144,15 @@ current: User = Depends(get_current_user)              # 仅登录
 
 ### 已知坑
 
-- `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/report/settings/task 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n1a2b3c4d5e6_asset_module.py`。新迁移用可读递增 id（如 `n2a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
+- 迁移链单线无分支，当前 head = `n3a2b3c4d5e6_b3_visitor_module.py`。新迁移用可读递增 id（如 `n4a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
 - **新增业务表必须同时登记进「一键清空」清单**（`app/modules/maintenance/service.py::_PURGE_TABLES`）：该工具会清空编号序列 `sys_number_seq`，漏登记的表会残留旧单号，下次取号从 1 重来直接撞唯一键（`Duplicate entry 'LJ202611210001'`）。
 - **单号计数器可能被重置**（管理员在编号规则页重置序列、或清库后计数归零），取号不能假设号段连续；资产域走 `asset/service.py::next_asset_no` 逐号试探跳过已占用号。
+- **访客域的合规审计表 `visitor_access_log` 是只追加的**：它继承 `visitor/models.py::AppendOnlyModel`（**没有** `deleted`/`version`/`update_*` 列），所以 `apply_list_filters` 里那句 `hasattr(model, "deleted")` 的守卫是必需的，且 API **不得**为该路径提供任何 PUT/PATCH/DELETE。合规要求"不可删改 + 保留 ≥180 天"。
+- **访客域的拒绝放行也必须留痕**：`svc.check_in` 命中黑名单/超窗/越权时会抛 `BizException`，但它此前已 `db.add()` 了 `VisitorAlert` 与 `VisitorAccessLog`。router 里必须写成 `except BizException: db.commit(); raise` —— 否则事务回滚把告警和审计一起丢掉（合规事故）。
 
 ## 前端架构
 
@@ -241,7 +243,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 生产资源（设备/排程/样品与物料/采购/产能）    库存与资产（进出库管理/资产财务）
 销售中心（报价/模板/营收）                    经营与协同（客户自助/在线委托/客户方人员备案/客户自助账号/知识库）
 行政人事（工时填报/工时统计/人员档案）        流程与办公（新申请/我的申请/作业申请/流程待办/消息中心）
-访客与安全（访客/区域/NDA/巡检）              系统管理（底部固定）
+访客与安全（访客/区域/凭证/审计/交接/预警/巡检）  系统管理（底部固定）
 ```
 
 - 分区切分由 `src/layout/useNavZones.ts` 完成：顶层 `dir` 是"分区"（可排序），`System` 是固定分区（`isSystemZone` 匹配 `name === 'System' || titleKey === 'menu.system'`）。

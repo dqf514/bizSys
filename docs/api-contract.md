@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 98xxx 访客与安全 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -304,6 +304,76 @@
 - `GET /portal/entrusts` —— 本人的委托单；`POST /portal/entrusts`（提交委托）· `POST /portal/entrusts/{eid}/cancel`（撤回）
 - `GET /portal/staff` —— 本人登记的外来人员；`POST /portal/staff`（登记来访人员）
 - 门户侧仅暴露本人数据；内部 token 与门户 token 双向隔离（门户 token 访问内部接口一律 401）。
+
+## B3 访客与安全体系（/visitor）
+
+> 需求来源：CSV 6–17（`docs/roadmap-2026-11.md` B3）。独立 `visitor` 域，落库表 `visitor_zone` `visitor_visit`
+> `visitor_approval` `visitor_credential` `visitor_access_log` `visitor_nda` `visitor_blacklist`
+> `visitor_sample_handover` `visitor_alert`。
+> **角色隔离**：访客与安全域权限**不挂业务角色**，单独设 `security_officer`（安保员）角色（种子演示账号 `security1 / Test@123456`）。
+
+### 访客单状态机（visitor_visit）
+`pending 待审批 → approved 已通过 → visiting 在访中 → left 已签离`；旁路 `rejected 已驳回` / `cancelled 已取消` / `overdue 滞留超时`。
+- 审批链：`host 被访人 → dept 部门 → zone 敏感区域`。区域 `need_extra_approval=1` 时追加 `zone` 级；
+  区域 `need_nda=1` 且未签 NDA **不放行**（98007）。
+- 凭证核验：签入时按 `visitor_zone` 的授权范围 + 有效期判定，超窗（98005）/ 黑名单命中（98004）一律拒绝，
+  **拒绝也写 `visitor_access_log` 与 `visitor_alert`**（先提交事务再抛错，审计留痕不丢）。
+
+### 区域分级（visitor_zone，权限码 `visitor:zone:*`）
+- `GET /visitor/zones`（`visitor:zone:list`）分页，`q`（编码/名称）、`status` 页签（all/enabled/disabled）
+  · `GET /visitor/zones/counts` → 各状态计数
+- `POST /visitor/zones`（`visitor:zone:edit`）· `PUT /visitor/zones/{zid}` · `POST /visitor/zones/{zid}/toggle`
+  · `DELETE /visitor/zones/{zid}`（有历史通行记录时拒绝删除）
+- 区域类型字典 `visitor_zone_type`：公共接待区 / 样车接收区 / 试验区 / 准备区 / 生产加工区 / 工具仪器间 / 数据机房。
+
+### 访客登记与审批（权限码 `visitor:visit:*`）
+- `GET /visitor/visits`（`visitor:visit:list`）分页，`q`（姓名/单位/单号/手机号）、`status` 页签、
+  `filters[visitor_type|source|zone_id]`；`GET /visitor/visits/counts` → 各状态计数
+- `GET /visitor/visits/stats` → `{visiting,pending,approved,todayCheckins,openAlerts}`（在访/待审批/今日签入/未处置预警）
+- `GET /visitor/visits/{vid}` → 详情（含审批时间线 `approvals` 与样品交接 `handovers`）
+- `POST /visitor/visits`（`visitor:visit:create`）登记来访，签入/签离前自动取号 `VT`（biz_type `visit`）
+- `POST /visitor/visits/{vid}/approve`（`visitor:visit:review`，`{action:approve|reject, comment, level}`）
+  —— 驳回意见必填；`POST /visitor/visits/{vid}/cancel` · `POST /visitor/visits/export`（`visitor:visit:export`）
+- `POST /visitor/visits/{vid}/checkin`（`visitor:visit:checkin`，`{method, device_id, credential_no}`）
+  · `POST /visitor/visits/{vid}/checkout`（同上）—— 签入成功后自动下发 `visitor_credential`。
+
+### 通行凭证（权限码 `visitor:credential:*`）
+- `GET /visitor/credentials`（`visitor:credential:list`）分页，`q`（凭证号/姓名）
+- `POST /visitor/credentials/verify`（`visitor:credential:verify`，`{credential_no, zone_id, method, device_id, direction}`）
+  → `{pass, reason, credentialNo, visitId}` —— 门禁/闸机/梯控核验，放行与否均写审计日志
+- `POST /visitor/credentials/{cid}/revoke`（`visitor:credential:edit`）作废凭证
+
+### 合规审计日志（权限码 `visitor:audit:*`，**只追加不可删改**）
+- `GET /visitor/access-logs`（`visitor:audit:list`）分页，`q`（访客/凭证/区域/设备）、
+  `filters[event_type|result|method|visit_id|zone_id]`、`range[happened_at]`
+- `GET /visitor/access-logs/summary?days=7`（`visitor:audit:report`）→ `{days,since,total,denied,byDay,byEvent}`（通行应急报表）
+- `POST /visitor/access-logs/export`（`visitor:audit:export`）
+- **只追加保证**：`visitor_access_log` 不含 `deleted` / `version` / `update_*` 列（`AppendOnlyModel`），
+  API **不提供**任何 PUT/PATCH/DELETE，保留期 ≥180 天（`access-logs/summary` 的 `days` 上限 180）。
+
+### 访客预警（权限码 `visitor:alert:*`）
+- `GET /visitor/alerts`（`visitor:alert:list`）分页，`q`（描述/区域）、`filters[alert_type|status|level|visit_id]`
+  · `GET /visitor/alerts/counts` → open/handled/ignored 计数
+- `POST /visitor/alerts/scan`（`visitor:alert:handle`）滞留扫描 → `{scanned}`
+- `POST /visitor/alerts/{aid}/handle`（`visitor:alert:handle`，`{status:handled|ignored, handle_remark}`）
+- 预警类型：`overstay 滞留超时` / `tailgating 尾随进入` / `intrusion 闯入禁区` / `zone_denied 越权访问` / `blacklist 黑名单命中`。
+
+### NDA 电子签（权限码 `visitor:nda:*`）
+- `GET /visitor/nda`（`visitor:nda:list`）分页，`q`（编号/签署人/单位）· `GET /visitor/nda/counts`（signed/expired/revoked）
+- `POST /visitor/nda`（`visitor:nda:sign`）签署 —— 存 `evidence_hash` 存证哈希防篡改，状态 `signed`
+  · `POST /visitor/nda/{nid}/revoke`（`visitor:nda:sign`）作废
+
+### 黑名单（权限码 `visitor:blacklist:*`）
+- `GET /visitor/blacklist`（`visitor:blacklist:list`）分页，`q`（姓名/证件号/电话）· `GET /visitor/blacklist/counts`
+- `POST /visitor/blacklist`（`visitor:blacklist:edit`）· `PUT /visitor/blacklist/{bid}` · `POST /visitor/blacklist/{bid}/toggle`
+
+### 样品 / 样车交接（权限码 `visitor:handover:*`）
+- `GET /visitor/handovers`（`visitor:handover:list`）分页，`q`（交接单号/样品编号/条码）、`filters[visit_id|sample_type|status]`
+- `POST /visitor/handovers`（`visitor:handover:create`）登记交接，可关联访客单（`visit_id`）反查带入的样品/样车。
+
+### 错误码（98xxx）
+98001 状态不允许该操作 · 98002 记录不存在 · 98003 区域不存在 · 98004 命中黑名单 · 98005 超出计划来访时间窗
+· 98006 凭证无效 · 98007 未签 NDA 不予放行 · 98008 重复登记
 
 ## 合同 /contract
 - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。
