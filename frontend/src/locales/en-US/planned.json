@@ -17,7 +17,7 @@
       "name": "Project Management",
       "desc": "Full life-cycle management of large projects; auto-generate a project Gantt chart from task inputs and schedule (custom editing allowed)",
       "batch": "B5",
-      "status": "planned"
+      "status": "done"
     },
     "equipmentList": {
       "no": "23 / 67-69",
@@ -38,7 +38,7 @@
       "name": "Smart Scheduling & Gantt",
       "desc": "Auto-schedule under equipment / staff / prototype vehicle / material constraints; schedulers may adjust before publishing the task schedule",
       "batch": "B5",
-      "status": "planned"
+      "status": "done"
     },
     "capacityBoard": {
       "no": "4",

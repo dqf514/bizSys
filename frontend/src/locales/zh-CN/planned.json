@@ -17,7 +17,7 @@
       "name": "项目管理",
       "desc": "大型项目全生命周期管理，可根据任务输入及排期自动生成项目甘特图（允许自定义编辑）",
       "batch": "B5",
-      "status": "planned"
+      "status": "done"
     },
     "equipmentList": {
       "no": "23 / 67-69",
@@ -38,7 +38,7 @@
       "name": "智能排程甘特",
       "desc": "可基于设备/人员/样车/物料等约束完成自动排期，排期人员可根据实际情况调整后再发布任务排期",
       "batch": "B5",
-      "status": "planned"
+      "status": "done"
     },
     "capacityBoard": {
       "no": "4",
