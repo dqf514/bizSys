@@ -3,6 +3,7 @@
 import io
 import uuid
 
+from conftest import approve_instance
 from openpyxl import load_workbook
 
 UUID = uuid.uuid4().hex[:8]
@@ -155,6 +156,9 @@ def test_task_state_machine_and_errors(client, admin_headers):
     rid = r["data"]["id"]
     assert client.post(f"/api/v1/report/reports/{rid}/submit", headers=headers, json={}).json()["code"] == 0
     _approve_report(rid)
+    # F5：签章前必须走用章申请与用章审批
+    assert client.post(f"/api/v1/report/reports/{rid}/seal-apply", headers=headers, json={}).json()["code"] == 0
+    approve_instance("report_seal", rid, times=2)
     assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 0
     r = client.post(f"/api/v1/task/tasks/{tid}/finish", headers=headers).json()
     assert r["code"] == 0 and r["data"]["status"] == "finished", r

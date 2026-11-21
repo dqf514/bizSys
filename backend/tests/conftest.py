@@ -89,6 +89,54 @@ _ensure_columns(
     },
 )
 
+# F5 补充：流程驱动支撑列
+_ensure_columns(
+    "prj_project",
+    {
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '立项审批实例'",
+    },
+)
+
+_ensure_columns(
+    "hr_timesheet",
+    {
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '工时审批实例'",
+    },
+)
+
+_ensure_columns(
+    "fin_payment",
+    {
+        "status": "status VARCHAR(16) NOT NULL DEFAULT 'draft' COMMENT 'draft/approving/confirmed/rejected'",
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '回款复核审批实例'",
+    },
+)
+
+_ensure_columns(
+    "ast_disposal",
+    {
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '处置审批实例'",
+    },
+)
+
+_ensure_columns(
+    "ast_receipt",
+    {
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '验收审批实例'",
+    },
+)
+
+_ensure_columns(
+    "rpt_report",
+    {
+        "seal_flow_instance_id": "seal_flow_instance_id BIGINT NULL COMMENT '用章申请审批实例'",
+    },
+)
+
+# 存量回款行按迁移口径置为已确认（测试库跨次运行残留）
+with engine.begin() as conn:
+    conn.execute(text("UPDATE fin_payment SET status = 'confirmed' WHERE status IS NULL OR status = 'draft'"))
+
 from app.seeds import init_data as seed  # noqa: E402
 
 _seed_session = SessionLocal()
@@ -143,6 +191,36 @@ def manager_headers(client):
 @pytest.fixture(scope="session")
 def leader_headers(client):
     return _login(client, "leader1", "Test@123456")
+
+
+def approve_instance(biz_type: str, biz_id: int, times: int = 1, comment: str = "ok") -> None:
+    """在测试库中直接推进某业务单据的审批实例（F5 流程驱动用例专用）。
+
+    与 HTTP 待办接口等价，但不受"谁有权限看到待办"影响。
+    """
+    from sqlalchemy import select
+
+    from app.core.db import SessionLocal
+    from app.modules.approval import service as approval
+    from app.modules.approval.models import ApprovalInstance, ApprovalTask
+    from app.modules.auth.models import User
+
+    db = SessionLocal()
+    try:
+        for _ in range(times):
+            target = None
+            for t in db.scalars(
+                select(ApprovalTask).where(ApprovalTask.status == "pending", ApprovalTask.deleted == 0)
+            ):
+                inst = db.get(ApprovalInstance, t.instance_id)
+                if inst and inst.biz_type == biz_type and inst.biz_id == biz_id:
+                    target = t
+                    break
+            assert target, f"no pending task for {biz_type}/{biz_id}"
+            approval.approve(db, target.id, db.get(User, target.assignee_id), comment)
+            db.commit()
+    finally:
+        db.close()
 
 
 @pytest.fixture()

@@ -3,11 +3,13 @@
 数据前缀 as_；每条用例的编码/编号都带 uuid4().hex[:8] 后缀（测试库跨次运行残留）。
 覆盖：CRUD、编码重复、状态机（订单 draft→confirmed→closed、验收→台账、盘点 draft→counting→finished）、
 库存不足拦截、库位有货不可删、部门/供应商统一框架（sys_dept / crm_customer）、导出、权限点服务端强制。
+
+F5：到货验收改为流程驱动 —— 人工直确认被拦截（70005），必须提交审批通过才写库存流水。
 """
 
 import uuid
 
-from conftest import post_login
+from conftest import approve_instance, post_login
 
 BASE = "/api/v1/asset"
 
@@ -423,8 +425,15 @@ def test_receipt_accept_writes_ledger(client, admin_headers):
     r = client.get(f"{BASE}/purchase-orders/{po['id']}", headers=admin_headers).json()
     assert r["data"]["status"] == "closed", r
 
-    # 验收（部分合格 → partial）
+    # 验收（部分合格 → partial）：F5 起走审批，人工直确认是后门被拦截
     r = client.post(f"{BASE}/receipts/{rc['id']}/accept", headers=admin_headers).json()
+    assert r["code"] == 70005, r
+
+    # 提交验收审批 → approving → 审批通过 → 写库存流水（部分合格 → partial）
+    r = client.post(f"{BASE}/receipts/{rc['id']}/submit", headers=admin_headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving", r
+    approve_instance("asset_receipt", rc["id"])
+    r = client.get(f"{BASE}/receipts/{rc['id']}", headers=admin_headers).json()
     assert r["code"] == 0, r
     assert r["data"]["status"] == "partial"
     assert r["data"]["qualifiedQty"] == 6
@@ -563,7 +572,9 @@ def test_ledger_system_rows_readonly(client, admin_headers):
             "items": [{"itemId": item["id"], "itemName": item["name"], "quantity": 2, "qualifiedQty": 2}],
         },
     ).json()["data"]
-    assert client.post(f"{BASE}/receipts/{rc['id']}/accept", headers=admin_headers).json()["code"] == 0
+    # F5：验收走审批，通过后才写系统流水
+    assert client.post(f"{BASE}/receipts/{rc['id']}/submit", headers=admin_headers).json()["code"] == 0
+    approve_instance("asset_receipt", rc["id"])
 
     r = client.get(f"{BASE}/ledger", headers=admin_headers, params={"q": rc["receiptNo"]}).json()
     rows = [x for x in r["data"]["items"] if x["bizNo"] == rc["receiptNo"]]

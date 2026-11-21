@@ -1,9 +1,14 @@
-"""人事行政-工时填报（HTTP）：填报/防重/未来日期/工时上限/提交只读/撤回/统计三维度/越权。"""
+"""人事行政-工时填报（HTTP）：填报/防重/未来日期/工时上限/提交审批/撤回/统计三维度/越权。
+
+F5 起工时「提交」= 发起审批：提交后状态 ``approving``，审批通过才 ``approved``，
+只有已批准/直通提交的工时才计入项目成本统计。
+"""
 
 import io
 import uuid
 from datetime import date, timedelta
 
+from conftest import approve_instance
 from openpyxl import load_workbook
 
 BASE = "/api/v1/hr"
@@ -109,7 +114,8 @@ def test_create_and_day_total(client, admin_headers):
     # 同日不同任务再填一条 → 当日合计正确
     tid2 = _in_progress_task(client, admin_headers, cid, _uniq("工时任务B_"))
     r2 = _create(client, admin_headers, tid2, hours=1.5, submit=True)
-    assert r2["code"] == 0 and r2["data"]["status"] == "submitted" and r2["data"]["submittedAt"]
+    # F5：提交即发起审批 → approving（审批通过后才 approved）
+    assert r2["code"] == 0 and r2["data"]["status"] == "approving" and r2["data"]["submittedAt"]
 
     day = _get(client, admin_headers, "timesheets/day", date=TODAY.isoformat())["data"]
     mine = [i for i in day["items"] if i["taskId"] in (tid, tid2)]
@@ -172,26 +178,47 @@ def test_submit_readonly_withdraw_delete(client, admin_headers):
     tid = _in_progress_task(client, admin_headers, cid, _uniq("工时任务S_"))
     r = _create(client, admin_headers, tid, submit=True)
     tsid = r["data"]["id"]
+    assert r["data"]["status"] == "approving"
 
-    # 已提交只读：改/删 → 63002；重复提交 → 63002
+    # 审批中只读：改/删 → 63002；重复提交 → 63002
     body = {"taskId": tid, "workDate": TODAY.isoformat(), "hours": 3, "content": "改"}
     assert client.put(f"{BASE}/timesheets/{tsid}", headers=admin_headers, json=body).json()["code"] == 63002
     assert client.delete(f"{BASE}/timesheets/{tsid}", headers=admin_headers).json()["code"] == 63002
     assert client.post(f"{BASE}/timesheets/{tsid}/submit", headers=admin_headers).json()["code"] == 63002
 
-    # 退回草稿 → 可改可提交
+    # 撤回（走审批引擎撤回）→ 退回草稿 → 可改可提交
     w = client.post(f"{BASE}/timesheets/{tsid}/withdraw", headers=admin_headers).json()
     assert w["code"] == 0 and w["data"]["status"] == "draft"
     assert client.post(f"{BASE}/timesheets/{tsid}/withdraw", headers=admin_headers).json()["code"] == 63002
     u = client.put(
         f"{BASE}/timesheets/{tsid}", headers=admin_headers, json={**body, "hours": 3.5, "submit": True}
     ).json()
-    assert u["code"] == 0 and u["data"]["status"] == "submitted" and u["data"]["hours"] == 3.5
+    assert u["code"] == 0 and u["data"]["status"] == "approving" and u["data"]["hours"] == 3.5
 
     # 再撤回 → 删除草稿成功 → 同组合可重建（软删不撞唯一键）
     client.post(f"{BASE}/timesheets/{tsid}/withdraw", headers=admin_headers)
     assert client.delete(f"{BASE}/timesheets/{tsid}", headers=admin_headers).json()["code"] == 0
     assert _create(client, admin_headers, tid)["code"] == 0
+
+
+def test_submit_flow_approve_then_withdraw(client, admin_headers):
+    """F5：提交 → 审批通过 → approved；审批中可撤回（引擎撤回，实例终止）。"""
+    cid = _approved_contract(client, admin_headers)
+    tname = _uniq("工时任务F_")
+    tid = _in_progress_task(client, admin_headers, cid, tname)
+    r = _create(client, admin_headers, tid, submit=True)
+    tsid = r["data"]["id"]
+    assert r["data"]["status"] == "approving"
+
+    # 审批通过 → approved（单条工时无 GET 端点，用「我的列表」按任务名回读）
+    approve_instance("timesheet", tsid)
+    mine = _get(client, admin_headers, "timesheets/my", q=tname[:12])["data"]
+    row = next(i for i in mine["items"] if i["id"] == tsid)
+    assert row["status"] == "approved"
+
+    # 已批准的工时可自助撤回（改后需重新提交审批）
+    w = client.post(f"{BASE}/timesheets/{tsid}/withdraw", headers=admin_headers).json()
+    assert w["code"] == 0 and w["data"]["status"] == "draft"
 
 
 def test_owner_only(client, admin_headers, manager_headers):
@@ -219,7 +246,9 @@ def test_my_list_counts_export(client, admin_headers):
     _create(client, admin_headers, tid, work_date=YESTERDAY, hours=4.0, submit=True)
 
     counts = _get(client, admin_headers, "timesheets/my/counts")["data"]
-    assert counts["draft"] >= 1 and counts["submitted"] >= 1 and counts["all"] == counts["draft"] + counts["submitted"]
+    # 提交即审批 → 状态 approving；草稿 + 审批中合计 = all
+    assert counts["draft"] >= 1 and counts["approving"] >= 1
+    assert counts["all"] == sum(counts[k] for k in ("draft", "approving", "approved", "rejected", "submitted"))
 
     r = _get(client, admin_headers, "timesheets/my", q=tname[:12])["data"]
     assert r["total"] == 2 and all(tname[:12] in i["taskName"] for i in r["items"])
@@ -252,9 +281,12 @@ def test_stats_dimensions(client, admin_headers, manager_headers):
     tname = _uniq("工时统计任务_")
     tid = _in_progress_task(client, admin_headers, cid, tname)
     # admin 提交 2h（今天）；manager1 提交 3h（今天）+ 1.5h 草稿（不计入）
-    _create(client, admin_headers, tid, hours=2.0, submit=True)
-    _create(client, manager_headers, tid, hours=3.0, submit=True)
+    a_ts = _create(client, admin_headers, tid, hours=2.0, submit=True)
+    m_ts = _create(client, manager_headers, tid, hours=3.0, submit=True)
     _create(client, manager_headers, tid, work_date=YESTERDAY, hours=1.5)  # draft 不计入
+    # F5：审批中的工时不计入成本统计，审批通过后才计入
+    approve_instance("timesheet", a_ts["data"]["id"])
+    approve_instance("timesheet", m_ts["data"]["id"])
 
     rng = {"dateStart": TODAY.isoformat(), "dateEnd": TODAY.isoformat(), "taskId": tid}
     # 任务维度：5h / 2 条 / 2 人
@@ -280,10 +312,10 @@ def test_stats_dimensions(client, admin_headers, manager_headers):
         d0 = dept_opts[0]
         by_dept = _stats(client, admin_headers, dimension="user", deptId=d0["id"], taskId=tid)["data"]
         assert all(r["deptName"] == d0["label"] for r in by_dept["rows"])
-    # 人员下钻明细：与汇总口径一致（仅 submitted）
+    # 人员下钻明细：与汇总口径一致（仅已批准/直通提交）
     detail = _get(client, admin_headers, "timesheets/stats/detail", userId=mrow["userId"], taskId=tid)["data"]
     entries = [i for i in detail["items"] if i["taskId"] == tid]
-    assert all(i["status"] == "submitted" for i in entries)
+    assert all(i["status"] in ("approved", "submitted") for i in entries)
     assert sum(i["hours"] for i in entries) == 3.0
     # 统计导出
     resp = client.get(f"{BASE}/timesheets/stats/export", headers=admin_headers, params={"dimension": "task", **rng})

@@ -12,7 +12,7 @@
 
 import uuid
 
-from tests.conftest import post_login
+from tests.conftest import approve_instance, post_login
 
 UUID = uuid.uuid4().hex[:8]
 
@@ -454,11 +454,25 @@ def test_project_crud_and_gantt(client, admin_headers):
     ).json()
     assert r["code"] == 0, r
 
-    # 状态流转：立项中 → 执行中
+    # 状态流转：F5 立项状态由审批流程驱动（提交 → 审批通过 → 策划），
+    # 审批通过前不允许手工改状态（99101）
     r = client.put(
         f"/api/v1/project/projects/{pid}",
         headers=admin_headers,
         json={"name": project["name"], "status": "executing", "version": project["version"]},
+    ).json()
+    assert r["code"] == 99101, r
+    r = client.post(f"/api/v1/project/projects/{pid}/submit", headers=admin_headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving", r
+    approve_instance("project", pid, times=2)  # 部门负责人 → 分管领导
+    cur = client.get(f"/api/v1/project/projects/{pid}", headers=admin_headers).json()["data"]
+    assert cur["status"] == "planning", cur
+
+    # 策划 → 执行中
+    r = client.put(
+        f"/api/v1/project/projects/{pid}",
+        headers=admin_headers,
+        json={"name": project["name"], "status": "executing", "version": cur["version"]},
     ).json()
     assert r["code"] == 0 and r["data"]["status"] == "executing", r
 

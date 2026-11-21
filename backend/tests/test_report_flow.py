@@ -1,8 +1,13 @@
-"""报告主链路（HTTP）：上传 → 签批（自动转 PDF 降级）→ 签章 → 任务可结束；门禁 60003 / 重复 61001 / 状态 61002。"""
+"""报告主链路（HTTP）：上传 → 签批（自动转 PDF 降级）→ 用章申请 → 用章审批 → 签章 → 任务可结束。
+
+F5：用章申请与实际签章分离 —— 未走用章审批不能签章（61002）。
+门禁 60003 / 重复 61001 / 状态 61002。
+"""
 
 import io
 import uuid
 
+from conftest import approve_instance
 from openpyxl import load_workbook
 
 UUID = uuid.uuid4().hex[:8]
@@ -162,7 +167,15 @@ def test_report_full_flow(client, admin_headers):
     assert _report_status(client, headers, tid, item_id) == "approved"
     assert any(rec["action"] == "agree" for rec in d["timeline"])
 
-    # 未 approved 不能签章已由上面状态保证；签章 → sealed
+    # F5：用章申请与实际签章分离 —— 未走用章审批不允许签章（61002）
+    r = client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()
+    assert r["code"] == 61002, r
+    r = client.post(f"/api/v1/report/reports/{rid}/seal-apply", headers=headers, json={}).json()
+    assert r["code"] == 0 and r["data"]["status"] == "sealing", r
+    approve_instance("report_seal", rid, times=2)  # 部门负责人 → 分管领导
+    d = client.get(f"/api/v1/report/reports/{rid}", headers=headers).json()["data"]
+    assert d["status"] == "seal_approved", d
+    # 有权人签章 → sealed
     r = client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()
     assert r["code"] == 0 and r["data"]["status"] == "sealed" and r["data"]["sealTime"]
     assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 61002
@@ -232,6 +245,9 @@ def test_report_reject_resubmit_flow(client, admin_headers):
     d = client.get(f"/api/v1/report/reports/{rid}", headers=headers).json()["data"]
     # 原件即 PDF：直接复用，无降级标注
     assert d["status"] == "approved" and d["pdfReady"] and "未安装转换器" not in d["remark"]
+    # F5：签章前必须走用章审批
+    assert client.post(f"/api/v1/report/reports/{rid}/seal-apply", headers=headers, json={}).json()["code"] == 0
+    approve_instance("report_seal", rid, times=2)
     assert client.post(f"/api/v1/report/reports/{rid}/seal", headers=headers, json={}).json()["code"] == 0
     resp = client.get(f"/api/v1/report/reports/{rid}/download", headers=headers, params={"pdf": 1})
     assert resp.status_code == 200 and resp.content == PDF

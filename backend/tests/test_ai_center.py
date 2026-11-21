@@ -12,6 +12,32 @@ def _uniq(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex[:8]}"
 
 
+def _clear_admin_timesheets(days: int = 3) -> None:
+    """清掉 admin 近 N 天的历史工时（测试库跨次运行残留）。
+
+    自然语言问数的工时口径是「本人全部填报合计」，历史残留会让断言漂移；
+    用例执行前先清干净，口径才是确定的。
+    """
+    from sqlalchemy import delete, select
+
+    from app.core.db import SessionLocal
+    from app.modules.auth.models import User
+    from app.modules.hr.models import HrTimesheet
+
+    db = SessionLocal()
+    try:
+        uid = db.scalar(select(User.id).where(User.username == "admin"))
+        db.execute(
+            delete(HrTimesheet).where(
+                HrTimesheet.user_id == uid,
+                HrTimesheet.work_date >= date.today() - timedelta(days=days),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
 def _enable_ai(client, headers):
     r = client.put(
         "/api/v1/admin/settings",
@@ -835,6 +861,7 @@ def test_nl_query_work_hours_self(client, admin_headers, monkeypatch):
     _enable_ai(client, admin_headers)
     tid = _in_progress_task(client, admin_headers)
     suf = uuid.uuid4().hex[:8]
+    _clear_admin_timesheets()
 
     from app.core.db import SessionLocal
     from app.modules.auth.models import User
@@ -964,6 +991,7 @@ def _admin_id_name():
 def test_hr_timesheet_ai_prefill(client, admin_headers, monkeypatch):
     _enable_ai(client, admin_headers)
     tid = _in_progress_task(client, admin_headers)
+    _clear_admin_timesheets()
     for pct in (30, 50):
         r = client.post(
             f"/api/v1/task/tasks/{tid}/progress", headers=admin_headers,

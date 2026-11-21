@@ -1,9 +1,13 @@
-"""财务主链路（HTTP）：任务 finished → 结算单(HK) → 开票审批 → 发票登记 → 到账(DZ) → paid → 导出。"""
+"""财务主链路（HTTP）：任务 finished → 结算单(HK) → 开票审批 → 发票登记 → 到账(DZ) → 复核 → paid → 导出。
+
+F5 起「到账登记」只是登记（状态 draft），必须提交复核审批通过（confirmed）才计入
+结算单已到账金额。
+"""
 
 import io
 import uuid
 
-from conftest import post_login
+from conftest import approve_instance, post_login
 from openpyxl import load_workbook
 
 UUID = uuid.uuid4().hex[:8]
@@ -188,7 +192,7 @@ def test_finance_full_flow(client, admin_headers, manager_headers, leader_header
     ).json()
     assert r["code"] == 0 and r["data"]["invoiceNo"] == f"INV-{UUID}", r
 
-    # 到账登记两笔（DZ 编号；累计达到金额 → paid）
+    # 到账登记两笔（DZ 编号；登记只是草稿，复核通过后才计入已到账 → 累计达到金额 → paid）
     r = client.post(
         "/api/v1/finance/payments",
         headers=headers,
@@ -204,6 +208,15 @@ def test_finance_full_flow(client, admin_headers, manager_headers, leader_header
     ).json()
     assert r["code"] == 0 and r["data"]["paymentNo"].startswith("DZ"), r
     assert r["data"]["settlementNo"] == s["settlementNo"]
+    assert r["data"]["status"] == "draft"  # 未复核的登记不计入已到账
+    pid = r["data"]["id"]
+    s = client.get(f"/api/v1/finance/settlements/{sid}", headers=headers).json()["data"]
+    assert s["status"] == "invoiced" and s["paidAmount"] == 0.0
+
+    # 提交复核 → approving → 审批通过 → confirmed，计入已到账
+    r = client.post(f"/api/v1/finance/payments/{pid}/submit", headers=headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving", r
+    approve_instance("payment", pid)
     s = client.get(f"/api/v1/finance/settlements/{sid}", headers=headers).json()["data"]
     assert s["status"] == "invoiced" and s["paidAmount"] == 4000.0
 
@@ -213,7 +226,12 @@ def test_finance_full_flow(client, admin_headers, manager_headers, leader_header
         json={"settlement_id": sid, "pay_type": "draft", "payer_name": "测试付款方", "amount": 6000,
               "paid_at": "2026-10-10"},
     ).json()
-    assert r["code"] == 0, r
+    assert r["code"] == 0 and r["data"]["status"] == "draft", r
+    pid2 = r["data"]["id"]
+    s = client.get(f"/api/v1/finance/settlements/{sid}", headers=headers).json()["data"]
+    assert s["status"] == "invoiced" and s["paidAmount"] == 4000.0
+    client.post(f"/api/v1/finance/payments/{pid2}/submit", headers=headers)
+    approve_instance("payment", pid2)
     s = client.get(f"/api/v1/finance/settlements/{sid}", headers=headers).json()["data"]
     assert s["status"] == "paid"
     assert len(s["payments"]) == 2
@@ -453,6 +471,10 @@ def test_settlement_links_and_finance_summary(client, admin_headers, manager_hea
     ).json()
     assert r["code"] == 0, r
     assert r["data"]["contractId"] == cid and r["data"]["customerId"] == cust_id
+    # F5：登记只是草稿，复核通过后才计入合同财务汇总的已回款口径
+    pid = r["data"]["id"]
+    assert client.post(f"/api/v1/finance/payments/{pid}/submit", headers=headers).json()["code"] == 0
+    approve_instance("payment", pid)
 
     # 发票/到账列表：两种参数写法均可按合同/客户过滤，行内带出 contractId/customerId
     for params in ({"filters[contract_id]": cid}, {"contract_id": cid}):

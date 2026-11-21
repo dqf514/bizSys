@@ -4,10 +4,14 @@
 覆盖：CRUD、编码重复、借还状态机（未归还不可再借/不可删、归还回写实物状态）、
 处置状态机（draft→approved→done，处置完成回写资产状态）、折旧计提（重复期间拦截、报废资产不可计提）、
 逾期计算态（借出中 + 应归还日 < 今天）、导出。
+
+F5：资产处置改为流程驱动 —— 人工直批被拦截（70005），必须提交审批通过才可核销。
 """
 
 import uuid
 from datetime import date, timedelta
+
+from conftest import approve_instance
 
 BASE = "/api/v1/asset"
 
@@ -377,8 +381,13 @@ def test_disposal_state_machine(client, admin_headers):
     r = client.delete(f"{BASE}/assets/{a['id']}", headers=admin_headers).json()
     assert r["code"] == 97001, r
 
-    # 批准
+    # 批准（F5：处置走审批，人工直批是后门被拦截）
     r = client.post(f"{BASE}/disposals/{d['id']}/approve", headers=admin_headers).json()
+    assert r["code"] == 70005, r
+    r = client.post(f"{BASE}/disposals/{d['id']}/submit", headers=admin_headers).json()
+    assert r["code"] == 0 and r["data"]["status"] == "approving", r
+    approve_instance("asset_disposal", d["id"], times=2)  # 部门负责人 → 分管领导
+    r = client.get(f"{BASE}/disposals/{d['id']}", headers=admin_headers).json()
     assert r["code"] == 0 and r["data"]["status"] == "approved", r
 
     # 已批准不可编辑/删除
@@ -411,7 +420,8 @@ def test_disposal_transfer_keeps_asset_idle(client, admin_headers):
         headers=admin_headers,
         json={"assetId": a["id"], "disposalType": "transfer"},
     ).json()["data"]
-    assert client.post(f"{BASE}/disposals/{d['id']}/approve", headers=admin_headers).json()["code"] == 0
+    assert client.post(f"{BASE}/disposals/{d['id']}/submit", headers=admin_headers).json()["code"] == 0
+    approve_instance("asset_disposal", d["id"], times=2)
     assert client.post(f"{BASE}/disposals/{d['id']}/complete", headers=admin_headers).json()["code"] == 0
     r = client.get(f"{BASE}/assets/{a['id']}", headers=admin_headers).json()
     assert r["data"]["status"] == "idle", r
