@@ -81,6 +81,7 @@
   "maintenance": "数据维护",
   "depts": "部门管理",
   "flow": "流程配置",
+  "automation": "流程与事件开关",
   "settings": "系统设置",
   "oaAdmin": "OA管理",
   "oaFlowStats": "流程统计",

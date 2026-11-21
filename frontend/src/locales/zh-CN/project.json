@@ -20,6 +20,8 @@
   "fromContract": "基于合同立项",
   "fromContractHint": "只能选择已审批通过的合同，客户与合同信息自动带入",
   "detail": "项目详情",
+  "submitApproval": "提交立项审批",
+  "submitApprovalHint": "确认提交该项目立项审批？审批通过后进入策划阶段，可参与智能排程。",
   "gantt": "项目甘特",
   "ganttEmpty": "暂无甘特数据，可点击「生成甘特」从任务与排期推导",
   "generateGantt": "生成甘特",
@@ -39,6 +41,8 @@
   "selectContract": "选择合同",
   "status": {
     "draft": "立项中",
+    "approving": "立项审批中",
+    "rejected": "立项已驳回",
     "planning": "策划中",
     "executing": "执行中",
     "accepting": "验收中",

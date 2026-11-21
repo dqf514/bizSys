@@ -826,6 +826,10 @@ export interface Payment {
   amount: number | string
   bank: string
   paidAt: string
+  /** draft 待复核 / approving 复核中 / confirmed 已确认 / rejected 已驳回 */
+  status?: string
+  statusText?: string
+  flowInstanceId?: number | null
   remark: string
   createBy: string | number
   createTime: string
@@ -857,7 +861,14 @@ export interface ContractFinanceSummary {
 }
 
 /** Report module — camelCase per backend convention */
-export type ReportStatus = 'uploaded' | 'approving' | 'approved' | 'rejected' | 'sealed'
+export type ReportStatus =
+  | 'uploaded'
+  | 'approving'
+  | 'approved'
+  | 'rejected'
+  | 'sealing'
+  | 'seal_approved'
+  | 'sealed'
 
 export interface Report {
   id: number
@@ -2945,7 +2956,7 @@ export interface Project {
   deptName: string
   startDate: string
   endDate: string
-  status: 'draft' | 'planning' | 'executing' | 'accepting' | 'closed' | 'cancelled'
+  status: 'draft' | 'approving' | 'planning' | 'executing' | 'accepting' | 'closed' | 'cancelled' | 'rejected'
   statusText?: string
   progress: number
   budgetAmount: number

@@ -29,6 +29,7 @@ import {
   getProject,
   listProjects,
   projectCounts,
+  submitProject,
   updateProject,
   updateProjectTask,
 } from '@/api/project'
@@ -50,11 +51,13 @@ const searchFields: SearchField[] = [
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'all', labelKey: 'common.action.all', count: 0 },
   { value: 'draft', labelKey: 'project.status.draft', count: 0 },
+  { value: 'approving', labelKey: 'project.status.approving', count: 0 },
   { value: 'planning', labelKey: 'project.status.planning', count: 0 },
   { value: 'executing', labelKey: 'project.status.executing', count: 0 },
   { value: 'accepting', labelKey: 'project.status.accepting', count: 0 },
   { value: 'closed', labelKey: 'project.status.closed', count: 0 },
   { value: 'cancelled', labelKey: 'project.status.cancelled', count: 0 },
+  { value: 'rejected', labelKey: 'project.status.rejected', count: 0 },
 ])
 
 const list = useListPage<Project>({
@@ -246,6 +249,10 @@ async function openDetail(row: Project) {
 
 function projectActions(row: Project): ActionItem[] {
   const actions: ActionItem[] = [{ key: 'detail', tip: 'project.detail' }]
+  // F5：立项须经审批，提交后进入审批中，审批通过才进入策划阶段
+  if (row.status === 'draft' || row.status === 'rejected') {
+    actions.push({ key: 'submit', tip: 'project.submitApproval', perm: 'project:submit' })
+  }
   actions.push({ key: 'edit', tip: 'common.action.edit', perm: 'project:edit' })
   if (row.status === 'draft' || row.status === 'cancelled') {
     actions.push({ key: 'delete', tip: 'common.action.delete', perm: 'project:delete', danger: true })
@@ -257,6 +264,12 @@ async function onProjectAction(key: string, row: Project) {
   try {
     if (key === 'detail') {
       openDetail(row)
+      return
+    }
+    if (key === 'submit') {
+      await submitProject(row.id)
+      ElMessage.success(t('common.message.submitSuccess'))
+      list.refresh()
       return
     }
     if (key === 'edit') {

@@ -97,6 +97,14 @@
     "searchQ": "Keyword",
     "placeholderQ": "Payment no. / payer name / settlement no.",
     "create": "Register Payment",
-    "selectSettlement": "Select Settlement"
+    "selectSettlement": "Select Settlement",
+    "submit": "Submit for Review",
+    "submitConfirm": "Submit this payment for review? It counts toward the settled amount only after approval.",
+    "status": {
+      "draft": "Pending Review",
+      "approving": "Reviewing",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected"
+    }
   }
 }

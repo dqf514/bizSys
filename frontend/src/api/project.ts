@@ -39,6 +39,11 @@ export function deleteProject(id: number) {
   return request<void>({ url: `/project/projects/${id}`, method: 'delete' })
 }
 
+/** 提交立项审批（F5）：审批通过后进入策划阶段 */
+export function submitProject(id: number) {
+  return request<Project>({ url: `/project/projects/${id}/submit`, method: 'post' })
+}
+
 /* ---------- 项目任务（甘特行）---------- */
 
 export function listProjectTasks(projectId: number) {

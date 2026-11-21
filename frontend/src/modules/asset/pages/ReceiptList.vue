@@ -11,6 +11,7 @@ import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useFlowCapability } from '@/composables/useFlowCapability'
 import {
   acceptReceipt,
   createReceipt,
@@ -20,6 +21,7 @@ import {
   listPurchaseOrders,
   listReceipts,
   receiptCounts,
+  submitReceipt,
   updateReceipt,
 } from '@/api/asset'
 import type { AssetReceipt, AssetReceiptItem } from '@/api/types'
@@ -33,6 +35,7 @@ import {
 defineOptions({ name: 'ReceiptList' })
 
 const { t } = useI18n()
+const { load: loadFlowCaps, flowEnabled } = useFlowCapability()
 const route = useRoute()
 const router = useRouter()
 const itemOpts = useItemOptions()
@@ -60,6 +63,7 @@ const searchFields = computed<SearchField[]>(() => [
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'all', labelKey: 'common.action.all', count: 0 },
   { value: 'draft', labelKey: 'common.status.draft', count: 0 },
+  { value: 'approving', labelKey: 'common.status.approving', count: 0 },
   { value: 'accepted', labelKey: 'asset.status.accepted', count: 0 },
   { value: 'partial', labelKey: 'asset.status.partial', count: 0 },
   { value: 'rejected', labelKey: 'asset.status.rejected', count: 0 },
@@ -81,7 +85,10 @@ async function loadCounts() {
   }
 }
 
-onMounted(() => void loadCounts())
+onMounted(() => {
+  void loadCounts()
+  void loadFlowCaps()
+})
 
 function buildFilters() {
   return { warehouse_id: searchModel.value.warehouseId || undefined }
@@ -126,8 +133,16 @@ function rowActions(row: AssetReceipt): ActionItem[] {
   const acts: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
   if (s === 'draft') {
     acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'asset:receipt:edit' })
-    acts.push({ key: 'accept', tip: 'asset.receipt.accept', icon: 'CircleCheck', perm: 'asset:receipt:accept' })
+    // F5：验收流程启用时走审批，流程停用才恢复人工直通
+    if (flowEnabled('asset_receipt')) {
+      acts.push({ key: 'submit', tip: 'asset.receipt.submit', perm: 'asset:receipt:submit' })
+    } else {
+      acts.push({ key: 'accept', tip: 'asset.receipt.accept', icon: 'CircleCheck', perm: 'asset:receipt:accept' })
+    }
     acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'asset:receipt:delete' })
+  }
+  if (s === 'rejected') {
+    acts.push({ key: 'submit', tip: 'asset.receipt.submit', perm: 'asset:receipt:submit' })
   }
   return acts
 }
@@ -135,8 +150,25 @@ function rowActions(row: AssetReceipt): ActionItem[] {
 function onRowAction(key: string, row: AssetReceipt) {
   if (key === 'detail') void openDetail(row.id)
   else if (key === 'edit') openEdit(row)
+  else if (key === 'submit') void doSubmit(row)
   else if (key === 'accept') void doAccept(row)
   else if (key === 'delete') void remove(row)
+}
+
+/* ---------- 提交验收审批（F5） ---------- */
+async function doSubmit(row: AssetReceipt) {
+  try {
+    await ElMessageBox.confirm(t('asset.receipt.submitTip'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await submitReceipt(row.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
 }
 
 /* ---------- form ---------- */

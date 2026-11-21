@@ -170,7 +170,9 @@
     "qualified": "合格数量",
     "location": "入库库位",
     "accept": "验收",
-    "acceptTip": "确认验收该单？合格数量将写入库存台账"
+    "acceptTip": "确认验收该单？合格数量将写入库存台账",
+    "submit": "提交验收审批",
+    "submitTip": "确认提交该验收单进入验收审批？审批通过后才写入库存台账。"
   },
   "ledger": {
     "title": "库存台账",
@@ -309,6 +311,8 @@
     "remark": "备注",
     "approve": "批准",
     "approveTip": "确认批准该处置单？",
+    "submit": "提交处置审批",
+    "submitTip": "确认提交该处置单进入审批流程？审批通过后方可核销。",
     "complete": "完成处置",
     "completeTip": "确认完成处置？资产状态将同步更新"
   },

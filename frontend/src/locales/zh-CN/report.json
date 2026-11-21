@@ -25,6 +25,8 @@
     "submitConfirm": "确认提交该报告进入签批流程？",
     "seal": "签章",
     "sealConfirm": "确认对该报告盖章签章？签章后任务方可结束。",
+    "sealApply": "用章申请",
+    "sealApplyConfirm": "确认提交用章申请？审批通过后方可签章。",
     "downloadRaw": "下载原件",
     "downloadPdf": "下载PDF",
     "detail": "报告详情",
@@ -37,6 +39,8 @@
       "approving": "审批中",
       "approved": "批准通过",
       "rejected": "已驳回",
+      "sealing": "用章审批中",
+      "seal_approved": "用章已批准",
       "sealed": "签章完成"
     }
   }

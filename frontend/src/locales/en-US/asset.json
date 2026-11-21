@@ -170,6 +170,8 @@
     "qualified": "Qualified Qty",
     "location": "Location",
     "accept": "Accept",
+    "submit": "Submit for Acceptance Approval",
+    "submitTip": "Submit this receipt into the acceptance flow? Stock ledger entries are written only after approval.",
     "acceptTip": "Accept this receipt? Qualified quantities will be written to the stock ledger"
   },
   "ledger": {
@@ -309,6 +311,8 @@
     "remark": "Remark",
     "approve": "Approve",
     "approveTip": "Approve this disposal?",
+    "submit": "Submit for Disposal Approval",
+    "submitTip": "Submit this disposal for approval? The asset is written off only after approval.",
     "complete": "Complete Disposal",
     "completeTip": "Complete the disposal? The asset status will be updated"
   },

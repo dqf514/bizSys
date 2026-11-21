@@ -47,6 +47,15 @@ export function sealReport(id: number, comment?: string) {
   })
 }
 
+/** 用章申请（F5）：提交用章审批，通过后方可执行签章 */
+export function sealApplyReport(id: number, comment?: string) {
+  return request<{ id: number; status: string; sealFlowInstanceId: number }>({
+    url: `/report/reports/${id}/seal-apply`,
+    method: 'post',
+    data: { comment: comment ?? '' },
+  })
+}
+
 export function getReport(id: number) {
   return request<ReportDetail>({ url: `/report/reports/${id}`, method: 'get' })
 }

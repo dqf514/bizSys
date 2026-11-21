@@ -11,6 +11,7 @@ import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useFlowCapability } from '@/composables/useFlowCapability'
 import { useDictOptions } from '@/composables/useDict'
 import {
   approveDisposal,
@@ -21,6 +22,7 @@ import {
   exportDisposals,
   getDisposal,
   listDisposals,
+  submitDisposal,
   updateDisposal,
 } from '@/api/asset'
 import type { AssetDisposal } from '@/api/types'
@@ -29,6 +31,7 @@ import { useFixedAssetOptions } from '../composables/useAssetOptions'
 defineOptions({ name: 'DisposalList' })
 
 const { t } = useI18n()
+const { load: loadFlowCaps, flowEnabled } = useFlowCapability()
 const route = useRoute()
 const router = useRouter()
 const assetOpts = useFixedAssetOptions()
@@ -54,6 +57,7 @@ const searchFields = computed<SearchField[]>(() => [
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'all', labelKey: 'common.action.all', count: 0 },
   { value: 'draft', labelKey: 'common.status.draft', count: 0 },
+  { value: 'approving', labelKey: 'common.status.approving', count: 0 },
   { value: 'approved', labelKey: 'asset.status.approved', count: 0 },
   { value: 'done', labelKey: 'asset.status.done', count: 0 },
 ])
@@ -72,7 +76,10 @@ async function loadCounts() {
   }
 }
 
-onMounted(() => void loadCounts())
+onMounted(() => {
+  void loadCounts()
+  void loadFlowCaps()
+})
 
 function buildFilters() {
   return { disposal_type: searchModel.value.disposalType || undefined }
@@ -122,11 +129,19 @@ function rowActions(row: AssetDisposal): ActionItem[] {
   const acts: ActionItem[] = [{ key: 'detail', tip: 'common.action.detail' }]
   if (s === 'draft') {
     acts.push({ key: 'edit', tip: 'common.action.edit', perm: 'asset:disposal:edit' })
-    acts.push({ key: 'approve', tip: 'asset.disposal.approve', perm: 'asset:disposal:approve' })
+    // F5：处置流程启用时走审批，流程停用才恢复人工直批
+    if (flowEnabled('asset_disposal')) {
+      acts.push({ key: 'submit', tip: 'asset.disposal.submit', perm: 'asset:disposal:submit' })
+    } else {
+      acts.push({ key: 'approve', tip: 'asset.disposal.approve', perm: 'asset:disposal:approve' })
+    }
     acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'asset:disposal:delete' })
   } else if (s === 'approved') {
     acts.push({ key: 'complete', tip: 'asset.disposal.complete', icon: 'CircleCheck', perm: 'asset:disposal:complete' })
   } else if (s === 'rejected') {
+    if (flowEnabled('asset_disposal')) {
+      acts.push({ key: 'submit', tip: 'asset.disposal.submit', perm: 'asset:disposal:submit' })
+    }
     acts.push({ key: 'delete', tip: 'common.action.delete', perm: 'asset:disposal:delete' })
   }
   return acts
@@ -135,9 +150,26 @@ function rowActions(row: AssetDisposal): ActionItem[] {
 function onRowAction(key: string, row: AssetDisposal) {
   if (key === 'detail') void openDetail(row.id)
   else if (key === 'edit') openEdit(row)
+  else if (key === 'submit') void doSubmit(row)
   else if (key === 'approve') void doApprove(row)
   else if (key === 'complete') void doComplete(row)
   else if (key === 'delete') void remove(row)
+}
+
+/* ---------- 提交处置审批（F5） ---------- */
+async function doSubmit(row: AssetDisposal) {
+  try {
+    await ElMessageBox.confirm(t('asset.disposal.submitTip'), t('common.action.confirm'), { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await submitDisposal(row.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
 }
 
 /* ---------- form ---------- */

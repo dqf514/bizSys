@@ -295,6 +295,11 @@ export function acceptReceipt(id: number) {
   return request<AssetReceipt>({ url: `/asset/receipts/${id}/accept`, method: 'post' })
 }
 
+/** 提交到货验收审批（F5）：验收通过后才生成入库流水 */
+export function submitReceipt(id: number) {
+  return request<AssetReceipt>({ url: `/asset/receipts/${id}/submit`, method: 'post' })
+}
+
 export function exportReceipts(params: ListQuery) {
   return download(
     { url: '/asset/receipts/export', method: 'post', params: toQuery(params as Record<string, unknown>) },
@@ -569,6 +574,11 @@ export function deleteDisposal(id: number) {
 
 export function approveDisposal(id: number) {
   return request<AssetDisposal>({ url: `/asset/disposals/${id}/approve`, method: 'post' })
+}
+
+/** 提交资产处置审批（F5）：审批通过后方可核销 */
+export function submitDisposal(id: number) {
+  return request<AssetDisposal>({ url: `/asset/disposals/${id}/submit`, method: 'post' })
 }
 
 export function completeDisposal(id: number) {

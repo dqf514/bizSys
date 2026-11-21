@@ -97,6 +97,14 @@
     "searchQ": "关键词",
     "placeholderQ": "请输入到账号/对方名称/结算单号",
     "create": "到账登记",
-    "selectSettlement": "选择结算单"
+    "selectSettlement": "选择结算单",
+    "submit": "提交复核",
+    "submitConfirm": "确认提交该到账记录进入复核流程？复核通过后才计入结算单已到账金额。",
+    "status": {
+      "draft": "待复核",
+      "approving": "复核中",
+      "confirmed": "已确认",
+      "rejected": "已驳回"
+    }
   }
 }

@@ -17,7 +17,7 @@ import {
   Operation, PieChart, Plus, Position, Postcard, Promotion,
   Rank, RefreshLeft, Right, Search, Sell, Service,
   Setting, ShoppingCart, Stamp, Star, StarFilled, Suitcase,
-  Sunny, SwitchButton, Tickets, Tools, Top, TrendCharts, TurnOff,
+  Sunny, Switch, SwitchButton, Tickets, Tools, Top, TrendCharts, TurnOff,
   Upload, User, UserFilled, View, Wallet, Warning, VideoPlay,
 } from '@element-plus/icons-vue'
 
@@ -34,7 +34,7 @@ const registry: Record<string, Component> = {
   Operation, PieChart, Plus, Position, Postcard, Promotion,
   Rank, RefreshLeft, Right, Search, Sell, Service,
   Setting, ShoppingCart, Stamp, Star, StarFilled, Suitcase,
-  Sunny, SwitchButton, Tickets, Tools, Top, TrendCharts, TurnOff,
+  Sunny, Switch, SwitchButton, Tickets, Tools, Top, TrendCharts, TurnOff,
   Upload, User, UserFilled, View, Wallet, Warning, VideoPlay,
 }
 

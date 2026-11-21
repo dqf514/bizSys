@@ -20,6 +20,8 @@
   "fromContract": "Start from Contract",
   "fromContractHint": "Only approved contracts can be selected; customer and contract info are filled in automatically",
   "detail": "Project Detail",
+  "submitApproval": "Submit Initiation Approval",
+  "submitApprovalHint": "Submit this project for initiation approval? It enters planning after approval and can join smart scheduling.",
   "gantt": "Project Gantt",
   "ganttEmpty": "No Gantt data yet — click \"Generate Gantt\" to derive it from tasks and schedules",
   "generateGantt": "Generate Gantt",
@@ -39,6 +41,8 @@
   "selectContract": "Select Contract",
   "status": {
     "draft": "Draft",
+    "approving": "Initiation Approving",
+    "rejected": "Initiation Rejected",
     "planning": "Planning",
     "executing": "Executing",
     "accepting": "Accepting",

@@ -119,6 +119,15 @@ export function createPayment(data: CreatePaymentPayload) {
   return request<Payment>({ url: '/finance/payments', method: 'post', data })
 }
 
+export function paymentCounts() {
+  return request<Record<string, number>>({ url: '/finance/payments/counts', method: 'get' })
+}
+
+/** 提交回款复核（F5）：复核通过后才计入结算单已到账金额 */
+export function submitPayment(id: number) {
+  return request<Payment>({ url: `/finance/payments/${id}/submit`, method: 'post' })
+}
+
 export function exportSettlements(params: ListQuery) {
   return download(
     {

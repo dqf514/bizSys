@@ -25,6 +25,8 @@
     "submitConfirm": "Submit this report into the sign-off flow?",
     "seal": "Seal",
     "sealConfirm": "Seal this report? The task can be closed only after sealing.",
+    "sealApply": "Seal Request",
+    "sealApplyConfirm": "Submit a seal request? Sealing is only allowed after approval.",
     "downloadRaw": "Download Original",
     "downloadPdf": "Download PDF",
     "detail": "Report Detail",
@@ -37,6 +39,8 @@
       "approving": "Approving",
       "approved": "Approved",
       "rejected": "Rejected",
+      "sealing": "Seal Approving",
+      "seal_approved": "Seal Approved",
       "sealed": "Sealed"
     }
   }

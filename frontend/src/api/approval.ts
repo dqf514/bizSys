@@ -142,3 +142,31 @@ export function aiSuggestFlow(data: {
 
 /** lightweight user options for transfer / add-sign (fallback to admin users list) */
 export type { UserProfile }
+
+/* ---------- 流程能力清单（F5） ---------- */
+
+/** 一类单据的流程能力：决定前端展示「提交审批」还是「人工直通」 */
+export interface FlowCapability {
+  bizType: string
+  label: string
+  managed: boolean
+  /** 流程总开关：关闭时单据不进入审批中，直接落到通过态 */
+  enabled: boolean
+  definitionReady: boolean
+  /** 允许触发提交的前置状态 */
+  submitFrom: string[]
+  statuses: {
+    approving: string
+    approved: string
+    rejected: string
+    withdrawn: string
+  }
+  submitPerm: string
+}
+
+export function getFlowCapabilities() {
+  return request<{ items: FlowCapability[] }>({
+    url: '/approval/flow-capabilities',
+    method: 'get',
+  })
+}

@@ -16,15 +16,18 @@ import {
   listReports,
   reportCounts,
   submitReport,
+  sealApplyReport,
   sealReport,
   downloadReport,
   exportReports,
 } from '@/api/report'
+import { useFlowCapability } from '@/composables/useFlowCapability'
 import type { Report } from '@/api/types'
 
 defineOptions({ name: 'ReportList' })
 
 const { t } = useI18n()
+const { load: loadFlowCaps, flowEnabled } = useFlowCapability()
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
@@ -37,6 +40,8 @@ const statusTabs = ref<StatusTabItem[]>([
   { value: 'approving', labelKey: 'report.report.status.approving', count: 0 },
   { value: 'approved', labelKey: 'report.report.status.approved', count: 0 },
   { value: 'rejected', labelKey: 'report.report.status.rejected', count: 0 },
+  { value: 'sealing', labelKey: 'report.report.status.sealing', count: 0 },
+  { value: 'seal_approved', labelKey: 'report.report.status.seal_approved', count: 0 },
   { value: 'sealed', labelKey: 'report.report.status.sealed', count: 0 },
 ])
 
@@ -58,7 +63,10 @@ async function loadCounts() {
   }
 }
 
-onMounted(() => void loadCounts())
+onMounted(() => {
+  void loadCounts()
+  void loadFlowCaps()
+})
 
 const list = useListPage<Report>({
   fetch: async (params) => {
@@ -97,7 +105,15 @@ function rowActions(row: Report): ActionItem[] {
   if (row.status === 'uploaded' || row.status === 'rejected') {
     acts.push({ key: 'submit', tip: 'report.report.submit', perm: 'report:submit' })
   }
+  // F5：用章流程启用时，先「用章申请」再「签章」；流程停用则由有权人直接签章
   if (row.status === 'approved') {
+    if (flowEnabled('report_seal')) {
+      acts.push({ key: 'sealApply', tip: 'report.report.sealApply', perm: 'report:seal:apply' })
+    } else {
+      acts.push({ key: 'seal', tip: 'report.report.seal', perm: 'report:seal' })
+    }
+  }
+  if (row.status === 'seal_approved') {
     acts.push({ key: 'seal', tip: 'report.report.seal', perm: 'report:seal' })
   }
   acts.push({ key: 'downloadRaw', tip: 'report.report.downloadRaw', icon: 'Download' })
@@ -108,6 +124,7 @@ function rowActions(row: Report): ActionItem[] {
 function onRowAction(key: string, row: Report) {
   if (key === 'detail') openDetail(row)
   else if (key === 'submit') void doSubmit(row)
+  else if (key === 'sealApply') void doSealApply(row)
   else if (key === 'seal') void doSeal(row)
   else if (key === 'downloadRaw') doDownload(row, false)
   else if (key === 'downloadPdf') doDownload(row, true)
@@ -141,6 +158,23 @@ async function doSeal(row: Report) {
   try {
     await sealReport(row.id)
     ElMessage.success(t('common.message.saveSuccess'))
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
+}
+
+async function doSealApply(row: Report) {
+  try {
+    await ElMessageBox.confirm(t('report.report.sealApplyConfirm'), t('common.action.confirm'), {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  try {
+    await sealApplyReport(row.id)
+    ElMessage.success(t('common.message.submitSuccess'))
     list.refresh()
   } catch {
     /* http notifies */

@@ -64,6 +64,9 @@
   },
   "status": {
     "draft": "Draft",
+    "approving": "Approving",
+    "approved": "Approved",
+    "rejected": "Rejected",
     "submitted": "Submitted"
   },
   "stats": {

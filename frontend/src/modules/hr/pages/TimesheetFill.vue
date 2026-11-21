@@ -24,6 +24,7 @@ import {
   myTimesheetCounts,
   searchTimesheetContracts,
   searchTimesheetTasks,
+  submitTimesheet,
   updateTimesheet,
   withdrawTimesheet,
 } from '@/api/hr'
@@ -115,7 +116,10 @@ async function loadDay() {
   try {
     const data = await getTimesheetDay(workDate.value)
     draftRows.value = data.items.filter((i) => i.status === 'draft').map(entryToRow)
-    submittedItems.value = data.items.filter((i) => i.status === 'submitted')
+    // F5：提交后进入审批中（approving），审批通过为 approved；未配置流程时直通 submitted
+    submittedItems.value = data.items.filter((i) =>
+      ['approving', 'approved', 'submitted'].includes(String(i.status)),
+    )
     dayTotal.value = data.totalHours
     newRows.value = []
   } catch {
@@ -213,6 +217,24 @@ async function saveRow(row: RowState, submit: boolean) {
   }
 }
 
+/* ---------- 我的工时：提交审批（F5） ---------- */
+function onMyAction(key: string, e: HrTimesheetItem) {
+  if (key === 'edit') gotoFill(e)
+  else if (key === 'submit') void submitEntry(e)
+}
+
+async function submitEntry(e: HrTimesheetItem) {
+  try {
+    await submitTimesheet(e.id)
+    ElMessage.success(t('common.message.submitSuccess'))
+    await Promise.all([loadDay(), loadWeek()])
+    void loadCounts()
+    list.refresh()
+  } catch {
+    /* http notifies */
+  }
+}
+
 async function withdrawEntry(e: HrTimesheetItem) {
   try {
     await ElMessageBox.confirm(t('hr.fill.withdrawConfirm'), t('common.action.confirm'), { type: 'warning' })
@@ -282,7 +304,9 @@ const counts = ref<Record<string, number>>({})
 const statusTabs = computed<StatusTabItem[]>(() => [
   { value: 'all', labelKey: 'common.action.all', count: counts.value.all ?? 0 },
   { value: 'draft', label: t('hr.status.draft'), count: counts.value.draft ?? 0 },
-  { value: 'submitted', label: t('hr.status.submitted'), count: counts.value.submitted ?? 0 },
+  { value: 'approving', label: t('hr.status.approving'), count: counts.value.approving ?? 0 },
+  { value: 'approved', label: t('hr.status.approved'), count: counts.value.approved ?? 0 },
+  { value: 'rejected', label: t('hr.status.rejected'), count: counts.value.rejected ?? 0 },
 ])
 
 async function loadCounts() {
@@ -563,9 +587,12 @@ watch(view, (v) => {
           >
             <template #default="{ row }">
               <ActionBar
-                v-if="row.status === 'draft'"
-                :actions="[{ key: 'edit', tip: 'hr.my.editInFill' }]"
-                @select="gotoFill(row as HrTimesheetItem)"
+                v-if="row.status === 'draft' || row.status === 'rejected'"
+                :actions="[
+                  { key: 'edit', tip: 'hr.my.editInFill' },
+                  { key: 'submit', tip: 'common.action.submitApproval', perm: 'hr:timesheet:submit' },
+                ]"
+                @select="onMyAction($event, row as HrTimesheetItem)"
               />
             </template>
           </el-table-column>

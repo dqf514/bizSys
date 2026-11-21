@@ -99,6 +99,67 @@ export interface MessagingTestResult {
   debugCode?: string
 }
 
+/* ---------- 流程与事件开关（F5） ---------- */
+
+/** 单据类型与审批状态的对应口径 */
+export interface AutomationFlowStatuses {
+  /** 提交审批后的状态 */
+  approving: string
+  /** 审批通过后的状态 */
+  approved: string
+  /** 审批驳回后的状态 */
+  rejected: string
+  /** 撤回后的状态 */
+  withdrawn: string
+}
+
+/** 一类单据的流程开关 */
+export interface AutomationFlow {
+  bizType: string
+  /** 后端给的中文名（前端按 bizType 优先取 i18n） */
+  label: string
+  definitionCode: string
+  /** 流程定义是否已配置且启用；未配置时按「人工审核」口径直通 */
+  definitionReady: boolean
+  definitionName: string
+  /** 是否纳入流程驱动（false = 仍走原人工路径） */
+  managed: boolean
+  switchKey: string
+  enabled: boolean
+  /** 允许触发提交的前置状态 */
+  submitFrom: string[]
+  statuses: AutomationFlowStatuses
+  submitPerm: string
+  note: string
+}
+
+/** 一条事件联动开关 */
+export interface AutomationEventSwitch {
+  key: string
+  name: string
+  /** 关键联动：异常会回滚业务事务 */
+  critical: boolean
+  enabled: boolean
+}
+
+/** 一类业务事件及其联动开关 */
+export interface AutomationEvent {
+  event: string
+  label: string
+  description: string
+  switches: AutomationEventSwitch[]
+}
+
+export interface AutomationPanel {
+  flows: AutomationFlow[]
+  events: AutomationEvent[]
+}
+
+export interface AutomationUpdate {
+  flows?: { bizType: string; enabled: boolean }[]
+  events?: { key: string; enabled: boolean }[]
+}
+
 export function testMessaging(channel: 'sms' | 'email', target: string) {
   return request<MessagingTestResult>({
     url: '/admin/settings/messaging/test',
@@ -143,4 +204,14 @@ export function clearFavicon() {
 
 export function getBranding() {
   return request<Branding>({ url: '/public/branding', method: 'get' })
+}
+
+/* ---------- 流程与事件开关（F5） ---------- */
+
+export function getAutomation() {
+  return request<AutomationPanel>({ url: '/admin/automation', method: 'get' })
+}
+
+export function updateAutomation(data: AutomationUpdate) {
+  return request<AutomationPanel>({ url: '/admin/automation', method: 'put', data })
 }

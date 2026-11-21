@@ -81,6 +81,7 @@
   "maintenance": "Data Maintenance",
   "depts": "Departments",
   "flow": "Flow Definitions",
+  "automation": "Flow & Event Switches",
   "settings": "Settings",
   "oaAdmin": "OA Admin",
   "oaFlowStats": "Flow Statistics",
