@@ -90,6 +90,7 @@ from app.modules.admin.router import router as admin_router  # noqa: E402
 from app.modules.aicenter.router import cap_router as ai_cap_router  # noqa: E402
 from app.modules.aicenter.router import router as aicenter_router  # noqa: E402
 from app.modules.approval.router import router as approval_router  # noqa: E402
+from app.modules.asset.bom_router import router as asset_bom_router  # noqa: E402  BOM 物料清单（B4）
 from app.modules.asset.finance_router import router as asset_finance_router  # noqa: E402
 from app.modules.asset.router import router as asset_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
@@ -136,6 +137,7 @@ app.include_router(oa_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
 app.include_router(tender_router, prefix="/api/v1")
 app.include_router(asset_router, prefix="/api/v1")
+app.include_router(asset_bom_router, prefix="/api/v1")
 app.include_router(asset_finance_router, prefix="/api/v1")
 app.include_router(portal_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")

@@ -16,7 +16,7 @@ from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.db import get_db
-from app.core.deps import require_perm
+from app.core.deps import require_any_perm, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.asset import schemas as S
@@ -61,6 +61,9 @@ ITEM_EXPORT_COLS = [
     {"key": "unitPrice", "label": "单价", "width": 12},
     {"key": "qtyOnHand", "label": "现存数量", "width": 12},
     {"key": "safetyStock", "label": "安全库存", "width": 12},
+    {"key": "stagnantLevelText", "label": "呆滞分级", "width": 12},
+    {"key": "idleDays", "label": "闲置天数", "width": 12},
+    {"key": "lastMoveAt", "label": "最近出入库", "width": 19},
     {"key": "supplierName", "label": "供应公司", "width": 24},
     {"key": "statusText", "label": "状态", "width": 10},
 ]
@@ -167,6 +170,13 @@ CATEGORY_CN = {
 }
 
 KIND_CN = {"vehicle": "样车", "part": "样件", "prototype": "样机", "other": "其他"}
+
+STAGNANT_LEVEL_CN = {
+    "normal": "正常",
+    "slow": "慢动销",
+    "stagnant": "呆滞",
+    "dead": "呆死",
+}
 
 REASON_CN = {
     "purchase": "采购入库",
@@ -652,8 +662,14 @@ def delete_location(
 # ---------------- 存货档案 ----------------
 
 
-def _item_out(item: Item, db: Session, stock: float | None = None) -> dict:
+def _item_out(
+    item: Item,
+    db: Session,
+    stock: float | None = None,
+    warn: dict | None = None,
+) -> dict:
     qty = svc.item_stock(db, item.id) if stock is None else stock
+    warn = warn or {}
     return {
         "id": item.id,
         "code": item.code,
@@ -674,6 +690,15 @@ def _item_out(item: Item, db: Session, stock: float | None = None) -> dict:
         "deptName": item.dept_name or "",
         "qtyOnHand": qty,
         "lowStock": float(item.safety_stock or 0) > 0 and qty < float(item.safety_stock or 0),
+        "stagnantDays": int(item.stagnant_days or 0),
+        "idleDays": int(warn.get("idleDays", 0)),
+        "lastMoveAt": _t(warn.get("lastMoveAt")),
+        "stagnantLevel": warn.get("stagnantLevel", "normal"),
+        "stagnantLevelText": _text(STAGNANT_LEVEL_CN, warn.get("stagnantLevel", "normal")),
+        "stagnant": bool(warn.get("stagnant")),
+        "stagnantAmount": float(warn.get("stagnantAmount", 0)),
+        "warning": bool(warn.get("stagnant"))
+        or (float(item.safety_stock or 0) > 0 and qty < float(item.safety_stock or 0)),
         "remark": item.remark or "",
         "status": item.status,
         "statusText": _text(STATUS_CN, item.status),
@@ -683,12 +708,19 @@ def _item_out(item: Item, db: Session, stock: float | None = None) -> dict:
     }
 
 
+def _item_out_full(db: Session, item: Item) -> dict:
+    """单条存货输出（含库存与呆滞预警计算）。"""
+    stock_map = svc.item_stock_map(db, [item.id])
+    warn_map = svc.item_warning_map(db, [item], stock_map)
+    return _item_out(item, db, stock_map.get(item.id, 0.0), warn_map.get(item.id, {}))
+
+
 @router.get("/items")
 def list_items(
     request: Request,
     page: int = Query(1, ge=1, le=PAGE_MAX),
     size: int = Query(20, ge=1, le=200),
-    user: User = Depends(require_perm("asset:item:list")),
+    user: User = Depends(require_any_perm("asset:item:list", "asset:material:list")),
     db: Session = Depends(get_db),
 ):
     stmt, total = apply_list_filters(
@@ -704,24 +736,55 @@ def list_items(
     )
     rows = list(db.scalars(stmt).all())
     stock_map = svc.item_stock_map(db, [i.id for i in rows])
-    items = [_item_out(i, db, stock_map.get(i.id, 0.0)) for i in rows]
+    warn_map = svc.item_warning_map(db, rows, stock_map)
+    items = [_item_out(i, db, stock_map.get(i.id, 0.0), warn_map.get(i.id, {})) for i in rows]
     if (request.query_params.get("filters[low_stock]") or "") == "1":
         items = [i for i in items if i["lowStock"]]
+        total = len(items)
+    level = request.query_params.get("filters[stagnant_level]")
+    if level:
+        items = [i for i in items if i["stagnantLevel"] == level]
+        total = len(items)
+    if (request.query_params.get("filters[stagnant]") or "") == "1":
+        items = [i for i in items if i["stagnant"]]
+        total = len(items)
+    if (request.query_params.get("filters[warning]") or "") == "1":
+        items = [i for i in items if i["warning"]]
         total = len(items)
     return {"items": items, "total": total, "page": page, "size": size}
 
 
 @router.get("/items/counts")
 def item_counts(
-    user: User = Depends(require_perm("asset:item:list")),
+    user: User = Depends(require_any_perm("asset:item:list", "asset:material:list")),
     db: Session = Depends(get_db),
 ):
-    return _counts(db, Item, ("enabled", "disabled"))
+    """存货计数 + 预警计数（低于安全库存 / 呆滞）。"""
+    data = _counts(db, Item, ("enabled", "disabled"))
+    rows = list(db.scalars(select(Item).where(Item.deleted == 0)).all())
+    stock_map = svc.item_stock_map(db, [i.id for i in rows])
+    warn_map = svc.item_warning_map(db, rows, stock_map)
+    low = 0
+    stagnant = 0
+    amount = 0.0
+    for item in rows:
+        qty = float(stock_map.get(item.id, 0.0))
+        if float(item.safety_stock or 0) > 0 and qty < float(item.safety_stock or 0):
+            low += 1
+        warn = warn_map.get(item.id, {})
+        if warn.get("stagnant"):
+            stagnant += 1
+            amount += float(warn.get("stagnantAmount", 0))
+    data["lowStock"] = low
+    data["stagnant"] = stagnant
+    data["stagnantAmount"] = round(amount, 2)
+    data["warning"] = low + stagnant
+    return data
 
 
 @router.get("/items/all")
 def list_all_items(
-    user: User = Depends(require_perm("asset:item:list")),
+    user: User = Depends(require_any_perm("asset:item:list", "asset:material:list")),
     db: Session = Depends(get_db),
 ):
     """下拉选用的存货全集。"""
@@ -742,19 +805,19 @@ def list_all_items(
 @router.get("/items/{iid}")
 def get_item(
     iid: int,
-    user: User = Depends(require_perm("asset:item:list")),
+    user: User = Depends(require_any_perm("asset:item:list", "asset:material:list")),
     db: Session = Depends(get_db),
 ):
     item = db.get(Item, iid)
     if not item or item.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    return _item_out(item, db)
+    return _item_out_full(db, item)
 
 
 @router.post("/items", status_code=201)
 def create_item(
     body: S.ItemIn,
-    current: User = Depends(require_perm("asset:item:create")),
+    current: User = Depends(require_any_perm("asset:item:create", "asset:material:create")),
     db: Session = Depends(get_db),
 ):
     exists = db.scalar(select(Item.id).where(Item.code == body.code, Item.deleted == 0))
@@ -777,6 +840,7 @@ def create_item(
         manufacturer=body.manufacturer,
         dept_id=body.dept_id,
         dept_name=svc.load_dept_name(db, body.dept_id),
+        stagnant_days=body.stagnant_days,
         remark=body.remark,
         status=body.status,
         create_by=current.id,
@@ -788,14 +852,14 @@ def create_item(
         biz_type="item", biz_id=item.id,
     )
     db.commit()
-    return _item_out(item, db)
+    return _item_out_full(db, item)
 
 
 @router.put("/items/{iid}")
 def update_item(
     iid: int,
     body: S.ItemIn,
-    current: User = Depends(require_perm("asset:item:edit")),
+    current: User = Depends(require_any_perm("asset:item:edit", "asset:material:edit")),
     db: Session = Depends(get_db),
 ):
     item = db.get(Item, iid)
@@ -820,6 +884,7 @@ def update_item(
     item.manufacturer = body.manufacturer
     item.dept_id = body.dept_id
     item.dept_name = svc.load_dept_name(db, body.dept_id)
+    item.stagnant_days = body.stagnant_days
     item.remark = body.remark
     item.status = body.status
     item.version += 1
@@ -830,13 +895,13 @@ def update_item(
         biz_type="item", biz_id=iid,
     )
     db.commit()
-    return _item_out(item, db)
+    return _item_out_full(db, item)
 
 
 @router.delete("/items/{iid}")
 def delete_item(
     iid: int,
-    current: User = Depends(require_perm("asset:item:delete")),
+    current: User = Depends(require_any_perm("asset:item:delete", "asset:material:delete")),
     db: Session = Depends(get_db),
 ):
     item = db.get(Item, iid)
@@ -858,7 +923,7 @@ def delete_item(
 @router.post("/items/export")
 def export_items(
     request: Request,
-    current: User = Depends(require_perm("asset:item:list:export")),
+    current: User = Depends(require_any_perm("asset:item:list:export", "asset:material:export")),
     db: Session = Depends(get_db),
 ):
     stmt, _ = apply_list_filters(
@@ -873,8 +938,11 @@ def export_items(
     )
     rows = list(db.scalars(stmt).all())
     stock_map = svc.item_stock_map(db, [i.id for i in rows])
+    warn_map = svc.item_warning_map(db, rows, stock_map)
     payload = export_xlsx_styled(
-        [_item_out(i, db, stock_map.get(i.id, 0.0)) for i in rows], ITEM_EXPORT_COLS, "inventory_items"
+        [_item_out(i, db, stock_map.get(i.id, 0.0), warn_map.get(i.id, {})) for i in rows],
+        ITEM_EXPORT_COLS,
+        "inventory_items",
     )
     audit(
         db, user_id=current.id, module="asset", action="item_export",

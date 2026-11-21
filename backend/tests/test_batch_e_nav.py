@@ -112,7 +112,7 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "ProductionCapacity",
     ]
     samples_dir = _find(tree, "AssetsSamples")
-    assert _children(samples_dir) == ["Samples", "Materials"]
+    assert _children(samples_dir) == ["Samples", "Materials", "Bom"]
     assert _find(tree, "Samples")["parentId"] == samples_dir["id"]
 
     # 库存与资产：进出库管理（仓储/库存）+ 资产财务（折旧/处置/工具）

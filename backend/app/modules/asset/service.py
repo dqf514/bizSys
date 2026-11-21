@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.asset.models import (
+    Bom,
     Depreciation,
     Disposal,
     FixedAsset,
@@ -52,6 +53,7 @@ _NO_SOURCES: dict[str, tuple[type, str]] = {
     "asset_prototype_loan": (PrototypeLoan, "loan_no"),
     "asset_tool_loan": (ToolLoan, "loan_no"),
     "asset_disposal": (Disposal, "disposal_no"),
+    "asset_bom": (Bom, "bom_no"),
 }
 
 
@@ -348,3 +350,192 @@ def open_tool_loan(db: Session, tool_id: int) -> ToolLoan | None:
         .where(ToolLoan.tool_id == tool_id, ToolLoan.status == "borrowed", ToolLoan.deleted == 0)
         .order_by(ToolLoan.id.desc())
     )
+
+
+# ---------------- 呆滞预警 ----------------
+
+# 呆滞分级：按「闲置天数 / 阈值」倍数判定（阈值取存货自身的 stagnant_days）
+STAGNANT_LEVELS = ("normal", "slow", "stagnant", "dead")
+DEFAULT_STAGNANT_DAYS = 90
+
+
+def stagnant_level(idle_days: int, threshold: int) -> str:
+    """呆滞分级：normal 正常 / slow 慢动销 / stagnant 呆滞 / dead 呆死。"""
+    if threshold <= 0:
+        return "normal"
+    if idle_days < threshold:
+        return "normal"
+    if idle_days < threshold * 2:
+        return "slow"
+    if idle_days < threshold * 3:
+        return "stagnant"
+    return "dead"
+
+
+def item_idle_map(db: Session, items: list[Item]) -> dict[int, dict]:
+    """存货的最近一次出入库时间与闲置天数。
+
+    没有流水的存货按建档时间起算（同样视为长期未动）。
+    """
+    if not items:
+        return {}
+    item_ids = [i.id for i in items]
+    rows = db.execute(
+        select(StockLedger.item_id, func.max(StockLedger.happen_at))
+        .where(StockLedger.item_id.in_(item_ids), StockLedger.deleted == 0)
+        .group_by(StockLedger.item_id)
+    ).all()
+    last_move = {item_id: ts for item_id, ts in rows if item_id is not None}
+    out: dict[int, dict] = {}
+    today = datetime.now().date()
+    for item in items:
+        base = last_move.get(item.id) or item.create_time
+        base_dt = base if isinstance(base, datetime) else None
+        idle_days = (today - base_dt.date()).days if base_dt else 0
+        out[item.id] = {"lastMoveAt": base_dt, "idleDays": max(idle_days, 0)}
+    return out
+
+
+def item_warning_map(db: Session, items: list[Item], stock_map: dict[int, float]) -> dict[int, dict]:
+    """存货预警信息：低库存 + 呆滞分级 + 呆滞金额。"""
+    if not items:
+        return {}
+    idle = item_idle_map(db, items)
+    out: dict[int, dict] = {}
+    for item in items:
+        qty = float(stock_map.get(item.id, 0.0))
+        info = idle.get(item.id, {"lastMoveAt": None, "idleDays": 0})
+        threshold = int(item.stagnant_days or 0)
+        level = stagnant_level(int(info["idleDays"]), threshold)
+        price = float(item.unit_price or 0)
+        out[item.id] = {
+            "lastMoveAt": info["lastMoveAt"],
+            "idleDays": int(info["idleDays"]),
+            "stagnantDays": threshold,
+            "stagnantLevel": level,
+            "stagnant": level != "normal" and qty > 0,
+            "stagnantAmount": round(qty * price, 2) if level != "normal" else 0.0,
+        }
+    return out
+
+
+# ---------------- BOM ----------------
+
+BOM_STATUSES = ("draft", "effective", "obsolete")
+
+
+def bom_line_qty(line) -> float:
+    """子件行理论用量 = 单位用量 × (1 + 损耗率)。"""
+    qty = float(line.qty or 0)
+    loss = float(line.loss_rate or 0)
+    return round(qty * (1 + loss / 100), 4)
+
+
+def check_bom_version_unique(db: Session, parent_item_id: int, version: str, exclude_id: int | None = None) -> None:
+    """同一父件同一版本号唯一。"""
+    stmt = select(Bom.id).where(
+        Bom.parent_item_id == parent_item_id,
+        Bom.bom_version == version,
+        Bom.deleted == 0,
+    )
+    if exclude_id:
+        stmt = stmt.where(Bom.id != exclude_id)
+    if db.scalar(stmt.limit(1)):
+        raise BizException(R.ASSET_CODE_DUPLICATE, "该父件的版本号已存在")
+
+
+def activate_bom(db: Session, bom: Bom) -> None:
+    """生效 BOM：同一父件的其它生效版本自动转「已作废」。"""
+    others = db.scalars(
+        select(Bom).where(
+            Bom.parent_item_id == bom.parent_item_id,
+            Bom.id != bom.id,
+            Bom.status == "effective",
+            Bom.deleted == 0,
+        )
+    ).all()
+    for other in others:
+        other.status = "obsolete"
+        other.update_time = datetime.now()
+
+
+def effective_bom_map(db: Session, parent_item_ids: list[int]) -> dict[int, Bom]:
+    """父件 → 生效中的 BOM（多级展开用）。"""
+    if not parent_item_ids:
+        return {}
+    rows = db.scalars(
+        select(Bom).where(
+            Bom.parent_item_id.in_(parent_item_ids),
+            Bom.status == "effective",
+            Bom.deleted == 0,
+        )
+    ).all()
+    return {b.parent_item_id: b for b in rows}
+
+
+def bom_explode(db: Session, bom: Bom, max_depth: int = 5) -> list[dict]:
+    """多级 BOM 展开（子件本身是总成时继续下钻），带循环检测。"""
+    lines = list(bom.lines or [])
+    effective = effective_bom_map(db, [ln.item_id for ln in lines if ln.item_id])
+
+    def build(line, level: int, chain: tuple[int, ...]) -> dict:
+        node = {
+            "itemId": line.item_id,
+            "itemCode": line.item_code or "",
+            "itemName": line.item_name or "",
+            "spec": line.spec or "",
+            "unit": line.unit or "",
+            "qty": float(line.qty or 0),
+            "lossRate": float(line.loss_rate or 0),
+            "requiredQty": bom_line_qty(line),
+            "refDesignator": line.ref_designator or "",
+            "position": line.position or "",
+            "level": level,
+            "children": [],
+        }
+        child_bom = effective.get(line.item_id) if line.item_id else None
+        if child_bom and level < max_depth and child_bom.id not in chain:
+            for child in child_bom.lines or []:
+                node["children"].append(build(child, level + 1, chain + (child_bom.id,)))
+        return node
+
+    return [build(ln, 1, (bom.id,)) for ln in lines]
+
+
+def bom_usage(db: Session, bom: Bom, parent_qty: float = 1.0) -> list[dict]:
+    """用量对比：按父件数量折算的理论需求 vs 该子件的历史实际领用（出库累计）。"""
+    lines = list(bom.lines or [])
+    item_ids = [ln.item_id for ln in lines if ln.item_id]
+    out_map: dict[int, float] = {}
+    if item_ids:
+        rows = db.execute(
+            select(StockLedger.item_id, func.coalesce(func.sum(StockLedger.quantity), 0))
+            .where(
+                StockLedger.item_id.in_(item_ids),
+                StockLedger.deleted == 0,
+                StockLedger.direction == "out",
+            )
+            .group_by(StockLedger.item_id)
+        ).all()
+        out_map = {item_id: float(qty) for item_id, qty in rows}
+    result = []
+    for ln in lines:
+        required = round(bom_line_qty(ln) * parent_qty, 4)
+        actual = round(out_map.get(ln.item_id, 0.0), 2) if ln.item_id else 0.0
+        result.append(
+            {
+                "itemId": ln.item_id,
+                "itemCode": ln.item_code or "",
+                "itemName": ln.item_name or "",
+                "spec": ln.spec or "",
+                "unit": ln.unit or "",
+                "unitQty": float(ln.qty or 0),
+                "lossRate": float(ln.loss_rate or 0),
+                "requiredQty": required,
+                "actualOutQty": actual,
+                "diffQty": round(actual - required, 4),
+                "refDesignator": ln.ref_designator or "",
+                "position": ln.position or "",
+            }
+        )
+    return result

@@ -49,8 +49,34 @@ class ItemIn(CamelModel):
     supplier_id: int | None = None
     manufacturer: str = Field("", max_length=128)
     dept_id: int | None = None
+    stagnant_days: int = Field(90, ge=0, le=3650)
     remark: str = Field("", max_length=500)
     status: str = Field("enabled", pattern="^(enabled|disabled)$")
+    version: int | None = None
+
+
+# ---------------- BOM（物料清单） ----------------
+
+
+class BomLineIn(CamelModel):
+    item_id: int | None = None
+    item_code: str = Field("", max_length=32)
+    item_name: str = Field(..., min_length=1, max_length=128)
+    spec: str = Field("", max_length=255)
+    unit: str = Field("", max_length=16)
+    qty: float = Field(1, gt=0, le=9999999999.99)
+    loss_rate: float = Field(0, ge=0, le=100)
+    ref_designator: str = Field("", max_length=128)
+    position: str = Field("", max_length=64)
+    remark: str = Field("", max_length=500)
+
+
+class BomIn(CamelModel):
+    parent_item_id: int
+    bom_version: str = Field("V1.0", min_length=1, max_length=32)
+    effective_date: OptionalDate = None
+    remark: str = Field("", max_length=2000)
+    lines: list[BomLineIn] = Field(default_factory=list, min_length=1)
     version: int | None = None
 
 

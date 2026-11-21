@@ -63,6 +63,14 @@ _ensure_columns(
     },
 )
 
+# B4 补充：存货呆滞预警阈值（ast_item.stagnant_days）
+_ensure_columns(
+    "ast_item",
+    {
+        "stagnant_days": "stagnant_days INT NULL DEFAULT 90 COMMENT '呆滞预警阈值（天，0=不预警）'",
+    },
+)
+
 from app.seeds import init_data as seed  # noqa: E402
 
 _seed_session = SessionLocal()

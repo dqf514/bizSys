@@ -31,6 +31,8 @@ from app.modules.approval.models import (
     ApprovalViewState,
 )
 from app.modules.asset.models import (
+    Bom,
+    BomLine,
     Depreciation,
     Disposal,
     FixedAsset,
@@ -159,6 +161,7 @@ _PURGE_TABLES = [
     PurchaseOrderItem,
     ReceiptItem,
     StockCountItem,
+    BomLine,
     Depreciation,
     Location,
     PurchaseOrder,
@@ -170,6 +173,7 @@ _PURGE_TABLES = [
     ToolLoan,
     Tool,
     FixedAsset,
+    Bom,
     Item,
     Warehouse,
     PartnerAttachment,

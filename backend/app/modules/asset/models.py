@@ -75,6 +75,7 @@ class Item(BaseModel):
     manufacturer: Mapped[str] = mapped_column(String(128), default="", comment="生产厂家")
     dept_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     dept_name: Mapped[str] = mapped_column(String(128), default="")
+    stagnant_days: Mapped[int] = mapped_column(Integer, default=90, comment="呆滞预警阈值（天，0=不预警）")
     remark: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(16), default="enabled", index=True)
 
@@ -411,3 +412,52 @@ class ToolLoan(BaseModel):
     purpose: Mapped[str] = mapped_column(String(500), default="", comment="用途")
     remark: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(16), default="borrowed", index=True)
+
+
+# ---------------- BOM（物料清单） ----------------
+
+
+class Bom(BaseModel):
+    """BOM 主表：父件（产品/总成）+ 版本。
+
+    状态机：draft 草稿 → effective 生效 → obsolete 作废。
+    同一父件同一时刻只允许一个 effective 版本（激活新版本时旧版本自动转 obsolete）。
+    """
+
+    __tablename__ = "ast_bom"
+
+    bom_no: Mapped[str] = mapped_column(String(32), unique=True, index=True, comment="BOM 编号 BM...")
+    parent_item_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="父件 ast_item.id")
+    parent_item_code: Mapped[str] = mapped_column(String(32), default="", comment="父件编码冗余")
+    parent_item_name: Mapped[str] = mapped_column(String(128), default="", comment="父件名称冗余")
+    parent_spec: Mapped[str] = mapped_column(String(255), default="", comment="父件规格冗余")
+    bom_version: Mapped[str] = mapped_column(String(32), default="V1.0", index=True, comment="BOM 版本号")
+    status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="生效日期")
+    line_count: Mapped[int] = mapped_column(Integer, default=0, comment="子件行数（冗余）")
+    remark: Mapped[str] = mapped_column(Text, nullable=True)
+
+    lines = relationship(
+        "BomLine",
+        foreign_keys="BomLine.bom_id",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+
+class BomLine(BaseModel):
+    """BOM 子件行：单位用量 + 损耗率 + 位号/装配位置。"""
+
+    __tablename__ = "ast_bom_line"
+
+    bom_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("ast_bom.id"), index=True)
+    item_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="子件 ast_item.id")
+    item_code: Mapped[str] = mapped_column(String(32), default="")
+    item_name: Mapped[str] = mapped_column(String(128), default="")
+    spec: Mapped[str] = mapped_column(String(255), default="")
+    unit: Mapped[str] = mapped_column(String(16), default="")
+    qty: Mapped[float] = mapped_column(Numeric(12, 2), default=1, comment="单位用量（每 1 个父件）")
+    loss_rate: Mapped[float] = mapped_column(Numeric(6, 2), default=0, comment="损耗率 %")
+    ref_designator: Mapped[str] = mapped_column(String(128), default="", comment="位号")
+    position: Mapped[str] = mapped_column(String(64), default="", comment="装配位置/工序")
+    remark: Mapped[str] = mapped_column(String(500), default="")
