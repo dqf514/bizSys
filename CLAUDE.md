@@ -77,6 +77,8 @@ CI（`.github/workflows/ci.yml`）：backend job = MySQL 8.4 + Redis 7 → ruff 
 
 `asset` 域有**两个 router 同前缀**：`asset/router.py`（进出库管理：仓库/库位/物料/采购订单/验收单/流水/盘点/样件/样件借出）与 `asset/finance_router.py`（资产财务：固定资产/折旧/处置/工具/工具领用），都在 `main.py` 以 `prefix="/api/v1"` 挂载。它**不新建组织/公司/权限表**：部门取 `sys_dept`，供应公司取 `crm_customer`（`partner_type ∈ supplier/both` 且启用），单号走 `app/services/numbering.py`（`PO/YS/PD/LJ/LY/CZ`），取号走 `service.next_asset_no`（计数器落后于存量数据时自动跳过已占用号）。
 
+B2 客户自助体系沿用同一"同前缀分文件"惯例：`crm/selfservice_router.py`（前缀 `/crm`：客户自助账号 `crm:account:*` + 客户方人员备案 `crm:staff:*`，业务规则在 `crm/staff_service.py`）与 `task/entrust_router.py`（前缀 `/task`：在线任务委托 `task:entrust:*`，业务规则在 `task/entrust.py`）。客户账号**不并入 `sys_user`**：`partner_user` 扩展 `account_type`（`supplier`/`customer`）、`perm_scope`、`manager_id/manager_name`、`staff_limit`，沿用门户 token 体系（`typ=portal_access`、`aud=portal`），与内部 token 双向隔离。
+
 `app/services/` 是**跨域**服务（不属于任何模块）：`numbering.py`（可配编号，前缀+日期位+流水，DB 行锁）、`excel.py`（导出）、`ai.py` / `masking.py` / `prompts.py`（AI 网关与提示词注册表）。
 
 ### 响应信封
@@ -237,7 +239,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 ```
 工作台                      业务中心（客户/合同/任务/报告/项目/财务）
 生产资源（设备/排程/样品与物料/采购/产能）    库存与资产（进出库管理/资产财务）
-销售中心（报价/模板/营收）                    经营与协同（客户自助/在线委托/知识库）
+销售中心（报价/模板/营收）                    经营与协同（客户自助/在线委托/客户方人员备案/客户自助账号/知识库）
 行政人事（工时填报/工时统计/人员档案）        流程与办公（新申请/我的申请/作业申请/流程待办/消息中心）
 访客与安全（访客/区域/NDA/巡检）              系统管理（底部固定）
 ```

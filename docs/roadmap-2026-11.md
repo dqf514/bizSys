@@ -9,7 +9,7 @@
 | 批次 | 主题 | CSV 项 | 依赖前置 | 状态 |
 | --- | --- | --- | --- | --- |
 | **B1** | 基础设施：全站布局统一 + 导航分区重构 + 新模块骨架 + 消息中心 | 30 | — | **已交付** |
-| **B2** | 客户自助账号体系 + 在线任务委托 | 5 | B1 导航分区 | 待开发 |
+| **B2** | 客户自助账号体系 + 在线任务委托 | 5 | B1 导航分区 | **已交付** |
 | **B3** | 访客系统（预约/审批/通行/签离/区域/NDA/联动/审计） | 6–17 | B2 账号体系、门禁与人脸接口 | 待开发 |
 | **B4** | 资产 & 样车 & 样品 & 物料统一管理 + 库存预警 + BOM | 23 | B1 骨架、需求方提供的详细逻辑 | **已交付（第一轮，BOM 待开发）** |
 | **B5** | 任务字段扩展 + 智能排程甘特 + 项目管理 | 18–22、31 | B4 资产与物料 | 待开发 |
@@ -44,11 +44,29 @@
 
 ## B2 — 客户自助账号 + 在线任务委托（CSV 5）
 
+> **状态：已交付（2026-11-21）**
+
+### 已交付
+
+| 项 | 内容 |
+| --- | --- |
+| 账号模型 | **不新建账号表**：`partner_user` 扩展 `account_type`（supplier/customer）、`perm_scope`（entrust/staff/tender）、`manager_id/manager_name`、`staff_limit`；客户账号与员工账号完全隔离，沿用门户 token（`typ=portal_access`、`aud=portal`），双向不通用 |
+| 客户自助账号 | `POST /portal/auth/register?companyType=customer` 注册（pending）→ 内部 `crm:account:review` 审核启用（绑定往来单位 + 客户经理 + 权限范围 + 人员名额）→ 驳回/停用即不可登录；列表页 `客户自助账号`（`/crm/accounts`，页签计数 all/pending/enabled/rejected/disabled） |
+| 外来人员备案 | 门户 `POST /portal/staff` 自助登记（姓名/证件/职务/车牌/来访日期/来访事由/NDA）→ 内部 `crm:staff:review` 审核（备案通过后抄送业务负责人与访客管理人员，并勾选可进入区域 `visit_perm`）；内部亦可代登记；列表页 `客户方人员备案`（`/crm/partner-staffs`，含导出） |
+| 在线任务委托 | 门户基于**已审批合同**提交委托（仿真 sim / 模型 model / 试验 test / 委外 outsource，带试验项目明细行）→ 内部受理台 `在线委托`（`/task/entrusts`）受理（自动取号 `WT` + 抄送业务负责人）→ 生成任务草稿并回写 `taskId/taskNo`；客户可撤回；驳回后不可再受理 |
+| 业务代提交 | 客户经理在受理台"代提交委托"（`source=staff`），与客户自助下单同一张 `task_entrust` 单据 |
+| 表与迁移 | `task_entrust` / `task_entrust_item`（task 域，`WT` 单号规则）、`crm_partner_staff`；`partner_user` 加 5 列 —— 迁移 `n2a2b3c4d5e6_b2_customer_selfservice.py` |
+| 权限码 | `crm:account:list/review/edit`、`crm:staff:list/create/review/edit/export`、`task:entrust:list/create/review/dispatch/export`（菜单挂在 `经营与协同` 分区） |
+| 前端 | `modules/task/pages/EntrustList.vue`、`modules/crm/pages/CustomerAccountList.vue`、`modules/crm/pages/PartnerStaffList.vue`、门户 `PortalOrders.vue`（在线委托）、`PortalStaff.vue`（人员登记）、`PortalRegister.vue`（账号类型选择） |
+| 测试 | `tests/test_b2_selfservice.py`（11 条 HTTP 黑盒：注册待审、审核绑定客户、停用、委托全链路、驳回与撤回、待审不可登录、列表计数、门户 token 隔离、人员备案审核、名额上限、导出） |
+
+### 原始需求与风险（存档）
+
 - **需求要点**：补充客户自助账号体系；客户来访/支持人员自助登记备案，客户经理审核后抄送业务负责人与访客管理人员并勾选访客系统权限（与安防/门禁联动）；基于合同的客户在线任务提交（仿真、模型、试验），业务经理可代提交。
 - **依赖前置**：B1 的导航分区（`经营与协同 → 客户自助 / 在线委托` 入口已就位）。
-- **涉及模块**：`crm`（客户账号）、`portal`（合作方门户壳）、`task`（任务创建）、新增客户主体表。
-- **交付物**：客户账号与员工账号的关联模型；自助注册/审核流；任务委托下单页（按合同生成任务草稿）。
-- **风险**：客户账号与员工账号共用 `sys_user` 会污染权限模型 —— 建议独立 `crm_partner_account` + 门户 token（现有 `/portal` 已是独立认证体系，直接沿用）。
+- **涉及模块**：`crm`（客户账号）、`portal`（合作方门户壳）、`task`（任务创建）。
+- **风险**：客户账号与员工账号共用 `sys_user` 会污染权限模型 —— 实际改为扩展 `partner_user`（独立认证体系已具备），不新建 `crm_partner_account`。
+- **遗留**：访客系统权限的"勾选"目前落在 `crm_partner_staff.visit_perm`（可进入区域），与 B3 访客域的凭证下发对接在 B3 一并落地。
 
 ---
 

@@ -261,6 +261,50 @@
 - 错误码（96xxx）：96001 招标状态不允许该操作 / 96002 已超过截止时间 / 96003 报名未通过审核不能投标 /
   96004 账号待审核或已停用 / 96005 账号已存在 / 96006 项目尚未定标 / 96007 账号已有报名/投标记录不能删除
 
+## B2 客户自助体系（/crm 自助管理 + /task 在线委托 + /portal 客户自助）
+
+> 需求来源：CSV 5（`docs/roadmap-2026-11.md` B2）。客户账号**不并入 `sys_user`**，沿用 `partner_user` 独立账号表 + 门户 token 体系。
+
+### 账号模型（partner_user 扩展）
+- `partner_user` 新增列：`account_type`（`supplier` 供应商 / `customer` 客户）、`perm_scope`（客户账号的权限范围，逗号分隔 `entrust,staff,tender`）、
+  `manager_id` / `manager_name`（归属客户经理）、`staff_limit`（可登记的外来人员名额上限）。
+- 注册即 `pending`，内部审核通过才可登录；`rejected` / `disabled` 不可登录（沿用门户 96004）。
+- 客户账号的门户权限范围由 `perm_scope` 收敛：未授权能力在门户侧直接 404/403。
+
+### 内部管理端 /crm（`crm/selfservice_router.py`，权限码 `crm:account:*` / `crm:staff:*`）
+- 客户自助账号：
+  - `GET /crm/accounts`（`crm:account:list`）分页，`q`（账号/公司/联系人）、`status` 页签（all/pending/enabled/rejected/disabled）；
+    `GET /crm/accounts/counts` → 各状态计数
+  - `GET /crm/accounts/{aid}` · `POST /crm/accounts/{aid}/review`（`crm:account:review`，`{action:approve|reject, comment, customerId, customerName, managerId, managerName, permScope, staffLimit}`）
+    · `POST /crm/accounts/{aid}/toggle`（`crm:account:edit`，启用/停用；重复审核 40005）
+- 客户方人员备案（外来试验/支持人员）：
+  - `GET /crm/partner-staffs`（`crm:staff:list`）分页，`q`（姓名/客户/电话）、`status` 页签（all/pending/approved/rejected/disabled）
+    · `GET /crm/partner-staffs/counts` · `GET /crm/partner-staffs/{sid}`
+  - `POST /crm/partner-staffs`（`crm:staff:create`，内部代登记）· `POST /crm/partner-staffs/{sid}/review`（`crm:staff:review`，
+    `{action:approve|reject, comment, bizOwnerName, visitPerm, ndaSigned}`）· `POST /crm/partner-staffs/{sid}/toggle`（`crm:staff:edit`）
+    · `POST /crm/partner-staffs/export`（`crm:staff:export`）
+- 错误码（4xxxx）：40002 人员备案状态不允许该操作 / 40003 人员记录不存在 / 40004 客户账号不存在 /
+  40005 客户账号状态不允许该操作 / 40006 客户账号未绑定客户主体
+
+### 在线任务委托 /task（`task/entrust_router.py`，权限码 `task:entrust:*`）
+- 状态机：`submitted 待受理 → accepted 已受理（发号 WT）→ dispatched 已生成任务 → closed 已关闭`；
+  旁路 `rejected 已驳回` / `cancelled 已取消`；受理后驳回不可再受理（60010）。
+- `GET /task/entrusts`（`task:entrust:list`）分页，`q`（单号/标题/客户）、`status` 页签、委托类型与来源过滤；
+  `GET /task/entrusts/counts` → 各状态计数；`GET /task/entrusts/{eid}` → 详情（含明细行 items）
+- `POST /task/entrusts`（`task:entrust:create`，业务经理代提交；`source=staff`）
+  `POST /task/entrusts/{eid}/review`（`task:entrust:review`，`{action:accept|reject, comment, bizOwnerId, bizOwnerName, handlerId, handlerName}`）
+  —— 受理时自动取号 `WT`（`app/services/numbering.py`，biz_type `entrust`）并抄送业务负责人（站内通知）
+  · `POST /task/entrusts/{eid}/dispatch`（`task:entrust:dispatch`，生成任务草稿并回写 `taskId/taskNo`；返回 `{entrust:{...}, taskId, taskName}`）
+  · `POST /task/entrusts/{eid}/cancel`（`task:entrust:review`）· `POST /task/entrusts/export`（`task:entrust:export`）
+- 错误码（6xxxx）：60010 委托单状态不允许该操作 / 60011 委托单不存在 / 60012 关联合同无效（非本客户 / 非已审批）
+
+### 门户客户自助 /portal（独立认证，客户账号）
+- `POST /portal/auth/register` 支持 `companyType=supplier|customer`（客户注册走 `customer`）
+- `GET /portal/contracts` —— 本客户**已审批**合同（仅此可下单）
+- `GET /portal/entrusts` —— 本人的委托单；`POST /portal/entrusts`（提交委托）· `POST /portal/entrusts/{eid}/cancel`（撤回）
+- `GET /portal/staff` —— 本人登记的外来人员；`POST /portal/staff`（登记来访人员）
+- 门户侧仅暴露本人数据；内部 token 与门户 token 双向隔离（门户 token 访问内部接口一律 401）。
+
 ## 合同 /contract
 - 状态机：`draft 草稿 → approving 审批中 → approved 已通过 / rejected 已驳回（可改后重新提交）/ voided 已作废`；审批中禁止编辑。
 - `GET /contract/contracts` 分页：
