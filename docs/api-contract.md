@@ -635,17 +635,20 @@
 - 菜单：财务管理 → 结算信息（FinanceSettlements）/ 开票申请（FinanceInvoices，`/finance/invoices`）/
   到账信息（FinancePayments）
 
-## 资产与库存 /asset（进出库管理 + 资产财务）
+## 资产与库存 /asset（进出库管理 + 资产财务 + BOM）
 
-> 两个 router 同前缀 `/asset`：`router.py`（进出库管理）、`finance_router.py`（资产财务）。
+> 三个 router 同前缀 `/asset`：`router.py`（进出库管理）、`finance_router.py`（资产财务）、
+> `bom_router.py`（BOM 物料清单）。
 > **统一框架**：不新建组织/公司/权限表 —— 部门取 `sys_dept`，供应公司取 `crm_customer`
 > （`partner_type ∈ supplier/both` 且 `status=enabled`，否则 97006），权限码由 `sys_menu.permission` 承载。
 
 - 错误码（97xxx 资产域）：
   97001 状态不允许该操作 · 97002 资产/单据不存在 · 97003 库存不足 · 97004 编码重复 ·
-  97005 仓库无效 · 97006 供应公司无效 · 97007 借用未归还 · 97008 库位无效
+  97005 仓库无效 · 97006 供应公司无效 · 97007 借用未归还 · 97008 库位无效 ·
+  97009 BOM/子件行不存在
 - 单号规则（`app/services/numbering`，日周期）：`PO` 采购订单 · `YS` 验收单 · `PD` 盘点单 ·
-  `LJ` 样件借出 · `LY` 工具领用 · `CZ` 处置单；计数器落后于存量数据时自动跳过已占用号。
+  `LJ` 样件借出 · `LY` 工具领用 · `CZ` 处置单 · `BM` BOM 单号；
+  计数器落后于存量数据时自动跳过已占用号。
 - 所有列表统一 `apply_list_filters` 协议（`q` / `status` / `filters[k]` / `range[k]` / `sort=`），
   配 `…/counts` 页签计数接口；导出统一 `…/export`（xlsx 流）。
 
@@ -665,14 +668,43 @@
 - `GET /asset/locations/all` / `GET /asset/items/all` / `GET /asset/prototypes/all` / `GET /asset/tools/all`：下拉选项，不分页
 
 ### 库存物料
-- `GET /asset/items` 分页：`{id,code,name,spec,unit,category,categoryText,unitPrice,safetyStock,maxStock,defaultWarehouseId,defaultLocationId,supplierId,supplierName,manufacturer,deptId,deptName,qtyOnHand,lowStock,remark,status,statusText,version,createTime,updateTime}`
+- `GET /asset/items` 分页：`{id,code,name,spec,unit,category,categoryText,unitPrice,safetyStock,maxStock,defaultWarehouseId,defaultLocationId,supplierId,supplierName,manufacturer,deptId,deptName,qtyOnHand,lowStock,stagnantDays,idleDays,lastMoveAt,stagnantLevel,stagnantLevelText,stagnant,stagnantAmount,warning,remark,status,statusText,version,createTime,updateTime}`
   检索：`q`（code/name/spec/supplier_name）、`status`、`filters[category]`、`filters[supplier_id]`、`filters[dept_id]`、`filters[default_warehouse_id]`
   （`filters[low_stock]=1` 为**分页后过滤**：`lowStock = 安全库存 > 0 且现存量 < 安全库存`）
-- `GET /asset/items/counts` → `{enabled,disabled,all}`
+- **呆滞预警（分页后过滤，与导出一致）**：
+  - `filters[stagnant]=1` 命中呆滞物料 · `filters[stagnant_level]=normal|slow|stagnant|dead` 按分级
+    · `filters[warning]=1` 命中「低库存 或 呆滞」的任一预警
+  - `idleDays` = 距最后一次出入库流水的闲置天数（无流水按创建至今）；`stagnantLevel` 由
+    `stagnantDays`（默认 90 天，可在物料上调整）倍数决定：<1× 正常 / 1~2× 缓慢 / 2~3× 呆滞 / ≥3× 死滞
+  - `stagnantAmount` = 呆滞金额（现存量 × 单价）；`warning` = `lowStock || stagnant`
+- `GET /asset/items/counts` → `{enabled,disabled,all,lowStock,stagnant,stagnantAmount,warning}`
 - `GET /asset/items/{id}` · `POST /asset/items`（201）· `PUT /asset/items/{id}` · `DELETE /asset/items/{id}`
-  - 入参 `{code*,name*,spec?,unit?,category?,unitPrice?,safetyStock?,maxStock?,defaultWarehouseId?,defaultLocationId?,supplierId?,manufacturer?,deptId?,remark?,status?,version?}`
+  - 入参 `{code*,name*,spec?,unit?,category?,unitPrice?,safetyStock?,maxStock?,stagnantDays?,defaultWarehouseId?,defaultLocationId?,supplierId?,manufacturer?,deptId?,remark?,status?,version?}`
   - 编码重复 97004；`supplierId` 必须是启用的 supplier/both 往来单位，否则 97006
   - 删除前置：物料仍有在库数量（结存 ≠ 0）97001
+- `GET /asset/items/{id}/bom-refs` → `{itemId,itemCode,itemName,asParent:[{id,bomNo,parentItemId,parentItemCode,parentItemName,parentSpec,version,status,statusText,effectiveDate,lineCount}],asChild:[{bomId,bomNo,parentItemName,version,status,qty,lossRate,requiredQty,position}]}`
+  - 该物料**作为父件**的 BOM 清单 与 **作为子件**被引用的 BOM 行
+
+### BOM 物料清单（`bom_router.py`，权限码 `asset:bom:*`）
+- `GET /asset/boms` 分页：`{id,bomNo,parentItemId,parentItemCode,parentItemName,parentSpec,version,status,statusText,effectiveDate,lineCount,remark,lockVersion,createTime,updateTime}`
+  （`version` = BOM 版本号字符串；`lockVersion` = 乐观锁列）
+  检索：`q`（bom_no/parent_item_code/parent_item_name）、`status`、`filters[parent_item_id]`
+- `GET /asset/boms/counts` → `{draft,effective,obsolete,all}`
+- `GET /asset/boms/{id}` → 详情 + `lines[]`（`{id,bomId,itemId,itemCode,itemName,spec,unit,qty,lossRate,requiredQty,refDesignator,position,remark}`）
+  · `POST /asset/boms`（201）· `PUT /asset/boms/{id}` · `DELETE /asset/boms/{id}`
+  - 入参 `{parentItemId*,bomVersion*,effectiveDate?,remark?,lines:[{itemId*,itemCode?,itemName*,spec?,unit?,qty*,lossRate?,refDesignator?,position?,remark?}],version?}`
+  - `bomNo` 走 BM 规则；`bomVersion` 在**同一父件内唯一**，重复 97004；父件=子件（自引用）97001；
+    BOM / 子件行不存在 97009；**仅 `draft` 可编辑可删**，生效态改删 97001
+- `POST /asset/boms/{id}/activate` —— 激活：同一父件下**仅一个生效版本**，激活新版本自动把旧生效版本置 `obsolete`
+- `POST /asset/boms/{id}/obsolete` —— 作废（生效态 → 作废态）
+- `POST /asset/boms/{id}/copy` —— 复制版本：`V1.0 → V1.1`，生成 `draft` 副本（入参可选 `{bomVersion?,effectiveDate?}`）
+- `GET /asset/boms/{id}/explode?max_depth=5` → `{bomId,bomNo,parentItemName,version,tree:[{itemId,itemCode,itemName,spec,unit,qty,lossRate,requiredQty,refDesignator,position,level,children[]}]}`
+  - **多级展开**：子件本身是总成且有生效 BOM 时递归下钻（带**循环检测**，遇到自引用只保留当前层）；
+    `level` 1 = 直接子件（根节点不出现在 tree 中）；`max_depth` 取值 1–10
+- `GET /asset/boms/{id}/usage?qty=1` → `{bomId,bomNo,parentItemName,parentQty,lines:[{itemId,itemCode,itemName,spec,unit,unitQty,lossRate,requiredQty,actualOutQty,diffQty}]}`
+  - 用量对比：`requiredQty = unitQty ×（1 + 损耗率）× 父件数量`（理论需求）；
+    `actualOutQty` = 该子件的**出库流水累计领用**；`diffQty = requiredQty − actualOutQty`（差额，>0 为领料不足）
+- `POST /asset/boms/export`（xlsx 流）
 
 ### 采购订单（状态机 draft → confirmed → closed）
 - `GET /asset/purchase-orders` 分页：`{id,orderNo,title,supplierId,supplierName,deptId,deptName,orderDate,arriveDate,totalAmount,handlerId,handlerName,remark,status,statusText,items[],version,createTime,updateTime}`
@@ -764,11 +796,14 @@
 - 权限码：`asset:warehouse:*` `asset:location:*` `asset:item:*` `asset:purchaseOrder:*` `asset:receipt:*`
   `asset:ledger:*` `asset:count:*` `asset:prototype:*` `asset:prototypeLoan:*` `asset:asset:*`
   `asset:depreciation:*` `asset:disposal:*` `asset:tool:*` `asset:toolLoan:*`
+  `asset:bom:*` `asset:material:*`
   （`:list` `:create` `:edit` `:delete` `:list:export`，另有 `asset:receipt:accept` `asset:prototypeLoan:return`
   `asset:toolLoan:return` `asset:disposal:approve` `asset:disposal:complete` `asset:asset:depreciate` 等动作点；
   种子对 `biz_user` 角色按 `asset:` 前缀批量授权）
 - 菜单：库存与资产（StockAsset 目录）→ 进出库管理（StockManagement：采购订单 / 验收单 / 仓库 / 库存物料 /
-  库存流水 / 库存盘点 / 样件管理 / 样件借出）· 资产财务（AssetFinance：固定资产 / 处置报废 / 工具领用）
+  库存流水 / 库存盘点 / 样件管理 / 样件借出）· 资产财务（AssetFinance：固定资产 / 处置报废 / 工具领用）；
+  生产资源（Resources 目录）→ 样品与物料 → **物料台账**（`menu.material` → `asset/MaterialList`）·
+  **物料清单**（`menu.bom` → `asset/BomList`）
 
 ## 导航结构（工作台 + 8 业务分区 + 底部系统管理）
 - 顶层（顺序即侧栏顺序）：工作台（Workbench）→ 业务中心（BizSystem）→ 生产资源（Resources）→
@@ -853,6 +888,7 @@ admin/AiUsage  admin/AiSettings
 asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/InventoryItemList
 asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
 asset/FixedAssetList  asset/DisposalList  asset/ToolList
+asset/MaterialList  asset/BomList
 ```
 
 ## 字典（sys_dict）

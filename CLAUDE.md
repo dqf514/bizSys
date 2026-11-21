@@ -75,7 +75,7 @@ CI（`.github/workflows/ci.yml`）：backend job = MySQL 8.4 + Redis 7 → ruff 
 
 例外：`crm` / `integration` 没有 `service.py`；`auth/service.py`、`portal/service.py` 会自行 commit。
 
-`asset` 域有**两个 router 同前缀**：`asset/router.py`（进出库管理：仓库/库位/物料/采购订单/验收单/流水/盘点/样件/样件借出）与 `asset/finance_router.py`（资产财务：固定资产/折旧/处置/工具/工具领用），都在 `main.py` 以 `prefix="/api/v1"` 挂载。它**不新建组织/公司/权限表**：部门取 `sys_dept`，供应公司取 `crm_customer`（`partner_type ∈ supplier/both` 且启用），单号走 `app/services/numbering.py`（`PO/YS/PD/LJ/LY/CZ`），取号走 `service.next_asset_no`（计数器落后于存量数据时自动跳过已占用号）。
+`asset` 域有**三个 router 同前缀**：`asset/router.py`（进出库管理：仓库/库位/物料/采购订单/验收单/流水/盘点/样件/样件借出）、`asset/finance_router.py`（资产财务：固定资产/折旧/处置/工具/工具领用）、`asset/bom_router.py`（BOM 物料清单：`ast_bom`/`ast_bom_line`，父子结构+版本+多级展开+用量对比），都在 `main.py` 以 `prefix="/api/v1"` 挂载。它**不新建组织/公司/权限表**：部门取 `sys_dept`，供应公司取 `crm_customer`（`partner_type ∈ supplier/both` 且启用），单号走 `app/services/numbering.py`（`PO/YS/PD/LJ/LY/CZ/BM`），取号走 `service.next_asset_no`（计数器落后于存量数据时自动跳过已占用号）。物料台账（`MaterialList.vue`）与物料清单（`BomList.vue`）菜单挂在**生产资源 → 样品与物料**下。
 
 B2 客户自助体系沿用同一"同前缀分文件"惯例：`crm/selfservice_router.py`（前缀 `/crm`：客户自助账号 `crm:account:*` + 客户方人员备案 `crm:staff:*`，业务规则在 `crm/staff_service.py`）与 `task/entrust_router.py`（前缀 `/task`：在线任务委托 `task:entrust:*`，业务规则在 `task/entrust.py`）。客户账号**不并入 `sys_user`**：`partner_user` 扩展 `account_type`（`supplier`/`customer`）、`perm_scope`、`manager_id/manager_name`、`staff_limit`，沿用门户 token 体系（`typ=portal_access`、`aud=portal`），与内部 token 双向隔离。
 
@@ -145,7 +145,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n3a2b3c4d5e6_b3_visitor_module.py`。新迁移用可读递增 id（如 `n4a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `n4a2b3c4d5e6_b4_bom_stagnant.py`。新迁移用可读递增 id（如 `n5a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
@@ -153,6 +153,9 @@ current: User = Depends(get_current_user)              # 仅登录
 - **单号计数器可能被重置**（管理员在编号规则页重置序列、或清库后计数归零），取号不能假设号段连续；资产域走 `asset/service.py::next_asset_no` 逐号试探跳过已占用号。
 - **访客域的合规审计表 `visitor_access_log` 是只追加的**：它继承 `visitor/models.py::AppendOnlyModel`（**没有** `deleted`/`version`/`update_*` 列），所以 `apply_list_filters` 里那句 `hasattr(model, "deleted")` 的守卫是必需的，且 API **不得**为该路径提供任何 PUT/PATCH/DELETE。合规要求"不可删改 + 保留 ≥180 天"。
 - **访客域的拒绝放行也必须留痕**：`svc.check_in` 命中黑名单/超窗/越权时会抛 `BizException`，但它此前已 `db.add()` 了 `VisitorAlert` 与 `VisitorAccessLog`。router 里必须写成 `except BizException: db.commit(); raise` —— 否则事务回滚把告警和审计一起丢掉（合规事故）。
+- **`BaseModel` 已有 `version` 乐观锁列**，业务上的"版本号"不能复用它：BOM 用 `bom_version`（对外输出为 `version`，乐观锁另存 `lockVersion`）。
+- **BOM 子件行用 ORM 级联删除**：`Bom.lines` 是 `cascade="all, delete-orphan"`，整表替换必须走 `bom.lines.clear()`；用 `query(BomLine).filter(...).delete()` 批量删会绕过 ORM，flush 时报 "expected to delete 1 row(s); 0 were matched"。
+- **预警类筛选是"分页后过滤"**：`filters[low_stock]` / `filters[stagnant]` / `filters[stagnant_level]` / `filters[warning]` 依赖库存与流水统计，无法下推到 SQL。列表与导出**必须共用同一个后置过滤函数**（`asset/router.py::_apply_item_alert_filters`），否则从「呆滞」页签导出时会把全部物料导出。
 
 ## 前端架构
 
