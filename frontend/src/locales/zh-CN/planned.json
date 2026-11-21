@@ -87,21 +87,35 @@
       "name": "访客登记与审批",
       "desc": "多渠道预约与登记（微信、小程序、网页预约、员工邀请、前台现场登记）；被访人/部门审批，敏感区域额外审批；凭证通行、签入签出闭环、黑名单与预警",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
     },
     "zoneList": {
       "no": "11",
       "name": "区域分级管控",
       "desc": "公共接待区/样车接收区/试验区/准备区/生产加工区/工具仪器间/数据机房；不同访客只进授权区，工具仪器间和样车存储区默认禁入",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
     },
     "ndaList": {
       "no": "14",
       "name": "保密协议电子签",
       "desc": "来访前或现场签保密承诺，未签不放行；关联 CNAS 保密性要求（客户信息、原始数据、谱图、报告防泄露）",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
+    },
+    "credentialList": {
+      "no": "12-13",
+      "name": "通行凭证与门禁联动",
+      "desc": "临时/正式凭证、区域授权、二维码/人脸/IC 卡核验、黑白名单比对、尾随与越权拦截",
+      "batch": "B3",
+      "status": "done"
+    },
+    "visitorAuditList": {
+      "no": "15-17",
+      "name": "合规审计与黑名单",
+      "desc": "通行日志只追加不可删改（保留 ≥180 天）、应急报表、黑名单管理与样品/样车交接留痕",
+      "batch": "B3",
+      "status": "done"
     },
     "inspectionList": {
       "no": "24",

@@ -2352,3 +2352,242 @@ export interface PortalStaff {
   reviewComment: string
   createTime: string
 }
+
+/* ---------------- 访客与安全（B3） ---------------- */
+
+export interface VisitorZone {
+  id: number
+  code: string
+  name: string
+  zoneType: string
+  zoneTypeText?: string
+  securityLevel: number
+  needExtraApproval: boolean
+  needEscort: boolean
+  needNda: boolean
+  needDualPerson: boolean
+  cameraControl: boolean
+  deviceBinding?: string
+  capacity: number
+  status: string
+  remark?: string
+  createTime?: string
+}
+
+export interface VisitorZoneInput {
+  code: string
+  name: string
+  zone_type?: string
+  security_level?: number
+  need_extra_approval?: boolean
+  need_escort?: boolean
+  need_nda?: boolean
+  need_dual_person?: boolean
+  camera_control?: boolean
+  device_binding?: string
+  capacity?: number
+  status?: string
+  remark?: string
+}
+
+export interface VisitorApprovalRecord {
+  id: number
+  level: string
+  levelText?: string
+  approverName: string
+  action: string
+  comment: string
+  decidedAt: string
+}
+
+export interface VisitorVisit {
+  id: number
+  visitNo: string
+  visitorName: string
+  visitorCompany: string
+  visitorType: string
+  visitorTypeText?: string
+  idNo: string
+  phone: string
+  plateNo: string
+  hostUserId: number | null
+  hostName: string
+  hostDeptId: number | null
+  hostDeptName: string
+  purpose: string
+  source: string
+  sourceText?: string
+  zoneIds: string
+  zoneNames: string
+  escortNames: string
+  planStart: string
+  planEnd: string
+  checkinAt: string
+  checkoutAt: string
+  status: string
+  statusText?: string
+  requiredLevels: string
+  approvedLevels: string
+  ndaId: number | null
+  credentialId: number | null
+  credentialNo: string
+  staffId: number | null
+  customerId: number | null
+  customerName: string
+  remark: string
+  version?: number
+  createTime: string
+  updateTime: string
+  approvals?: VisitorApprovalRecord[]
+  handovers?: {
+    id: number
+    handoverNo: string
+    sampleNo: string
+    sampleName: string
+    handoverUserName: string
+    receiveUserName: string
+    handoverAt: string
+  }[]
+}
+
+export interface VisitorVisitInput {
+  visitor_name: string
+  visitor_company?: string
+  visitor_type?: string
+  id_no?: string
+  phone?: string
+  plate_no?: string
+  host_user_id?: number | null
+  host_name?: string
+  host_dept_id?: number | null
+  host_dept_name?: string
+  purpose?: string
+  source?: string
+  zone_ids?: string
+  escort_names?: string
+  plan_start?: string | null
+  plan_end?: string | null
+  staff_id?: number | null
+  customer_id?: number | null
+  customer_name?: string
+  remark?: string
+}
+
+export interface VisitorCredential {
+  id: number
+  credentialNo: string
+  visitId: number | null
+  visitorName: string
+  credentialType: string
+  credentialTypeText?: string
+  zoneIds: string
+  zoneNames: string
+  validFrom: string
+  validTo: string
+  status: string
+  code: string
+  usedAt: string
+  usedCount: number
+  createTime: string
+}
+
+export interface VisitorAccessLog {
+  id: number
+  visitId: number | null
+  credentialNo: string
+  visitorName: string
+  zoneId: number | null
+  zoneName: string
+  direction: string
+  eventType: string
+  method: string
+  result: string
+  deviceId: string
+  operatorName: string
+  happenedAt: string
+  detail: string
+}
+
+export interface VisitorAccessLogSummary {
+  days: number
+  since: string
+  total: number
+  denied: number
+  byDay: Record<string, number>
+  byEvent: Record<string, number>
+}
+
+export interface VisitorNda {
+  id: number
+  ndaNo: string
+  title: string
+  template: string
+  visitorName: string
+  visitorCompany: string
+  signerTitle: string
+  idNo: string
+  signedAt: string
+  evidenceHash: string
+  validFrom: string
+  validTo: string
+  status: string
+  visitId: number | null
+  staffId: number | null
+  remark: string
+  createTime: string
+}
+
+export interface VisitorBlacklist {
+  id: number
+  visitorName: string
+  idNo: string
+  phone: string
+  company: string
+  reason: string
+  effectiveFrom: string
+  effectiveTo: string
+  source: string
+  status: string
+  remark: string
+  createTime: string
+}
+
+export interface VisitorHandover {
+  id: number
+  handoverNo: string
+  visitId: number | null
+  sampleNo: string
+  sampleName: string
+  barcode: string
+  sampleType: string
+  qty: number
+  handoverUserName: string
+  receiveUserName: string
+  handoverAt: string
+  status: string
+  remark: string
+}
+
+export interface VisitorAlert {
+  id: number
+  visitId: number | null
+  alertType: string
+  alertTypeText?: string
+  level: string
+  zoneId: number | null
+  zoneName: string
+  message: string
+  occurredAt: string
+  status: string
+  handledByName: string
+  handledAt: string
+  handleRemark: string
+}
+
+export interface VisitorStats {
+  visiting: number
+  pending: number
+  approved: number
+  todayCheckins: number
+  openAlerts: number
+}

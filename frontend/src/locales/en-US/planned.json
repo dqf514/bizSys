@@ -87,21 +87,35 @@
       "name": "Visitor Registration & Approval",
       "desc": "Multi-channel booking and registration (WeChat, mini program, web booking, staff invitation, front-desk walk-in); host / department approval with extra approval for sensitive areas; credential access, sign-in / sign-out closure, blacklist and alerts",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
     },
     "zoneList": {
       "no": "11",
       "name": "Zoned Access Control",
       "desc": "Public reception / prototype handover / test / preparation / production & processing / tool & instrument rooms / data center; visitors only enter authorized zones, tool rooms and prototype storage are denied by default",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
     },
     "ndaList": {
       "no": "14",
       "name": "NDA E-Signing",
       "desc": "Sign the confidentiality undertaking before or on arrival; no access without a signature; aligned with CNAS confidentiality requirements (customer data, raw data, spectra, report leakage prevention)",
       "batch": "B3",
-      "status": "planned"
+      "status": "done"
+    },
+    "credentialList": {
+      "no": "12-13",
+      "name": "Access Credentials & Gate Integration",
+      "desc": "Temporary / permanent credentials, zone authorization, QR / face / IC card verification, blacklist matching, tailgating and unauthorized-access interception",
+      "batch": "B3",
+      "status": "done"
+    },
+    "visitorAuditList": {
+      "no": "15-17",
+      "name": "Compliance Audit & Blacklist",
+      "desc": "Append-only access logs (retained ≥180 days), emergency reports, blacklist management and sample / prototype handover trail",
+      "batch": "B3",
+      "status": "done"
     },
     "inspectionList": {
       "no": "24",

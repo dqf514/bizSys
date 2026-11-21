@@ -20,6 +20,7 @@ import zhAi from './locales/zh-CN/ai.json'
 import zhMessage from './locales/zh-CN/message.json'
 import zhPlanned from './locales/zh-CN/planned.json'
 import zhAsset from './locales/zh-CN/asset.json'
+import zhVisitor from './locales/zh-CN/visitor.json'
 import enUS from './locales/en-US/common.json'
 import enMenu from './locales/en-US/menu.json'
 import enAuth from './locales/en-US/auth.json'
@@ -41,6 +42,7 @@ import enAi from './locales/en-US/ai.json'
 import enMessage from './locales/en-US/message.json'
 import enPlanned from './locales/en-US/planned.json'
 import enAsset from './locales/en-US/asset.json'
+import enVisitor from './locales/en-US/visitor.json'
 
 export const LOCALES = ['zh-CN', 'en-US'] as const
 export type Locale = (typeof LOCALES)[number]
@@ -67,17 +69,18 @@ function pack(
   message: object,
   planned: object,
   asset: object,
+  visitor: object,
 ) {
   // 代码统一用 `common.xxx` / `menu.xxx` 等命名空间引用，common 必须挂在 common 下
   return {
     common, menu, auth, workbench, admin, approval, crm, contract, task, finance, report, settings,
-    oa, procurement, portal, hr, sales, ai, message, planned, asset,
+    oa, procurement, portal, hr, sales, ai, message, planned, asset, visitor,
   }
 }
 
 const messages = {
-  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr, zhSales, zhAi, zhMessage, zhPlanned, zhAsset),
-  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr, enSales, enAi, enMessage, enPlanned, enAsset),
+  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr, zhSales, zhAi, zhMessage, zhPlanned, zhAsset, zhVisitor),
+  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr, enSales, enAi, enMessage, enPlanned, enAsset, enVisitor),
 }
 
 export function detectLocale(): Locale {
