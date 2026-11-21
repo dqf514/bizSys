@@ -10,7 +10,7 @@
 > 白名单：tasks `task_name,task_type,customer_name,biz_block,status,create_time,id`；samples `sample_no,name,in_stock,task_name,task_no,customer_name,sample_date,create_time,id`；customers `customer_type,grade,status,name,create_time,id`；contracts `name,customer_name,status,start_date,end_date,contract_type,contract_no,create_time,id`；settlements `invoiceable_amount,task_no,contract_no,customer_name,status,confirm_status,create_time,id`；invoices `invoice_no,status,create_time,id`；payments `pay_type,payer_name,create_time,id`；reports `file_name,status,seal_time,create_time,id`；admin/users `username,name,status,create_time,id`；admin/roles `code,name,status,create_time,id`；admin/audit-logs `module,action,user_id,create_time,id`；approval/tasks `create_time,at,status,title,id`（按 kind 子集：todo=create_time/id，done=at/id，initiated=create_time/status/title/id）；approval/cc `create_time,id`；oa instances（my/admin）`display_no,form_name,category,applicant_name,status,create_time,finished_at,id`。
 
 ## 错误码分段
-0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 98xxx 访客与安全 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
+0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 98xxx 访客与安全 · 99xxx 生产排程/项目 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
 
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
@@ -586,6 +586,118 @@
 - 权限码：`task:list/create/edit/assign/submit/list:export`（delete/其他状态动作用 `task:edit`）、
   `task:sample:list`、`task:sample:list:export`（种子挂 super/biz_user）
 
+### B5 任务字段扩展 / 工序流转 / 七维分配 / 全过程追溯
+- **字段扩展**（`task_task` 新增列，仅在请求显式携带时覆盖，避免部分更新被默认值冲掉）：
+  `planStartDate` `durationHours` `priority` `roleGroup` `meshCount` `solver`
+  `computeResource` `computeCores` `computeNodes`
+  - `roleGroup`（角色分组）请求未指定时按 `taskType` 派生：`cfd→sim` `model→model` `windtunnel/test→test`
+    `outsource→outsource`（未登记的类型按类型本身归组）
+  - 负责人未指定时按字典 `task_owner_rule`（value=任务类型，extra=角色编码）解析该角色在职用户，
+    命中不到再回落到当前登录人
+- **工序流转**（表 `task_process`，一任务多工序，`seq` 排序；同一任务**同时只允许一道工序进行中**）：
+  - `GET /task/tasks/{id}/processes` → `{items:[{id,seq,processCode,processName,status,statusText,isCurrent,
+    plannedStart,plannedEnd,actualStart,actualEnd,operatorId,operatorName,deptId,deptName,remark}],total}`
+  - `POST /task/tasks/{id}/processes` `{processCode,processName,seq?,plannedStart?,plannedEnd?,operatorId?,operatorName?,deptId?,deptName?,remark?}`（201）
+  - `PUT /task/processes/{pid}`（不可改已 done/skipped 的工序，60020）· `DELETE /task/processes/{pid}`（进行中不可删，60020）
+  - `POST /task/processes/{pid}/start|finish|skip`（非法状态流转 60020）
+  - 工序状态机：`pending 待开始 → running 进行中 → done 已完成`（`skipped 已跳过` 为旁路终态）
+  - 当前工序回写任务 `processStage`（列表/详情直接可见「当前处于哪道工序」）
+- **七维分配**（表 `task_assignment`，维度字典 `task_dimension`：person 人 / equipment 机 / material 料 /
+  method 法 / env 环 / test 测 / safety 安 / vehicle 样车）：
+  - `GET /task/tasks/{id}/assignments` → `{items:[{id,dimension,dimensionText,resourceId,resourceCode,
+    resourceName,qty,unit,status,statusText,assignerId,assignerName,plannedAt,confirmedAt,remark}],total}`
+  - `POST /task/tasks/{id}/assignments`（201）· `PUT /task/assignments/{aid}` · `DELETE /task/assignments/{aid}`
+  - 状态机：`pending 待分配 → allocated 已分配 → confirmed 已确认`（`rejected 已驳回` 为终态）；
+    置 `confirmed` 时自动写 `confirmedAt`
+  - 排程域读取其中 `equipment/person/vehicle`（时段独占）与 `material`（数量占用）维度
+- **全过程追溯**（表 `task_trace`，节点字典：input 任务输入 / output_report 报告输出 /
+  vehicle_return 样车归还 / model_ship 模型车发运 / accept 验收 / settle 结算）：
+  - `GET /task/tasks/{id}/traces` → `{items:[{id,nodeCode,nodeName,nodeText,seq,happenAt,refNo,
+    operatorId,operatorName,remark}],total}`
+  - `POST /task/tasks/{id}/traces` `{nodeCode,nodeName?,seq?,happenAt?,refNo?,remark?}`（201）· `DELETE /task/traces/{tid}`
+- **操作流程图**：`GET /task/tasks/{id}/operation-flow` → `{taskId,taskNo,taskName,status,processStage,
+  processStageText,currentNode,nodes:[{type:"process"|"trace",code,name,status,statusText,seq,...}],total}`
+  （工序节点在前、追溯节点在后，`currentNode` 为当前进行中的工序）
+- **角色分组可见性**（CSV 21）：用户被授予 `task:group:<组>` 权限点后，**列表只返回本组任务、详情/编辑跨组被拒**
+  （60021 `TASK_ROLE_GROUP_DENIED`）；超管与未授予任何分组权限的用户不受限
+- 新增权限码：`task:process:edit` `task:assignment:edit` `task:trace:edit`
+  `task:group:sim|model|test|outsource`
+- 新增错误码：`60020 TASK_PROCESS_INVALID_STATE 工序状态不允许该操作`、
+  `60021 TASK_ROLE_GROUP_DENIED 无权访问该角色分组的任务`
+- 新增字典：`task_role_group` `task_process` `task_dimension` `task_owner_rule`
+
+## 智能排程 /production（B5）
+排程方案（`prd_plan`）+ 排程行（`prd_schedule`，任务 × 资源 × 时段）。单号前缀 `PL` / `SC`。
+- 方案状态机：`draft 草稿 → published 已发布 → confirmed 已确认`（`cancelled 已取消`）
+- 排程行状态机：`scheduled 已排期 → published 已发布 → confirmed 已确认 → done 已完成`
+  （`conflict 冲突` / `cancelled 已取消`）
+- 资源模型：`equipment/person/vehicle` 为**时段独占**（同一资源同一时间只允许一段占用），
+  `material` 为**数量占用**（按存货可用量校验，缺料即冲突）
+- `GET /production/plans` 分页（`production:schedule:list`）→ `{items:[{id,planNo,name,planDate,status,statusText,
+  autoGenerated,taskCount,conflictCount,scheduleCount,generatedByName,publishedAt,remark,version,createTime,updateTime}],
+  total,page,size}`；检索 `q`（planNo/name）、`status` 页签
+- `GET /production/plans/counts` → `{all,draft,published,confirmed,cancelled}`
+- `GET /production/plans/{id}` → 方案字段 + `schedules[]`
+- `POST /production/plans`（201，`production:schedule:create`）`{name,planDate?,remark?}` — 手工建空方案
+- `DELETE /production/plans/{id}`（已确认不可删，99001）
+- **自动排期** `POST /production/plans/auto`（201，`production:schedule:auto`）
+  `{name?,baseDate?,taskIds?[],projectId?,dateFrom?,dateTo?}` → 方案 + `schedules[]`
+  - 算法（规则式贪心）：待排任务（默认 `draft/in_progress`，可按 `taskIds`/`projectId`/时间窗过滤）
+    按「优先级升序 → 计划开始日升序」排序 → 自最早可行时间起逐时顺延，避开已占用时段
+    → 物料先做可用量校验
+  - **顺延成功不算冲突**（能排进空档即 `scheduled`）；只有顺延到上限仍排不下、或物料缺量才标 `conflict`
+  - 无可排任务 → `99005 PRODUCTION_NO_TASK_TO_SCHEDULE`
+- **发布方案** `POST /production/plans/{id}/publish`（`production:schedule:publish`）
+  - 发布前二次校验资源时段冲突，命中 → `99004 PRODUCTION_SCHEDULE_CONFLICT`（消息列出重叠的方案/资源）
+  - 通过后：排程行转 `published`、写 `publishedAt/publishedByName`、**回写任务的 `planStartDate/planFinishDate`**
+- `POST /production/plans/{id}/cancel`（`production:schedule:publish`）→ 方案与未完成排程行转 `cancelled`
+- **排程行**：
+  - `GET /production/schedules` 分页 · `GET /production/schedules/counts` · `GET /production/schedules/gantt`
+    （按资源分组的甘特数据）· `GET /production/schedules/{sid}`
+  - `PUT /production/schedules/{sid}`（`production:schedule:edit`）人工调整资源/时间/数量；
+    调整后 `source=manual` 并清空 `conflictReason`；乐观锁冲突 10003
+  - `POST /production/schedules/{sid}/confirm`（`production:schedule:publish`）→ 置 `confirmed`
+  - `DELETE /production/schedules/{sid}`（已确认不可删，99001）
+  - `POST /production/schedules/export`（`production:schedule:list:export`，xlsx）
+- **资源占用视图** `GET /production/resources/occupancy` → 按资源维度汇总**已发布/已确认**的占用时段
+  `{items:[{resourceType,resourceTypeText,resourceId,resourceName,resourceCode,occupiedHours,taskCount,windows[]}],total}`
+  （可加 `?resourceType=equipment` 过滤）
+- 错误码：`99001 PRODUCTION_INVALID_STATE` `99002 PRODUCTION_PLAN_NOT_FOUND`
+  `99003 PRODUCTION_SCHEDULE_NOT_FOUND` `99004 PRODUCTION_SCHEDULE_CONFLICT` `99005 PRODUCTION_NO_TASK_TO_SCHEDULE`
+
+## 项目管理 /project（B5）
+项目（`prj_project`）+ 项目任务/甘特行（`prj_project_task`）。单号前缀 `PJ`。
+- 项目状态机：`draft 立项中 → planning 策划中 → executing 执行中 → accepting 验收中 → closed 已结项`
+  （`cancelled 已取消`；**仅 `draft`/`cancelled` 可删除**，否则 99101）
+- 甘特行状态机：`pending 未开始 → doing 进行中 → done 已完成`（`delayed 已延期`）
+- `GET /project/projects` 分页（`project:list`）→ `{items:[{id,projectNo,name,customerId,customerName,
+  contractId,contractNo,managerId,managerName,deptId,deptName,startDate,endDate,status,statusText,progress,
+  budgetAmount,actualAmount,description,remark,taskCount,version,createTime,updateTime}],total,page,size}`
+  检索：`q`（projectNo/name/customerName/contractNo/managerName）、`status` 页签
+- `GET /project/projects/counts` → `{all,draft,planning,executing,accepting,closed,cancelled}`
+- `GET /project/projects/{id}` → 项目字段 + `gantt`（甘特数据）
+- `POST /project/projects`（201，`project:create`）`{name,customerId?,customerName?,contractId?,contractNo?,
+  managerId?,managerName?,deptId?,deptName?,startDate?,endDate?,status?,budgetAmount?,description?,remark?}`
+- `POST /project/projects/from-contract`（201，`project:create`）**基于合同立项**：
+  合同必须 `approved`（否则 50001），合同信息覆盖入参（客户/合同号/负责人/金额）
+- `PUT /project/projects/{id}`（`project:edit`，乐观锁）· `DELETE /project/projects/{id}`（`project:delete`）
+- `POST /project/projects/export`（`project:list:export`，xlsx）
+- **甘特**：
+  - `GET /project/projects/{id}/gantt` → `{projectId,projectNo,projectName,status,progress,startDate,endDate,
+    items:[{id,taskId,taskNo,taskName,seq,groupCode,groupText,ownerId,ownerName,startDate,endDate,progress,
+    milestone,weight,status,dependsOn,source,remark}],milestones[],total}`
+  - `GET /project/projects/{id}/tasks` 同上（行集合）
+  - `POST /project/projects/{id}/tasks`（201，`project:edit`）手工新增甘特行（里程碑 `milestone=1`）
+  - `PUT /project/project-tasks/{tid}`（`project:edit`）改进度/权重/状态 → **触发项目进度回算**
+  - `DELETE /project/project-tasks/{tid}`（`project:edit`）
+  - **自动生成甘特** `POST /project/projects/{id}/generate-tasks`（`project:edit`）
+    `{taskIds?[],projectId?,groupCode?,overwrite?}` → 甘特数据 + `created`（本次新建行数）
+    - 来源任务按「任务类型 → 分组」归类：`cfd→sim` `model→model` `windtunnel→test` `outsource→outsource`
+    - 起止日期优先取**已发布/已确认的排程**（`prd_schedule`），其次取任务自身的 `planStartDate/planFinishDate`
+    - 进度与业务任务同口径（`task.progress`），≥100 记 `done`、>0 记 `doing`
+- **项目进度** = 各甘特行按 `weight` 加权平均（权重全 0 时按行数平均），每次增删改行自动回算
+- 错误码：`99101 PROJECT_INVALID_STATE` `99102 PROJECT_NOT_FOUND` `99103 PROJECT_TASK_NOT_FOUND`
+
 ## 财务 /finance
 - 结算单状态机：`pending 待开票 → invoicing 开票审批中 → invoiced 已开票 → paid 已到账`；
   审批驳回/撤回 → 回 `pending`。
@@ -889,6 +1001,7 @@ asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/Inventory
 asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
 asset/FixedAssetList  asset/DisposalList  asset/ToolList
 asset/MaterialList  asset/BomList
+project/ProjectList  production/ScheduleBoard
 ```
 
 ## 字典（sys_dict）

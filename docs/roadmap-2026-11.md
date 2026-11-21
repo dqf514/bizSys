@@ -12,7 +12,7 @@
 | **B2** | 客户自助账号体系 + 在线任务委托 | 5 | B1 导航分区 | **已交付** |
 | **B3** | 访客系统（预约/审批/通行/签离/区域/NDA/联动/审计） | 6–17 | B2 账号体系、门禁与人脸接口 | **已交付** |
 | **B4** | 资产 & 样车 & 样品 & 物料统一管理 + 库存预警 + BOM | 23 | B1 骨架、需求方提供的详细逻辑 | **已交付（两轮：台账 + BOM/呆滞预警）** |
-| **B5** | 任务字段扩展 + 智能排程甘特 + 项目管理 | 18–22、31 | B4 资产与物料 | 待开发 |
+| **B5** | 任务字段扩展 + 智能排程甘特 + 项目管理 | 18–22、31 | B4 资产与物料 | **已交付** |
 | **B6** | 设备台账 + 设备预警 + 设备能耗 + 数字孪生 | 67–69 | B4 资产、B5 排程 | 待需求澄清 |
 | **B7** | 营收分析看板 + 产能利用率看板 | 3、4 | B5 排程数据、B6 设备数据 | 待开发 |
 | **B8** | 报告模板与审批流、结算计费对接、安全巡检、知识库扩展、流程中心联动、作业申请流程、人力资源扩展 | 24–29、32 | B5 | 待开发 |
@@ -153,11 +153,35 @@
 
 ## B5 — 任务字段扩展 + 智能排程 + 项目管理（CSV 18–22、31）
 
+> **状态：已交付（2026-11-22）** —— 任务域补齐字段扩展与流转能力，新建 `production` / `project` 两个域。
+
+### 已交付
+
+| 项 | 内容 |
+| --- | --- |
+| 任务字段扩展 | `task_task` 新增 9 列：`plan_start_date` `duration_hours` `priority` `role_group` `mesh_count` `solver` `compute_resource` `compute_cores` `compute_nodes`；**仅在请求显式携带时覆盖**（`model_fields_set`），避免部分更新被默认值冲掉 |
+| 角色分组 | 请求未指定 `roleGroup` 时按 `taskType` 派生（`cfd→sim` `model→model` `windtunnel/test→test` `outsource→outsource`）；负责人按字典 `task_owner_rule` 解析对应角色在职用户，命中不到回落当前登录人 |
+| 工序流转 | 新表 `task_process`（一任务多工序）：状态机 `pending→running→done`（`skipped` 旁路）；**同一任务同时只允许一道工序进行中**（否则 60020）；当前工序回写任务 `processStage` |
+| 七维分配 | 新表 `task_assignment`，维度字典 `task_dimension`（人/机/料/法/环/测/安/样车）；状态机 `pending→allocated→confirmed`（`rejected` 终态），置 confirmed 自动写 `confirmedAt`；**排程域读取其中 `equipment/person/vehicle`（时段独占）与 `material`（数量占用）** |
+| 全过程追溯 | 新表 `task_trace`，节点：任务输入 / 报告输出 / 样车归还 / 模型车发运 / 验收 / 结算；`GET /task/tasks/{id}/operation-flow` 输出「工序节点 + 追溯节点」的统一流程图 |
+| 角色分组可见性 | 授予 `task:group:<组>` 的用户**列表只返回本组任务**，详情/编辑跨组被拒（60021）；超管与未授予分组权限者不受限 |
+| 智能排程域 | 新增 `production` 域（`prd_plan` + `prd_schedule`，`PL`/`SC` 单号）：自动排期按「优先级 → 计划开始日」贪心排位，设备/人员/样车**时段独占**、物料**数量占用**；**能顺延到空档即算正常排期，不标冲突**，只有排不下或物料缺量才 `conflict`；发布时二次校验冲突（99004）并回写任务计划日期；含资源占用视图与排程行导出 |
+| 项目域 | 新增 `project` 域（`prj_project` + `prj_project_task`，`PJ` 单号）：项目状态机 `draft→planning→executing→accepting→closed`（仅 draft/cancelled 可删，99101）；**基于合同立项**（合同须 approved）；甘特行自动生成（任务类型→分组，起止日期优先取已发布排程），进度按权重加权回算；甘特行可手工增删改（里程碑） |
+| 表与迁移 | `task_process` `task_assignment` `task_trace` `prd_plan` `prd_schedule` `prj_project` `prj_project_task` —— 迁移 `n5a2b3c4d5e6_b5_task_ext_production_project.py`（7 张表全部登记进「一键清空」清单；`alembic/env.py` 已 import 新域模型） |
+| 权限码 | `task:process:edit` `task:assignment:edit` `task:trace:edit` `task:group:sim|model|test|outsource`；`production:schedule:list/create/edit/delete/auto/publish/list:export`；`project:list/create/edit/delete/list:export` |
+| 错误码 | `60020 TASK_PROCESS_INVALID_STATE` `60021 TASK_ROLE_GROUP_DENIED`；`99001`–`99005`（排程）；`99101`–`99103`（项目） |
+| 字典 | `task_role_group` `task_process` `task_dimension` `task_owner_rule` |
+| 前端 | `modules/production/pages/ScheduleBoard.vue`（排程看板 + 甘特 + 资源占用）、`modules/project/pages/ProjectList.vue`（项目列表 + 甘特 + 生成甘特）、组件 `ScheduleGantt.vue` `ProjectGantt.vue`（ECharts custom 系列）、`modules/task/components/TaskProcessPanel.vue`（工序/七维/追溯/流程图四页签，挂进任务详情面板） |
+| 测试 | `tests/test_b5_task_ext_production_project.py`（9 条 HTTP 黑盒：字段持久化与部分更新不被冲掉、负责人解析、工序状态机与单工序约束、七维 CRUD、追溯与流程图、角色分组可见性、自动排期→发布→冲突拦截→取消→资源占用、缺料冲突、项目 CRUD→生成甘特→进度回算→状态流转）；后端全量 `pytest -q` 353 全绿 |
+
+### 原始需求与风险（存档）
+
 - **需求要点**：任务需覆盖"任务输入 → 报告输出 / 样车归还 / 模型车发运"全过程可追溯；油泥样车/样件/展车需增加加工工序流转（油泥 / CNC / 表面处理）；CFD 专属字段（网格数、求解器、算力资源）；任务创建后有审批/操作流程图，按任务类型流转到负责人；任务分配界面覆盖人机料法环测安；执行中可查看进度；任务按人员角色分组并设权限；智能排程（按设备/人员/样车/物料约束自动排期，人工可调后再发布）；大型项目全生命周期，按任务输入与排期自动生成项目甘特图（可自定义编辑）。
 - **依赖前置**：B4 的设备/物料/样车主数据（排程约束需要）。
 - **涉及模块**：`task`（字段扩展与工序流转）、`production`（排程与甘特）、`project`（项目与甘特）。
 - **交付物**：`task_process`（工序流转）、`task_field_ext`（CFD/加工扩展字段）、`prod_schedule`（排程与资源占用）、`project` + `project_task`（项目与甘特）。
 - **风险**：排程约束求解是本批最大的算法风险 —— 建议先用规则式贪心（设备/人员时段冲突 + 前置工序）跑通，再评估是否引入求解器；甘特图可复用现有 `TaskGantt` 组件的渲染层。
+- **遗留**：① 排程目前是**规则式贪心**，未引入求解器；跨项目、跨设备族的复杂约束（换型时间、模具/工装、批次合并）尚未建模，B6 设备台账接入后可再评估；② 项目甘特的**任务依赖（`depends_on`）**已落字段但未做关键路径计算；③ 项目/排程单据目前**未接入审批引擎**（仅靠状态机与权限点控制），与"全流程驱动"目标存在差距，列入后续流程贯通批次。
 
 ---
 
