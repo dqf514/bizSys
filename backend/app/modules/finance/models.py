@@ -80,4 +80,10 @@ class Payment(BaseModel):
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), comment="到账金额")
     bank: Mapped[str] = mapped_column(String(128), default="", comment="付款银行")
     paid_at: Mapped[date] = mapped_column(Date, comment="到账日期")
+    status: Mapped[str] = mapped_column(
+        String(16), default="draft", index=True, comment="draft/approving/confirmed/rejected"
+    )
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="回款复核审批实例 approval_instance.id"
+    )
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)

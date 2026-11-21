@@ -43,3 +43,6 @@ class Report(BaseModel):
     approval_instance_id: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, index=True, comment="最近一次签批审批实例"
     )
+    seal_flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="用章申请审批实例 approval_instance.id"
+    )

@@ -348,9 +348,15 @@ def _on_withdrawn(event: ApprovalWithdrawn) -> None:
         _writeback(event.db, event.biz_id, event.instance_id, "withdrawn")
 
 
-subscribe(ApprovalCompleted, _on_completed)
-subscribe(ApprovalRejected, _on_rejected)
-subscribe(ApprovalWithdrawn, _on_withdrawn)
+def register_flow_handlers() -> None:
+    """F5：审批处理器注册入口，由 ``app.modules.approval.wiring.install()`` 显式装配。
+
+    不再在模块 import 时自动订阅 —— 漏一个 import 就会让单据永久卡在 approving。
+    """
+    subscribe(ApprovalCompleted, _on_completed)
+    subscribe(ApprovalRejected, _on_rejected)
+    subscribe(ApprovalWithdrawn, _on_withdrawn)
+
 
 
 # ---------------- 用户侧查询 ----------------

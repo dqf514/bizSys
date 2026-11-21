@@ -17,6 +17,7 @@ from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.admin.models import Notify
+from app.modules.approval import registry
 from app.modules.approval import service as approval_svc
 from app.modules.auth.models import User
 from app.modules.finance import schemas as S
@@ -53,6 +54,13 @@ SETTLEMENT_EXPORT_COLS = [
 INVOICE_STATUS_CN = {
     "approving": "审批中",
     "issued": "已开票",
+}
+
+PAYMENT_STATUS_CN = {
+    "draft": "待复核",
+    "approving": "复核中",
+    "confirmed": "已确认",
+    "rejected": "已驳回",
 }
 
 INVOICE_EXPORT_COLS = [
@@ -177,6 +185,9 @@ def _payment_out(p: Payment, s: Settlement | None = None, users: dict[int, str] 
         "amount": _money(p.amount),
         "bank": p.bank,
         "paidAt": _d(p.paid_at),
+        "status": p.status,
+        "statusText": PAYMENT_STATUS_CN.get(p.status, p.status),
+        "flowInstanceId": p.flow_instance_id,
         "remark": p.remark or "",
         "createBy": users.get(p.create_by, "") if p.create_by else "",
         "createTime": _t(p.create_time),
@@ -396,7 +407,8 @@ def get_settlement(
     data = _settlement_out(s, users)
     data["invoices"] = [_invoice_out(i, s, users) for i in invoices]
     data["payments"] = [_payment_out(p, s, users) for p in payments]
-    data["paidAmount"] = _money(sum((p.amount for p in payments), Decimal(0)))
+    # 已到账金额只认复核通过的回款（未复核的登记不计入应收核销）
+    data["paidAmount"] = _money(sum((p.amount for p in payments if p.status == "confirmed"), Decimal(0)))
     data["timeline"] = approval_svc.timeline(db, "invoice", sid)["records"]
     records = db.scalars(
         select(SettlementConfirmRecord)
@@ -712,7 +724,7 @@ def _payment_filtered(db: Session, request: Request, page: PageParams):
         db,
         page,
         search_cols=["payment_no", "payer_name", "payer_account"],
-        filter_cols={"pay_type", "settlement_id"},
+        filter_cols={"pay_type", "settlement_id", "status"},
         range_cols={"paid_at", "create_time"},
         sort_cols={"update_time", "create_time", "id", "payment_no", "amount", "paid_at", "pay_type", "payer_name"},
         extra_where=_rel_filters(Payment, request.query_params),
@@ -739,6 +751,21 @@ def list_payments(
     }
 
 
+@router.get("/payments/counts")
+def payment_counts(
+    user: User = Depends(require_perm("finance:payment:list")),
+    db: Session = Depends(get_db),
+):
+    """状态页签计数（全部/draft/approving/confirmed/rejected）。"""
+    rows = db.execute(
+        select(Payment.status, func.count()).where(Payment.deleted == 0).group_by(Payment.status)
+    ).all()
+    data = {s: 0 for s in ("draft", "approving", "confirmed", "rejected")}
+    data.update({s: n for s, n in rows if s in data})
+    data["all"] = sum(data.values())
+    return data
+
+
 @router.post("/payments", status_code=201)
 def create_payment(
     body: S.PaymentIn,
@@ -758,19 +785,52 @@ def create_payment(
         bank=body.bank,
         paid_at=body.paid_at,
         remark=body.remark or None,
+        status="draft",
         create_by=current.id,
     )
     db.add(p)
     db.flush()
-    paid_total = db.scalar(
-        select(func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.settlement_id == s.id, Payment.deleted == 0
-        )
-    )
-    if paid_total >= s.amount:
-        s.status = "paid"
-        s.update_time = datetime.now()
+    # F5：到账登记只是"登记"，金额要经复核确认后才计入结算单已到账口径
     audit(db, user_id=current.id, module="finance", action="payment_create", biz_type="payment", biz_id=p.id)
+    db.commit()
+    return _payment_out(p, s, _user_names(db, {p.create_by}))
+
+
+@router.post("/payments/{pid}/submit")
+def submit_payment(
+    pid: int,
+    request: Request,
+    current: User = Depends(require_perm("finance:payment:submit")),
+    db: Session = Depends(get_db),
+):
+    """提交回款复核（F5：流程驱动）。复核通过后才计入结算单已到账金额。"""
+    p = db.get(Payment, pid, with_for_update=True)
+    if not p or p.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    s = db.get(Settlement, p.settlement_id)
+    instance, _row = registry.submit_flow(
+        db,
+        "payment",
+        pid,
+        title=f"{p.payment_no} 回款复核",
+        initiator=current,
+        variables={"amount": float(p.amount or 0), "payer_name": p.payer_name},
+        form_snapshot={
+            "paymentNo": p.payment_no,
+            "settlementNo": s.settlement_no if s else "",
+            "payerName": p.payer_name,
+            "payerAccount": p.payer_account,
+            "amount": float(p.amount or 0),
+            "bank": p.bank,
+            "paidAt": _d(p.paid_at),
+            "remark": p.remark or "",
+        },
+    )
+    audit(
+        db, user_id=current.id, module="finance", action="payment_submit", biz_type="payment", biz_id=pid,
+        detail={"paymentNo": p.payment_no, "instanceId": instance.id if instance else 0},
+        trace_id=getattr(request.state, "trace_id", ""),
+    )
     db.commit()
     return _payment_out(p, s, _user_names(db, {p.create_by}))
 

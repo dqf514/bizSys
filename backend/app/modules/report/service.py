@@ -199,9 +199,15 @@ def _handle_withdrawn(event: ApprovalWithdrawn) -> None:
     _rollback_uploaded(event.db, event.biz_id, event.instance_id, "uploaded")
 
 
-subscribe(ApprovalCompleted, _handle_completed)
-subscribe(ApprovalRejected, _handle_rejected)
-subscribe(ApprovalWithdrawn, _handle_withdrawn)
+def register_flow_handlers() -> None:
+    """F5：审批处理器注册入口，由 ``app.modules.approval.wiring.install()`` 显式装配。
+
+    不再在模块 import 时自动订阅 —— 漏一个 import 就会让单据永久卡在 approving。
+    """
+    subscribe(ApprovalCompleted, _handle_completed)
+    subscribe(ApprovalRejected, _handle_rejected)
+    subscribe(ApprovalWithdrawn, _handle_withdrawn)
+
 
 
 # ---------------- AI 报告摘要（草稿 → 人工编辑 → 采用才写 remark） ----------------

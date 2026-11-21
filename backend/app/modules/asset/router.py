@@ -19,6 +19,7 @@ from app.core.db import get_db
 from app.core.deps import require_any_perm, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.approval import registry
 from app.modules.asset import schemas as S
 from app.modules.asset import service as svc
 from app.modules.asset.models import (
@@ -1322,7 +1323,7 @@ def receipt_counts(
     user: User = Depends(require_perm("asset:receipt:list")),
     db: Session = Depends(get_db),
 ):
-    return _counts(db, Receipt, ("draft", "accepted", "partial", "rejected"))
+    return _counts(db, Receipt, ("draft", "approving", "accepted", "partial", "rejected"))
 
 
 @router.get("/receipts/{rid}")
@@ -1477,63 +1478,61 @@ def delete_receipt(
     return None
 
 
+@router.post("/receipts/{rid}/submit")
+def submit_receipt(
+    rid: int,
+    current: User = Depends(require_perm("asset:receipt:submit")),
+    db: Session = Depends(get_db),
+):
+    """提交到货验收审批（F5：流程驱动）。审批通过后才生成入库流水。"""
+    r = db.get(Receipt, rid, with_for_update=True)
+    if not r or r.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    instance, _row = registry.submit_flow(
+        db,
+        "asset_receipt",
+        rid,
+        title=f"{r.receipt_no} 到货验收",
+        initiator=current,
+        variables={"total_qty": float(r.total_qty or 0), "supplier_name": r.supplier_name},
+        form_snapshot={
+            "receiptNo": r.receipt_no,
+            "orderNo": r.order_no,
+            "supplierName": r.supplier_name,
+            "warehouseName": r.warehouse_name,
+            "arriveDate": r.arrive_date.isoformat() if r.arrive_date else "",
+            "remark": r.remark or "",
+        },
+    )
+    audit(
+        db, user_id=current.id, module="asset", action="receipt_submit",
+        biz_type="receipt", biz_id=rid,
+        detail={"receiptNo": r.receipt_no, "instanceId": instance.id if instance else 0},
+    )
+    db.commit()
+    return _receipt_out(r)
+
+
 @router.post("/receipts/{rid}/accept")
 def accept_receipt(
     rid: int,
     current: User = Depends(require_perm("asset:receipt:accept")),
     db: Session = Depends(get_db),
 ):
-    """验收确认：合格数量写入库存台账并回写库位在库数量。"""
+    """验收确认：合格数量写入库存台账并回写库位在库数量。
+
+    F5：验收流程启用时，人工直确认是"后门"，只能通过提交审批走流程；
+    流程停用（开关关闭）时恢复人工直通。
+    """
     r = db.get(Receipt, rid, with_for_update=True)
     if not r or r.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
+    registry.require_manual(db, "asset_receipt")
     svc.check_editable(r.status, ("draft",), "仅草稿验收单可确认")
-    total = 0.0
-    qualified = 0.0
-    for line in [i for i in (r.items or []) if not i.deleted]:
-        total += float(line.quantity or 0)
-        qualified += float(line.qualified_qty or 0)
-        if float(line.qualified_qty or 0) <= 0:
-            continue
-        svc.write_ledger(
-            db,
-            direction="in",
-            item_id=line.item_id,
-            item_code=line.item_code or "",
-            item_name=line.item_name,
-            unit=line.unit or "",
-            quantity=float(line.qualified_qty),
-            warehouse_id=r.warehouse_id,
-            warehouse_name=r.warehouse_name,
-            location_id=line.location_id,
-            location_code=line.location_code or "",
-            unit_price=_n(line.price),
-            reason="receipt",
-            biz_type="receipt",
-            biz_id=r.id,
-            biz_no=r.receipt_no,
-            operator_id=current.id,
-            operator_name=current.name or current.username,
-            dept_id=current.dept_id,
-            dept_name=current.dept_name or "",
-            remark=line.remark or "",
-        )
-    r.total_qty = total
-    r.qualified_qty = qualified
-    if total <= 0:
-        r.status = "rejected"
-    elif qualified >= total:
-        r.status = "accepted"
-    elif qualified > 0:
-        r.status = "partial"
-    else:
-        r.status = "rejected"
-    r.version += 1
-    r.update_by = current.id
-    r.update_time = datetime.now()
+    status = svc.accept_receipt(db, r, current)
     audit(
         db, user_id=current.id, module="asset", action="receipt_accept",
-        biz_type="receipt", biz_id=rid, detail={"receiptNo": r.receipt_no, "status": r.status},
+        biz_type="receipt", biz_id=rid, detail={"receiptNo": r.receipt_no, "status": status},
     )
     db.commit()
     return _receipt_out(r)

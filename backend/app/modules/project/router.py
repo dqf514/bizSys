@@ -18,6 +18,7 @@ from app.core.db import get_db
 from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.approval import registry
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
 from app.modules.project import schemas as S
@@ -31,12 +32,19 @@ router = APIRouter(prefix="/project", tags=["project"], route_class=EnvelopeRout
 
 STATUS_CN = {
     "draft": "立项中",
+    "approving": "立项审批中",
+    "rejected": "立项已驳回",
     "planning": "策划中",
     "executing": "执行中",
     "accepting": "验收中",
     "closed": "已结项",
     "cancelled": "已取消",
 }
+
+# 立项阶段（由审批流程驱动，不允许手工改状态）
+FLOW_STATUSES = {"draft", "approving", "rejected"}
+# 策划之后的项目生命周期状态（可手工推进）
+LIFECYCLE_STATUSES = {"planning", "executing", "accepting", "closed", "cancelled"}
 
 TASK_STATUS_CN = {
     "pending": "未开始",
@@ -108,6 +116,7 @@ def _out(p: Project, task_count: int = 0) -> dict:
         "endDate": _d(p.end_date),
         "status": p.status,
         "statusText": _text(STATUS_CN, p.status),
+        "flowInstanceId": p.flow_instance_id,
         "progress": p.progress,
         "budgetAmount": float(p.budget_amount or 0),
         "actualAmount": float(p.actual_amount or 0),
@@ -175,11 +184,13 @@ def project_counts(
     return {
         "all": sum(counts.values()),
         "draft": counts.get("draft", 0),
+        "approving": counts.get("approving", 0),
         "planning": counts.get("planning", 0),
         "executing": counts.get("executing", 0),
         "accepting": counts.get("accepting", 0),
         "closed": counts.get("closed", 0),
         "cancelled": counts.get("cancelled", 0),
+        "rejected": counts.get("rejected", 0),
     }
 
 
@@ -276,6 +287,53 @@ def create_from_contract(
     return _out(project)
 
 
+@router.post("/projects/{pid}/submit")
+def submit_project(
+    pid: int,
+    request: Request,
+    current: User = Depends(require_perm("project:submit")),
+    db: Session = Depends(get_db),
+):
+    """提交立项审批（F5：流程驱动）。
+
+    立项不再是"录完就生效"：必须经审批通过才进入策划阶段，才可参与智能排程。
+    未配置立项流程定义时直通进入策划（与任务/结算单同口径）。
+    """
+    p = _load(db, pid)
+    instance, _row = registry.submit_flow(
+        db,
+        "project",
+        pid,
+        title=f"{p.project_no} {p.name}",
+        initiator=current,
+        variables={
+            "customer_name": p.customer_name,
+            "budget_amount": float(p.budget_amount or 0),
+            "manager_name": p.manager_name,
+        },
+        form_snapshot={
+            "projectNo": p.project_no,
+            "name": p.name,
+            "customerName": p.customer_name,
+            "contractNo": p.contract_no,
+            "managerName": p.manager_name,
+            "budgetAmount": float(p.budget_amount or 0),
+            "startDate": _d(p.start_date),
+            "endDate": _d(p.end_date),
+        },
+    )
+    audit(
+        db, user_id=current.id, module="project", action="project_submit",
+        biz_type="prj_project", biz_id=pid,
+        detail={"projectNo": p.project_no, "instanceId": instance.id if instance else 0},
+        trace_id=getattr(request.state, "trace_id", ""),
+    )
+    db.commit()
+    out = _out(p, _task_counts(db, [pid]).get(pid, 0))
+    out["flowInstanceId"] = p.flow_instance_id
+    return out
+
+
 @router.put("/projects/{pid}")
 def update_project(
     pid: int,
@@ -298,7 +356,12 @@ def update_project(
     p.dept_name = body.dept_name or p.dept_name
     p.start_date = body.start_date if body.start_date is not None else p.start_date
     p.end_date = body.end_date if body.end_date is not None else p.end_date
-    if body.status:
+    if body.status and body.status != p.status:
+        # 立项阶段的状态由审批流程驱动，不允许手工改（否则等于绕过流程）
+        if p.status in FLOW_STATUSES or body.status in FLOW_STATUSES:
+            raise BizException(R.PROJECT_INVALID_STATE, "立项状态由审批流程驱动，不能手工修改")
+        if body.status not in LIFECYCLE_STATUSES:
+            raise BizException(R.PROJECT_INVALID_STATE, f"不支持的项目状态：{body.status}")
         p.status = body.status
     if body.budget_amount is not None:
         p.budget_amount = body.budget_amount

@@ -17,6 +17,7 @@ from app.core.db import get_db
 from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.approval import registry
 from app.modules.approval import service as approval_svc
 from app.modules.auth.models import User
 from app.modules.report import schemas as S
@@ -32,6 +33,8 @@ STATUS_CN = {
     "approving": "审批中",
     "approved": "批准通过",
     "rejected": "已驳回",
+    "sealing": "用章审批中",
+    "seal_approved": "用章已批准",
     "sealed": "签章完成",
 }
 
@@ -97,6 +100,7 @@ def _out(r: Report, items: dict, tasks: dict, users: dict[int, str]) -> dict:
         "remark": r.remark or "",
         "conclusion": r.conclusion or "",
         "approvalInstanceId": r.approval_instance_id,
+        "sealFlowInstanceId": r.seal_flow_instance_id,
         "createBy": users.get(r.create_by, "") if r.create_by else "",
         "createTime": _t(r.create_time),
     }
@@ -160,9 +164,9 @@ def report_counts(
     user: User = Depends(require_perm("report:list")),
     db: Session = Depends(get_db),
 ):
-    """状态页签计数（全部/uploaded/approving/approved/rejected/sealed）。"""
+    """状态页签计数（全部/uploaded/approving/approved/rejected/sealing/seal_approved/sealed）。"""
     rows = db.execute(select(Report.status, func.count()).where(Report.deleted == 0).group_by(Report.status)).all()
-    data = {s: 0 for s in ("uploaded", "approving", "approved", "rejected", "sealed")}
+    data = {s: 0 for s in ("uploaded", "approving", "approved", "rejected", "sealing", "seal_approved", "sealed")}
     data.update({s: n for s, n in rows if s in data})
     data["all"] = sum(data.values())
     return data
@@ -284,8 +288,13 @@ def seal_report(
     db: Session = Depends(get_db),
 ):
     r = _load_report(db, rid, lock=True)
-    if r.status != "approved":
-        raise BizException(R.REPORT_INVALID_STATE, f"状态「{r.status}」不允许签章（需批准通过）")
+    # F5：用章申请与实际签章分离 —— 流程启用时必须先通过用章审批（seal_approved）
+    seal_ready = "seal_approved" if registry.flow_enabled(db, "report_seal") else "approved"
+    if r.status != seal_ready:
+        raise BizException(
+            R.REPORT_INVALID_STATE,
+            f"状态「{r.status}」不允许签章（需{STATUS_CN.get(seal_ready, seal_ready)}）",
+        )
     r.status = "sealed"
     r.seal_by = current.id
     r.seal_time = datetime.now()
@@ -301,6 +310,39 @@ def seal_report(
           detail={"reportNo": r.report_no, "watermark": stamped})
     db.commit()
     return {"id": r.id, "status": r.status, "sealTime": _t(r.seal_time)}
+
+
+@router.post("/reports/{rid}/seal-apply")
+def seal_apply(
+    rid: int,
+    body: S.SealIn | None = None,
+    current: User = Depends(require_perm("report:seal:apply")),
+    db: Session = Depends(get_db),
+):
+    """用章申请（F5）：提交用章审批，审批通过后由有权人执行签章。"""
+    r = _load_report(db, rid)
+    if r.status != "approved":
+        raise BizException(R.REPORT_INVALID_STATE, f"状态「{r.status}」不允许申请用章（需批准通过）")
+    instance, _row = registry.submit_flow(
+        db,
+        "report_seal",
+        rid,
+        title=f"报告用章申请 {r.report_no}",
+        initiator=current,
+        variables={"reportNo": r.report_no, "taskId": r.task_id},
+        form_snapshot={
+            "reportNo": r.report_no,
+            "fileName": r.file_name,
+            "conclusion": (r.conclusion or "")[:500],
+            "remark": r.remark or "",
+        },
+    )
+    if body and body.comment:
+        r.remark = svc._append_remark(r.remark, body.comment)
+    audit(db, user_id=current.id, module="report", action="report_seal_apply", biz_type="report_seal",
+          biz_id=rid, detail={"reportNo": r.report_no, "instanceId": instance.id if instance else 0})
+    db.commit()
+    return {"id": r.id, "status": r.status, "sealFlowInstanceId": r.seal_flow_instance_id}
 
 
 @router.get("/reports/export")

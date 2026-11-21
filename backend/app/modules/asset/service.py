@@ -539,3 +539,62 @@ def bom_usage(db: Session, bom: Bom, parent_qty: float = 1.0) -> list[dict]:
             }
         )
     return result
+
+
+# ---------------- 到货验收（人工直通 / 审批通过共用） ----------------
+
+
+def accept_receipt(db: Session, r: Receipt, operator) -> str:
+    """验收确认：合格数量写入库存台账并回写库位在库数量。
+
+    人工直通（``/receipts/{id}/accept``）与审批通过（流程 on_approved 钩子）
+    共用同一段逻辑，保证"审批通过的验收"与"人工验收"产生的库存流水完全一致。
+
+    Returns:
+        验收后的状态：accepted（全合格）/ partial（部分合格）/ rejected（不合格）
+    """
+    total = 0.0
+    qualified = 0.0
+    for line in [i for i in (r.items or []) if not i.deleted]:
+        total += float(line.quantity or 0)
+        qualified += float(line.qualified_qty or 0)
+        if float(line.qualified_qty or 0) <= 0:
+            continue
+        write_ledger(
+            db,
+            direction="in",
+            item_id=line.item_id,
+            item_code=line.item_code or "",
+            item_name=line.item_name,
+            unit=line.unit or "",
+            quantity=float(line.qualified_qty),
+            warehouse_id=r.warehouse_id,
+            warehouse_name=r.warehouse_name,
+            location_id=line.location_id,
+            location_code=line.location_code or "",
+            unit_price=float(line.price) if line.price is not None else None,
+            reason="receipt",
+            biz_type="receipt",
+            biz_id=r.id,
+            biz_no=r.receipt_no,
+            operator_id=getattr(operator, "id", 0) or 0,
+            operator_name=getattr(operator, "name", "") or getattr(operator, "username", "") or "",
+            dept_id=getattr(operator, "dept_id", None),
+            dept_name=getattr(operator, "dept_name", "") or "",
+            remark=line.remark or "",
+        )
+    r.total_qty = total
+    r.qualified_qty = qualified
+    if total <= 0:
+        r.status = "rejected"
+    elif qualified >= total:
+        r.status = "accepted"
+    elif qualified > 0:
+        r.status = "partial"
+    else:
+        r.status = "rejected"
+    r.version = (r.version or 0) + 1
+    r.update_by = getattr(operator, "id", 0) or 0
+    r.update_time = datetime.now()
+    db.flush()
+    return r.status

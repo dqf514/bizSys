@@ -187,9 +187,15 @@ def tender_snapshot(t: TenderProject, bid: TenderBid | None) -> dict:
     }, ensure_ascii=False, default=str))
 
 
-subscribe(ApprovalCompleted, _handle_completed)
-subscribe(ApprovalRejected, _handle_rejected)
-subscribe(ApprovalWithdrawn, _handle_withdrawn)
+def register_flow_handlers() -> None:
+    """F5：审批处理器注册入口，由 ``app.modules.approval.wiring.install()`` 显式装配。
+
+    不再在模块 import 时自动订阅 —— 漏一个 import 就会让单据永久卡在 approving。
+    """
+    subscribe(ApprovalCompleted, _handle_completed)
+    subscribe(ApprovalRejected, _handle_rejected)
+    subscribe(ApprovalWithdrawn, _handle_withdrawn)
+
 
 
 # ---------------- 样品出入库（统一走 StockOrder 登记→确认流程） ----------------

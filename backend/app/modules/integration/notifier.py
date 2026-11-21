@@ -11,13 +11,16 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.common.events import ApprovalTodoCreated, subscribe
+from app.common.events import ApprovalTodoCreated, subscribe, switch_key
 from app.modules.admin.models import Notify
 from app.modules.auth.models import User
 from app.modules.integration.adapters import ADAPTERS
 from app.modules.settings import service as settings_svc
 
 logger = logging.getLogger("bizsys.notify")
+
+# 待办通知开关（管理员可在「流程与事件开关」面板关闭）
+SWITCH_TODO_NOTIFY = switch_key("ApprovalTodoCreated", "notify.todo")
 
 
 def _push_wecom(db: Session, event: ApprovalTodoCreated) -> None:
@@ -63,4 +66,9 @@ def _on_todo_created(event: ApprovalTodoCreated) -> None:
         logger.warning("wecom todo push failed: %s", exc)
 
 
-subscribe(ApprovalTodoCreated, _on_todo_created)
+def register_flow_handlers() -> None:
+    """F5：通知类订阅由 ``app.modules.approval.wiring.install()`` 显式装配。
+
+    通知是尽力而为的旁路，``critical=False`` —— 外部通道失败不得阻断审批主事务。
+    """
+    subscribe(ApprovalTodoCreated, _on_todo_created, key=SWITCH_TODO_NOTIFY, critical=False, name="notify.todo")

@@ -277,9 +277,12 @@ def contract_finance_summary(
             Invoice.settlement_id.in_(settlement_sub), Invoice.deleted == 0
         )
     ).one()
+    # 只统计已复核确认的回款（F5：未复核的登记不计入已到账）
     payment_count, paid_total = db.execute(
         select(func.count(), func.coalesce(func.sum(Payment.amount), 0)).where(
-            Payment.settlement_id.in_(settlement_sub), Payment.deleted == 0
+            Payment.settlement_id.in_(settlement_sub),
+            Payment.deleted == 0,
+            Payment.status == "confirmed",
         )
     ).one()
     return {

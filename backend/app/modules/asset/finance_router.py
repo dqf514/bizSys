@@ -18,6 +18,7 @@ from app.core.db import get_db
 from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
+from app.modules.approval import registry
 from app.modules.asset import schemas as S
 from app.modules.asset import service as svc
 from app.modules.asset.models import Depreciation, Disposal, FixedAsset, Tool, ToolLoan
@@ -668,7 +669,7 @@ def disposal_counts(
     user: User = Depends(require_perm("asset:disposal:list")),
     db: Session = Depends(get_db),
 ):
-    return _counts(db, Disposal, ("draft", "approved", "done", "rejected"))
+    return _counts(db, Disposal, ("draft", "approving", "approved", "done", "rejected"))
 
 
 @router.get("/disposals/{did}")
@@ -784,6 +785,46 @@ def delete_disposal(
     return None
 
 
+@router.post("/disposals/{did}/submit")
+def submit_disposal(
+    did: int,
+    current: User = Depends(require_perm("asset:disposal:submit")),
+    db: Session = Depends(get_db),
+):
+    """提交处置审批（F5：流程驱动）。审批通过后方可核销处置。"""
+    d = db.get(Disposal, did, with_for_update=True)
+    if not d or d.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND)
+    instance, _row = registry.submit_flow(
+        db,
+        "asset_disposal",
+        did,
+        title=f"{d.disposal_no} 资产处置",
+        initiator=current,
+        variables={
+            "disposal_type": d.disposal_type,
+            "net_value": float(d.net_value or 0),
+            "disposal_amount": float(d.disposal_amount or 0),
+        },
+        form_snapshot={
+            "disposalNo": d.disposal_no,
+            "assetName": d.asset_name,
+            "disposalType": d.disposal_type,
+            "originalValue": float(d.original_value or 0),
+            "netValue": float(d.net_value or 0),
+            "disposalAmount": float(d.disposal_amount or 0),
+            "reason": d.reason or "",
+        },
+    )
+    audit(
+        db, user_id=current.id, module="asset", action="disposal_submit",
+        biz_type="disposal", biz_id=did,
+        detail={"disposalNo": d.disposal_no, "instanceId": instance.id if instance else 0},
+    )
+    db.commit()
+    return _disposal_out(d)
+
+
 @router.post("/disposals/{did}/approve")
 def approve_disposal(
     did: int,
@@ -793,6 +834,8 @@ def approve_disposal(
     d = db.get(Disposal, did, with_for_update=True)
     if not d or d.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
+    # 流程启用时人工直批是"后门"：必须走提交审批
+    registry.require_manual(db, "asset_disposal")
     svc.check_editable(d.status, ("draft",), "仅草稿处置单可批准")
     d.status = "approved"
     d.approver_id = current.id

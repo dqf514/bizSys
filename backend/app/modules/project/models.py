@@ -35,6 +35,9 @@ class Project(BaseModel):
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="计划开始")
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="计划完成")
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="立项审批实例 approval_instance.id"
+    )
     progress: Mapped[int] = mapped_column(Integer, default=0, comment="整体进度百分比")
     budget_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, comment="预算金额")
     actual_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, comment="实际发生额")

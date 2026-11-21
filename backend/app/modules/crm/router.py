@@ -400,7 +400,12 @@ def get_customer(
     paid_total = db.scalar(
         select(func.coalesce(func.sum(Payment.amount), 0))
         .join(Settlement, Settlement.id == Payment.settlement_id)
-        .where(Settlement.customer_id == cid, Settlement.deleted == 0, Payment.deleted == 0)
+        .where(
+            Settlement.customer_id == cid,
+            Settlement.deleted == 0,
+            Payment.deleted == 0,
+            Payment.status == "confirmed",
+        )
     )
     data["summary"] = {
         "contractCount": contract_count,

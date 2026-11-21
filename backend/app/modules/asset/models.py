@@ -144,6 +144,9 @@ class Receipt(BaseModel):
     qualified_qty: Mapped[float] = mapped_column(Numeric(12, 2), default=0, comment="合格数量")
     inspector_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     inspector_name: Mapped[str] = mapped_column(String(64), default="")
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="验收审批实例 approval_instance.id"
+    )
     remark: Mapped[str] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
 
@@ -365,6 +368,9 @@ class Disposal(BaseModel):
     approver_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     approver_name: Mapped[str] = mapped_column(String(64), default="")
     approve_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="处置审批实例 approval_instance.id"
+    )
     remark: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
 

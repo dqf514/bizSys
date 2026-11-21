@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.common.audit import record
 from app.common.pagination import PAGE_MAX, PageParams
 from app.core.db import get_db
-from app.core.deps import require_perm
+from app.core.deps import require_any_perm, require_perm
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
 from app.modules.hr import schemas as S
@@ -21,7 +21,13 @@ from app.services.excel import export_xlsx_styled, now_filename
 
 router = APIRouter(prefix="/hr", tags=["hr"], route_class=EnvelopeRoute)
 
-STATUS_CN = {"draft": "草稿", "submitted": "已提交"}
+STATUS_CN = {
+    "draft": "草稿",
+    "approving": "审批中",
+    "approved": "已批准",
+    "rejected": "已驳回",
+    "submitted": "已提交",
+}
 
 MY_EXPORT_COLS = [
     {"key": "workDate", "label": "日期", "width": 12},
@@ -157,7 +163,12 @@ def delete(tid: int, current: User = Depends(require_perm("hr:timesheet:create")
 
 
 @router.post("/timesheets/{tid}/submit")
-def submit(tid: int, current: User = Depends(require_perm("hr:timesheet:create")), db: Session = Depends(get_db)):
+def submit(
+    tid: int,
+    current: User = Depends(require_any_perm("hr:timesheet:submit", "hr:timesheet:create")),
+    db: Session = Depends(get_db),
+):
+    """提交工时审批（F5：提交后进入审批中，审批通过才计入项目成本）。"""
     t = svc.submit(db, current, tid)
     record(db, user_id=current.id, module="hr", action="hr_timesheet_submit", biz_type="hr_timesheet", biz_id=tid)
     db.commit()

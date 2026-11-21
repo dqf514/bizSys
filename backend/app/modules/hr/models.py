@@ -2,7 +2,8 @@
 
 - 一条 = 某用户某天某任务一条工时；同用户+日期+任务唯一（deleted 入唯一键，软删行写行 id 不阻塞重建）；
 - 填报必须挂"进行中且关联合同"的任务；任务编号/名称、合同、客户快照落行，统计不依赖任务后续变更；
-- 状态机：draft（可改/删/提交）→ submitted（只读，可 withdraw 退回 draft）。
+- 状态机（F5 接入审批）：draft（可改/删/提交）→ approving（审批中）→ approved（已批准，计入成本）
+  / rejected（已驳回，可改后重提）；未绑定工时审批流程时提交直通为 submitted（同样计入成本）。
 """
 
 from datetime import date, datetime
@@ -35,5 +36,10 @@ class HrTimesheet(BaseModel):
     hours: Mapped[Decimal] = mapped_column(Numeric(4, 1), comment="工时小时数（0.5 步进，≤24）")
     content: Mapped[str] = mapped_column(String(500), default="", comment="工作内容")
     remark: Mapped[str] = mapped_column(String(500), default="", comment="备注")
-    status: Mapped[str] = mapped_column(String(16), default="draft", index=True, comment="draft/submitted")
+    status: Mapped[str] = mapped_column(
+        String(16), default="draft", index=True, comment="draft/approving/approved/rejected/submitted"
+    )
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="工时审批实例 approval_instance.id"
+    )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="最近提交时间")

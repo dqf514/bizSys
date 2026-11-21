@@ -1,7 +1,7 @@
 """工时填报业务逻辑：填报 CRUD / 状态流转 / 我的列表 / 三维度统计。
 
 - 可填报任务口径：status=in_progress 且已关联合同（合同/客户快照落行）；
-- 统计口径：仅 submitted 行计入汇总（草稿是未确认的私人记录）；
+- 统计口径：仅 approved / submitted 行计入汇总（草稿与审批中的行都不计成本）；
 - 部门维度取自填报人主部门（sys_user.dept_id/dept_name 冗余）。
 """
 
@@ -15,6 +15,7 @@ from app.common.filters import apply_list_filters
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
+from app.modules.approval import registry
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
 from app.modules.hr.models import HrTimesheet
@@ -41,6 +42,7 @@ def _out(t: HrTimesheet) -> dict:
         "content": t.content,
         "remark": t.remark,
         "status": t.status,
+        "flowInstanceId": t.flow_instance_id,
         "submittedAt": t.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if t.submitted_at else "",
         "createTime": t.create_time.strftime("%Y-%m-%d %H:%M:%S") if t.create_time else "",
         "updateTime": t.update_time.strftime("%Y-%m-%d %H:%M:%S") if t.update_time else "",
@@ -107,37 +109,59 @@ def create(db: Session, current: User, body: TimesheetIn) -> HrTimesheet:
     t = HrTimesheet(user_id=current.id, user_name=current.name or current.username)
     _apply(t, body, task)
     t.create_by = current.id
-    if body.submit:
-        t.status = "submitted"
-        t.submitted_at = datetime.now()
     db.add(t)
     db.flush()
+    if body.submit:
+        submit(db, current, t.id)  # 提交即走审批（F5）
     return t
 
 
 def update(db: Session, current: User, tid: int, body: TimesheetIn) -> HrTimesheet:
     t = _load(db, tid)
     _check_owner(t, current)
-    if t.status != "draft":
+    if t.status not in ("draft", "rejected"):
         raise BizException(R.HR_TIMESHEET_INVALID_STATE, "已提交的工时只读，请先退回草稿")
     _check_date(body.work_date)
     task = _fillable_task(db, body.task_id)
     _check_dup(db, current.id, body.work_date, body.task_id, exclude_id=t.id)
     _apply(t, body, task)
     t.update_by = current.id
-    if body.submit:
-        t.status = "submitted"
-        t.submitted_at = datetime.now()
     db.flush()
+    if body.submit:
+        submit(db, current, t.id)  # 提交即走审批（F5）
     return t
 
 
 def submit(db: Session, current: User, tid: int) -> HrTimesheet:
+    """提交工时（F5 接入审批）。
+
+    绑定了工时审批流程 → 走审批（approving → approved / rejected）；
+    未绑定流程定义 → 直通 submitted（与历史行为一致）。
+    """
     t = _load(db, tid)
     _check_owner(t, current)
     if t.status != "draft":
         raise BizException(R.HR_TIMESHEET_INVALID_STATE)
-    t.status = "submitted"
+    _instance, _row = registry.submit_flow(
+        db,
+        "timesheet",
+        tid,
+        title=f"工时 {t.work_date:%Y-%m-%d} {t.task_no}",
+        initiator=current,
+        variables={
+            "hours": float(t.hours or 0),
+            "task_no": t.task_no,
+            "contract_no": t.contract_no,
+        },
+        form_snapshot={
+            "workDate": t.work_date.strftime("%Y-%m-%d"),
+            "taskNo": t.task_no,
+            "taskName": t.task_name,
+            "contractNo": t.contract_no,
+            "hours": float(t.hours or 0),
+            "content": t.content or "",
+        },
+    )
     t.submitted_at = datetime.now()
     t.update_by = current.id
     db.flush()
@@ -145,9 +169,21 @@ def submit(db: Session, current: User, tid: int) -> HrTimesheet:
 
 
 def withdraw(db: Session, current: User, tid: int) -> HrTimesheet:
+    """撤回工时。
+
+    - 审批中 → 走审批引擎撤回（引擎校验"无人处理过"，事件回写 draft）；
+    - 已批准 / 已直通提交 → 直接退回草稿（员工自助纠错，改后需重新提交审批）。
+    """
     t = _load(db, tid)
     _check_owner(t, current)
-    if t.status != "submitted":
+    if t.status == "approving" and t.flow_instance_id:
+        from app.modules.approval import service as approval_svc
+
+        approval_svc.withdraw(db, t.flow_instance_id, current)
+        t.update_by = current.id
+        db.flush()
+        return t
+    if t.status not in ("submitted", "approved"):
         raise BizException(R.HR_TIMESHEET_INVALID_STATE)
     t.status = "draft"
     t.update_by = current.id
@@ -280,17 +316,17 @@ def my_counts(db: Session, current: User) -> dict:
             HrTimesheet.user_id == current.id, HrTimesheet.deleted == 0
         ).group_by(HrTimesheet.status)
     ).all()
-    data = {"draft": 0, "submitted": 0}
+    data = {"draft": 0, "approving": 0, "approved": 0, "rejected": 0, "submitted": 0}
     data.update({s: n for s, n in rows if s in data})
     data["all"] = sum(data.values())
     return data
 
 
-# ---------------- 统计（管理视角，仅 submitted 计入） ----------------
+# ---------------- 统计（管理视角，仅 approved / submitted 计入） ----------------
 
 
 def _stats_where(date_start: date | None, date_end: date | None, dept_id: int, user_id: int, task_id: int) -> list:
-    conds = [HrTimesheet.deleted == 0, HrTimesheet.status == "submitted"]
+    conds = [HrTimesheet.deleted == 0, HrTimesheet.status.in_(("submitted", "approved"))]
     if date_start:
         conds.append(HrTimesheet.work_date >= date_start)
     if date_end:
