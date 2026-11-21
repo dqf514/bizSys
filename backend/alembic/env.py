@@ -17,6 +17,7 @@ from app.modules.finance import models as finance_models  # noqa: F401
 from app.modules.report import models as report_models  # noqa: F401
 from app.modules.settings import models as settings_models  # noqa: F401
 from app.modules.task import models as task_models  # noqa: F401
+from app.modules.visitor import models as visitor_models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.db_url)

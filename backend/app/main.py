@@ -112,6 +112,7 @@ from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
 from app.modules.task.entrust_router import router as task_entrust_router  # noqa: E402  在线任务委托（B2）
 from app.modules.task.router import router as task_router  # noqa: E402
+from app.modules.visitor.router import router as visitor_router  # noqa: E402  访客与安全（B3）
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(wecom_router, prefix="/api/v1")
@@ -124,6 +125,7 @@ app.include_router(crm_self_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(task_router, prefix="/api/v1")
 app.include_router(task_entrust_router, prefix="/api/v1")
+app.include_router(visitor_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")

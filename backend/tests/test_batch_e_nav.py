@@ -161,6 +161,11 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "Visits",
         "VisitorZones",
         "VisitorNda",
+        "VisitorCredentials",
+        "VisitorBlacklist",
+        "VisitorAuditLogs",
+        "VisitorHandovers",
+        "VisitorAlerts",
         "SafetyInspections",
     ]
     assert _children(_find(tree, "System")) == ["SysOrg", "SysData", "OaAdmin", "SysOps", "AiCenter"]

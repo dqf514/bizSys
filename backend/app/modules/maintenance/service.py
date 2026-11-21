@@ -80,6 +80,17 @@ from app.modules.task.models import (
     TaskSample,
     TaskSampleFlow,
 )
+from app.modules.visitor.models import (
+    VisitorAccessLog,
+    VisitorAlert,
+    VisitorApproval,
+    VisitorBlacklist,
+    VisitorCredential,
+    VisitorNda,
+    VisitorSampleHandover,
+    VisitorVisit,
+    VisitorZone,
+)
 
 # ---- 配置键 ----
 KEY_BACKUP_ENABLED = "backup.enabled"
@@ -93,6 +104,16 @@ DEFAULT_RETENTION = 7
 
 # 清空表清单（子表在前，注意外键顺序）
 _PURGE_TABLES = [
+    # 访客与安全域（子表在前）：合规审计日志 vis_access_log 一并清空
+    VisitorAlert,
+    VisitorSampleHandover,
+    VisitorAccessLog,
+    VisitorCredential,
+    VisitorApproval,
+    VisitorNda,
+    VisitorBlacklist,
+    VisitorVisit,
+    VisitorZone,
     ApprovalViewState,
     ApprovalCc,
     ApprovalTask,

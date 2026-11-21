@@ -705,7 +705,20 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
         "Lock",
         "",
         [
-            ("menu.visit", "Visits", "/visitor/visits", "visitor/VisitList", "User", "visitor:visit:list", []),
+            (
+                "menu.visit",
+                "Visits",
+                "/visitor/visits",
+                "visitor/VisitList",
+                "User",
+                "visitor:visit:list",
+                [
+                    (None, "visit-create", "", "", "", "visitor:visit:create", []),
+                    (None, "visit-review", "", "", "", "visitor:visit:review", []),
+                    (None, "visit-checkin", "", "", "", "visitor:visit:checkin", []),
+                    (None, "visit-export", "", "", "", "visitor:visit:export", []),
+                ],
+            ),
             (
                 "menu.zone",
                 "VisitorZones",
@@ -713,9 +726,83 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "visitor/ZoneList",
                 "OfficeBuilding",
                 "visitor:zone:list",
-                [],
+                [
+                    (None, "zone-edit", "", "", "", "visitor:zone:edit", []),
+                ],
             ),
-            ("menu.nda", "VisitorNda", "/visitor/nda", "visitor/NdaList", "Memo", "visitor:nda:list", []),
+            (
+                "menu.nda",
+                "VisitorNda",
+                "/visitor/nda",
+                "visitor/NdaList",
+                "Memo",
+                "visitor:nda:list",
+                [
+                    (None, "nda-sign", "", "", "", "visitor:nda:sign", []),
+                ],
+            ),
+            (
+                # 通行凭证（门禁 / 闸机 / 梯控核验）
+                "menu.visitorCredential",
+                "VisitorCredentials",
+                "/visitor/credentials",
+                "visitor/CredentialList",
+                "Key",
+                "visitor:credential:list",
+                [
+                    (None, "credential-verify", "", "", "", "visitor:credential:verify", []),
+                    (None, "credential-edit", "", "", "", "visitor:credential:edit", []),
+                ],
+            ),
+            (
+                # 黑名单（闯入 / 尾随 / 失信人员禁止入内）
+                "menu.visitorBlacklist",
+                "VisitorBlacklist",
+                "/visitor/blacklist",
+                "visitor/BlacklistList",
+                "Warning",
+                "visitor:blacklist:list",
+                [
+                    (None, "blacklist-edit", "", "", "", "visitor:blacklist:edit", []),
+                ],
+            ),
+            (
+                # 合规审计日志（只读 + 应急报表导出，保留期 ≥180 天）
+                "menu.visitorAudit",
+                "VisitorAuditLogs",
+                "/visitor/access-logs",
+                "visitor/AccessLogList",
+                "Document",
+                "visitor:audit:list",
+                [
+                    (None, "audit-export", "", "", "", "visitor:audit:export", []),
+                    (None, "audit-report", "", "", "", "visitor:audit:report", []),
+                ],
+            ),
+            (
+                # 样品 / 样车交接联动
+                "menu.visitorHandover",
+                "VisitorHandovers",
+                "/visitor/handovers",
+                "visitor/HandoverList",
+                "Box",
+                "visitor:handover:list",
+                [
+                    (None, "handover-create", "", "", "", "visitor:handover:create", []),
+                ],
+            ),
+            (
+                # 预警（滞留 / 闯入 / 尾随 / 越权）
+                "menu.visitorAlert",
+                "VisitorAlerts",
+                "/visitor/alerts",
+                "visitor/AlertList",
+                "AlarmClock",
+                "visitor:alert:list",
+                [
+                    (None, "alert-handle", "", "", "", "visitor:alert:handle", []),
+                ],
+            ),
             (
                 "menu.inspection",
                 "SafetyInspections",
@@ -1009,6 +1096,43 @@ DICTS: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("厂商工程师", "Vendor Engineer", "vendor"),
         ],
     ),
+    "visitor_type": (
+        "访客类型",
+        [
+            ("客户", "Customer", "customer"),
+            ("监管评审", "Regulator", "regulator"),
+            ("供应商", "Supplier", "supplier"),
+            ("快递", "Courier", "courier"),
+            ("临时工", "Temp Worker", "temp"),
+            ("外包维修", "Outsourced", "outsourced"),
+            ("合作方", "Partner", "partner"),
+            ("本单位员工", "Internal Staff", "staff"),
+        ],
+    ),
+    "visitor_source": (
+        "预约来源",
+        [
+            ("网页预约", "Web", "web"),
+            ("微信预约", "WeChat", "wechat"),
+            ("小程序预约", "Mini Program", "miniprogram"),
+            ("员工邀请", "Staff Invite", "invite"),
+            ("前台现场登记", "Front Desk", "onsite"),
+            ("客户自助", "Customer Portal", "partner"),
+        ],
+    ),
+    "visitor_zone_type": (
+        "区域类型",
+        [
+            ("公共接待区", "Public Area", "public"),
+            ("访客接待区", "Welcome Area", "welcome"),
+            ("样车接收区", "Sample Receiving", "sample"),
+            ("试验区", "Test Area", "test"),
+            ("准备区", "Preparation Area", "prepare"),
+            ("生产加工区", "Production Area", "production"),
+            ("工具仪器间", "Tool Room", "tool"),
+            ("数据机房", "Data Center", "datacenter"),
+        ],
+    ),
     "biz_block": (
         "业务板块",
         [
@@ -1165,6 +1289,11 @@ NUMBER_RULES = [
     ("asset_prototype_loan", "", "LJ", 4, 2, 2, 4, 1, "", "daily", "LJ202611210001"),
     ("asset_tool_loan", "", "LY", 4, 2, 2, 4, 1, "", "daily", "LY202611210001"),
     ("asset_disposal", "", "CZ", 4, 2, 2, 4, 1, "", "daily", "CZ202611210001"),
+    # 访客与安全域单号
+    ("visit", "", "VT", 4, 2, 2, 4, 1, "", "daily", "VT202611210001"),
+    ("visitor_credential", "", "VC", 4, 2, 2, 4, 1, "", "daily", "VC202611210001"),
+    ("visitor_handover", "", "SH", 4, 2, 2, 4, 1, "", "daily", "SH202611210001"),
+    ("visitor_nda", "", "ND", 4, 2, 2, 4, 1, "", "daily", "ND202611210001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -1230,6 +1359,32 @@ def _seed_menus(db: Session) -> dict[str, int]:
 
     walk(MENU_TREE, None)
     return perm_to_id
+
+
+# 访客与安全域（B3）权限点集合 —— 安保员角色整域授权
+VISITOR_PERMS = [
+    "visitor:visit:list",
+    "visitor:visit:create",
+    "visitor:visit:review",
+    "visitor:visit:checkin",
+    "visitor:visit:export",
+    "visitor:zone:list",
+    "visitor:zone:edit",
+    "visitor:nda:list",
+    "visitor:nda:sign",
+    "visitor:credential:list",
+    "visitor:credential:verify",
+    "visitor:credential:edit",
+    "visitor:blacklist:list",
+    "visitor:blacklist:edit",
+    "visitor:audit:list",
+    "visitor:audit:export",
+    "visitor:audit:report",
+    "visitor:handover:list",
+    "visitor:handover:create",
+    "visitor:alert:list",
+    "visitor:alert:handle",
+]
 
 
 def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
@@ -1363,7 +1518,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "crm:staff:review",
         "crm:staff:edit",
         "crm:staff:export",
-        # 访客与安全域（安防/合规）暂只授予超管，业务角色不默认可见
+        # 访客与安全域（安防/合规）不挂业务角色，见下方 security_officer 角色
     ]
     for p in biz_perms:
         if p in perm_to_id:
@@ -1373,6 +1528,17 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
     for perm, mid in perm_to_id.items():
         if perm.startswith("asset:") and perm not in granted:
             db.add(RoleMenu(role_id=biz_role.id, menu_id=mid))
+
+    # 安保员（访客与安全域 B3）：安防/合规职责与业务岗分离，整域最小权限授权
+    security_role = db.scalar(select(Role).where(Role.code == "security_officer", Role.deleted == 0))
+    if not security_role:
+        security_role = Role(code="security_officer", name="安保员", data_scope="all")
+        db.add(security_role)
+        db.flush()
+    db.query(RoleMenu).filter(RoleMenu.role_id == security_role.id).delete()
+    for p in VISITOR_PERMS:
+        if p in perm_to_id:
+            db.add(RoleMenu(role_id=security_role.id, menu_id=perm_to_id[p]))
     return super_role
 
 
@@ -1406,6 +1572,21 @@ def _seed_admin(db: Session, super_role: Role) -> None:
             db.flush()
         if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
             db.add(UserRole(user_id=u.id, role_id=biz_role.id))
+
+    # 演示安保员（访客与安全域 B3 专用角色）
+    security_role = db.scalar(select(Role).where(Role.code == "security_officer", Role.deleted == 0)) or super_role
+    u = db.scalar(select(User).where(User.username == "security1", User.deleted == 0))
+    if not u:
+        u = User(
+            username="security1",
+            password_hash=hash_password("Test@123456"),
+            name="安保员",
+            status="enabled",
+        )
+        db.add(u)
+        db.flush()
+    if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
+        db.add(UserRole(user_id=u.id, role_id=security_role.id))
 
 
 def _seed_dicts(db: Session) -> None:
