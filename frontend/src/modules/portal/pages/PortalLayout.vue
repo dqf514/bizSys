@@ -75,6 +75,22 @@ async function doLogout() {
         >
           {{ t('portal.portal.my') }}
         </router-link>
+        <router-link
+          v-if="loggedIn"
+          to="/portal/orders"
+          class="portal-nav-item"
+          :class="{ active: route.path === '/portal/orders' }"
+        >
+          {{ t('portal.portal.entrust.navTitle') }}
+        </router-link>
+        <router-link
+          v-if="loggedIn"
+          to="/portal/staff"
+          class="portal-nav-item"
+          :class="{ active: route.path === '/portal/staff' }"
+        >
+          {{ t('portal.portal.staff.navTitle') }}
+        </router-link>
       </nav>
       <div class="portal-user">
         <button class="lang-switch" type="button" @click="switchLang">

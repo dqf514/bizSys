@@ -22,6 +22,7 @@ const form = reactive({
   username: '',
   password: '',
   passwordConfirm: '',
+  companyType: 'supplier' as 'supplier' | 'customer',
   companyName: '',
   contactName: '',
   phone: '',
@@ -50,12 +51,17 @@ async function doRegister() {
     await portalRegister({
       username: form.username.trim(),
       password: form.password,
+      companyType: form.companyType,
       companyName: form.companyName.trim(),
       contactName: form.contactName.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),
     })
-    ElMessage.success(t('portal.portal.registerSuccess'))
+    ElMessage.success(
+      form.companyType === 'customer'
+        ? t('portal.portal.registerSuccessCustomer')
+        : t('portal.portal.registerSuccess'),
+    )
     router.replace({ path: '/login', query: { tab: 'partner' } })
   } catch {
     /* portalHttp notifies */
@@ -71,6 +77,12 @@ async function doRegister() {
       <h1 class="portal-auth-title">{{ siteName }} · {{ t('portal.portal.register') }}</h1>
       <el-alert type="info" :closable="false" show-icon :title="t('portal.portal.registerFlowTip')" />
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="portal-auth-form">
+        <el-form-item :label="t('portal.portal.companyType')">
+          <el-radio-group v-model="form.companyType">
+            <el-radio value="supplier">{{ t('portal.portal.companyTypeSupplier') }}</el-radio>
+            <el-radio value="customer">{{ t('portal.portal.companyTypeCustomer') }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item :label="t('portal.portal.username')" prop="username">
           <el-input v-model="form.username" :maxlength="64" />
         </el-form-item>

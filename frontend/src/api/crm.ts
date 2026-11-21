@@ -1,6 +1,7 @@
 import { request, download, toQuery } from './http'
 import type {
   Customer,
+  CustomerAccount,
   CustomerDetail,
   CustomerOption,
   ListQuery,
@@ -9,6 +10,7 @@ import type {
   PartnerAttachment,
   PartnerContact,
   PartnerProcurement,
+  PartnerStaff,
 } from './types'
 
 export function listCustomers(params: ListQuery) {
@@ -175,4 +177,97 @@ export function resetPartnerAccountPassword(id: number, password?: string) {
 
 export function deletePartnerAccount(id: number) {
   return request<null>({ url: `/procurement/partners/${id}`, method: 'delete' })
+}
+
+/* ---------- B2 客户自助体系：客户方人员备案 + 客户自助账号 ---------- */
+
+export function listPartnerStaffs(params: ListQuery) {
+  return request<PageResult<PartnerStaff>>({
+    url: '/crm/partner-staffs',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function partnerStaffCounts() {
+  return request<Record<string, number>>({ url: '/crm/partner-staffs/counts', method: 'get' })
+}
+
+export function getPartnerStaff(id: number) {
+  return request<PartnerStaff>({ url: `/crm/partner-staffs/${id}`, method: 'get' })
+}
+
+/** 内部代登记客户方人员（客户电话/邮件提供的信息补录） */
+export function createPartnerStaff(data: Partial<PartnerStaff>) {
+  return request<PartnerStaff>({ url: '/crm/partner-staffs', method: 'post', data })
+}
+
+/** 审核备案：approve 时可勾选访客系统权限并指定业务负责人 */
+export function reviewPartnerStaff(
+  id: number,
+  data: {
+    action: 'approve' | 'reject'
+    comment?: string
+    bizOwnerId?: number | null
+    bizOwnerName?: string
+    visitPerm?: string | null
+    ndaSigned?: boolean | null
+  },
+) {
+  return request<PartnerStaff>({ url: `/crm/partner-staffs/${id}/review`, method: 'post', data })
+}
+
+export function togglePartnerStaff(id: number, status: 'approved' | 'disabled') {
+  return request<PartnerStaff>({
+    url: `/crm/partner-staffs/${id}/toggle`,
+    method: 'post',
+    params: { status },
+  })
+}
+
+export function exportPartnerStaffs(params: ListQuery) {
+  return download(
+    {
+      url: '/crm/partner-staffs/export',
+      method: 'post',
+      data: toQuery(params as Record<string, unknown>),
+    },
+    'partner-staffs.xlsx',
+  )
+}
+
+export function listCustomerAccounts(params: ListQuery) {
+  return request<PageResult<CustomerAccount>>({
+    url: '/crm/accounts',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function customerAccountCounts() {
+  return request<Record<string, number>>({ url: '/crm/accounts/counts', method: 'get' })
+}
+
+/** 账号审核：approve 时绑定往来单位 + 客户经理 + 权限范围 + 人员名额 */
+export function reviewCustomerAccount(
+  id: number,
+  data: {
+    action: 'approve' | 'reject'
+    comment?: string
+    customerId?: number | null
+    managerId?: number | null
+    managerName?: string
+    permScope?: string | null
+    staffLimit?: number | null
+  },
+) {
+  return request<CustomerAccount>({ url: `/crm/accounts/${id}/review`, method: 'post', data })
+}
+
+export function toggleCustomerAccount(id: number, status: 'enabled' | 'disabled') {
+  return request<CustomerAccount>({
+    url: `/crm/accounts/${id}/toggle`,
+    method: 'post',
+    params: { status },
+  })
 }

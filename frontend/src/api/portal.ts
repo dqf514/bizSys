@@ -1,7 +1,16 @@
 /** 合作方门户 API（独立认证，见 portalHttp.ts）。 */
 
 import { portalDownload, portalRequest, setPortalToken } from './portalHttp'
-import type { PortalBid, PortalPartner, PortalRegistration, PortalTender, PortalTenderDetail } from './types'
+import type {
+  PortalBid,
+  PortalContract,
+  PortalEntrust,
+  PortalPartner,
+  PortalRegistration,
+  PortalStaff,
+  PortalTender,
+  PortalTenderDetail,
+} from './types'
 
 export function portalRegister(data: {
   username: string
@@ -10,6 +19,8 @@ export function portalRegister(data: {
   contactName?: string
   phone?: string
   email?: string
+  /** B2：supplier 供应商投标（默认）/ customer 客户自助下单 */
+  companyType?: 'supplier' | 'customer'
 }) {
   return portalRequest<PortalPartner>({ url: '/auth/register', method: 'post', data })
 }
@@ -62,4 +73,41 @@ export function downloadMyRegistrationAttachment(regId: number) {
 
 export function downloadMyBidProposal(bidId: number) {
   return portalDownload(`/bids/${bidId}/proposal`)
+}
+
+/* ---------- B2 客户自助：在线委托 + 外来人员登记 ---------- */
+
+export function portalRegisterCustomer(data: {
+  username: string
+  password: string
+  companyName: string
+  contactName?: string
+  phone?: string
+  email?: string
+}) {
+  return portalRegister({ ...data, companyType: 'customer' })
+}
+
+export function myPortalContracts() {
+  return portalRequest<{ items: PortalContract[] }>({ url: '/contracts', method: 'get' })
+}
+
+export function myPortalEntrusts() {
+  return portalRequest<{ items: PortalEntrust[] }>({ url: '/entrusts', method: 'get' })
+}
+
+export function portalCreateEntrust(data: Partial<PortalEntrust> & { items?: unknown[] }) {
+  return portalRequest<PortalEntrust>({ url: '/entrusts', method: 'post', data })
+}
+
+export function portalCancelEntrust(id: number) {
+  return portalRequest<PortalEntrust>({ url: `/entrusts/${id}/cancel`, method: 'post' })
+}
+
+export function myPortalStaffs() {
+  return portalRequest<{ items: PortalStaff[] }>({ url: '/staff', method: 'get' })
+}
+
+export function portalRegisterStaff(data: Partial<PortalStaff>) {
+  return portalRequest<PortalStaff>({ url: '/staff', method: 'post', data })
 }

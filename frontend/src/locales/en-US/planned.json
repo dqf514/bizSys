@@ -59,7 +59,7 @@
       "name": "Online Task Orders",
       "desc": "Customers submit task orders online against contracts, covering simulation, modeling and testing; business managers may also submit on their behalf",
       "batch": "B2",
-      "status": "planned"
+      "status": "done"
     },
     "staffList": {
       "no": "26",

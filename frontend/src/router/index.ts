@@ -257,6 +257,19 @@ const router = createRouter({
           component: () => import('@/modules/portal/pages/PortalMy.vue'),
           meta: { tabless: true, titleKey: 'portal.portal.my' },
         },
+        // B2 客户自助：在线任务委托下单 / 外来人员登记
+        {
+          path: 'orders',
+          name: 'PortalOrders',
+          component: () => import('@/modules/portal/pages/PortalOrders.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.entrust.title' },
+        },
+        {
+          path: 'staff',
+          name: 'PortalStaff',
+          component: () => import('@/modules/portal/pages/PortalStaff.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.staff.title' },
+        },
       ],
     },
     {

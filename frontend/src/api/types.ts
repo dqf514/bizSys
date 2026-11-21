@@ -1235,6 +1235,10 @@ export interface PortalPartner {
   email: string
   status: string
   customerId: number | null
+  /** B2：customer 客户自助 / supplier 供应商投标 */
+  accountType?: string
+  /** B2：权限范围（逗号分隔）tender / entrust / staff */
+  permScope?: string
 }
 
 export interface PortalTender {
@@ -2156,4 +2160,195 @@ export interface AssetToolLoan extends AssetBase {
   remark: string
   status: string
   statusText: string
+}
+
+/* ---------------- B2 客户自助体系：在线委托 / 客户方人员 / 客户自助账号 ---------------- */
+
+export interface TaskEntrustItem {
+  id: number
+  itemCode: string
+  name: string
+  std: string
+  qty: number | null
+  needReport: boolean
+  reportType: string
+  remark: string
+}
+
+/** 在线委托创建入参（后端 CamelModel，字段名 snake_case 可直接提交） */
+export interface TaskEntrustItemInput {
+  id?: number
+  item_code?: string
+  name?: string
+  std?: string
+  qty?: number
+  need_report?: number
+  report_type?: string
+  remark?: string
+}
+
+export interface TaskEntrustCreate {
+  title: string
+  entrust_type?: string
+  contract_id?: number | null
+  requirement?: string
+  sample_desc?: string
+  plan_start_date?: string | null
+  plan_end_date?: string | null
+  priority?: string
+  amount?: number | null
+  remark?: string
+  items?: TaskEntrustItemInput[]
+}
+
+export interface TaskEntrust {
+  id: number
+  entrustNo: string
+  title: string
+  entrustType: string
+  entrustTypeLabel: string
+  contractId: number | null
+  contractNo: string
+  customerId: number | null
+  customerName: string
+  bizBlock: string
+  source: string
+  sourceText: string
+  applicantType: string
+  applicantId: number | null
+  applicantName: string
+  applicantPhone: string
+  requirement: string
+  sampleDesc: string
+  planStartDate: string
+  planEndDate: string
+  priority: string
+  amount: number | null
+  status: string
+  statusText: string
+  handlerId: number | null
+  handlerName: string
+  bizOwnerId: number | null
+  bizOwnerName: string
+  reviewBy: number | null
+  reviewName: string
+  reviewAt: string
+  reviewComment: string
+  taskId: number | null
+  taskNo: string
+  remark: string
+  itemCount: number
+  items?: TaskEntrustItem[]
+  version?: number
+  createTime: string
+  updateTime: string
+}
+
+export interface PartnerStaff {
+  id: number
+  customerId: number | null
+  customerName: string
+  name: string
+  gender: string
+  idNo: string
+  position: string
+  phone: string
+  email: string
+  plateNo: string
+  company: string
+  staffType: string
+  staffTypeLabel: string
+  visitPurpose: string
+  planVisitDate: string
+  ndaSigned: boolean
+  visitPerm: string
+  source: string
+  sourceText: string
+  applicantName: string
+  status: string
+  statusText: string
+  reviewBy: number | null
+  reviewName: string
+  reviewAt: string
+  reviewComment: string
+  bizOwnerId: number | null
+  bizOwnerName: string
+  visitorId: number | null
+  remark: string
+  createTime: string
+  updateTime: string
+}
+
+export interface CustomerAccount {
+  id: number
+  username: string
+  companyName: string
+  contactName: string
+  phone: string
+  email: string
+  status: string
+  accountType: string
+  permScope: string
+  permScopeList: string[]
+  customerId: number | null
+  managerId: number | null
+  managerName: string
+  staffLimit: number | null
+  reviewBy: number | null
+  reviewName: string
+  reviewAt: string
+  reviewComment: string
+  lastLoginAt: string
+  createTime: string
+}
+
+export interface PortalContract {
+  id: number
+  contractNo: string
+  name: string
+  contractType: string
+  amount: number | null
+  startDate: string
+  endDate: string
+}
+
+export interface PortalEntrust {
+  id: number
+  entrustNo: string
+  title: string
+  entrustType: string
+  contractId: number | null
+  contractNo: string
+  customerName: string
+  requirement: string
+  sampleDesc: string
+  planStartDate: string
+  planEndDate: string
+  priority: string
+  status: string
+  statusText: string
+  reviewComment: string
+  taskNo: string
+  itemCount: number
+  createTime: string
+}
+
+export interface PortalStaff {
+  id: number
+  customerName: string
+  name: string
+  gender: string
+  position: string
+  phone: string
+  email: string
+  plateNo: string
+  company: string
+  staffType: string
+  visitPurpose: string
+  planVisitDate: string
+  ndaSigned: boolean
+  status: string
+  statusText: string
+  reviewComment: string
+  createTime: string
 }
