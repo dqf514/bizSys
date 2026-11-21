@@ -715,6 +715,24 @@ def _item_out_full(db: Session, item: Item) -> dict:
     return _item_out(item, db, stock_map.get(item.id, 0.0), warn_map.get(item.id, {}))
 
 
+def _apply_item_alert_filters(items: list[dict], query_params) -> list[dict]:
+    """预警维度的后置筛选（低库存 / 呆滞分级 / 呆滞 / 全部预警）。
+
+    这些维度依赖库存与流水统计，无法下推到 SQL，统一在内存里过滤；
+    列表与导出共用，保证「看到的」与「导出的」一致。
+    """
+    if (query_params.get("filters[low_stock]") or "") == "1":
+        items = [i for i in items if i["lowStock"]]
+    level = query_params.get("filters[stagnant_level]")
+    if level:
+        items = [i for i in items if i["stagnantLevel"] == level]
+    if (query_params.get("filters[stagnant]") or "") == "1":
+        items = [i for i in items if i["stagnant"]]
+    if (query_params.get("filters[warning]") or "") == "1":
+        items = [i for i in items if i["warning"]]
+    return items
+
+
 @router.get("/items")
 def list_items(
     request: Request,
@@ -738,18 +756,8 @@ def list_items(
     stock_map = svc.item_stock_map(db, [i.id for i in rows])
     warn_map = svc.item_warning_map(db, rows, stock_map)
     items = [_item_out(i, db, stock_map.get(i.id, 0.0), warn_map.get(i.id, {})) for i in rows]
-    if (request.query_params.get("filters[low_stock]") or "") == "1":
-        items = [i for i in items if i["lowStock"]]
-        total = len(items)
-    level = request.query_params.get("filters[stagnant_level]")
-    if level:
-        items = [i for i in items if i["stagnantLevel"] == level]
-        total = len(items)
-    if (request.query_params.get("filters[stagnant]") or "") == "1":
-        items = [i for i in items if i["stagnant"]]
-        total = len(items)
-    if (request.query_params.get("filters[warning]") or "") == "1":
-        items = [i for i in items if i["warning"]]
+    items = _apply_item_alert_filters(items, request.query_params)
+    if len(items) != len(rows):
         total = len(items)
     return {"items": items, "total": total, "page": page, "size": size}
 
@@ -939,14 +947,14 @@ def export_items(
     rows = list(db.scalars(stmt).all())
     stock_map = svc.item_stock_map(db, [i.id for i in rows])
     warn_map = svc.item_warning_map(db, rows, stock_map)
-    payload = export_xlsx_styled(
+    items = _apply_item_alert_filters(
         [_item_out(i, db, stock_map.get(i.id, 0.0), warn_map.get(i.id, {})) for i in rows],
-        ITEM_EXPORT_COLS,
-        "inventory_items",
+        request.query_params,
     )
+    payload = export_xlsx_styled(items, ITEM_EXPORT_COLS, "inventory_items")
     audit(
         db, user_id=current.id, module="asset", action="item_export",
-        detail={"count": len(rows)}, trace_id=getattr(request.state, "trace_id", ""),
+        detail={"count": len(items)}, trace_id=getattr(request.state, "trace_id", ""),
     )
     db.commit()
     return Response(
