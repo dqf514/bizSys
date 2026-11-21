@@ -29,9 +29,9 @@
     "materialList": {
       "no": "23",
       "name": "Material Ledger",
-      "desc": "Material management needs inventory alerts and BOM management",
+      "desc": "Unified ledger with stagnant/low-stock alerts and BOM cross references",
       "batch": "B4",
-      "status": "planned"
+      "status": "done"
     },
     "scheduleBoard": {
       "no": "22",
@@ -123,6 +123,13 @@
       "desc": "Safety inspection management",
       "batch": "B8",
       "status": "planned"
+    },
+    "bomList": {
+      "no": "23",
+      "name": "Bill of Materials",
+      "desc": "Parent/child structure, multi-level explosion, version control and usage comparison",
+      "batch": "B4",
+      "status": "done"
     }
   }
 }

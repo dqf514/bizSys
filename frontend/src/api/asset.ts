@@ -1,9 +1,14 @@
 import { request, download, toQuery } from './http'
 import type {
+  AssetBom,
+  AssetBomExplode,
+  AssetBomInput,
+  AssetBomUsage,
   AssetDepreciation,
   AssetDisposal,
   AssetFixedAsset,
   AssetItem,
+  AssetItemBomRefs,
   AssetItemOption,
   AssetLedger,
   AssetLocation,
@@ -129,6 +134,81 @@ export function exportItems(params: ListQuery) {
   return download(
     { url: '/asset/items/export', method: 'post', params: toQuery(params as Record<string, unknown>) },
     'inventory-items.xlsx',
+  )
+}
+
+/* ---------- 物料清单（BOM） ---------- */
+
+export function listBoms(params: ListQuery) {
+  return request<PageResult<AssetBom>>({
+    url: '/asset/boms',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function bomCounts() {
+  return request<Record<string, number>>({ url: '/asset/boms/counts', method: 'get' })
+}
+
+export function getBom(id: number) {
+  return request<AssetBom>({ url: `/asset/boms/${id}`, method: 'get' })
+}
+
+/** 多级展开：子件本身是总成时按其生效 BOM 继续下钻 */
+export function explodeBom(id: number, maxDepth = 5) {
+  return request<AssetBomExplode>({
+    url: `/asset/boms/${id}/explode`,
+    method: 'get',
+    params: { max_depth: maxDepth },
+  })
+}
+
+/** 用量对比：理论需求 vs 实际领用 */
+export function bomUsage(id: number, qty = 1) {
+  return request<AssetBomUsage>({
+    url: `/asset/boms/${id}/usage`,
+    method: 'get',
+    params: { qty },
+  })
+}
+
+/** 存货的 BOM 关联反查（作为父件 / 作为子件） */
+export function itemBomRefs(id: number) {
+  return request<AssetItemBomRefs>({ url: `/asset/items/${id}/bom-refs`, method: 'get' })
+}
+
+export function createBom(data: AssetBomInput) {
+  return request<AssetBom>({ url: '/asset/boms', method: 'post', data })
+}
+
+export function updateBom(id: number, data: AssetBomInput) {
+  return request<AssetBom>({ url: `/asset/boms/${id}`, method: 'put', data })
+}
+
+/** 生效：同一父件的其它生效版本自动作废 */
+export function activateBom(id: number) {
+  return request<AssetBom>({ url: `/asset/boms/${id}/activate`, method: 'post' })
+}
+
+/** 作废：停用当前生效版本 */
+export function obsoleteBom(id: number) {
+  return request<AssetBom>({ url: `/asset/boms/${id}/obsolete`, method: 'post' })
+}
+
+/** 复制为新版本草稿（版本号 +0.1） */
+export function copyBom(id: number) {
+  return request<AssetBom>({ url: `/asset/boms/${id}/copy`, method: 'post' })
+}
+
+export function deleteBom(id: number) {
+  return request<void>({ url: `/asset/boms/${id}`, method: 'delete' })
+}
+
+export function exportBoms(params: ListQuery) {
+  return download(
+    { url: '/asset/boms/export', method: 'post', params: toQuery(params as Record<string, unknown>) },
+    'asset-boms.xlsx',
   )
 }
 

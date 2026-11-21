@@ -16,6 +16,7 @@
   "assetsSamples": "样品与物料",
   "sample": "样品管理",
   "material": "物料台账",
+  "bom": "物料清单",
   "capacity": "产能看板",
   "procurement": "采购管理",
   "purchaseRequest": "采购申请",

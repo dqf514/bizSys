@@ -152,6 +152,7 @@ const form = reactive({
   unitPrice: null as number | null,
   safetyStock: 0,
   maxStock: 0,
+  stagnantDays: 90,
   defaultWarehouseId: null as number | null,
   defaultLocationId: null as number | null,
   supplierId: null as number | null,
@@ -174,6 +175,7 @@ function openCreate() {
     unitPrice: null,
     safetyStock: 0,
     maxStock: 0,
+    stagnantDays: 90,
     defaultWarehouseId: null,
     defaultLocationId: null,
     supplierId: null,
@@ -199,6 +201,7 @@ function openEdit(row: AssetItem) {
     unitPrice: row.unitPrice,
     safetyStock: row.safetyStock,
     maxStock: row.maxStock,
+    stagnantDays: row.stagnantDays ?? 90,
     defaultWarehouseId: row.defaultWarehouseId ?? null,
     defaultLocationId: row.defaultLocationId ?? null,
     supplierId: row.supplierId ?? null,
@@ -354,6 +357,11 @@ async function remove(row: AssetItem) {
         <el-col :span="12">
           <el-form-item :label="t('asset.item.maxStock')">
             <el-input-number v-model="form.maxStock" :min="0" :precision="2" :controls="false" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item :label="t('asset.item.stagnantDays')">
+            <el-input-number v-model="form.stagnantDays" :min="0" :max="3650" :precision="0" :controls="false" style="width: 100%" />
           </el-form-item>
         </el-col>
         <el-col :span="12">

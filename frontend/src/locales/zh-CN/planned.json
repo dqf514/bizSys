@@ -29,9 +29,9 @@
     "materialList": {
       "no": "23",
       "name": "物料台账",
-      "desc": "物料管理需增加库存预警、BOM 管理",
+      "desc": "统一台账与呆滞预警/BOM 关联：闲置分级、呆滞金额、低库存预警与 BOM 反查",
       "batch": "B4",
-      "status": "planned"
+      "status": "done"
     },
     "scheduleBoard": {
       "no": "22",
@@ -123,6 +123,13 @@
       "desc": "安全巡检管理",
       "batch": "B8",
       "status": "planned"
+    },
+    "bomList": {
+      "no": "23",
+      "name": "物料清单（BOM）",
+      "desc": "父子结构、多级展开、版本管理（草稿/生效/作废）与用量对比（理论需求 vs 实际领用）",
+      "batch": "B4",
+      "status": "done"
     }
   }
 }

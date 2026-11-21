@@ -1873,6 +1873,21 @@ export interface AssetItem extends AssetBase {
   deptName: string
   qtyOnHand: number
   lowStock: boolean
+  /** 呆滞预警阈值（天，0=不预警） */
+  stagnantDays: number
+  /** 最近一次出入库距今天数 */
+  idleDays: number
+  /** 最近一次出入库时间 */
+  lastMoveAt: string
+  /** 呆滞分级 normal / slow / stagnant / dead */
+  stagnantLevel: string
+  stagnantLevelText: string
+  /** 是否构成呆滞（有库存且超过阈值） */
+  stagnant: boolean
+  /** 呆滞金额（在库数量 × 单价） */
+  stagnantAmount: number
+  /** 任一预警命中（低库存或呆滞） */
+  warning: boolean
   remark: string
   status: string
   statusText: string
@@ -2160,6 +2175,143 @@ export interface AssetToolLoan extends AssetBase {
   remark: string
   status: string
   statusText: string
+}
+
+/* ---------------- B4 物料清单（BOM）与呆滞预警 ---------------- */
+
+export interface AssetBomLine {
+  id: number
+  bomId: number
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  spec: string
+  unit: string
+  /** 单位用量（每 1 个父件） */
+  qty: number
+  /** 损耗率 % */
+  lossRate: number
+  /** 理论用量 = qty × (1 + 损耗率) */
+  requiredQty: number
+  /** 位号 */
+  refDesignator: string
+  /** 装配位置 / 工序 */
+  position: string
+  remark: string
+}
+
+export interface AssetBom {
+  id: number
+  bomNo: string
+  parentItemId: number
+  parentItemCode: string
+  parentItemName: string
+  parentSpec: string
+  /** BOM 版本号（如 V1.0） */
+  version: string
+  /** draft / effective / obsolete */
+  status: string
+  statusText: string
+  effectiveDate?: string | null
+  lineCount: number
+  remark: string
+  /** 乐观锁版本号 */
+  lockVersion: number
+  createTime?: string
+  updateTime?: string
+  lines?: AssetBomLine[]
+}
+
+/** BOM 多级展开节点 */
+export interface AssetBomNode {
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  spec: string
+  unit: string
+  qty: number
+  lossRate: number
+  requiredQty: number
+  refDesignator: string
+  position: string
+  level: number
+  children: AssetBomNode[]
+}
+
+export interface AssetBomExplode {
+  bomId: number
+  bomNo: string
+  parentItemName: string
+  version: string
+  tree: AssetBomNode[]
+}
+
+/** BOM 用量对比行：理论需求 vs 实际领用 */
+export interface AssetBomUsageLine {
+  itemId?: number | null
+  itemCode: string
+  itemName: string
+  spec: string
+  unit: string
+  unitQty: number
+  lossRate: number
+  requiredQty: number
+  actualOutQty: number
+  diffQty: number
+  refDesignator: string
+  position: string
+}
+
+export interface AssetBomUsage {
+  bomId: number
+  bomNo: string
+  parentItemName: string
+  parentQty: number
+  lines: AssetBomUsageLine[]
+}
+
+/** 存货作为子件被引用的 BOM 行 */
+export interface AssetBomRefChild {
+  bomId: number
+  bomNo: string
+  parentItemName: string
+  version: string
+  status: string
+  qty: number
+  lossRate: number
+  requiredQty: number
+  position: string
+}
+
+/** 存货的 BOM 关联反查 */
+export interface AssetItemBomRefs {
+  itemId: number
+  itemCode: string
+  itemName: string
+  asParent: AssetBom[]
+  asChild: AssetBomRefChild[]
+}
+
+export interface AssetBomLineInput {
+  itemId?: number | null
+  itemCode?: string
+  itemName: string
+  spec?: string
+  unit?: string
+  qty: number
+  lossRate?: number
+  refDesignator?: string
+  position?: string
+  remark?: string
+}
+
+export interface AssetBomInput {
+  parentItemId: number
+  bomVersion: string
+  effectiveDate?: string | null
+  remark?: string
+  lines: AssetBomLineInput[]
+  version?: number | null
 }
 
 /* ---------------- B2 客户自助体系：在线委托 / 客户方人员 / 客户自助账号 ---------------- */
