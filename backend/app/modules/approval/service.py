@@ -712,7 +712,41 @@ def instance_snapshot(db: Session, instance_id: int) -> dict | None:
 
 
 # engine 入口再导出，供业务模块 from app.modules.approval.service import start ...
-start = engine.start
+def start(
+    db: Session,
+    *,
+    biz_type: str,
+    biz_id: int,
+    definition_code: str = "",
+    definition_id: int | None = None,
+    title: str,
+    initiator: User,
+    form_snapshot: dict | None = None,
+    variables: dict | None = None,
+) -> ApprovalInstance:
+    """发起审批（F5 门面）。
+
+    与 :func:`engine.start` 的差别只有一处：**先校验流程总开关**
+    （``flow.<biz_type>.enabled``）。管理员可在「流程与事件开关」面板停用某类单据的
+    审批，停用后任何提交都会被明确拒绝（70006），而不是静默放行。
+    """
+    from app.modules.approval import registry
+
+    if biz_type and not registry.flow_enabled(db, biz_type):
+        raise BizException(R.APPROVAL_FLOW_DISABLED, f"流程已停用：{biz_type}")
+    return engine.start(
+        db,
+        biz_type=biz_type,
+        biz_id=biz_id,
+        definition_code=definition_code,
+        definition_id=definition_id,
+        title=title,
+        initiator=initiator,
+        form_snapshot=form_snapshot,
+        variables=variables,
+    )
+
+
 approve = engine.approve
 reject = engine.reject
 withdraw = engine.withdraw

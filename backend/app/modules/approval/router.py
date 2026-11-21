@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
-from app.modules.approval import service
+from app.modules.approval import registry, service
 from app.modules.approval.schemas import (
     AddSignIn,
     CommentIn,
@@ -35,6 +35,17 @@ _BIZ_TYPE_CN = {
     "invoice": "开票申请",
     "settlement": "结算",
     "oa": "OA申请",
+    # —— F5 新接入的单据 ——
+    "project": "项目立项",
+    "timesheet": "工时填报",
+    "asset_disposal": "资产处置",
+    "asset_receipt": "到货验收",
+    "payment": "回款复核",
+    "report_seal": "报告用章",
+    "purchase_request": "采购申请",
+    "purchase_contract": "采购合同",
+    "tender_award": "招标定标",
+    "sales_quotation": "销售报价",
 }
 
 _DONE_ACTION_CN = {"agree": "已同意", "reject": "已驳回", "transfer": "已转办", "add_sign": "已加签"}
@@ -331,3 +342,16 @@ def delete_definition(
            action="disable_definition" if disabled else "delete_definition", biz_id=def_id)
     db.commit()
     return {"disabled": disabled}
+
+
+@router.get("/flow-capabilities")
+def flow_capabilities(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """流程能力清单（F5）：登录用户可读。
+
+    单据页据此决定展示「提交审批」还是「人工直通」入口 —— 流程开关关闭时
+    单据不进入审批中，直接落到通过态；开关打开则必须走审批。
+    """
+    return {"items": registry.capabilities_out(db)}

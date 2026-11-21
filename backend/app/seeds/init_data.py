@@ -106,6 +106,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                     (None, "report-create", "", "", "", "report:create", []),
                     (None, "report-submit", "", "", "", "report:submit", []),
                     (None, "report-seal", "", "", "", "report:seal", []),
+                    (None, "report-seal-apply", "", "", "", "report:seal:apply", []),
                     (None, "report-export", "", "", "", "report:export", []),
                 ],
             ),
@@ -118,6 +119,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "project:list",
                 [
                     (None, "project-create", "", "", "", "project:create", []),
+                    (None, "project-submit", "", "", "", "project:submit", []),
                     (None, "project-edit", "", "", "", "project:edit", []),
                     (None, "project-delete", "", "", "", "project:delete", []),
                     (None, "project-export", "", "", "", "project:list:export", []),
@@ -166,6 +168,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                         "finance:payment:list",
                         [
                             (None, "payment-create", "", "", "", "finance:payment:create", []),
+                            (None, "payment-submit", "", "", "", "finance:payment:submit", []),
                             (None, "payment-export", "", "", "", "finance:payment:export", []),
                         ],
                     ),
@@ -400,6 +403,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                             (None, "rc-create", "", "", "", "asset:receipt:create", []),
                             (None, "rc-edit", "", "", "", "asset:receipt:edit", []),
                             (None, "rc-accept", "", "", "", "asset:receipt:accept", []),
+                            (None, "rc-submit", "", "", "", "asset:receipt:submit", []),
                             (None, "rc-delete", "", "", "", "asset:receipt:delete", []),
                             (None, "rc-export", "", "", "", "asset:receipt:list:export", []),
                         ],
@@ -530,6 +534,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                             (None, "dp-create", "", "", "", "asset:disposal:create", []),
                             (None, "dp-edit", "", "", "", "asset:disposal:edit", []),
                             (None, "dp-approve", "", "", "", "asset:disposal:approve", []),
+                            (None, "dp-submit", "", "", "", "asset:disposal:submit", []),
                             (None, "dp-complete", "", "", "", "asset:disposal:complete", []),
                             (None, "dp-delete", "", "", "", "asset:disposal:delete", []),
                             (None, "dp-export", "", "", "", "asset:disposal:list:export", []),
@@ -700,6 +705,7 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "hr:timesheet:list",
                 [
                     (None, "timesheet-create", "", "", "", "hr:timesheet:create", []),
+                    (None, "timesheet-submit", "", "", "", "hr:timesheet:submit", []),
                     (None, "timesheet-export", "", "", "", "hr:timesheet:list:export", []),
                 ],
             ),
@@ -1028,6 +1034,17 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                         "admin:setting:list",
                         [
                             (None, "setting-edit", "", "", "", "admin:setting:edit", []),
+                        ],
+                    ),
+                    (
+                        "menu.automation",
+                        "Automation",
+                        "/admin/automation",
+                        "admin/AutomationSettings",
+                        "Switch",
+                        "admin:automation:list",
+                        [
+                            (None, "automation-edit", "", "", "", "admin:automation:edit", []),
                         ],
                     ),
                 ],
@@ -1536,6 +1553,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "finance:invoice:export",
         "finance:payment:list",
         "finance:payment:create",
+        "finance:payment:submit",
         "finance:payment:export",
         "report:list",
         "report:create",
@@ -1581,6 +1599,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "procurement:partner:delete",
         "hr:timesheet:list",
         "hr:timesheet:create",
+        "hr:timesheet:submit",
         "hr:timesheet:list:export",
         "sales:quote:list",
         "sales:quote:create",
@@ -1595,11 +1614,15 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "ai:knowledge:view",
         "project:list",
         "project:create",
+        "project:submit",
         "project:edit",
         "project:delete",
         "project:list:export",
         "asset:equipment:list",
         "asset:material:list",
+        "asset:receipt:submit",
+        "asset:disposal:submit",
+        "report:seal:apply",
         "production:schedule:list",
         "production:schedule:create",
         "production:schedule:edit",
@@ -1897,6 +1920,55 @@ def _seed_flows(db: Session) -> None:
         biz_type="sales_quotation",
         remark="组织两级审批：发起人主部门负责人 → 上级部门负责人（解析失败自动跳过）",
         nodes=((1, "部门负责人审批", "DEPT_LEADER", ""), (2, "分管领导审批", "PARENT_DEPT_LEADER", "")),
+    )
+    # ===== F5：流程驱动新增的单据审批 =====
+    _seed_flow(
+        db,
+        code="project_approve",
+        name="项目立项审批",
+        biz_type="project",
+        remark="立项两级顺序审批：通过后进入策划阶段",
+        nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
+    )
+    _seed_flow(
+        db,
+        code="timesheet_approve",
+        name="工时审批",
+        biz_type="timesheet",
+        remark="工时经部门负责人审批后方可计入项目成本",
+        nodes=((1, "部门负责人审批", "manager1"),),
+    )
+    _seed_flow(
+        db,
+        code="asset_disposal_approve",
+        name="资产处置审批",
+        biz_type="asset_disposal",
+        remark="处置单经部门负责人 + 分管领导审批后方可核销",
+        nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
+    )
+    _seed_flow(
+        db,
+        code="asset_receipt_approve",
+        name="到货验收审批",
+        biz_type="asset_receipt",
+        remark="验收审批通过后生成入库流水",
+        nodes=((1, "部门负责人审批", "manager1"),),
+    )
+    _seed_flow(
+        db,
+        code="payment_confirm",
+        name="回款复核审批",
+        biz_type="payment",
+        remark="复核通过后确认入账并核销结算单应收",
+        nodes=((1, "部门负责人审批", "manager1"),),
+    )
+    _seed_flow(
+        db,
+        code="report_seal_approve",
+        name="报告用章审批",
+        biz_type="report_seal",
+        remark="用章申请审批通过后由有权人执行签章",
+        nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
     )
 
 

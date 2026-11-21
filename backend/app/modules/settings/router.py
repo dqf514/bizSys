@@ -12,9 +12,9 @@ from app.core.deps import require_perm
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
 from app.modules.auth.service import mask_email, mask_mobile
-from app.modules.settings import notify
+from app.modules.settings import automation, notify
 from app.modules.settings import service as svc
-from app.modules.settings.schemas import MessagingTestIn, SettingsIn
+from app.modules.settings.schemas import AutomationIn, MessagingTestIn, SettingsIn
 
 router = APIRouter(prefix="/admin", tags=["admin-settings"], route_class=EnvelopeRoute)
 public_router = APIRouter(prefix="/public", tags=["public"], route_class=EnvelopeRoute)
@@ -41,6 +41,34 @@ def put_settings(
         module="admin",
         action="settings_update",
         detail={"siteName": out["siteName"], "wecomEnabled": out["wecom"]["enabled"]},
+    )
+    db.commit()
+    return out
+
+
+@router.get("/automation")
+def get_automation(
+    _: User = Depends(require_perm("admin:automation:list")),
+    db: Session = Depends(get_db),
+):
+    """流程与事件开关面板（F5）。"""
+    return automation.automation_out(db)
+
+
+@router.put("/automation")
+def put_automation(
+    body: AutomationIn,
+    current: User = Depends(require_perm("admin:automation:edit")),
+    db: Session = Depends(get_db),
+):
+    """保存流程与事件开关（F5）。开关写入 sys_config，即时生效。"""
+    out = automation.update_automation(db, body, current.id)
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="automation_update",
+        detail={"flows": len(body.flows or []), "events": len(body.events or [])},
     )
     db.commit()
     return out

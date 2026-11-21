@@ -1,5 +1,11 @@
-"""系统设置业务：sys_config 读写 / 品牌信息 / Logo / 企微凭据。"""
+"""系统设置业务：sys_config 读写 / 品牌信息 / Logo / 企微凭据。
 
+F5 新增**类型化开关**读取（``flag`` / ``number`` / ``text``）：
+系统里原先并存三套布尔语义（``== "1"`` / ``!= "0"`` / 字符串空判），
+新代码统一走 ``flag()``，避免"配了 0 还当成开启"这类线上事故。
+"""
+
+import time
 import uuid
 from pathlib import Path
 
@@ -57,6 +63,79 @@ def set_value(db: Session, key: str, value: str, user_id: int | None = None, rem
         row.value = value
         row.update_by = user_id
     db.flush()  # SessionLocal autoflush=False：新建行需显式 flush 才能被同事务后续 SELECT 命中
+    invalidate_switch(key)
+
+
+# ---------------- 类型化开关（F5） ----------------
+
+# 开关读取缓存：命中则免一次 SELECT。写入路径（set_value）会主动失效，
+# 因此不存在"改了配置还要等缓存过期"的问题；缓存 miss 不写入（新建配置立即可见）。
+_SWITCH_TTL_SECONDS = 30.0
+_switch_cache: dict[str, tuple[float, str]] = {}
+
+_TRUE_VALUES = {"1", "true", "yes", "on", "y", "t", "enabled"}
+_FALSE_VALUES = {"0", "false", "no", "off", "n", "f", "disabled"}
+
+
+def invalidate_switch(key: str | None = None) -> None:
+    """失效开关缓存（key=None 全清）。"""
+    if key is None:
+        _switch_cache.clear()
+    else:
+        _switch_cache.pop(key, None)
+
+
+def _raw_value(db: Session, key: str) -> str | None:
+    """读原始配置值（带短缓存）；不存在返回 None。"""
+    hit = _switch_cache.get(key)
+    now = time.monotonic()
+    if hit and now - hit[0] < _SWITCH_TTL_SECONDS:
+        return hit[1]
+    row = db.scalar(select(SysConfig).where(SysConfig.key == key, SysConfig.deleted == 0))
+    if row is None:
+        return None
+    value = row.value or ""
+    _switch_cache[key] = (now, value)
+    return value
+
+
+def to_bool(raw: str, default: bool = True) -> bool:
+    """把配置字符串解析成布尔。未知取值返回 default（而不是当成 False）。"""
+    v = (raw or "").strip().lower()
+    if not v:
+        return default
+    if v in _TRUE_VALUES:
+        return True
+    if v in _FALSE_VALUES:
+        return False
+    return default
+
+
+def flag(db: Session, key: str, default: bool = True) -> bool:
+    """布尔开关。缺失或取值无法识别时返回 default。"""
+    raw = _raw_value(db, key)
+    if raw is None:
+        return default
+    return to_bool(raw, default)
+
+
+def number(db: Session, key: str, default: float = 0.0) -> float:
+    """数值开关 / 参数。取值非法时返回 default。"""
+    raw = _raw_value(db, key)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw.strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def text(db: Session, key: str, default: str = "") -> str:
+    """文本配置。缺失时返回 default。"""
+    raw = _raw_value(db, key)
+    if raw is None:
+        return default
+    return raw
 
 
 def wecom_creds(db: Session) -> tuple[bool, str, str, str]:

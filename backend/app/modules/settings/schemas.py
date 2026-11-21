@@ -92,3 +92,24 @@ class SettingsIn(CamelModel):
     wecom: WecomIn | None = None
     messaging: MessagingIn | None = None
     ai: AiIn | None = None
+
+
+class AutomationFlowIn(CamelModel):
+    """流程开关项：bizType + enabled。"""
+
+    biz_type: str = Field(default="", max_length=64)
+    enabled: bool = True
+
+
+class AutomationEventIn(CamelModel):
+    """事件触发开关项：key + enabled。"""
+
+    key: str = Field(default="", max_length=128)
+    enabled: bool = True
+
+
+class AutomationIn(CamelModel):
+    """流程与事件开关保存体（F5）。"""
+
+    flows: list[AutomationFlowIn] | None = None
+    events: list[AutomationEventIn] | None = None

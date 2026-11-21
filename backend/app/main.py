@@ -100,17 +100,17 @@ from app.modules.crm.router import router as crm_router  # noqa: E402
 from app.modules.crm.selfservice_router import router as crm_self_router  # noqa: E402  客户自助体系（B2）
 from app.modules.finance.router import router as finance_router  # noqa: E402
 from app.modules.hr.router import router as hr_router  # noqa: E402
-from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 订阅 ApprovalTodoCreated
+from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 通知通道（F5 订阅见 wiring）
 from app.modules.integration.router import router as integration_router  # noqa: E402
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
-from app.modules.oa.router import router as oa_router  # noqa: E402  导入即订阅 OA 流程事件回写
+from app.modules.oa.router import router as oa_router  # noqa: E402  OA 审批流程（F5 订阅由 wiring.install 装配）
 from app.modules.portal.router import router as portal_router  # noqa: E402  合作方门户（独立认证）
-from app.modules.procurement.router import router as procurement_router  # noqa: E402  导入即订阅采购审批事件回写
+from app.modules.procurement.router import router as procurement_router  # noqa: E402  采购审批（F5 订阅见 wiring）
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
 from app.modules.production.router import router as production_router  # noqa: E402  生产排程（B5）
 from app.modules.project.router import router as project_router  # noqa: E402  项目与甘特（B5）
 from app.modules.report.router import router as report_router  # noqa: E402
-from app.modules.sales.router import router as sales_router  # noqa: E402  导入即订阅报价审批事件回写
+from app.modules.sales.router import router as sales_router  # noqa: E402  报价审批（F5 订阅由 wiring.install 装配）
 from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
 from app.modules.task.entrust_router import router as task_entrust_router  # noqa: E402  在线任务委托（B2）
@@ -148,6 +148,13 @@ app.include_router(production_router, prefix="/api/v1")
 app.include_router(project_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 app.include_router(maintenance_router, prefix="/api/v1")
+
+# F5：流程与事件订阅的**显式装配**。
+# 以前各域在 service.py 模块级 subscribe()，靠上面那些 noqa import 才会生效 ——
+# 漏一个 import，单据就会永久卡在 approving。现在统一在这里安装，装配失败即启动失败。
+from app.modules.approval import wiring  # noqa: E402
+
+wiring.install()
 
 
 def include(module_router, prefix: str = "/api/v1") -> None:
