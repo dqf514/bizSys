@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 export interface ListColumn {
@@ -46,6 +46,23 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const selected = ref<Record<string, unknown>[]>([])
 
+/**
+ * 保证至少有一列是弹性列。
+ *
+ * Element Plus 的 `el-table` 只拉伸「没有固定 width」的列
+ * （table-layout: flexColumns = columns.filter(c => !isNumber(c.width))）；
+ * 一旦所有列都写了固定 width，表格宽度 = 列宽之和，内容区右侧会留出大片空白，
+ * 与其他板块「表格占满内容区」的观感不一致。这里把最后一列改成弹性列兜底。
+ */
+const tableColumns = computed<ListColumn[]>(() => {
+  const cols = props.columns
+  if (!cols.length) return cols
+  if (cols.some((c) => c.width === undefined)) return cols
+  return cols.map((c, i) =>
+    i === cols.length - 1 ? { ...c, width: undefined, minWidth: c.minWidth ?? c.width ?? 100 } : c,
+  )
+})
+
 watch(
   () => props.data,
   () => {
@@ -86,7 +103,7 @@ function onSortChange(payload: { prop: string; order: 'ascending' | 'descending'
     >
       <el-table-column v-if="props.selectable" type="selection" width="40" fixed="left" />
       <el-table-column
-        v-for="col in props.columns"
+        v-for="col in tableColumns"
         :key="col.prop"
         :prop="col.prop"
         :label="labelOf(col)"

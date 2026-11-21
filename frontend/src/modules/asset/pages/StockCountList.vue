@@ -103,7 +103,7 @@ const list = useListPage<AssetStockCount>({
 
 const columns: ListColumn[] = [
   { prop: 'countNo', labelKey: 'asset.count.countNo', width: 150, fixed: 'left', sortable: 'count_no' },
-  { prop: 'warehouseName', labelKey: 'asset.count.warehouse', width: 150 },
+  { prop: 'warehouseName', labelKey: 'asset.count.warehouse', minWidth: 150 },
   { prop: 'countDate', labelKey: 'asset.count.countDate', width: 120, sortable: 'count_date' },
   { prop: 'totalQty', labelKey: 'asset.count.totalQty', width: 110, align: 'right' },
   { prop: 'diffCount', labelKey: 'asset.count.diffCount', width: 110, align: 'right' },

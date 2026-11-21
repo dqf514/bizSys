@@ -435,7 +435,7 @@ watch(
 
         <div class="section-title">{{ t('asset.prototype.loanTitle') }}</div>
         <el-table :data="detail.loans ?? []" border stripe size="small">
-          <el-table-column :label="t('asset.prototypeLoan.loanNo')" prop="loanNo" width="140" />
+          <el-table-column :label="t('asset.prototypeLoan.loanNo')" prop="loanNo" min-width="140" />
           <el-table-column :label="t('asset.prototypeLoan.borrower')" prop="borrowerName" width="110" />
           <el-table-column :label="t('asset.prototypeLoan.loanDate')" prop="loanDate" width="110" />
           <el-table-column :label="t('asset.prototypeLoan.dueDate')" prop="dueDate" width="110" />

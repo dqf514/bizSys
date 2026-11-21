@@ -455,7 +455,7 @@ async function doVoid() {
         <div v-loading="financeLoading" class="finance-tables">
           <div class="section-title">{{ t('contract.finance.settlements') }}</div>
           <el-table :data="settlements" border stripe size="small">
-            <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" width="150" sortable>
+            <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" min-width="150" sortable>
               <template #default="{ row }">
                 <el-button link type="primary" @click="openSettlement(row as unknown as Settlement)">
                   {{ row.settlementNo }}
@@ -478,7 +478,7 @@ async function doVoid() {
 
           <div class="section-title">{{ t('contract.finance.invoices') }}</div>
           <el-table :data="invoices" border stripe size="small">
-            <el-table-column :label="t('finance.invoice.invoiceNo')" prop="invoiceNo" width="160" sortable>
+            <el-table-column :label="t('finance.invoice.invoiceNo')" prop="invoiceNo" min-width="160" sortable>
               <template #default="{ row }">{{ row.invoiceNo || '-' }}</template>
             </el-table-column>
             <el-table-column :label="t('finance.invoice.settlementNo')" prop="settlementNo" width="150" sortable />

@@ -539,7 +539,7 @@ watch(
 
         <div class="section-title">{{ t('asset.disposal.title') }}</div>
         <el-table :data="detail.disposals ?? []" border stripe size="small">
-          <el-table-column :label="t('asset.disposal.disposalNo')" prop="disposalNo" width="150" />
+          <el-table-column :label="t('asset.disposal.disposalNo')" prop="disposalNo" min-width="150" />
           <el-table-column :label="t('asset.disposal.disposalType')" prop="disposalTypeText" width="100" />
           <el-table-column :label="t('asset.disposal.disposalAmount')" prop="disposalAmount" width="110" align="right" />
           <el-table-column :label="t('common.form.status')" width="100">

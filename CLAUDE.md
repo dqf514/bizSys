@@ -270,6 +270,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 ## UI 一致性规则
 
 - **检索**：所有服务端分页列表页必须有 `SearchBar` 且带关键词字段 `q`；后端缺 `q` 支持时按 `filters` 白名单模式补上。小型全量列表至少给本地关键词过滤。树表（菜单/部门）豁免。
+- **表格占满内容区**：`el-table` 只拉伸**没有固定 `width`** 的列（EP 内部 `flexColumns = columns.filter(c => !isNumber(c.width))`）；一旦所有列都写死 `width`，表格宽度 = 列宽之和，右侧会留出大片空白，与其他板块观感不一致。列表页至少保留一列弹性列（写 `min-width` 而不是 `width`）；`ListTable.vue` 已内置兜底（自动把最后一列转成弹性列），但原生 `<el-table>` 必须自己保证。
 - **状态页签**：每个 tab 显示计数（含 `all`），`all` 永远最左；缺计数接口时按 `task counts` 的模式补 `…/counts`。
 - **关闭/返回/页脚**：抽屉与弹窗只用内置右上角 `X`，不要额外的自定义关闭按钮；页面级返回用 `src/components/common/BackButton.vue` 放右上角。弹窗页脚：次要操作在左、主要操作在右。
 - **导航**：系统管理区固定在侧边导航**底部**（图标 + 文字，仅在存在可见的管理菜单时显示，点击弹出向上的 popover）。折叠/展开按钮同在该底部工具条，**绝不在左上角**。折叠态只显示图标（原生 `title` 提示），系统管理入口折叠态仅图标但 popover 仍可用。导航分区排序在 `NavSortDialog`，入口在 TopBar 头像菜单（同时承载外观/语言）。

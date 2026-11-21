@@ -114,7 +114,7 @@ const columns: ListColumn[] = [
   { prop: 'orderNo', labelKey: 'procurement.stock.orderNo', width: 150, fixed: 'left', sortable: 'order_no' },
   { prop: 'orderType', labelKey: 'procurement.stock.orderType', width: 90, sortable: 'order_type' },
   { prop: 'sourceType', labelKey: 'procurement.stock.sourceType', width: 90 },
-  { prop: 'contractNo', labelKey: 'procurement.stock.contract', width: 160 },
+  { prop: 'contractNo', labelKey: 'procurement.stock.contract', minWidth: 160 },
   { prop: 'warehouse', labelKey: 'procurement.stock.warehouse', width: 110 },
   { prop: 'orderDate', labelKey: 'procurement.stock.orderDate', width: 120, sortable: 'order_date' },
   { prop: 'handlerName', labelKey: 'procurement.stock.handlerName', width: 100 },

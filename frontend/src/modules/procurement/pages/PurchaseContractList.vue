@@ -482,7 +482,7 @@ function fmtAmount(v: unknown) {
 
         <div class="section-title">{{ t('procurement.contract.stockOrders') }}</div>
         <el-table v-if="detail.stockOrders?.length" :data="detail.stockOrders" border stripe size="small">
-          <el-table-column :label="t('procurement.stock.orderNo')" prop="orderNo" width="170">
+          <el-table-column :label="t('procurement.stock.orderNo')" prop="orderNo" min-width="170">
             <template #default="{ row }">
               <el-button link type="primary" @click="openStockOrder(row.id)">{{ row.orderNo }}</el-button>
             </template>

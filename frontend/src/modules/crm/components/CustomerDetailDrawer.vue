@@ -711,7 +711,7 @@ async function disableAccount(row: PartnerAccount) {
               <span v-if="settlementTotal" class="bs-tab-count">({{ settlementTotal }})</span>
             </template>
             <el-table v-loading="relatedLoading" :data="settlements" border stripe size="small">
-              <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" width="150" sortable>
+              <el-table-column :label="t('finance.settlement.settlementNo')" prop="settlementNo" min-width="150" sortable>
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openSettlement(row as unknown as Settlement)">
                     {{ row.settlementNo }}
