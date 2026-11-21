@@ -16,6 +16,7 @@
 | **B6** | 设备台账 + 设备预警 + 设备能耗 + 数字孪生 | 67–69 | B4 资产、B5 排程 | 待需求澄清 |
 | **B7** | 营收分析看板 + 产能利用率看板 | 3、4 | B5 排程数据、B6 设备数据 | 待开发 |
 | **B8** | 报告模板与审批流、结算计费对接、安全巡检、知识库扩展、流程中心联动、作业申请流程、人力资源扩展 | 24–29、32 | B5 | 待开发 |
+| **F5** | 全流程驱动 / 业务事件驱动 + 流程与事件开关面板（横切批次，非 CSV 条目） | — | B1–B5 | **已交付** |
 
 外部依赖项（不排入批次）：**第 1 项**「运营平台合规开发原则」与**第 2 项**「SSO / 统一权限中心（UPMS）」均指向需求方提供的 docx，文件未入库，落地前需先拿到原文；第 2 项同时涉及外部身份系统对接，需单独立项。
 
@@ -181,7 +182,7 @@
 - **涉及模块**：`task`（字段扩展与工序流转）、`production`（排程与甘特）、`project`（项目与甘特）。
 - **交付物**：`task_process`（工序流转）、`task_field_ext`（CFD/加工扩展字段）、`prod_schedule`（排程与资源占用）、`project` + `project_task`（项目与甘特）。
 - **风险**：排程约束求解是本批最大的算法风险 —— 建议先用规则式贪心（设备/人员时段冲突 + 前置工序）跑通，再评估是否引入求解器；甘特图可复用现有 `TaskGantt` 组件的渲染层。
-- **遗留**：① 排程目前是**规则式贪心**，未引入求解器；跨项目、跨设备族的复杂约束（换型时间、模具/工装、批次合并）尚未建模，B6 设备台账接入后可再评估；② 项目甘特的**任务依赖（`depends_on`）**已落字段但未做关键路径计算；③ 项目/排程单据目前**未接入审批引擎**（仅靠状态机与权限点控制），与"全流程驱动"目标存在差距，列入后续流程贯通批次。
+- **遗留**：① 排程目前是**规则式贪心**，未引入求解器；跨项目、跨设备族的复杂约束（换型时间、模具/工装、批次合并）尚未建模，B6 设备台账接入后可再评估；② 项目甘特的**任务依赖（`depends_on`）**已落字段但未做关键路径计算；③ 项目/排程单据此前**未接入审批引擎**（仅靠状态机与权限点控制）—— 已在 **F5 全流程驱动**批次接入（项目立项、工时填报、回款复核、到货验收、资产处置、报告用章均有 `POST .../submit`），排程方案发布仍按状态机控制。
 
 ---
 
@@ -218,6 +219,27 @@
 
 - **依赖前置**：B5（任务/排程数据是结算计费与流程联动的输入）。
 - **风险**：报告模板 + 审批流与现有报告封章流程耦合较深，需先在测试库回归报告全链路；结算自动计费涉及金额口径与财务确认流程，必须有可回滚的人工干预入口。
+
+---
+
+## F5 — 全流程驱动 / 业务事件驱动 + 开关面板（已交付）
+
+> **状态：已交付（2026-11-22）** —— 横切批次（非 CSV 条目），把系统从"事后记录工具"改造为**流程驱动 / 数据流转 / 任务流转的驱动器**。
+> 内部代号沿用 F 系列（承接 F1 引擎合并 → F2 流程中心 → F3 业务全量流程化 → F4 OA 表单引擎）。
+
+| 项 | 内容 |
+| --- | --- |
+| 流程注册表 | `app/modules/approval/registry.py`（`FlowBinding` + 16 条 `BINDINGS`）：逐类单据登记流程定义 code、可发起状态、审批中·通过·驳回·撤回四个状态口径、发起权限、通过后钩子；`submit_flow()` / `apply_result()` / `require_manual()` / `flow_enabled()` / `capabilities_out()` |
+| 接入流程的单据 | **项目立项**（draft→planning）、**工时填报**（draft→approved）、**回款单**（draft→confirmed）、**到货验收**（draft→accepted）、**资产处置**（draft→approved）、**报告用章**（approved→sealing→seal_approved）；另 10 类历史单据（合同/任务/报告/报价/结算/发票/采购申请/采购合同/定标/OA）纳入同一注册表统一口径 |
+| 直通与守卫 | 未配置启用的流程定义 → 按**人工审核口径直通**（`passThrough`），不产生实例；流程总开关关闭 → 禁止提交审批（**70006**）并恢复人工直通后门；流程启用时人工直达端点被拦（**70005**） |
+| 事件驱动 | `app/common/events.py` 事件目录扩到 **9 个**（新增 `FlowStarted` `DocumentStatusChanged` `SchedulePlanPublished` `TaskCompleted`）；每个处理器可挂开关键 `event.trigger.<事件>.<处理器>`，`critical=true` 的失败回滚业务事务；跨域联动示例：任务开始执行自动推进项目状态（`event.trigger.TaskAssigned.project.start`） |
+| 开关面板 | 后端 `app/modules/settings/automation.py` + `GET/PUT /admin/automation`（`admin:automation:list` / `admin:automation:edit`）；前端 `modules/admin/pages/AutomationSettings.vue`（菜单 `menu.automation`）逐条启停流程总开关与事件触发开关，落 `sys_config` 写入即生效 |
+| 流程能力清单 | `GET /approval/flow-capabilities`（**仅登录**）→ 前端 `useFlowCapability()` 据此决定单据页显示「提交审批」还是历史人工动作（验收 / 批准 / 用章） |
+| 新增端点 | `POST /project/projects/{id}/submit`、`POST /hr/timesheets/{id}/submit`、`POST /finance/payments/{id}/submit`、`POST /asset/receipts/{id}/submit`、`POST /asset/disposals/{id}/submit`、`POST /report/reports/{id}/seal-apply`（**用章申请与实际签章分离**）、`GET /finance/payments/counts` |
+| 错误码 | `70005 APPROVAL_INVALID_STATE`（流程已启用不允许人工直通）· `70006 APPROVAL_FLOW_DISABLED`（流程已停用不允许提交审批） |
+| 迁移 | `n6a2b3c4d5e6_flow_driven.py`（仅加列、无新表：`prj_project`/`hr_timesheet`/`ast_disposal`/`ast_receipt` 加 `flow_instance_id`，`fin_payment` 加 `status` + `flow_instance_id`，`rpt_report` 加 `seal_flow_instance_id`；存量回款置 `confirmed`） |
+| 前端 | `composables/useFlowCapability.ts`；项目/工时/回款/到货/处置/报告六个列表页新增「提交审批」动作与 `approving`/`rejected` 状态页签（含计数） |
+| 测试 | `tests/test_flow_driven.py`（8 条 HTTP 黑盒：开关面板清单、权限强制、流程能力清单、回款计数、流程开关关停 → 70006、人工后门 70005/恢复、缺定义直通、事件开关关停 → 跨域联动停用）；后端全量 `pytest -q` 360 全绿 |
 
 ---
 

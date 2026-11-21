@@ -89,7 +89,7 @@ B2 客户自助体系沿用同一"同前缀分文件"惯例：`crm/selfservice_r
 {"code": 0, "message": "ok", "data": {}, "traceId": "..."}
 ```
 
-错误码按域分段定义在 `app/core/response.py`（`0` 成功、`1xxxx` 通用、`2xxxx` 认证、`3xxxx` 管理、`4xxxx` CRM、`5xxxx` 合同、`6xxxx` 任务/报告、`7xxxx` 审批、`62xxx` OA、`63xxx` HR、`64xxx` 销售、`65xxx` AI、`8xxxx` 财务、`9xxxx` 集成、`95xxx` 采购、`96xxx` 招投标/门户、`97xxx` 资产与库存、`98xxx` 访客与安全、`99xxx` 生产排程/项目），前端镜像在 `src/api/types.ts`。新增业务错误码必须同时在两侧登记。
+错误码按域分段定义在 `app/core/response.py`（`0` 成功、`1xxxx` 通用、`2xxxx` 认证、`3xxxx` 管理、`4xxxx` CRM、`5xxxx` 合同、`6xxxx` 任务/报告、`7xxxx` 审批、`62xxx` OA、`63xxx` HR、`64xxx` 销售、`65xxx` AI、`8xxxx` 财务、`9xxxx` 集成、`95xxx` 采购、`96xxx` 招投标/门户、`97xxx` 资产与库存、`98xxx` 访客与安全、`99xxx` 生产排程/项目），前端镜像在 `src/api/types.ts`。新增业务错误码必须同时在两侧登记。审批段另有 `70005`（流程已启用，不允许人工直通）与 `70006`（流程已停用，不允许提交审批）。
 
 ### 鉴权与权限
 
@@ -130,13 +130,24 @@ current: User = Depends(get_current_user)              # 仅登录
 
 业务单据与审批引擎通过 `app/common/events.py` 事件总线解耦（同一事务内同步派发）：`ApprovalCompleted` `ApprovalRejected` `ApprovalWithdrawn` `ApprovalTodoCreated` `TaskAssigned`。订阅方通过 **import 模块即订阅**（见 `main.py` 中 `notifier`、`oa.router`、`procurement.router`、`sales.router` 的 noqa 导入）。跨模块只走 service / 事件，禁止 router 互相 import。
 
+### 流程注册表与事件开关（F5，全流程驱动）
+
+- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 16 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
+- **未配置启用的流程定义 → 按人工审核口径直通**（`passThrough` + `passThroughStatus`），不产生审批实例；**流程总开关关闭 → 禁止提交审批（70006），同时恢复人工直通后门**。
+- `app/modules/approval/wiring.py::install()` — 显式装配订阅（幂等），在 `main.py` 调用；不再依赖各域 service 模块级 `subscribe()` 的隐式导入。
+- `app/modules/settings/automation.py` — 「流程与事件开关」面板数据：流程总开关 `flow.<bizType>.enabled` 与事件触发开关 `event.trigger.<事件>.<处理器>` 都落 `sys_config`，写入即生效。端点 `GET/PUT /admin/automation`（`admin:automation:list` / `admin:automation:edit`）。
+- `GET /approval/flow-capabilities`（**仅登录**）→ 前端 `useFlowCapability()` 据此决定单据页显示「提交审批」还是历史人工动作（验收 / 批准 / 用章）。
+- 事件目录 `EVENT_CATALOG`（9 个事件）；每个处理器可挂开关键，`critical=true` 的失败会回滚业务事务。
+- 新增流程驱动端点：`POST /project/projects/{id}/submit`、`POST /hr/timesheets/{id}/submit`、`POST /finance/payments/{id}/submit`、`POST /asset/receipts/{id}/submit`、`POST /asset/disposals/{id}/submit`、`POST /report/reports/{id}/seal-apply`（用章申请与实际签章分离）。
+- 前端页面 `src/modules/admin/pages/AutomationSettings.vue`（菜单 `menu.automation`，权限 `admin:automation:list` / `admin:automation:edit`）。
+
 ### 任务扩展 / 工序流转 / 排程 / 项目（B5）
 
 - `app/modules/task/extension.py` — 任务扩展的**纯逻辑层**（不依赖 router）：角色分组派生 `role_group_of`、按任务类型解析默认负责人 `resolve_owner`（字典 `task_owner_rule`）、分组可见性 `visible_role_groups` / `assert_task_visible`、工序与分配的读写与 `process_out` / `assignment_out` / `trace_out`、全过程追溯与操作流程图 `operation_flow`。
 - `app/modules/task/process_router.py` — 工序流转 / 七维分配 / 全过程追溯 / 操作流程图 / 负责人推荐的路由（prefix `/task`）。**同一任务同时只允许一道工序进行中**（否则 60020）。
 - `app/modules/production/` — 智能排程（`prd_plan` + `prd_schedule`，`PL`/`SC` 单号）：规则式贪心排期，设备/人员/样车**时段独占**、物料**数量占用**。**能顺延到空档就算正常排期（`scheduled`），只有排不下或物料缺量才 `conflict`**；发布时二次校验冲突（99004）并回写任务计划日期。
 - `app/modules/project/` — 项目与项目任务（甘特行）（`prj_project` + `prj_project_task`，`PJ` 单号）：项目状态机 `draft→planning→executing→accepting→closed`（仅 draft/cancelled 可删，99101）；甘特行可从任务自动生成（起止日期优先取已发布排程），进度按权重加权回算。
-- 三者**均未接入审批引擎**（只有状态机 + 权限点控制），是"全流程驱动"改造的重点对象。
+- 三者**已通过流程注册表接入审批引擎**（项目立项、工时填报、回款复核、到货验收、资产处置均有 `POST .../submit`；见上文「流程注册表与事件开关」）。
 
 ### AI 能力
 
@@ -153,7 +164,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n5a2b3c4d5e6_b5_task_ext_production_project.py`。新迁移用可读递增 id（如 `n6a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `n6a2b3c4d5e6_flow_driven.py`。新迁移用可读递增 id（如 `n7a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。

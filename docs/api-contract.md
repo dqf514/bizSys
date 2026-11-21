@@ -12,6 +12,8 @@
 ## 错误码分段
 0 成功 · 1xxxx 通用 · 2xxxx 鉴权 · 3xxxx 系统管理 · 4xxxx CRM · 5xxxx 合同 · 6xxxx 任务 · 7xxxx 审批 · 8xxxx 财务 · 9xxxx 集成占位 · 95xxx 采购 · 96xxx 招投标/门户 · 97xxx 资产与库存 · 98xxx 访客与安全 · 99xxx 生产排程/项目 · 63xxx 人事行政（HR） · 64xxx 销售（报价） · 65xxx AI 中心
 
+- 7xxxx 审批补充（F5）：70005 流程已启用，不允许人工直通（须走审批）· 70006 该类单据的流程已停用，不允许提交审批
+
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
   验证一次性销毁；同一 captchaId 连续错 3 次作废；非生产环境（ENV≠prod）额外回显 `debugText` 便于自动化测试
@@ -68,6 +70,9 @@
   `POST /admin/dict/types` · `POST/PUT/DELETE /admin/dict/items[/{id}]`
   `GET /admin/dict/types/export`（平铺类型+字典项 xlsx，沿用 admin:dict:list）
 - `GET/POST/PUT /admin/number-rules`（预览 preview 字段）
+- 流程与事件开关（F5）：`GET /admin/automation`（admin:automation:list）→ `{flows:[...],events:[...]}`；
+  `PUT /admin/automation`（admin:automation:edit）`{flows:[{bizType,enabled}],events:[{key,enabled}]}` → 同结构。
+  详见「流程驱动 / 事件驱动（F5）」章节
 - `GET /admin/audit-logs`（分页）· `GET /admin/audit-logs/export`（同检索参数 xlsx，沿用 admin:audit:list）
 - `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
 - `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
@@ -463,7 +468,10 @@
   上下文=启用用户/角色清单（各≤50）+ 同 bizType 现有定义节点摘要（每 code 最新版 ≤5 条）；
   USER/ROLE 审批人逐一服务端校验存在且启用并回填 approverName，组织类型仅校验兜底角色 code，
   非法节点丢弃、全丢 65004；建议不落库，前端「采纳」才替换编辑中的节点（采纳后强制简易模式）
-- 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例
+- `GET /approval/flow-capabilities`（**仅登录**）→ `{items:[{bizType,label,managed,enabled,definitionReady,submitFrom[],statuses:{approving,approved,rejected,withdrawn},submitPerm}]}`：
+  流程能力清单，供各单据页判断「提交审批」还是「人工直通」；`enabled` 来自流程总开关 `flow.<bizType>.enabled`。
+  见「流程驱动 / 事件驱动（F5）」章节
+- 错误码：70001 无待办 / 70002 非当前审批人 / 70003 意见必填 / 70004 已有进行中实例 / 70005 流程已启用不允许人工直通 / 70006 流程已停用不允许提交审批
 
 ## 人事行政 /hr（工时填报：业务系统合同/任务 ↔ 人事数据的关联起点）
 - 表 hr_timesheet：用户/工作日期/任务（快照 task_no/task_name/contract_id/contract_no/customer_id/customer_name）
@@ -984,6 +992,86 @@
 - 错误码：60003 存在未完成签章的报告，任务不能结束 / 61001 该条目已存在报告 / 61002 当前报告状态不允许该操作
 - 菜单：报告管理（Reports，`/report/reports`，componentKey `report/ReportList`）
 
+## 流程驱动 / 事件驱动（F5）
+
+系统不再是"事后记账本"：业务单据由**流程**推动状态流转，由**业务事件**驱动跨域联动；两者都可被管理员**开关**。
+
+### 1. 流程注册表（后端 `app/modules/approval/registry.py`）
+
+16 类单据统一登记在 `BINDINGS`（`FlowBinding`），字段：`bizType` `label` `modelPath` `definitionCode`
+`managed`（是否域内自管状态回写）`submitFrom`（可发起审批的状态）`approving/approved/rejected/withdrawn` 四个状态口径
+`submitPerm` `docNoField` `note` `passThrough` `passThroughStatus` `passThroughHook` `onApproved` `onRejected`。
+
+| bizType | 名称 | 流程定义 code | 发起状态 | 审批中 | 通过后 | 驳回 | 发起权限 |
+|---|---|---|---|---|---|---|---|
+| contract | 合同 | contract_approve | （历史） | — | — | — | contract:contract:submit |
+| task | 任务立项 | 按 bizType 解析 | （历史） | — | — | — | task:task:submit |
+| report | 检测报告 | report_sign | （历史） | — | — | — | report:report:submit |
+| sales_quotation | 销售报价 | quote_approve | （历史） | — | — | — | sales:quotation:submit |
+| settlement | 结算单 | 按 bizType 解析 | （历史） | — | — | — | finance:settlement:submit |
+| invoice | 发票 | invoice_apply | （历史） | — | — | — | finance:invoice:submit |
+| purchase_request | 采购申请 | purchase_request_approve | （历史） | — | — | — | procurement:request:submit |
+| purchase_contract | 采购合同 | purchase_contract_approve | （历史） | — | — | — | procurement:contract:submit |
+| tender_award | 定标 | tender_award_approve | （历史） | — | — | — | procurement:tender:award |
+| oa | OA 申请 | 按实例钉版本 | （历史） | — | — | — | oa:apply:submit |
+| **project** | 项目立项 | project_approve | draft / rejected | approving | planning | rejected | project:submit |
+| **timesheet** | 工时填报 | timesheet_approve | draft / rejected | approving | approved | rejected | hr:timesheet:submit |
+| **asset_receipt** | 到货验收 | asset_receipt_approve | draft / rejected | approving | accepted | rejected | asset:receipt:submit |
+| **asset_disposal** | 资产处置 | asset_disposal_approve | draft / rejected | approving | approved | rejected | asset:disposal:submit |
+| **payment** | 回款单 | payment_confirm | draft / rejected | approving | confirmed | rejected | finance:payment:submit |
+| **report_seal** | 报告用章 | report_seal_approve | approved | sealing | seal_approved | approved | report:seal:apply |
+
+- **通过后的副作用**（`onApproved` / `onRejected` 钩子）：到货验收通过才生成入库流水；资产处置通过才可核销；
+  回款确认后才核销结算单应收；工时审批通过才计入项目成本。
+- **未配置启用的流程定义** → 该类单据按**人工审核口径直通**（`passThrough`），落到 `passThroughStatus`，不产生审批实例。
+- **流程总开关关闭**（`flow.<bizType>.enabled = 0`）→ 该类单据**不能提交审批**，接口返回 **70006**；
+  同时**恢复人工直通后门**（原人工动作端点不再被 70005 拦截）。
+
+### 2. 流程与事件开关（管理端）
+
+- `GET /admin/automation`（`admin:automation:list`）→
+  `{flows:[{bizType,label,definitionCode,definitionReady,definitionName,managed,switchKey,enabled,submitFrom[],statuses:{approving,approved,rejected,withdrawn},submitPerm,note}],events:[{event,label,description,switches:[{key,name,critical,enabled}]}]}`
+- `PUT /admin/automation`（`admin:automation:edit`）`{flows:[{bizType,enabled}],events:[{key,enabled}]}` → 同结构。
+  落 `sys_config`，写入即生效；变更写 `sys_audit_log`。
+- 前端页面：系统管理 → 流程与事件开关（`admin/AutomationSettings`，菜单 `menu.automation`）。
+
+### 3. 流程能力清单（供单据页判断提交还是人工直通）
+
+- `GET /approval/flow-capabilities`（**仅登录**，无额外权限）→ `{items:[{bizType,label,managed,enabled,definitionReady,submitFrom[],statuses:{...},submitPerm}]}`
+  前端 `useFlowCapability()` 缓存该结果：流程启用 → 显示「提交审批」；流程停用 → 显示历史人工动作（验收 / 批准 / 签章）。
+
+### 4. 流程驱动的单据端点（B6 新增）
+
+| 端点 | 权限 | 说明 |
+|---|---|---|
+| `POST /project/projects/{pid}/submit` | project:submit | 提交立项审批；流程停用 → 70006 |
+| `POST /hr/timesheets/{tid}/submit` | hr:timesheet:submit \| hr:timesheet:create | 提交工时审批 |
+| `POST /finance/payments/{pid}/submit` | finance:payment:submit | 提交回款复核 |
+| `POST /asset/receipts/{rid}/submit` | asset:receipt:submit | 提交到货验收 |
+| `POST /asset/disposals/{did}/submit` | asset:disposal:submit | 提交资产处置 |
+| `POST /report/reports/{rid}/seal-apply` | report:seal:apply | 提交用章申请（申请 ≠ 签章，签章仍走 `POST /report/reports/{id}/seal`） |
+| `GET /finance/payments/counts` | finance:payment:list | 回款页签计数 `{all,draft,approving,confirmed,rejected}` |
+
+- 已有历史人工端点在流程启用时被拦截并返回 **70005**（例：`POST /asset/receipts/{rid}/accept`、
+  `POST /report/reports/{id}/seal`），需改走提交审批；流程停用后恢复可用。
+
+### 5. 事件目录与触发开关
+
+事件总线 `app/common/events.py` 在**同一事务内同步派发**；每个处理器可挂开关键 `event.trigger.<事件>.<处理器>`，
+默认开启，关闭即不再执行该联动。
+
+| 事件 | 用途 |
+|---|---|
+| ApprovalCompleted / ApprovalRejected / ApprovalWithdrawn | 审批通过 / 驳回 / 撤回 → 单据状态回写与后续联动 |
+| ApprovalTodoCreated | 生成待办 → 站内信 / 企微 / 短信推送（`event.trigger.ApprovalTodoCreated.notify.todo`，非关键） |
+| TaskAssigned | 任务分配到人 → 提醒被指派人 + **自动推进项目状态**（`event.trigger.TaskAssigned.project.start`） |
+| FlowStarted | 单据提交审批 → 广播「进入审批」 |
+| DocumentStatusChanged | 任意单据状态迁移 → 跨域数据流转 |
+| SchedulePlanPublished | 排程方案发布 → 同步甘特与任务计划日期 |
+| TaskCompleted | 任务完成 → 自动生成结算单等下游单据 |
+
+- 开关清单由 `GET /admin/automation` 的 `events[].switches` 给出；`critical=true` 的处理器失败会回滚业务事务。
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
@@ -996,7 +1084,7 @@ sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
-admin/AiUsage  admin/AiSettings
+admin/AiUsage  admin/AiSettings  admin/AutomationSettings
 asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/InventoryItemList
 asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
 asset/FixedAssetList  asset/DisposalList  asset/ToolList
