@@ -17,6 +17,7 @@
 | **B7** | 营收分析看板 + 产能利用率看板 | 3、4 | B5 排程数据、B6 设备数据 | 待开发 |
 | **B8** | 报告模板与审批流、结算计费对接、安全巡检、知识库扩展、流程中心联动、作业申请流程、人力资源扩展 | 24–29、32 | B5 | 待开发 |
 | **F5** | 全流程驱动 / 业务事件驱动 + 流程与事件开关面板（横切批次，非 CSV 条目） | — | B1–B5 | **已交付** |
+| **F6** | 对外门户专业化 + 访客预约闭环 + 全站移动优先（横切批次，非 CSV 条目） | — | B2 账号体系、B3 访客域、F5 流程引擎 | **已交付** |
 
 外部依赖项（不排入批次）：**第 1 项**「运营平台合规开发原则」与**第 2 项**「SSO / 统一权限中心（UPMS）」均指向需求方提供的 docx，文件未入库，落地前需先拿到原文；第 2 项同时涉及外部身份系统对接，需单独立项。
 
@@ -101,7 +102,7 @@
 - **涉及模块**：`visitor`（新增域）、`safety`（巡检与门禁联动）、`crm`（客户主体）、`task`/`sample`（样品交接）。
 - **交付物**：`visitor_visit`（预约/登记）、`visitor_zone`（区域与分级）、`visitor_credential`（凭证与有效期）、`visitor_access_log`（不可删改审计）、`visitor_nda`（签署与存证）；审批走现有流程引擎（`ApprovalDefinition`）。
 - **风险**：合规审计要求"日志不可删改 + ≥180 天保留"与平台统一的软删机制冲突 —— 审计表需单独实现只追加（无 `deleted` 语义、禁止 UPDATE/DELETE），并把保留期写进备份策略。
-- **遗留**：① 多渠道预约的**外部渠道入口**（微信/小程序）尚未对接，当前统一为前台/员工代登记 + 门户预登记（B2 的 `crm_partner_staff`）；② 门禁/视频/LIMS/消防的**厂商接口**未接入，凭证核验已提供 `POST /visitor/credentials/verify` 作为对接点；③ 访客审批走**域内审批链**（host→dept→zone）而非通用流程引擎 `ApprovalDefinition`，以便与区域分级策略强绑定。
+- **遗留**：① 多渠道预约的**外部渠道入口**（微信/小程序）尚未对接 —— **已在 F6 落地**（门户 `POST /portal/visits` 预约入口 + 移动优先页面，微信推送链接即可完成预约）；② 门禁/视频/LIMS/消防的**厂商接口**未接入，凭证核验已提供 `POST /visitor/credentials/verify` 作为对接点；③ 访客审批走**域内审批链**（host→dept→zone）而非通用流程引擎 `ApprovalDefinition` —— **已在 F6 落地**（`biz_type=visitor_visit` 接入审批引擎，节点可在「流程设置」设计；域内审批链保留为流程停用时的人工兜底）。
 
 ---
 
@@ -240,6 +241,74 @@
 | 迁移 | `n6a2b3c4d5e6_flow_driven.py`（仅加列、无新表：`prj_project`/`hr_timesheet`/`ast_disposal`/`ast_receipt` 加 `flow_instance_id`，`fin_payment` 加 `status` + `flow_instance_id`，`rpt_report` 加 `seal_flow_instance_id`；存量回款置 `confirmed`） |
 | 前端 | `composables/useFlowCapability.ts`；项目/工时/回款/到货/处置/报告六个列表页新增「提交审批」动作与 `approving`/`rejected` 状态页签（含计数） |
 | 测试 | `tests/test_flow_driven.py`（8 条 HTTP 黑盒：开关面板清单、权限强制、流程能力清单、回款计数、流程开关关停 → 70006、人工后门 70005/恢复、缺定义直通、事件开关关停 → 跨域联动停用）；后端全量 `pytest -q` 360 全绿 |
+
+---
+
+## F6 — 对外门户专业化 + 访客预约闭环 + 全站移动优先（已交付）
+
+> **状态：已交付（2026-11-22）** —— 横切批次（非 CSV 条目），来源：需求方对「对外网站太简陋、页面设计和布局不好、访客登记缺失、很多操作手机优先」的一次性反馈。
+> 内部代号沿用 F 系列（承接 F1 引擎合并 → F2 流程中心 → F3 业务全量流程化 → F4 OA 表单引擎 → F5 全流程驱动）。
+
+### F6.1 门户基座升级（Portal Pro）
+
+| 项 | 内容 |
+| --- | --- |
+| 门户首页 | 新增 `PortalHome.vue`（`/portal` 不再是空壳）：品牌 hero + 服务入口宫格 + 最新公告 + 我的进度摘要 |
+| 独立外壳 | `PortalLayout.vue` 重做：桌面 sticky 顶栏（品牌/主导航/语言/账号）+ 移动精简顶栏 + `PortalMobileDock.vue` 底部 Dock + 页脚（公司全称/地址/电话/邮箱/备案号，接 `GET /portal/branding`） |
+| 移动端表格降级 | 新增 `components/common/ResponsiveTable.vue`：桌面 `el-table`、窄屏（<768px）自动降级为**卡片流**（首列作标题，其余列渲染「标签：值」行）；`ListTable.vue` 改为其适配层 → **约 50 个列表页一次性获得移动卡片降级** |
+| 门户页面 | `PortalMy` / `PortalOrders` / `PortalStaff` 三张表改 `ResponsiveTable`；`PortalTenderList` 移动端状态筛选改**底部弹层**；`PortalTenderDetailPanel` 移动端 `label-position="top"` + 主操作**吸底** + 去掉内联 `width:220px`；`PortalRegister` 去掉 `position:fixed` 覆盖层改走门户布局 |
+| 认证补强 | `POST /portal/auth/refresh`（refresh token 存 Redis，7 天）+ 前端**单飞 refresh**；401 改 SPA 内 `location.replace`（保表单不丢）；`GET/PUT /portal/account`、`POST /portal/account/password` |
+| 招标接口 | `GET /portal/tenders` 加 `page/size` 分页（原先一次拉全量） |
+| PWA | `frontend/index.html` 加 `theme-color`（明暗双值）、`apple-mobile-web-app-capable`、`apple-touch-icon`；新增 `public/manifest.webmanifest`（可「添加到主屏」） |
+| 令牌 | `--bs-layout-content-max-width`（1200px，门户宽版）、`--bs-layout-portal-bottom-nav-height`（58px） |
+| 前端测试 | 新增 `modules/portal/useDeadline.test.ts`（7 条：截止时间解析/天数/紧急阈值纯函数）；扩展 `components/flow/flowModel.test.ts`（FORM_* 审批人类型识别与校验） |
+
+### F6.2 访客预约闭环（门户 ↔ 审批引擎 ↔ 凭证）
+
+| 项 | 内容 |
+| --- | --- |
+| 门户端点 | 新增 `app/modules/portal/visit_router.py`（prefix `/portal`）：`GET /portal/hosts` · `GET /portal/zones` · `POST /portal/visits` · `GET /portal/visits` · `GET /portal/visits/{id}` · `POST /portal/visits/{id}/cancel` · `GET /portal/visits/{id}/credential` · `GET /portal/visits/{id}/credential/qr` · `GET /portal/visits/{id}/pass?code=` · `POST /portal/visits/{id}/checkin` · `POST /portal/visits/{id}/checkout` |
+| 动态审批人 | 审批引擎新增 `FORM_USER` / `FORM_ROLE` / `FORM_DEPT_LEADER` 三类「按表单字段解析」的审批人，`approver_value` 存**流程变量名**（如 `hostUserId`）而非用户 id；可用变量由流程定义 `variables_schema` 声明，设计器给出下拉 |
+| 外部发起人 | 引擎新增 `FlowInitiator(id=0, name="合作方·XX")`：`approval_instance.initiator_id = 0`（真实用户 id 从 1 起不冲突），审批中心「我发起的」自然不含外部单据 |
+| 流程绑定 | `registry.py` 新增 `FlowBinding(biz_type="visitor_visit")`：`submitFrom=(pending,)`、`approving/approved/rejected` 口径、`passThrough=True`（流程未配置或停用时直通）、`onApproved/onRejected` → `app/modules/visitor/flow_handlers.py`（置状态 + 下发凭证 + 短信通知 + 写 `vis_approval` 镜像行） |
+| 人工兜底 | 访客单已挂流程实例时，域内 `POST /visitor/visits/{id}/approve` 返回 **70005**（流程已启用不允许人工直通）；流程停用时恢复 |
+| 二维码 | 新增 `app/modules/visitor/qr.py::credential_qr_svg()`（**segno**，纯 Python 零传递依赖）；端点返回 `image/svg+xml`；前端用 `portalHttp` 以 blob 取回再 `URL.createObjectURL`（`<img src>` 不带 Authorization 头） |
+| 数据模型 | `vis_visit` 加 `flow_instance_id`（BigInteger, nullable, index）与状态 `approving`；迁移 `n7a2b3c4d5e6_portal_visitor_flow.py`（**手写**，因 `alembic/env.py` 未 import visitor models） |
+| 错误码 | 98010 访客预约状态不允许 · 98011 无权访问 · 98012 凭证过期或无效 · 98013 报告下载码无效（前端镜像 `src/api/types.ts`） |
+| 前端 | 新增 `PortalVisits.vue`（预约表单 + 我的预约）、`PortalVisitDetail.vue`（审批时间线 + 凭证二维码 + 扫码签到/签离 + 取消）；访客列表页加 `approving` 页签与「去审批」入口；「流程设置」页新增**流程变量**声明与 FORM_* 审批人下拉 |
+
+### F6.3 门户对外经营数据
+
+| 项 | 内容 |
+| --- | --- |
+| 后端 | 新增 `app/modules/portal/experience_router.py`（prefix `/portal`）：`GET /portal/progress`（委托/任务/结算/发票/回款聚合）· `GET /portal/reports` · `POST /portal/reports/{id}/download-code` · `GET /portal/reports/{id}/download?code=` · `GET /portal/billing` · `GET /portal/handovers` |
+| 隔离口径 | 一律按 `partner_user.customer_id` 过滤；报告只暴露 `sealed/seal_approved/approved` 状态，不含内部意见与审批人；**下载码一次性**（Redis `portal_dl:{rid}`，校验后即焚） |
+| 前端 | 新增 `PortalProgress.vue` · `PortalReports.vue` · `PortalBilling.vue` · `PortalHandovers.vue`，并在 `PortalHome.vue` 做入口宫格 |
+
+### F6.4 全站移动优先（重点页抽样）
+
+| 项 | 内容 |
+| --- | --- |
+| 表格卡片降级 | `ResponsiveTable`（见 F6.1）→ 访客 8 页、审批待办、任务列表等约 50 个列表页自动获得卡片流 |
+| 审批待办 | `ApprovalActionbar.vue` 窄屏按钮改 2×2 网格 + **吸底**（`env(safe-area-inset-bottom)`）；`TodoList.vue` 补卡片底部操作槽 |
+| 流程图 | `FlowGraphViewer.vue` 窄屏**默认折叠**为「点击展开」（LogicFlow 画布在小屏需横向拖拽；隐藏容器尺寸为 0，`fitView` 会失效 → 懒初始化 + 折叠时销毁） |
+| 详情页 | `ContractDetail.vue` / `TaskDetailPanel.vue` 的 `el-descriptions` 窄屏改单列；任务明细表改 `ResponsiveTable` |
+| 签字 | 新增 `components/common/SignaturePad.vue`（canvas Pointer-Events 手写板，触摸/鼠标/手写笔通用，输出 PNG dataURL）；`NdaList.vue` 的 NDA 签署由文本框改手写板 |
+| 状态标签 | `StatusTag.vue` 补 `visiting` / `left` / `overdue` / `cancelled` 四个访客状态色 |
+| 样式 | `mobile.css` 补分页窄屏折叠（只留 prev/pager/next）、`el-descriptions` 单列、`.el-pagination` 换行 |
+
+### F6.5 验证
+
+| 范围 | 结果 |
+| --- | --- |
+| 后端 | `tests/test_f6_portal_visit.py`（9 条）· `tests/test_f6_portal_experience.py`（5 条）· `tests/test_f6_portal_guard.py`（10 条）；后端全量 `pytest -q` 386 全绿 |
+| 前端 | `pnpm lint` / `typecheck` / `i18n:check`（24 域键集一致，2425 个使用键全部有定义）/ `test:unit`（52 全绿）/ `build` 全绿 |
+
+### F6.6 遗留
+
+- 门户尚未对接**微信/小程序原生入口**（当前是可在微信内打开的 H5 + 「添加到主屏」PWA）。
+- 访客短信通道依赖 `msg.sms.custom.url` 配置，未配置时**静默跳过**不阻断业务（访客可在门户页面直接看到状态）。
+- 报告下载码目前为**单次有效**，未做「有效期 + 次数」策略。
 
 ---
 

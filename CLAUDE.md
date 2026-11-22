@@ -125,6 +125,8 @@ current: User = Depends(get_current_user)              # 仅登录
 
 - 节点类型 `approval` / `condition`（按 `instance.variables` 路由）/ `cc`（不阻塞）
 - 签署模式 `or`（任一通过其余作废）/ `and` / `sequential`（依次逐个）
+- 审批人类型 `USER` / `ROLE` / `DEPT_LEADER` / `PARENT_DEPT_LEADER` / `SUPERVISOR_CHAIN`（按发起人组织解析）/ **`FORM_USER` / `FORM_ROLE` / `FORM_DEPT_LEADER`（按表单字段解析，F6 新增）**。后三类的 `approver_value` 存**流程变量名**（如 `hostUserId`）而非用户 id，变量清单由流程定义的 `variables_schema` 声明。
+- **外部发起人**（门户单据）：`engine.FlowInitiator(id=0, name="合作方·XX")`，`approval_instance.initiator_id = 0`（真实用户 id 从 1 起不冲突）；组织类节点在外部单据上会 `auto_pass` 跳过。
 - `start` / `approve` / `reject`（意见必填）/ `withdraw`（仅发起人且无人处理）/ `add_sign`（加签）/ `transfer`（转办）
 - 每次状态变化写 `approval_record` 时间线
 
@@ -132,7 +134,7 @@ current: User = Depends(get_current_user)              # 仅登录
 
 ### 流程注册表与事件开关（F5，全流程驱动）
 
-- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 16 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
+- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 17 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
 - **未配置启用的流程定义 → 按人工审核口径直通**（`passThrough` + `passThroughStatus`），不产生审批实例；**流程总开关关闭 → 禁止提交审批（70006），同时恢复人工直通后门**。
 - `app/modules/approval/wiring.py::install()` — 显式装配订阅（幂等），在 `main.py` 调用；不再依赖各域 service 模块级 `subscribe()` 的隐式导入。
 - `app/modules/settings/automation.py` — 「流程与事件开关」面板数据：流程总开关 `flow.<bizType>.enabled` 与事件触发开关 `event.trigger.<事件>.<处理器>` 都落 `sys_config`，写入即生效。端点 `GET/PUT /admin/automation`（`admin:automation:list` / `admin:automation:edit`）。
@@ -164,7 +166,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n6a2b3c4d5e6_flow_driven.py`。新迁移用可读递增 id（如 `n7a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `n7a2b3c4d5e6_portal_visitor_flow.py`。新迁移用可读递增 id（如 `n8a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
@@ -175,6 +177,10 @@ current: User = Depends(get_current_user)              # 仅登录
 - **`BaseModel` 已有 `version` 乐观锁列**，业务上的"版本号"不能复用它：BOM 用 `bom_version`（对外输出为 `version`，乐观锁另存 `lockVersion`）。
 - **BOM 子件行用 ORM 级联删除**：`Bom.lines` 是 `cascade="all, delete-orphan"`，整表替换必须走 `bom.lines.clear()`；用 `query(BomLine).filter(...).delete()` 批量删会绕过 ORM，flush 时报 "expected to delete 1 row(s); 0 were matched"。
 - **预警类筛选是"分页后过滤"**：`filters[low_stock]` / `filters[stagnant]` / `filters[stagnant_level]` / `filters[warning]` 依赖库存与流水统计，无法下推到 SQL。列表与导出**必须共用同一个后置过滤函数**（`asset/router.py::_apply_item_alert_filters`），否则从「呆滞」页签导出时会把全部物料导出。
+- **门户 token 与内部 token 双向隔离**：门户 JWT 带 `aud=portal` + `typ=portal_access`，内部 `decode_token` 不校验 audience → 门户 token 打内部接口直接 401；门户 `decode_portal_token` 强制 audience=portal → 内部 token 打门户接口 401。**新增内部接口时不要拿门户 token 去试**，也别为了"方便"去掉任一侧的校验。门户 refresh token 存 Redis `portal_refresh:{jti}`（7 天），登出要吊销。
+- **二维码用 `segno` 服务端生成**：`app/modules/visitor/qr.py::credential_qr_svg()`（纯 Python、零传递依赖、已在 `backend/pyproject.toml`）。前端**不要用 `<img src>` 直连**（不会带 `Authorization` 头），要用 `portalHttp` 以 `responseType:'blob'` 取回再 `URL.createObjectURL`。
+- **访客单接审批引擎后的迁移是手写的**：`n7a2b3c4d5e6_portal_visitor_flow.py` 给 `vis_visit` 加 `flow_instance_id` 与 `approving` 状态 —— `alembic/env.py` 未 import visitor models，autogenerate 会误删表（见上一条）。
+- **`FORM_*` 审批人类型存的是"变量名"**：`approval/registry.py` 之外的 `FlowNode.approverValue` 在 `approverType ∈ {FORM_USER, FORM_ROLE, FORM_DEPT_LEADER}` 时存**流程变量名**（如 `hostUserId`），不是用户/角色 ID；可用变量由流程定义 `variables_schema` 声明。别把它当 id 传给引擎。
 
 ## 前端架构
 
@@ -278,10 +284,24 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 - `HIDDEN_MENUS` 里的菜单强制 `visible=0`（入口并入他页，但权限点仍由它承载）。
 - 登记新菜单的完整步骤见 `docs/roadmap-2026-11.md` 的「新需求接入路径」。
 
+### 对外门户（/portal）
+
+门户是**与内部系统完全隔离的第二套外壳**，面向供应商 / 客户等外部合作方。
+
+- **认证隔离**：门户账号存 `partner_user`（不并入 `sys_user`），令牌 `typ=portal_access` + `aud=portal`；内部 `decode_token` 不校验 audience，带 aud 的门户 token → 401；门户 `decode_portal_token` 强制 audience=portal，内部 token → 401。**双向不可用**，新增接口别把两边混在一个 axios 上。
+- **独立布局**：`src/modules/portal/pages/PortalLayout.vue`（桌面 sticky 顶栏 + 移动精简顶栏 + `PortalMobileDock.vue` 底部 Dock + 页脚），**不复用内部 `AppShell`**；门户路由是 `/portal` 的兄弟树，走 `guards.ts` 的 `/portal` 早分支。
+- **权限范围**：`partner_user.perm_scope` 逗号分隔（`tender` / `entrust` / `staff` / `visit`），门户页面按 `hasScope()` 裁剪导航项与 Dock。
+- **门户页面**（`src/modules/portal/pages/`）：`PortalHome`（首页）`PortalTenderList` `PortalTenderDetailPanel` `PortalMy` `PortalOrders` `PortalStaff` `PortalRegister` `PortalVisits` `PortalVisitDetail` `PortalProgress` `PortalReports` `PortalBilling` `PortalHandovers`。
+- **i18n 命名空间**：`portal.json` 的根是嵌套的 `"portal"`（历史遗留），所以运行时键是 **`portal.portal.*`**（如 `t('portal.portal.home.title')`），不是 `portal.home.*`。其余域是「域名即根」（`visitor.json` → `visitor.visit.*`，`common.json` → `common.action.*`）。
+- **门户数据隔离**：报告 / 对账 / 交接 / 进度一律按 `partner_user.customer_id` 过滤；报告下载走**一次性下载码**（Redis `portal_dl:{rid}`），对外不暴露内部审批意见与审批人。
+- **访客预约闭环**：门户 `POST /portal/visits` → `vis_visit(status=pending)` → 审批引擎（`biz_type=visitor_visit`）→ 通过后自动下发凭证 + 短信 → 门户看二维码 → 扫码签到/签离。审批链在「流程设置」里设计，节点审批人类型 `FORM_USER` / `FORM_ROLE` / `FORM_DEPT_LEADER` 的 `approverValue` 存**流程变量名**（如 `hostUserId`），不是用户 id。
+- **门户登录**：合作方登录并入主登录页 `/login?tab=partner`；旧路由 `/portal/login` → 重定向，`/portal/tenders/:id` → `/portal/tenders?id=N`。
+- **PWA**：`frontend/index.html` + `frontend/public/manifest.webmanifest` + `apple-touch-icon.png`，可「添加到主屏」。
+
 ### 共享组件与组合式函数
 
-- `components/list/`：`ListPage`（页面骨架 slots: actions/searchBar/statusTabs/toolbar/table）、`SearchBar`（声明式 `SearchField[]`：`key` `labelKey` `type` `options` `width`）、`StatusTabs`（**每个 tab 必须带 count，含 all，且 all 在最左**）、`ListTable`（`ListColumn[]` + 分页 + 服务端排序）、`ActionBar`（行操作，图标/颜色全局统一，`perm` 控显隐，`confirm` 二次确认，超出内联数量收进「更多」）、`ExportButton`
-- `components/common/`：`BackButton`（页面级返回，**放右上角**）、`PageHeader`（**唯一的页面标题组件**，props `title` + slot `actions`）、`StatusTag`、`CountUp`
+- `components/list/`：`ListPage`（页面骨架 slots: actions/searchBar/statusTabs/toolbar/table）、`SearchBar`（声明式 `SearchField[]`：`key` `labelKey` `type` `options` `width`）、`StatusTabs`（**每个 tab 必须带 count，含 all，且 all 在最左**）、`ListTable`（`ListColumn[]` + 分页 + 服务端排序；**内部是 `ResponsiveTable` 的适配层**，窄屏自动降级为卡片）、`ActionBar`（行操作，图标/颜色全局统一，`perm` 控显隐，`confirm` 二次确认，超出内联数量收进「更多」）、`ExportButton`；`types.ts` 导出 `ListColumn` / `SortChange`
+- `components/common/`：`BackButton`（页面级返回，**放右上角**）、`PageHeader`（**唯一的页面标题组件**，props `title` + slot `actions`）、`StatusTag`、`CountUp`、**`ResponsiveTable`**（桌面表格 / 窄屏卡片流，列表页统一走它）、**`SignaturePad`**（canvas 手写签名板，触屏可用）
 - `components/form/`：`RemoteSelect` `ContractSelect` `CustomerSelect` `SmartInput`（本地历史）`UploadFiles`
 - `components/flow/`：`FlowChainDesigner` `FlowChainNode` `FlowChainConnector` `FlowGraphViewer` + `flowModel.ts`（`process_graph` 双写兼容 LogicFlow）
 - `components/assistant/AiAssistant.vue`（全局悬浮助手）
@@ -305,7 +325,15 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 - **导航**：系统管理区固定在侧边导航**底部**（图标 + 文字，仅在存在可见的管理菜单时显示，展开态点击弹出向上的 popover、折叠态向右弹出）。折叠/展开按钮同在该底部工具条，**绝不在左上角**。折叠态只显示图标（原生 `title` 提示），系统管理入口折叠态仅图标但 popover 仍可用。导航分区排序在 `NavSortDialog`，入口在 TopBar 头像菜单（同时承载外观/语言）。展开态分区**手风琴**（一次只展开一个分区，分区头可点击折叠 + 计数徽标；展开状态记 `localStorage['bs.navZoneOpen']`）；折叠态为**图标轨 + 分区浮层**（悬停分区图标弹出该分区菜单）。
 - **移动端外壳**（<768px，`useIsMobile`）：侧边导航收进汉堡抽屉（`MobileNavDrawer`，同样的分区/菜单数据与权限过滤，分区头同样可手风琴折叠，与桌面共用 `bs.navZoneOpen`）；右侧上下文面板变浮动按钮 + 右抽屉；状态栏隐藏。底部常驻 `MobileDock`：放大的中间 Workbench 按钮 + 4 个可自定义快捷项（长按 Dock 或头像菜单「Dock Shortcuts」打开 `DockSettingsDialog`；存用户 prefs `dockShortcuts`，按权限过滤，默认 todo/tasks/contracts/OA-apply）。全局覆盖样式在 `src/styles/mobile.css`。
 - **动效**：见上文「样式与动效」。
-- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 16 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
+- **移动优先**（窄屏判定统一用 `useIsMobile()`，断点 **767px**）：
+  - **表格 → 卡片**：列表一律走 `components/common/ResponsiveTable.vue`（`ListTable.vue` 是它的适配层）。桌面 `el-table`、窄屏自动降级为卡片流（首列作卡片标题，其余列渲染「标签：值」行）。单元格内容统一走 `#cell="{ row, col }"` 具名作用域插槽 —— 桌面表格与移动卡片因此永远同源。表格里没有对应位置的「操作」列，用 `#cardFooter` 补到卡片底部。**新列表页不要直接写裸 `<el-table>`**。
+  - **主操作吸底**：审批意见/同意/驳回、报名/投标提交、预约提交等高频动作在窄屏用 `position: sticky; bottom: 0` + `env(safe-area-inset-bottom)`（参考 `ApprovalActionbar.vue`）。
+  - **表单**：窄屏 `label-position="top"`，输入框最小触控高度 44px；手机号 `inputmode="tel"`、邮箱 `inputmode="email"`、验证码/密码 `enterkeyhint`。
+  - **筛选**：超过 4 个筛选项时窄屏改**底部弹层**（`el-drawer direction="btt"` + `append-to-body`），不要横向长条。
+  - **画布/流程图**：LogicFlow 画布窄屏不可用（需横向拖拽且隐藏容器 `fitView` 会失效）—— 用「点击展开」折叠，展开时才懒初始化、折叠时销毁。
+  - **签字**：触屏签名用 `components/common/SignaturePad.vue`（canvas Pointer Events），不要用 textarea 代替。
+  - **安全区**：全站固定元素（底部 Dock、吸底操作条）必须加 `env(safe-area-inset-bottom)`。
+- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 17 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
   - **例外**：后端**没有草稿态**的单据（结算单 `settlement`、开票申请 `invoice`、报告用章 `report_seal`、访客登记 `visitor`）只有**一个** primary 按钮，文案必须是「提交审批」，**不得**写成含糊的「提交」或「保存」；结算单这类要在表单上方加 `el-alert` 说明"提交后立即发起审批"（`finance.settlement.submitTip`）。
   - 「提交审批」按钮按权限点隐藏（`v-permission="'<域>:<资源>:submit'"`），`v-permission` 支持**数组**表示"任一满足"（`['hr:timesheet:submit','hr:timesheet:create']`）。
   - **新增单据类型时**：先在 `registry.py::BINDINGS` 登记 `submit_from`（必须含 `draft`），再照上面加两个按钮；流程总开关关掉时只显示「保存草稿」（用 `useFlowCapability().flowEnabled(bizType)` 判断）。

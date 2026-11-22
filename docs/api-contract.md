@@ -998,7 +998,7 @@
 
 ### 1. 流程注册表（后端 `app/modules/approval/registry.py`）
 
-16 类单据统一登记在 `BINDINGS`（`FlowBinding`），字段：`bizType` `label` `modelPath` `definitionCode`
+17 类单据统一登记在 `BINDINGS`（`FlowBinding`），字段：`bizType` `label` `modelPath` `definitionCode`
 `managed`（是否域内自管状态回写）`submitFrom`（可发起审批的状态）`approving/approved/rejected/withdrawn` 四个状态口径
 `submitPerm` `docNoField` `note` `passThrough` `passThroughStatus` `passThroughHook` `onApproved` `onRejected`。
 
@@ -1020,6 +1020,7 @@
 | **asset_disposal** | 资产处置 | asset_disposal_approve | draft / rejected | approving | approved | rejected | asset:disposal:submit |
 | **payment** | 回款单 | payment_confirm | draft / rejected | approving | confirmed | rejected | finance:payment:submit |
 | **report_seal** | 报告用章 | report_seal_approve | approved | sealing | seal_approved | approved | report:seal:apply |
+| **visitor_visit** | 访客预约 | visitor_visit_approve | pending | approving | approved | rejected | visitor:visit:submit |
 
 - **通过后的副作用**（`onApproved` / `onRejected` 钩子）：到货验收通过才生成入库流水；资产处置通过才可核销；
   回款确认后才核销结算单应收；工时审批通过才计入项目成本。
@@ -1087,6 +1088,81 @@
 | TaskCompleted | 任务完成 → 自动生成结算单等下游单据 |
 
 - 开关清单由 `GET /admin/automation` 的 `events[].switches` 给出；`critical=true` 的处理器失败会回滚业务事务。
+
+## F6 对外门户扩展（门户专业化 + 访客闭环 + 移动优先）
+
+### 1. 门户新增端点
+
+| 端点 | 权限/登录 | 说明 |
+|---|---|---|
+| `POST /portal/auth/refresh` | 门户 token | 刷新门户 token（refresh token 存 Redis `portal_refresh:{jti}`，7 天；`typ=portal_refresh`、`aud=portal`） |
+| `GET /portal/account` · `PUT /portal/account` | 门户登录 | 读取/修改本账号资料（公司名称、联系人、电话、邮箱） |
+| `POST /portal/account/password` | 门户登录 | 修改密码（旧密码校验） |
+| `GET /portal/branding` | 公开 | 站点名/Logo/公司全称/地址/电话/邮箱/备案号（门户页脚用） |
+| `GET /portal/tenders?page=&size=` | 公开 | 公告列表分页（原为一次拉全量） |
+
+### 2. 门户访客预约（`app/modules/portal/visit_router.py`，prefix `/portal`）
+
+| 端点 | 登录 | 说明 |
+|---|---|---|
+| `GET /portal/hosts?q=` | 公开 | 被访人选择；**只暴露姓名/部门/职位**，不暴露手机号/邮箱 |
+| `GET /portal/zones` | 公开 | 可申请区域（仅 enabled） |
+| `POST /portal/visits` | 门户登录 + `perm_scope` 含 `visit` | 提交预约 → `vis_visit(status=pending, source=portal)` → 提交审批引擎 |
+| `GET /portal/visits` · `GET /portal/visits/{id}` | 门户登录 | 我的预约 / 详情（审批时间线、当前节点、凭证状态） |
+| `POST /portal/visits/{id}/cancel` | 门户登录 | 取消（仅 pending/approving） |
+| `GET /portal/visits/{id}/credential` | 门户登录 | 通行凭证（凭证号/有效期/授权区域） |
+| `GET /portal/visits/{id}/credential/qr` | 门户登录 | 凭证二维码（`image/svg+xml`；segno 生成，零传递依赖） |
+| `GET /portal/visits/{id}/pass?code=` | 公开 | 扫码落地页（校验凭证码） |
+| `POST /portal/visits/{id}/checkin` · `.../checkout` | 门户登录 | 访客自助签到/签离；**拒绝放行也必须留痕**（`except BizException: db.commit(); raise`） |
+
+### 3. 门户经营数据（`app/modules/portal/experience_router.py`，prefix `/portal`）
+
+| 端点 | 说明 |
+|---|---|
+| `GET /portal/progress` | 进度看板：委托/任务/结算/发票/回款聚合，按账号绑定往来单位过滤 |
+| `GET /portal/reports` | 已归档报告列表（`rpt_report` join `task_task`），**不含内部意见与审批人** |
+| `POST /portal/reports/{id}/download-code` | 生成一次性下载码（Redis `portal_dl:{rid}`） |
+| `GET /portal/reports/{id}/download?code=` | 下载报告文件（码校验后即焚） |
+| `GET /portal/billing` | 结算 / 开票 / 回款状态聚合 |
+| `GET /portal/handovers` | 样品样车借还记录 |
+
+**隔离口径**：一律按 `partner_user.customer_id` 过滤；报告只暴露 `sealed/seal_approved/approved` 状态；下载码一次性。
+
+### 4. 动态审批人类型（`FORM_USER` / `FORM_ROLE` / `FORM_DEPT_LEADER`）
+
+门户单据的审批人**每单不同**（如访客单的被访人由表单指定），因此审批引擎新增三类「按表单字段解析」的审批人：
+
+| 类型 | `approver_value` 含义 | 解析 |
+|---|---|---|
+| `FORM_USER` | 流程变量名（如 `hostUserId`），值为用户 id | `select(User).where(id==v, enabled)` |
+| `FORM_ROLE` | 流程变量名，值为角色 code | 复用 `_resolve_role_users` |
+| `FORM_DEPT_LEADER` | 流程变量名，值为部门 id | `org.dept_leader_ids(db, dept_id)` |
+
+- 可用变量键由流程定义的 `variables_schema`（JSON：`{key: {type, label}}`）声明，设计器据此给出下拉。
+- 外部发起人不是 `sys_user`：引擎用 `FlowInitiator(id=0, name="合作方·XX")`，`approval_instance.initiator_id = 0`（真实用户 id 从 1 起，不冲突）；
+  组织类节点（`DEPT_LEADER` 等）在门户单据上会 `auto_pass` 跳过——流程设计时需注意。
+- `condition` 节点按 `instance.variables` 路由，敏感区域加签用条件节点表达（如 `securityLevel >= 3`）。
+
+### 5. 访客单接入审批引擎
+
+- `vis_visit` 新增 `flow_instance_id`（BigInteger，nullable，index）与状态 `approving`；迁移 `n7a2b3c4d5e6_portal_visitor_flow.py`（**手写**，见 CLAUDE.md 已知坑）。
+- 流程绑定：`biz_type = visitor_visit`，`submitFrom=(pending,)`，`approving→approved/rejected`，`passThrough=True`（流程未配置或停用时直通）。
+- 通过后的副作用（`app/modules/visitor/flow_handlers.py`）：置 `approved` + 下发通行凭证 + 短信通知访客 + 通知被访人；
+  驳回置 `rejected`。引擎回写时同步写 `vis_approval` 镜像行，保持访客列表的审批历史 UI 不变。
+- 域内 `POST /visitor/visits/{vid}/approve` 在访客单**已挂流程实例**时返回 **70005**（与 F5 其他单据同口径：流程已启用不允许人工直通）；
+  流程停用或未配置时恢复可用。
+- 总开关 `flow.visitor_visit.enabled`（`GET/PUT /admin/automation`）。
+
+### 6. 错误码（F6 新增）
+
+| 码 | 含义 |
+|---|---|
+| 98010 | 访客预约状态不允许该操作 |
+| 98011 | 无权访问该访客预约 |
+| 98012 | 凭证已过期或无效 |
+| 98013 | 报告下载码无效或已使用 |
+
+前端镜像在 `src/api/types.ts`。
 
 ## 前端组件键（componentKey → 懒加载组件）
 ```
