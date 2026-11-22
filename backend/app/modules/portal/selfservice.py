@@ -26,6 +26,7 @@ from app.modules.task.models import TaskEntrust
 SCOPE_TENDER = "tender"
 SCOPE_ENTRUST = "entrust"
 SCOPE_STAFF = "staff"
+SCOPE_VISIT = "visit"  # F6：访客预约（门户提交来访申请）
 
 
 def has_scope(p: PartnerUser, scope: str) -> bool:
@@ -126,6 +127,7 @@ def create_entrust(db: Session, partner: PartnerUser, body) -> dict:
 
 
 def my_entrusts(db: Session, partner: PartnerUser) -> list[dict]:
+    require_scope(partner, SCOPE_ENTRUST)
     customer_id = require_customer(partner)
     rows = db.scalars(
         select(TaskEntrust)
@@ -227,6 +229,7 @@ def register_staff(db: Session, partner: PartnerUser, body) -> dict:
 
 
 def my_staff(db: Session, partner: PartnerUser) -> list[dict]:
+    require_scope(partner, SCOPE_STAFF)
     customer_id = require_customer(partner)
     rows = db.scalars(
         select(PartnerStaff)

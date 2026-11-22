@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
@@ -16,7 +16,13 @@ from app.core import response as R
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.core.redis import get_redis
-from app.core.security import create_portal_token, hash_password, verify_password
+from app.core.security import (
+    create_portal_refresh_token,
+    create_portal_token,
+    decode_portal_refresh_token,
+    hash_password,
+    verify_password,
+)
 from app.modules.admin.models import LoginLog
 from app.modules.portal.models import PartnerUser
 from app.modules.portal.schemas import PortalRegisterIn
@@ -25,6 +31,11 @@ from app.modules.procurement.models import TenderBid, TenderProject, TenderRegis
 FAIL_KEY = "portal_login_fail:{username}"
 FAIL_LIMIT = 5
 FAIL_WINDOW_SEC = 15 * 60
+
+# refresh token 存 Redis：portal_refresh:{jti} → partner_id（登出即删，支持吊销）
+REFRESH_KEY = "portal_refresh:{jti}"
+# 门户账号的 refresh token 索引（登出时一并清理）
+REFRESH_IDX = "portal_refresh_idx:{partner_id}"
 
 # 门户可见的项目状态（draft/terminated 对外不可见）
 PORTAL_VISIBLE = ("published", "evaluating", "awarding", "awarded")
@@ -72,8 +83,9 @@ def register(db: Session, body: PortalRegisterIn, ip: str = "") -> dict:
         email=body.email,
         status="pending",
         account_type=body.company_type or "supplier",
-        # 客户自助账号默认开通「在线委托 + 人员备案」；供应商账号只开通招投标
-        perm_scope="entrust,staff" if body.company_type == "customer" else "tender",
+        # 客户自助账号默认开通「在线委托 + 人员备案」；供应商账号只开通招投标；
+        # 两类账号都默认开通「访客预约」（F6）
+        perm_scope="entrust,staff,visit" if body.company_type == "customer" else "tender,visit",
     )
     db.add(p)
     db.flush()
@@ -84,6 +96,84 @@ def register(db: Session, body: PortalRegisterIn, ip: str = "") -> dict:
     )
     db.commit()
     return partner_out(p)
+
+
+def _issue_tokens(p: PartnerUser) -> dict:
+    """签发门户 access + refresh token（refresh 的 jti 存 Redis，可吊销）。"""
+    token = create_portal_token(p.id)
+    refresh, jti = create_portal_refresh_token(p.id)
+    r = get_redis()
+    r.set(REFRESH_KEY.format(jti=jti), str(p.id), ex=settings.portal_refresh_expire_days * 24 * 3600)
+    idx = REFRESH_IDX.format(partner_id=p.id)
+    r.sadd(idx, jti)
+    r.expire(idx, settings.portal_refresh_expire_days * 24 * 3600)
+    return {
+        "access_token": token,
+        "refresh_token": refresh,
+        "token_type": "Bearer",
+        "expires_in": settings.portal_token_expire_minutes * 60,
+        "partner": partner_out(p),
+    }
+
+
+def refresh(db: Session, refresh_token: str, ip: str = "") -> dict:
+    """刷新门户 access token：refresh token 一次性轮换（旧 jti 立即作废）。"""
+    if not refresh_token:
+        raise BizException(R.AUTH_UNAUTHORIZED, "缺少刷新令牌", http_status=401)
+    try:
+        payload = decode_portal_refresh_token(refresh_token)
+    except Exception as exc:  # noqa: BLE001 — 任何解码异常都按"令牌无效"处理
+        raise BizException(R.AUTH_UNAUTHORIZED, "刷新令牌无效或已过期", http_status=401) from exc
+
+    jti = payload.get("jti") or ""
+    partner_id = payload.get("sub") or ""
+    r = get_redis()
+    stored = r.get(REFRESH_KEY.format(jti=jti))
+    if not stored or str(stored) != str(partner_id):
+        raise BizException(R.AUTH_UNAUTHORIZED, "刷新令牌已失效", http_status=401)
+
+    p = db.get(PartnerUser, int(partner_id))
+    if not p or p.deleted or p.status != "enabled":
+        raise BizException(R.AUTH_UNAUTHORIZED, "账号不可用", http_status=401)
+
+    # 轮换：旧 jti 作废
+    r.delete(REFRESH_KEY.format(jti=jti))
+    r.srem(REFRESH_IDX.format(partner_id=p.id), jti)
+    audit(db, user_id=None, module="portal", action="portal_refresh",
+          detail={"username": p.username}, ip=ip)
+    db.commit()
+    return _issue_tokens(p)
+
+
+def revoke_refresh_tokens(partner_id: int) -> None:
+    """吊销某账号的全部 refresh token（登出 / 停用账号时调用）。"""
+    r = get_redis()
+    idx_key = REFRESH_IDX.format(partner_id=partner_id)
+    for jti in r.smembers(idx_key) or []:
+        r.delete(REFRESH_KEY.format(jti=jti))
+    r.delete(idx_key)
+
+
+def branding(db: Session) -> dict:
+    """门户站点信息（公开）：站点名 / 联系方式 / 备案号 / 公告。"""
+    from app.modules.settings import service as settings_svc
+
+    site_name = settings_svc.get_value(db, "portal.site_name") or ""
+    company = settings_svc.get_value(db, "portal.company_name") or ""
+    phone = settings_svc.get_value(db, "portal.phone") or ""
+    email = settings_svc.get_value(db, "portal.email") or ""
+    address = settings_svc.get_value(db, "portal.address") or ""
+    icp = settings_svc.get_value(db, "portal.icp") or ""
+    notice = settings_svc.get_value(db, "portal.notice") or ""
+    return {
+        "siteName": site_name or "合作方服务门户",
+        "companyName": company,
+        "phone": phone,
+        "email": email,
+        "address": address,
+        "icp": icp,
+        "notice": notice,
+    }
 
 
 def login(db: Session, username: str, password: str, ip: str = "", ua: str = "") -> dict:
@@ -97,7 +187,7 @@ def login(db: Session, username: str, password: str, ip: str = "", ua: str = "")
               detail={"username": username, "companyName": p.company_name}, ip=ip)
         db.add(LoginLog(username=f"portal:{username}", success=1, ip=ip or "", ua=(ua or "")[:255]))
         db.commit()
-        return {"access_token": create_portal_token(p.id), "token_type": "Bearer", "partner": partner_out(p)}
+        return _issue_tokens(p)
 
     if p and p.status in ("pending", "rejected", "disabled"):
         audit(db, user_id=None, module="portal", action="portal_login_denied",
@@ -235,11 +325,16 @@ def _bid_out(b: TenderBid, tender: TenderProject | None = None) -> dict:
     }
 
 
-def list_tenders(db: Session, partner: PartnerUser | None) -> list[dict]:
+def list_tenders(
+    db: Session, partner: PartnerUser | None, page: int = 1, size: int = 20
+) -> tuple[list[dict], int]:
+    """公告列表（分页）：免登录可见已发布及以上的公告。"""
+    base = select(TenderProject).where(
+        TenderProject.deleted == 0, TenderProject.status.in_(PORTAL_VISIBLE)
+    )
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
     rows = db.scalars(
-        select(TenderProject)
-        .where(TenderProject.deleted == 0, TenderProject.status.in_(PORTAL_VISIBLE))
-        .order_by(TenderProject.id.desc())
+        base.order_by(TenderProject.id.desc()).offset((page - 1) * size).limit(size)
     ).all()
     out = []
     for t in rows:
@@ -250,7 +345,7 @@ def list_tenders(db: Session, partner: PartnerUser | None) -> list[dict]:
         item["myBidId"] = bid.id if bid else None
         item["isWinner"] = bool(t.status == "awarded" and bid and t.winner_bid_id == bid.id)
         out.append(item)
-    return out
+    return out, int(total)
 
 
 def tender_detail(db: Session, tender_id: int, partner: PartnerUser | None) -> dict:
@@ -263,10 +358,18 @@ def tender_detail(db: Session, tender_id: int, partner: PartnerUser | None) -> d
     return data
 
 
+def _require_tender_scope(partner: PartnerUser) -> None:
+    """招投标能力必须在 `perm_scope` 里显式开通（局部导入避免循环依赖）。"""
+    from app.modules.portal.selfservice import SCOPE_TENDER, require_scope
+
+    require_scope(partner, SCOPE_TENDER)
+
+
 def register_tender(
     db: Session, tender_id: int, partner: PartnerUser,
     contact_name: str, contact_phone: str, file=None, ip: str = "",
 ) -> dict:
+    _require_tender_scope(partner)
     t = _get_visible_tender(db, tender_id)
     if t.status != "published":
         raise BizException(R.TENDER_INVALID_STATE, "当前不在报名阶段")
@@ -297,6 +400,7 @@ def register_tender(
 
 
 def my_registrations(db: Session, partner: PartnerUser) -> list[dict]:
+    _require_tender_scope(partner)
     rows = db.scalars(
         select(TenderRegistration)
         .where(TenderRegistration.partner_user_id == partner.id, TenderRegistration.deleted == 0)
@@ -310,6 +414,7 @@ def submit_bid(
     db: Session, tender_id: int, partner: PartnerUser,
     price: float, comment: str, file=None, ip: str = "",
 ) -> dict:
+    _require_tender_scope(partner)
     t = db.get(TenderProject, tender_id, with_for_update=True)  # 行锁：截止/状态判定与写入原子
     if not t or t.deleted or t.status not in PORTAL_VISIBLE:
         raise BizException(R.GENERIC_NOT_FOUND)
@@ -355,6 +460,7 @@ def submit_bid(
 
 
 def my_bids(db: Session, partner: PartnerUser) -> list[dict]:
+    _require_tender_scope(partner)
     rows = db.scalars(
         select(TenderBid)
         .where(TenderBid.partner_user_id == partner.id, TenderBid.deleted == 0)

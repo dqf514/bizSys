@@ -1,8 +1,9 @@
 """合作方门户路由 /api/v1/portal：独立认证 + 招投标白名单能力。"""
 
+from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,14 @@ from app.core.route import EnvelopeRoute
 from app.modules.portal import service as svc
 from app.modules.portal.deps import get_current_partner, get_optional_partner
 from app.modules.portal.models import PartnerUser
-from app.modules.portal.schemas import PortalLoginIn, PortalRegisterIn, PortalStaffIn
+from app.modules.portal.schemas import (
+    PortalAccountUpdateIn,
+    PortalLoginIn,
+    PortalPasswordIn,
+    PortalRefreshIn,
+    PortalRegisterIn,
+    PortalStaffIn,
+)
 from app.modules.portal.selfservice import (
     cancel_entrust as self_cancel_entrust,
 )
@@ -50,6 +58,13 @@ def login(body: PortalLoginIn, request: Request, db: Session = Depends(get_db)):
     return svc.login(db, body.username, body.password, ip, ua)
 
 
+@router.post("/auth/refresh")
+def refresh(body: PortalRefreshIn, request: Request, db: Session = Depends(get_db)):
+    """刷新门户 access token（refresh token 一次性轮换）。"""
+    ip = request.client.host if request.client else ""
+    return svc.refresh(db, body.refresh_token, ip)
+
+
 @router.get("/auth/me")
 def me(partner: PartnerUser = Depends(get_current_partner)):
     return svc.partner_out(partner)
@@ -59,7 +74,60 @@ def me(partner: PartnerUser = Depends(get_current_partner)):
 def logout(partner: PartnerUser = Depends(get_current_partner), db: Session = Depends(get_db)):
     from app.common.audit import record as audit
 
+    svc.revoke_refresh_tokens(partner.id)
     audit(db, user_id=None, module="portal", action="portal_logout", detail={"username": partner.username})
+    db.commit()
+    return None
+
+
+@router.get("/branding")
+def branding(db: Session = Depends(get_db)):
+    """门户站点信息（公开）：站点名 / 联系方式 / 备案号 / 公告。"""
+    return svc.branding(db)
+
+
+@router.get("/account")
+def account(partner: PartnerUser = Depends(get_current_partner)):
+    """我的账号资料（含权限范围）。"""
+    return svc.partner_out(partner)
+
+
+@router.put("/account")
+def update_account(
+    body: PortalAccountUpdateIn,
+    partner: PartnerUser = Depends(get_current_partner),
+    db: Session = Depends(get_db),
+):
+    """修改本账号资料（单位 / 联系人 / 电话 / 邮箱）。"""
+    from app.common.audit import record as audit
+
+    partner.company_name = body.company_name
+    partner.contact_name = body.contact_name
+    partner.phone = body.phone
+    partner.email = body.email
+    partner.update_time = datetime.now()
+    audit(db, user_id=None, module="portal", action="portal_account_update",
+          detail={"username": partner.username})
+    db.commit()
+    return svc.partner_out(partner)
+
+
+@router.post("/account/password")
+def change_password(
+    body: PortalPasswordIn,
+    partner: PartnerUser = Depends(get_current_partner),
+    db: Session = Depends(get_db),
+):
+    """修改本账号密码（需校验原密码）。"""
+    from app.common.audit import record as audit
+    from app.core.security import hash_password, verify_password
+
+    if not verify_password(body.old_password or "", partner.password_hash):
+        raise BizException(R.AUTH_OLD_PASSWORD_WRONG)
+    partner.password_hash = hash_password(body.new_password)
+    partner.update_time = datetime.now()
+    audit(db, user_id=None, module="portal", action="portal_password_change",
+          detail={"username": partner.username})
     db.commit()
     return None
 
@@ -68,9 +136,15 @@ def logout(partner: PartnerUser = Depends(get_current_partner), db: Session = De
 
 
 @router.get("/tenders")
-def list_tenders(partner: PartnerUser | None = Depends(get_optional_partner), db: Session = Depends(get_db)):
+def list_tenders(
+    page: int = Query(1, ge=1, le=10**9),
+    size: int = Query(20, ge=1, le=200),
+    partner: PartnerUser | None = Depends(get_optional_partner),
+    db: Session = Depends(get_db),
+):
     """公告列表：免登录公开；登录后追加我的报名/投标/中标标记。"""
-    return {"items": svc.list_tenders(db, partner)}
+    items, total = svc.list_tenders(db, partner, page, size)
+    return {"items": items, "total": total, "page": page, "size": size}
 
 
 @router.get("/tenders/{tender_id}")

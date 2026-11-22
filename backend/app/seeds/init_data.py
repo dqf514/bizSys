@@ -1970,25 +1970,73 @@ def _seed_flows(db: Session) -> None:
         remark="用章申请审批通过后由有权人执行签章",
         nodes=((1, "部门负责人审批", "manager1"), (2, "分管领导审批", "leader1")),
     )
+    # ===== F6：访客预约（门户提交）→ 通用审批引擎 =====
+    # 节点 1 的审批人由**表单变量** hostUserId 决定（即预约时选择的被访人），
+    # 因此每个访客单的审批链不同；节点 2 按 securityLevel 条件分流：
+    # 敏感区域（>=3）追加安保审批，普通区域只做安保抄送。
+    _seed_flow(
+        db,
+        code="visitor_visit_approve",
+        name="访客预约审批",
+        biz_type="visitor_visit",
+        remark="被访人审批（取表单变量 hostUserId）；敏感区域（securityLevel>=3）追加安保审批",
+        variables_schema={
+            "hostUserId": {"type": "number", "label": "被访人"},
+            "hostDeptId": {"type": "number", "label": "被访部门"},
+            "hostName": {"type": "string", "label": "被访人姓名"},
+            "securityLevel": {"type": "number", "label": "区域安全等级"},
+            "zoneIds": {"type": "string", "label": "申请区域"},
+            "customerId": {"type": "number", "label": "往来单位"},
+        },
+        nodes=(
+            {"seq": 1, "name": "被访人审批", "approver_type": "FORM_USER", "approver_value": "hostUserId"},
+            {
+                "seq": 2,
+                "name": "安全等级分流",
+                "node_type": "condition",
+                "branches": [{"expr": {"field": "securityLevel", "op": "gte", "value": 3}, "targetSeq": 3}],
+                "default_seq": 4,
+            },
+            {"seq": 3, "name": "安保审批", "approver_type": "ROLE", "approver_value": "security_officer"},
+            {
+                "seq": 4,
+                "name": "安保知悉",
+                "node_type": "cc",
+                "approver_type": "ROLE",
+                "approver_value": "security_officer",
+            },
+        ),
+    )
 
 
-def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes) -> None:
+def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes, variables_schema=None) -> None:
     """节点条目三种形态：
     - (seq, 节点名, 用户名)：固定人 USER 节点；
     - (seq, 节点名, approver_type, approver_value[, chain_levels])：角色/组织类型节点；
     - dict：{"seq","name","users":[用户名...],"sign_mode":"and"} 多固定人会签节点，
-      或 {"seq","name","approver_type","approver_value"[,"chain_levels"][,"sign_mode"]}。
+      或 {"seq","name","approver_type","approver_value"[,"chain_levels"][,"sign_mode"]}，
+      或 {"seq","name","node_type":"condition","branches":[...],"default_seq":N} 条件分支节点。
+
+    `variables_schema` 声明流程变量（FORM_* 审批人类型的变量名必须在其中声明）。
     """
     if db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)):
         return
     d = ApprovalDefinition(code=code, name=name, biz_type=biz_type, remark=remark)
+    if variables_schema:
+        d.variables_schema = json.dumps(variables_schema, ensure_ascii=False)
     db.add(d)
     db.flush()
     for entry in nodes:
         sign_mode = "or"
+        node_type = "approval"
+        branches = None
+        default_seq = None
         if isinstance(entry, dict):
             seq, node_name = entry["seq"], entry["name"]
             sign_mode = entry.get("sign_mode", "or")
+            node_type = entry.get("node_type", "approval")
+            branches = entry.get("branches")
+            default_seq = entry.get("default_seq")
             if "users" in entry:
                 ids, names = [], []
                 for username in entry["users"]:
@@ -2013,7 +2061,7 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
                         )
                     )
                 continue
-            approver_type, approver_value = entry["approver_type"], entry.get("approver_value", "")
+            approver_type, approver_value = entry.get("approver_type", "USER"), entry.get("approver_value", "")
             approver_name = node_name
             chain_levels = entry.get("chain_levels")
         else:
@@ -2037,11 +2085,14 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
                 definition_id=d.id,
                 seq=seq,
                 node_name=node_name,
+                node_type=node_type,
                 approver_type=approver_type,
                 approver_value=approver_value,
                 approver_name=approver_name,
                 chain_levels=chain_levels,
                 sign_mode=sign_mode,
+                branches=json.dumps(branches, ensure_ascii=False) if branches else None,
+                default_seq=default_seq,
             )
         )
     db.flush()

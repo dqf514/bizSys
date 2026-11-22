@@ -10,7 +10,7 @@ from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.approval import engine
-from app.modules.approval.engine import ORG_APPROVER_TYPES
+from app.modules.approval.engine import FORM_APPROVER_TYPES, ORG_APPROVER_TYPES
 from app.modules.approval.graph import build_process_graph, dumps_graph, parse_json, preview_route
 from app.modules.approval.models import (
     ApprovalCc,
@@ -485,6 +485,7 @@ def _validate_nodes(body: DefinitionIn) -> None:
     if not any(n.node_type == "approval" for n in body.nodes):
         raise BizException(R.GENERIC_PARAM, "至少配置一个审批节点")
     seq_set = set(seqs)
+    declared = set((body.variables_schema or {}).keys())
     for n in body.nodes:
         label = n.node_name or n.seq
         if (
@@ -493,6 +494,12 @@ def _validate_nodes(body: DefinitionIn) -> None:
             and not n.approver_value.strip()
         ):
             raise BizException(R.GENERIC_PARAM, f"节点「{label}」未选择审批人/抄送人")
+        if n.approver_type in FORM_APPROVER_TYPES and declared:
+            if n.approver_value.strip() not in declared:
+                raise BizException(
+                    R.GENERIC_PARAM,
+                    f"节点「{label}」引用的流程变量「{n.approver_value}」未在变量声明中定义",
+                )
         if n.node_type == "condition":
             if not n.branches:
                 raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」至少配置一条分支")

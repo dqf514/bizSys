@@ -76,14 +76,22 @@ class VisitorVisit(BaseModel):
     checkin_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="实际签入")
     checkout_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="实际签出")
     status: Mapped[str] = mapped_column(
-        String(16), default="pending", comment="pending/approved/rejected/visiting/left/overdue/cancelled"
+        String(16),
+        default="pending",
+        comment="pending/approving/approved/rejected/visiting/left/overdue/cancelled",
     )
     required_levels: Mapped[str] = mapped_column(String(64), default="", comment="需要的审批层级，逗号分隔")
     approved_levels: Mapped[str] = mapped_column(String(64), default="", comment="已通过的审批层级")
+    flow_instance_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="审批引擎实例 id（F6 接入通用流程后写入）"
+    )
     nda_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联 NDA")
     credential_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联通行凭证")
     credential_no: Mapped[str] = mapped_column(String(32), default="", comment="凭证编号")
     staff_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="客户方人员备案 id")
+    partner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="提交预约的门户合作方账号 id"
+    )
     customer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="关联往来单位 id")
     customer_name: Mapped[str] = mapped_column(String(128), default="", comment="关联往来单位")
     remark: Mapped[str] = mapped_column(Text, default="", comment="备注")

@@ -133,6 +133,15 @@ _ensure_columns(
     },
 )
 
+# F6 补充：访客单挂审批实例 + 门户提交账号
+_ensure_columns(
+    "vis_visit",
+    {
+        "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '审批引擎实例 id'",
+        "partner_user_id": "partner_user_id BIGINT NULL COMMENT '门户合作方账号 id'",
+    },
+)
+
 # 存量回款行按迁移口径置为已确认（测试库跨次运行残留）
 with engine.begin() as conn:
     conn.execute(text("UPDATE fin_payment SET status = 'confirmed' WHERE status IS NULL OR status = 'draft'"))

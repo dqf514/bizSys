@@ -1,5 +1,7 @@
 """门户入参模型。"""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from app.core.schemas import CamelModel, OptionalDate
@@ -19,6 +21,28 @@ class PortalRegisterIn(CamelModel):
 class PortalLoginIn(CamelModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=64)
+
+
+class PortalRefreshIn(CamelModel):
+    """门户 token 刷新（F6）：refresh token 一次性轮换。"""
+
+    refresh_token: str = Field(min_length=1, max_length=1024)
+
+
+class PortalAccountUpdateIn(CamelModel):
+    """门户自助改资料（**不含** customer_id —— 改绑往来单位必须走内部审核）。"""
+
+    company_name: str = Field(min_length=2, max_length=255)
+    contact_name: str = Field(default="", max_length=64)
+    phone: str = Field(default="", max_length=32)
+    email: str = Field(default="", max_length=128)
+
+
+class PortalPasswordIn(CamelModel):
+    """门户自助改密码（需原密码）。"""
+
+    old_password: str = Field(default="", max_length=64)
+    new_password: str = Field(min_length=8, max_length=64)
 
 
 class PartnerReviewIn(CamelModel):
@@ -69,3 +93,31 @@ class PortalStaffIn(CamelModel):
     visit_purpose: str = Field(default="", max_length=255)
     plan_visit_date: OptionalDate = None
     nda_signed: bool = False
+
+
+class PortalVisitIn(CamelModel):
+    """门户侧访客预约（F6）：合作方提交来访申请 → 内部审批 → 通行凭证 → 自助签到。"""
+
+    visitor_name: str = Field(min_length=1, max_length=64)
+    visitor_company: str = Field(default="", max_length=128)
+    visitor_type: str = Field(default="customer", max_length=32)
+    id_no: str = Field(default="", max_length=64)
+    phone: str = Field(default="", max_length=32)
+    plate_no: str = Field(default="", max_length=32)
+    host_user_id: int = Field(..., ge=1, description="被访人（内部员工）id")
+    zone_ids: list[int] = Field(default_factory=list, description="申请进入的区域 id 列表")
+    purpose: str = Field(default="", max_length=255)
+    plan_start: datetime | None = None
+    plan_end: datetime | None = None
+    escort_names: str = Field(default="", max_length=255)
+    nda_signed: bool = Field(default=False, description="已确认签署保密协议（敏感区域必填）")
+    remark: str = Field(default="", max_length=500)
+
+
+class PortalVisitCancelIn(CamelModel):
+    remark: str = Field(default="", max_length=255)
+
+
+class PortalVisitCheckIn(CamelModel):
+    method: str = Field(default="qrcode", max_length=16)
+    device_id: str = Field(default="", max_length=64)

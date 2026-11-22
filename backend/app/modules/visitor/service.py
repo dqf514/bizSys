@@ -30,6 +30,7 @@ from app.services.numbering import next_no
 
 VISIT_STATUS_CN = {
     "pending": "待审批",
+    "approving": "审批中",
     "approved": "已通过",
     "rejected": "已驳回",
     "visiting": "在访中",
@@ -68,6 +69,7 @@ VISIT_SOURCE_CN = {
     "invite": "员工邀请",
     "onsite": "前台现场登记",
     "partner": "客户自助",
+    "portal": "合作方门户",
 }
 
 APPROVAL_LEVEL_CN = {

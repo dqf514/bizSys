@@ -205,3 +205,24 @@ def send_sms(db: Session, phone: str, code: str) -> str:
         # 厂商网关签名对接为遗留项：预设字段已落库，发送暂走调试通道
         return _debug_fallback(f"短信通道({provider})（网关未联调）", f"phone={phone} code={code}")
     return _debug_fallback("短信通道", f"phone={phone} code={code}")
+
+
+def send_sms_text(db: Session, phone: str, text: str) -> str:
+    """发送**业务文本**短信（访客到访通知等），返回 "real" | "skipped"。
+
+    与 `send_sms`（验证码）不同：这里**永不抛错、永不阻断业务** —— 通道未配置或发送失败
+    一律静默跳过并记日志，因为短信只是提醒的补充手段（访客在门户页面同样能看到状态）。
+    复用 custom_http 网关的同一套参数模板，正文填在 `{code}` 占位处。
+    """
+    if not phone or not text:
+        return "skipped"
+    cfg = sms_config(db)
+    if cfg["provider"] != "custom_http" or not cfg["custom_http"]["url"]:
+        logger.info("短信通道未配置 custom_http，跳过文本短信：phone=%s", phone)
+        return "skipped"
+    try:
+        _send_sms_custom_http(cfg["custom_http"], phone, text)
+    except Exception as exc:  # noqa: BLE001 — 文本短信失败不得阻断业务
+        logger.warning("文本短信发送失败（已忽略）：phone=%s err=%s", phone, exc)
+        return "skipped"
+    return "real"

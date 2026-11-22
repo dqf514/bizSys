@@ -12,6 +12,7 @@
 """
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select
@@ -41,6 +42,25 @@ from app.modules.auth.models import User
 
 # 组织审批人类型：按发起人部门任职解析（approver_value 转为兜底角色 code，可空）
 ORG_APPROVER_TYPES = ("DEPT_LEADER", "PARENT_DEPT_LEADER", "SUPERVISOR_CHAIN")
+
+# 表单字段审批人类型（F6）：approver_value 是**流程变量名**，值从 instance.variables 取。
+# 解决"审批人每单不同"的场景（门户访客预约的被访人），因为 USER/ROLE 是流程定义里写死的，
+# 而组织类型按**发起人**部门解析 —— 门户发起人不是 sys_user，必然解析失败。
+FORM_APPROVER_TYPES = ("FORM_USER", "FORM_ROLE", "FORM_DEPT_LEADER")
+
+
+@dataclass(frozen=True)
+class FlowInitiator:
+    """外部发起人适配器（门户合作方等**非 sys_user** 的发起人）。
+
+    引擎只取发起人的 `id` / `name` / `username`（duck-typing），因此外部发起人无需
+    落到 `sys_user` 即可发起流程：`initiator_id = 0` 表示"系统外部"，
+    审批中心的「我发起的」按 `initiator_id == 当前用户` 过滤，天然不包含外部单据。
+    """
+
+    id: int = 0
+    name: str = ""
+    username: str = ""
 
 
 def _emit_todo(db: Session, instance: ApprovalInstance, assignee: User, node_name: str, operator_id: int = 0) -> None:
@@ -114,13 +134,72 @@ def _resolve_org_assignees(db: Session, node: ApprovalNode, initiator_id: int) -
     return [users[i] for i in ids if i in users], notes
 
 
-def _resolve_assignees(db: Session, node: ApprovalNode, initiator_id: int = 0) -> tuple[list[User], list[str]]:
+def _form_value(node: ApprovalNode, variables: dict | None) -> str:
+    """取表单变量值：approver_value 是变量名；变量不存在时回退为字面量。"""
+    variables = variables or {}
+    key = (node.approver_value or "").strip()
+    if key in variables:
+        v = variables[key]
+        if isinstance(v, bool):
+            return ""
+        if isinstance(v, (list, tuple, set)):
+            return ",".join(str(x) for x in v)
+        return str(v)
+    return key
+
+
+def _resolve_form_assignees(
+    db: Session, node: ApprovalNode, variables: dict | None
+) -> tuple[list[User], list[str]]:
+    """按流程变量解析审批人（F6 表单字段审批人）。
+
+    - FORM_USER：变量值为用户 id（逗号分隔多人）；
+    - FORM_ROLE：变量值为角色 code（逗号分隔多人）；
+    - FORM_DEPT_LEADER：变量值为部门 id，取该部门负责人。
+    """
+    raw = _form_value(node, variables)
+    values = [v.strip() for v in raw.replace("，", ",").split(",") if v.strip()]
+    var_name = (node.approver_value or "").strip()
+    if not values:
+        return [], [f"流程变量「{var_name}」未提供审批人"]
+    if node.approver_type == "FORM_USER":
+        ids = [int(v) for v in values if v.isdigit()]
+        if not ids:
+            return [], [f"流程变量「{var_name}」不是合法的用户 id"]
+        stmt = select(User).where(User.id.in_(ids), User.status == "enabled", User.deleted == 0)
+        users = list(db.scalars(stmt).unique().all())
+        if not users:
+            return [], [f"流程变量「{var_name}」指向的用户不存在或已停用"]
+        return users, []
+    if node.approver_type == "FORM_ROLE":
+        users = _resolve_role_users(db, ",".join(values))
+        if not users:
+            return [], [f"流程变量「{var_name}」指向的角色无可用人员"]
+        return users, []
+    # FORM_DEPT_LEADER
+    ids: list[int] = []
+    for v in values:
+        if not v.isdigit():
+            continue
+        ids.extend(org.dept_leader_ids(db, int(v)))
+    if not ids:
+        return [], [f"流程变量「{var_name}」指向的部门无可用负责人"]
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(ids))).all()}
+    return [users[i] for i in ids if i in users], []
+
+
+def _resolve_assignees(
+    db: Session, node: ApprovalNode, initiator_id: int = 0, variables: dict | None = None
+) -> tuple[list[User], list[str]]:
     """按节点配置解析审批人/抄送人，返回 (用户列表, 解析说明)。
 
-    USER=用户ID，ROLE=角色code（逗号分隔多人）；组织类型按发起人部门任职解析。
+    USER=用户ID，ROLE=角色code（逗号分隔多人）；组织类型按发起人部门任职解析；
+    FORM_* 类型按流程变量（instance.variables）解析。
     """
     if node.approver_type in ORG_APPROVER_TYPES:
         return _resolve_org_assignees(db, node, initiator_id)
+    if node.approver_type in FORM_APPROVER_TYPES:
+        return _resolve_form_assignees(db, node, variables)
     values = [v.strip() for v in node.approver_value.replace("，", ",").split(",") if v.strip()]
     if not values:
         return [], []
@@ -138,11 +217,31 @@ def _resolve_assignees(db: Session, node: ApprovalNode, initiator_id: int = 0) -
 def _resolve_with_fallback(
     db: Session, instance: ApprovalInstance, node: ApprovalNode, operator: User
 ) -> list[User] | None:
-    """组织类型解析失败时的兜底：approver_value 角色 → 仍无则跳过本节点（auto_pass 写时间线）。
+    """解析失败时的兜底：组织类型转兜底角色；表单字段类型直接跳过节点。
 
-    返回 None 表示节点被跳过（调用方继续路由）；否则返回可用用户列表（可能来自兜底角色）。
+    返回 None 表示节点被跳过（调用方继续路由）；否则返回可用用户列表。
     """
-    assignees, notes = _resolve_assignees(db, node, instance.initiator_id)
+    variables = parse_json(instance.variables, {})
+    assignees, notes = _resolve_assignees(db, node, instance.initiator_id, variables)
+    if node.approver_type in FORM_APPROVER_TYPES:
+        # 表单变量没解析出审批人：写时间线并跳过本节点（不卡死流程，也不硬失败提交）
+        if not assignees:
+            _record(
+                db,
+                instance,
+                "auto_pass",
+                operator,
+                comment="；".join(notes) or "未从流程变量解析到审批人，节点自动通过",
+                node_name=node.node_name,
+                seq=node.seq,
+            )
+            return None
+        if notes:
+            _record(
+                db, instance, "fallback", operator, comment="；".join(notes),
+                node_name=node.node_name, seq=node.seq,
+            )
+        return assignees
     if node.approver_type not in ORG_APPROVER_TYPES:
         return assignees
     if not assignees:
@@ -333,7 +432,7 @@ def start(
     definition_code: str = "",
     definition_id: int | None = None,
     title: str,
-    initiator: User,
+    initiator: User | FlowInitiator,
     form_snapshot: dict | None = None,
     variables: dict | None = None,
 ) -> ApprovalInstance:
@@ -341,6 +440,9 @@ def start(
 
     定义解析：definition_id 优先（OA 表单绑定具体版本行，钉住版本）；
     否则按 code 取最新版本的启用定义（老版本老实例流转，新版本新实例）。
+
+    `initiator` 允许是 `FlowInitiator`（外部发起人，如门户合作方），
+    引擎只取 id / name / username 三个属性。
     """
     # 行锁兜底：调用方应先锁定业务行（如合同提交已 with_for_update），此处锁已有 running 行防并发双实例
     running = db.scalar(

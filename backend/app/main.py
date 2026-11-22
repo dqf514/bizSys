@@ -104,7 +104,9 @@ from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F40
 from app.modules.integration.router import router as integration_router  # noqa: E402
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
 from app.modules.oa.router import router as oa_router  # noqa: E402  OA 审批流程（F5 订阅由 wiring.install 装配）
+from app.modules.portal.experience_router import router as portal_exp_router  # noqa: E402  门户对外能力（F6）
 from app.modules.portal.router import router as portal_router  # noqa: E402  合作方门户（独立认证）
+from app.modules.portal.visit_router import router as portal_visit_router  # noqa: E402  门户访客预约（F6）
 from app.modules.procurement.router import router as procurement_router  # noqa: E402  采购审批（F5 订阅见 wiring）
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
 from app.modules.production.router import router as production_router  # noqa: E402  生产排程（B5）
@@ -144,6 +146,8 @@ app.include_router(asset_router, prefix="/api/v1")
 app.include_router(asset_bom_router, prefix="/api/v1")
 app.include_router(asset_finance_router, prefix="/api/v1")
 app.include_router(portal_router, prefix="/api/v1")
+app.include_router(portal_visit_router, prefix="/api/v1")
+app.include_router(portal_exp_router, prefix="/api/v1")
 app.include_router(production_router, prefix="/api/v1")
 app.include_router(project_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")

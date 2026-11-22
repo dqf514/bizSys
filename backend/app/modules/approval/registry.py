@@ -274,6 +274,26 @@ BINDINGS: list[FlowBinding] = [
         submit_perm="report:seal:apply",
         note="用章申请与实际用章分离：申请 → 审批 → 有权人执行签章",
     ),
+    FlowBinding(
+        biz_type="visitor_visit",
+        label="访客预约",
+        model_path="app.modules.visitor.models:VisitorVisit",
+        definition_code="visitor_visit_approve",
+        submit_from=("pending",),
+        approving_status="approving",
+        approved_status="approved",
+        rejected_status="rejected",
+        withdrawn_status="pending",
+        instance_field="flow_instance_id",
+        pass_through=True,
+        pass_through_status="approved",
+        pass_through_hook="app.modules.visitor.flow_handlers:on_visit_pass_through",
+        on_approved="app.modules.visitor.flow_handlers:on_visit_approved",
+        on_rejected="app.modules.visitor.flow_handlers:on_visit_rejected",
+        submit_perm="visitor:visit:submit",
+        doc_no_field="visit_no",
+        note="访客预约由被访人/安保审批，流程节点可在「流程设置」按表单变量（被访人）动态指定",
+    ),
 ]
 
 _bindings: dict[str, FlowBinding] = {b.biz_type: b for b in BINDINGS}

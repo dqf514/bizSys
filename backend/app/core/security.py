@@ -112,3 +112,32 @@ def decode_portal_token(token: str) -> dict:
     if payload.get("typ") != "portal_access":
         raise jwt.InvalidTokenError("token type mismatch")
     return payload
+
+
+def create_portal_refresh_token(partner_id: int) -> tuple[str, str]:
+    """门户 refresh token（typ=portal_refresh + aud=portal）。
+
+    返回 (token, jti)；jti 存 Redis（portal_refresh:{jti} → partner_id）以便吊销。
+    门户 token 体系与内部完全隔离：内部 refresh token 在这里解码必然失败。
+    """
+    now = datetime.now(UTC)
+    jti = uuid.uuid4().hex
+    payload = {
+        "sub": str(partner_id),
+        "typ": "portal_refresh",
+        "aud": "portal",
+        "iat": now,
+        "exp": now + timedelta(days=settings.portal_refresh_expire_days),
+        "jti": jti,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), jti
+
+
+def decode_portal_refresh_token(token: str) -> dict:
+    """门户 refresh token 解码：强制 audience=portal + typ=portal_refresh。"""
+    payload = jwt.decode(
+        token, settings.jwt_secret, algorithms=[settings.jwt_algorithm], audience="portal"
+    )
+    if payload.get("typ") != "portal_refresh":
+        raise jwt.InvalidTokenError("token type mismatch")
+    return payload

@@ -444,8 +444,20 @@ def approve_visit(
     current: User = Depends(require_perm("visitor:visit:review")),
     db: Session = Depends(get_db),
 ):
-    """逐级审批（被访人 / 部门 / 敏感区域）。"""
+    """逐级审批（被访人 / 部门 / 敏感区域）。
+
+    F6：访客单接入通用审批引擎后，人工直通端点被拦截（70005），
+    只能通过「提交审批」走流程；流程总开关关闭时才恢复域内审批链。
+    """
     v = _load_visit(db, vid)
+    if v.flow_instance_id:
+        from app.modules.approval import registry
+
+        if registry.flow_enabled(db, "visitor_visit"):
+            raise BizException(
+                R.APPROVAL_INVALID_STATE,
+                "访客预约已启用审批流程，请在审批中心处理",
+            )
     svc.approve_visit(
         db,
         v,

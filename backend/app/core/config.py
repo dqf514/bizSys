@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     upload_allowed_ext: str = "pdf,doc,docx,xls,xlsx,jpg,jpeg,png,zip"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     portal_token_expire_minutes: int = 720  # 门户 token（无刷新机制），默认 12 小时
+    portal_base_url: str = ""  # 门户对外地址（访客通行二维码短链用）；留空则取请求来源
+    portal_refresh_expire_days: int = 7  # 门户 refresh token 有效期（存 Redis）
 
     @property
     def cors_origin_list(self) -> list[str]:
