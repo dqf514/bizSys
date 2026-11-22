@@ -1,0 +1,24 @@
+{
+  "name": "bizSys 合作方门户",
+  "short_name": "bizSys",
+  "description": "对外合作方门户：招标公告、访客预约、项目进度、报告查阅与对账查询",
+  "start_url": "/portal",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7fa",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

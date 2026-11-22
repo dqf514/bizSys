@@ -112,6 +112,29 @@
     min-height: 44px;
   }
 
+  /* 分页窄屏折叠：只留 prev / pager / next（页容量与跳页在窄屏收益低、占宽） */
+  .el-pagination__sizes,
+  .el-pagination__jump {
+    display: none !important;
+  }
+
+  .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: var(--bs-space-2);
+  }
+
+  /* 描述列表窄屏：标签不换行、内容自适应 */
+  .el-descriptions__label {
+    white-space: nowrap;
+    width: 96px;
+  }
+
+  /* 表格卡片降级（ResponsiveTable）内层：窄屏表格不再横向滚动 */
+  .responsive-table .el-table {
+    font-size: var(--bs-typography-font-size-sm);
+  }
+
   /* 页签与菜单项 */
   .el-tabs__item {
     min-height: 44px;

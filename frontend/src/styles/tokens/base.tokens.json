@@ -113,6 +113,7 @@
     "sidenavCollapsedWidth": "64px",
     "contentPadding": "16px",
     "contentNarrowMaxWidth": "960px",
+    "contentMaxWidth": "1200px",
     "formMaxWidth": "640px",
     "fieldMaxWidth": "420px",
     "sectionGap": "12px",
@@ -125,6 +126,7 @@
     "dialogSm": "520px",
     "dialogMd": "640px",
     "dialogLg": "760px",
-    "dialogXl": "1080px"
+    "dialogXl": "1080px",
+    "portalBottomNavHeight": "58px"
   }
 }

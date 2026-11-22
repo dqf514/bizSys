@@ -41,6 +41,10 @@ const typeMap: Record<string, string> = {
   awarding: 'warning',
   awarded: 'success',
   terminated: 'danger',
+  visiting: 'primary',
+  left: 'success',
+  overdue: 'danger',
+  cancelled: 'info',
 }
 
 const type = computed(() => (typeMap[props.status] ?? 'info') as '' | 'success' | 'warning' | 'info' | 'danger')

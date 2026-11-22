@@ -96,6 +96,7 @@
     },
     "bizOa": "OA申请",
     "bizTenderAward": "定标审批",
-    "bizSalesQuotation": "报价审批"
+    "bizSalesQuotation": "报价审批",
+    "flowGraphMobileHint": "窄屏下流程图默认折叠，点击展开查看"
   }
 }

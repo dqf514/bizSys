@@ -1,27 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
+import ResponsiveTable from '@/components/common/ResponsiveTable.vue'
+import type { ListColumn, SortChange } from './types'
 
-export interface ListColumn {
-  prop: string
-  labelKey?: string
-  label?: string
-  width?: number
-  minWidth?: number
-  fixed?: boolean | 'left' | 'right'
-  slot?: string
-  formatter?: (row: Record<string, unknown>) => string
-  showOverflowTooltip?: boolean
-  /** 后端排序字段名（snake_case，须在接口 sort 白名单内）；'local' 为前端本地排序（按 prop 取值）；不传则不可排序 */
-  sortable?: string
-  align?: 'left' | 'center' | 'right'
-}
-
-export interface SortChange {
-  prop: string
-  order: 'ascending' | 'descending' | null
-  sortField?: string
-}
+export type { ListColumn, SortChange }
 
 const props = defineProps<{
   columns: ListColumn[]
@@ -43,9 +25,6 @@ const emit = defineEmits<{
   (e: 'sort-change', payload: SortChange): void
 }>()
 
-const { t } = useI18n()
-const selected = ref<Record<string, unknown>[]>([])
-
 /**
  * 保证至少有一列是弹性列。
  *
@@ -62,130 +41,39 @@ const tableColumns = computed<ListColumn[]>(() => {
     i === cols.length - 1 ? { ...c, width: undefined, minWidth: c.minWidth ?? c.width ?? 100 } : c,
   )
 })
-
-watch(
-  () => props.data,
-  () => {
-    selected.value = []
-  },
-)
-
-function labelOf(col: ListColumn) {
-  return col.labelKey ? t(col.labelKey) : (col.label ?? col.prop)
-}
-
-function onSelectionChange(rows: Record<string, unknown>[]) {
-  selected.value = rows
-  emit('selection-change', rows)
-}
-
-function onSortChange(payload: { prop: string; order: 'ascending' | 'descending' | null }) {
-  const col = props.columns.find((c) => c.prop === payload.prop)
-  const sortField = col?.sortable && col.sortable !== 'local' ? col.sortable : undefined
-  emit('sort-change', { ...payload, sortField })
-}
 </script>
 
 <template>
-  <div class="list-table">
-    <el-table
-      :data="props.data"
-      :loading="props.loading"
-      :row-key="props.rowKey || 'id'"
-      :height="props.height || '100%'"
-      stripe
-      border
-      size="small"
-      class="table"
-      @selection-change="onSelectionChange"
-      @row-click="(row: Record<string, unknown>) => emit('row-click', row)"
-      @sort-change="onSortChange"
-    >
-      <el-table-column v-if="props.selectable" type="selection" width="40" fixed="left" />
-      <el-table-column
-        v-for="col in tableColumns"
-        :key="col.prop"
-        :prop="col.prop"
-        :label="labelOf(col)"
-        :width="col.width"
-        :min-width="col.minWidth || 100"
-        :fixed="col.fixed"
-        :align="col.align"
-        :sortable="col.sortable === 'local' ? true : col.sortable ? 'custom' : false"
-        :show-overflow-tooltip="col.showOverflowTooltip ?? true"
-      >
-        <template #default="{ row }">
-          <slot :name="col.slot || col.prop" :row="row">
-            <span>{{ col.formatter ? col.formatter(row) : (row[col.prop] ?? '-') }}</span>
-          </slot>
-        </template>
-      </el-table-column>
+  <!-- 桌面表格 / 移动卡片由 ResponsiveTable 内部按断点切换 -->
+  <ResponsiveTable
+    :columns="tableColumns"
+    :data="props.data"
+    :loading="props.loading"
+    :total="props.total"
+    :page="props.page"
+    :size="props.size"
+    :selectable="props.selectable"
+    :row-key="props.rowKey"
+    :height="props.height"
+    @update:page="emit('update:page', $event)"
+    @update:size="emit('update:size', $event)"
+    @selection-change="emit('selection-change', $event)"
+    @row-click="emit('row-click', $event)"
+    @sort-change="emit('sort-change', $event)"
+  >
+    <template #cell="{ row, col }">
+      <slot :name="col.slot || col.prop" :row="row">
+        <span>{{ col.formatter ? col.formatter(row) : (row[col.prop] ?? '-') }}</span>
+      </slot>
+    </template>
+    <template #extraColumns>
       <slot name="extraColumns" />
-    </el-table>
-
-    <div class="list-table-pagination">
-      <span class="total-text">{{ t('common.table.total', { total: props.total ?? 0 }) }}</span>
-      <el-pagination
-        :current-page="props.page || 1"
-        :page-size="props.size || 20"
-        :total="props.total || 0"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="sizes, prev, pager, next, jumper"
-        background
-        @current-change="emit('update:page', $event)"
-        @size-change="emit('update:size', $event)"
-      />
-    </div>
-  </div>
+    </template>
+    <template #cardExtra="{ row }">
+      <slot name="cardExtra" :row="row" />
+    </template>
+    <template #cardFooter="{ row }">
+      <slot name="cardFooter" :row="row" />
+    </template>
+  </ResponsiveTable>
 </template>
-
-<style scoped>
-.list-table {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--bs-color-bg-surface);
-  border: 1px solid var(--bs-color-border-subtle);
-  border-radius: var(--bs-radius-md);
-  overflow: hidden;
-}
-
-.table {
-  flex: 1;
-  min-height: 0;
-}
-
-.list-table-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--bs-space-3);
-  padding: var(--bs-space-2) var(--bs-space-3);
-  border-top: 1px solid var(--bs-color-border-subtle);
-  background: var(--bs-color-bg-surface);
-  flex-shrink: 0;
-}
-
-.total-text {
-  font-size: var(--bs-typography-font-size-xs);
-  color: var(--bs-color-fg-muted);
-}
-
-:deep(.el-table) {
-  --el-table-row-hover-bg-color: var(--bs-color-fill-hover);
-  --el-table-header-bg-color: var(--bs-color-fill-lighter);
-  --el-table-border-color: var(--bs-color-border-subtle);
-  font-size: var(--bs-density-font-size);
-}
-
-:deep(.el-table th.el-table__cell) {
-  height: var(--bs-density-table-header-height);
-  padding: 0;
-}
-
-:deep(.el-table td.el-table__cell) {
-  height: var(--bs-density-table-row-height);
-  padding: 0;
-}
-</style>

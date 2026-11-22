@@ -239,5 +239,9 @@
     "limitTip": "Up to 4 items",
     "emptySelected": "Nothing selected; only the Workbench button stays in the dock",
     "emptyAvailable": "No pages available"
+  },
+  "signature": {
+    "hint": "Please sign here with your finger or mouse",
+    "clear": "Clear"
   }
 }

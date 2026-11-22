@@ -15,6 +15,7 @@ import { listTasks } from '@/api/task'
 import { listReports } from '@/api/report'
 import { listSettlements, listInvoices, listPayments } from '@/api/finance'
 import { useDictOptions } from '@/composables/useDict'
+import { useIsMobile } from '@/composables/useIsMobile'
 import { useContextStore, type ContextSection } from '@/stores/context'
 import type {
   Attachment,
@@ -35,6 +36,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const context = useContextStore()
+const { isMobile } = useIsMobile()
 
 const detail = ref<Contract | null>(null)
 const customerDetail = ref<CustomerDetail | null>(null)
@@ -360,7 +362,7 @@ async function doVoid() {
 
     <el-tabs v-model="activeTab" class="bs-page-card">
       <el-tab-pane :label="t('contract.contract.tabBasic')" name="basic">
-        <el-descriptions v-if="detail" :column="2" border>
+        <el-descriptions v-if="detail" :column="isMobile ? 1 : 2" border>
           <el-descriptions-item :label="t('contract.contract.contractNo')">{{ detail.contractNo }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.name')">{{ detail.name }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.customerName')">{{ detail.customerName }}</el-descriptions-item>
@@ -377,7 +379,7 @@ async function doVoid() {
           <el-descriptions-item :label="t('contract.contract.paymentOrg')">{{ detail.paymentOrg || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.contactPerson')">{{ detail.contactPerson || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('contract.contract.contactPhone')">{{ detail.contactPhone || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('contract.contract.remark')" :span="2">{{ detail.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('contract.contract.remark')" :span="isMobile ? 1 : 2">{{ detail.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
 

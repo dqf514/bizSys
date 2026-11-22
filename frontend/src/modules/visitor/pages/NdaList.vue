@@ -9,6 +9,7 @@ import StatusTabs, { type StatusTabItem } from '@/components/list/StatusTabs.vue
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
+import SignaturePad from '@/components/common/SignaturePad.vue'
 import { useListPage } from '@/composables/useListPage'
 import { listVisitorNdas, revokeVisitorNda, signVisitorNda, visitorNdaCounts } from '@/api/visitor'
 import type { VisitorNda } from '@/api/types'
@@ -115,6 +116,10 @@ async function submitSign() {
   const f = form.value
   if (!f.visitor_name) {
     ElMessage.warning(t('common.form.required'))
+    return
+  }
+  if (!f.signature_data) {
+    ElMessage.warning(t('visitor.nda.signatureRequired'))
     return
   }
   try {
@@ -242,14 +247,8 @@ function onRowAction(key: string, row: VisitorNda) {
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('visitor.nda.signature')">
-        <el-input
-          v-model="form.signature_data"
-          type="textarea"
-          :rows="3"
-          :maxlength="200000"
-          :placeholder="t('visitor.nda.signatureHint')"
-        />
+      <el-form-item :label="t('visitor.nda.signature')" required>
+        <SignaturePad v-model="form.signature_data" :height="180" />
       </el-form-item>
       <el-form-item :label="t('visitor.nda.bindVisit')">
         <el-input-number v-model="form.visit_id" :min="1" style="width: 100%" />

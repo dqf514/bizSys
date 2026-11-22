@@ -54,6 +54,7 @@ const searchFields = computed<SearchField[]>(() => [
 const statusTabs = ref<StatusTabItem[]>([
   { value: 'all', labelKey: 'common.action.all', count: 0 },
   { value: 'pending', labelKey: 'visitor.visit.statusPending', count: 0 },
+  { value: 'approving', labelKey: 'visitor.visit.statusApproving', count: 0 },
   { value: 'approved', labelKey: 'visitor.visit.statusApproved', count: 0 },
   { value: 'visiting', labelKey: 'visitor.visit.statusVisiting', count: 0 },
   { value: 'left', labelKey: 'visitor.visit.statusLeft', count: 0 },

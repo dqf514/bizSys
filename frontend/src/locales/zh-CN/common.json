@@ -239,5 +239,9 @@
     "limitTip": "最多选择 4 个",
     "emptySelected": "未选择页面，底部将只保留工作台按钮",
     "emptyAvailable": "暂无可选页面"
+  },
+  "signature": {
+    "hint": "请在此处手写签名",
+    "clear": "清除重签"
   }
 }

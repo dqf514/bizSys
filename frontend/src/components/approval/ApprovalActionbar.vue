@@ -201,4 +201,32 @@ defineExpose({ setComment })
   flex-wrap: wrap;
   gap: var(--bs-space-2);
 }
+
+/* 窄屏：按钮改 2×2 网格，避免横向滚动与误触 */
+@media (max-width: 767px) {
+  .approval-actionbar {
+    /* 操作区吸底：抽屉里滚动时按钮始终可点（现场审批常见「单手操作」） */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .action-btns {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding: var(--bs-space-2) 0;
+    background: var(--bs-color-bg-surface);
+    box-shadow: 0 -1px 0 var(--bs-color-border-subtle);
+  }
+
+  .action-btns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bs-space-2);
+  }
+
+  .action-btns :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+}
 </style>

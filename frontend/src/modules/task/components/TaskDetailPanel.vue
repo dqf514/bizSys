@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ResponsiveTable from '@/components/common/ResponsiveTable.vue'
+import type { ListColumn } from '@/components/list/types'
 import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import TaskProcessPanel from './TaskProcessPanel.vue'
 import ApprovalTimeline from '@/components/approval/ApprovalTimeline.vue'
@@ -11,6 +13,7 @@ import ReportUploadDialog from '@/modules/report/components/ReportUploadDialog.v
 import ReportDetailDrawer from '@/modules/report/components/ReportDetailDrawer.vue'
 import { useContextStore, type ContextSection } from '@/stores/context'
 import { useDictOptions } from '@/composables/useDict'
+import { useIsMobile } from '@/composables/useIsMobile'
 import {
   getTask,
   deleteTask,
@@ -47,11 +50,35 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { isMobile } = useIsMobile()
 const router = useRouter()
 const context = useContextStore()
 const blockOpts = useDictOptions('biz_block')
 
 const detail = ref<Task | null>(null)
+const itemColumns: ListColumn[] = [
+  { prop: 'itemCode', labelKey: 'task.task.itemCode', width: 120, sortable: 'local' },
+  { prop: 'name', labelKey: 'task.task.itemName', minWidth: 140, sortable: 'local' },
+  { prop: 'std', labelKey: 'task.task.itemStd', minWidth: 110 },
+  { prop: 'dept', labelKey: 'task.task.itemDept', width: 110, sortable: 'local' },
+  { prop: 'inspector', labelKey: 'task.task.itemInspector', width: 100, sortable: 'local' },
+  { prop: 'qty', labelKey: 'task.task.itemQty', width: 80, sortable: 'local' },
+  { prop: 'reportNo', labelKey: 'task.task.itemReportNo', width: 130, sortable: 'local' },
+  { prop: 'reportStatus', labelKey: 'task.task.itemReportStatus', width: 120 },
+  { prop: '__operate', labelKey: 'common.action.operate', width: 90, fixed: 'right', align: 'center' },
+]
+
+const sampleColumns: ListColumn[] = [
+  { prop: 'sampleNo', labelKey: 'task.task.sampleNo', width: 130, sortable: 'local' },
+  { prop: 'name', labelKey: 'task.task.sampleName', minWidth: 130, sortable: 'local' },
+  { prop: 'model', labelKey: 'task.task.sampleModel', width: 110, sortable: 'local' },
+  { prop: 'vin', labelKey: 'task.task.sampleVin', width: 140, sortable: 'local' },
+  { prop: 'vehicleType', labelKey: 'task.task.sampleVehicleType', width: 110 },
+  { prop: 'sampleDate', labelKey: 'task.task.sampleDate', width: 110, sortable: 'local' },
+  { prop: 'inStock', labelKey: 'task.task.sampleInStock', width: 150 },
+  { prop: '__operate', labelKey: 'common.action.operate', width: 130, fixed: 'right', align: 'center' },
+]
+
 const items = ref<TaskItem[]>([])
 const samples = ref<TaskSample[]>([])
 const logs = ref<TaskLog[]>([])
@@ -650,7 +677,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
 
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('task.task.tabBasic')" name="basic">
-        <el-descriptions v-if="detail" :column="2" border>
+        <el-descriptions v-if="detail" :column="isMobile ? 1 : 2" border>
           <el-descriptions-item :label="t('task.task.taskNo')">{{ detail.taskNo || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.taskName')">{{ detail.taskName }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.task.taskType')">{{ detail.taskTypeLabel || detail.taskType }}</el-descriptions-item>
@@ -678,7 +705,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
           <el-descriptions-item :label="t('task.process.computeResource')">{{ detail.computeResource || '-' }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.process.computeCores')">{{ detail.computeCores || 0 }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.process.computeNodes')">{{ detail.computeNodes || 0 }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.task.content')" :span="2">{{ detail.content || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.task.content')" :span="isMobile ? 1 : 2">{{ detail.content || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
 
@@ -692,16 +719,13 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
             {{ t('task.task.addItem') }}
           </el-button>
         </div>
-        <el-table :data="items" border stripe size="small">
-          <el-table-column :label="t('task.task.itemCode')" prop="itemCode" width="120" sortable />
-          <el-table-column :label="t('task.task.itemName')" prop="name" min-width="140" sortable />
-          <el-table-column :label="t('task.task.itemStd')" prop="std" min-width="110" />
-          <el-table-column :label="t('task.task.itemDept')" prop="dept" width="110" sortable />
-          <el-table-column :label="t('task.task.itemInspector')" prop="inspector" width="100" sortable />
-          <el-table-column :label="t('task.task.itemQty')" prop="qty" width="80" sortable />
-          <el-table-column :label="t('task.task.itemReportNo')" prop="reportNo" width="130" sortable />
-          <el-table-column :label="t('task.task.itemReportStatus')" width="120">
-            <template #default="{ row }">
+        <ResponsiveTable
+          :columns="itemColumns"
+          :data="items"
+          :show-pagination="false"
+        >
+          <template #cell="{ row, col }">
+            <template v-if="col.prop === 'reportStatus'">
               <StatusTag
                 v-if="row.reportStatus"
                 :status="String(row.reportStatus)"
@@ -709,20 +733,21 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
               />
               <span v-else>-</span>
             </template>
-          </el-table-column>
-          <el-table-column
-            v-if="canMaintainItems || isDraft"
-            :label="t('common.action.operate')"
-            width="90"
-            fixed="right"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">
-              <ActionBar :actions="itemRowActions" @select="(key: string) => onItemRowAction(key, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+            <ActionBar
+              v-else-if="col.prop === '__operate'"
+              :actions="itemRowActions"
+              @select="(key: string) => onItemRowAction(key, row)"
+            />
+            <span v-else>{{ row[col.prop] ?? '-' }}</span>
+          </template>
+          <template #cardFooter="{ row }">
+            <ActionBar
+              v-if="canMaintainItems || isDraft"
+              :actions="itemRowActions"
+              @select="(key: string) => onItemRowAction(key, row)"
+            />
+          </template>
+        </ResponsiveTable>
       </el-tab-pane>
 
       <el-tab-pane name="samples">
@@ -735,27 +760,32 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
             {{ t('task.task.registerSample') }}
           </el-button>
         </div>
-        <el-table :data="samples" border stripe size="small">
-          <el-table-column :label="t('task.task.sampleNo')" prop="sampleNo" width="130" sortable />
-          <el-table-column :label="t('task.task.sampleName')" prop="name" min-width="130" sortable />
-          <el-table-column :label="t('task.task.sampleModel')" prop="model" width="110" sortable />
-          <el-table-column :label="t('task.task.sampleVin')" prop="vin" width="140" sortable />
-          <el-table-column :label="t('task.task.sampleVehicleType')" prop="vehicleType" width="110" />
-          <el-table-column :label="t('task.task.sampleDate')" prop="sampleDate" width="110" sortable />
-          <el-table-column :label="t('task.task.sampleInStock')" width="150">
-            <template #default="{ row }">
+        <ResponsiveTable
+          :columns="sampleColumns"
+          :data="samples"
+          :show-pagination="false"
+        >
+          <template #cell="{ row, col }">
+            <template v-if="col.prop === 'inStock'">
               <StatusTag :status="String(row.inStock)" i18n-prefix="task.task.sampleStatus" />
               <el-tag v-if="row.pendingOrder" size="small" type="warning" class="pending-tag">
                 {{ row.pendingOrder.orderType === 'in' ? t('task.sample.pendingIn') : t('task.sample.pendingOut') }}
               </el-tag>
             </template>
-          </el-table-column>
-          <el-table-column :label="t('common.action.operate')" width="130" fixed="right" align="center" header-align="center">
-            <template #default="{ row }">
-              <ActionBar :actions="sampleRowActions(row)" @select="(key: string) => onSampleRowAction(key, row)" />
-            </template>
-          </el-table-column>
-        </el-table>
+            <ActionBar
+              v-else-if="col.prop === '__operate'"
+              :actions="sampleRowActions(row)"
+              @select="(key: string) => onSampleRowAction(key, row)"
+            />
+            <span v-else>{{ row[col.prop] ?? '-' }}</span>
+          </template>
+          <template #cardFooter="{ row }">
+            <ActionBar
+              :actions="sampleRowActions(row)"
+              @select="(key: string) => onSampleRowAction(key, row)"
+            />
+          </template>
+        </ResponsiveTable>
       </el-tab-pane>
 
       <el-tab-pane name="reports">
@@ -856,7 +886,7 @@ const reportRowActions: ActionItem[] = [{ key: 'detail', tip: 'common.action.det
             {{ t('task.task.flowGoto') }}
           </el-button>
         </div>
-        <el-descriptions :column="2" border size="small" class="flow-summary">
+        <el-descriptions :column="isMobile ? 1 : 2" border size="small" class="flow-summary">
           <el-descriptions-item :label="t('task.task.flowDefinition')">
             {{ detail.flow.definitionCode || '-' }}
           </el-descriptions-item>

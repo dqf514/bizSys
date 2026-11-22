@@ -52,7 +52,8 @@
     "statsVisiting": "在访中",
     "statsPending": "待审批",
     "statsTodayCheckins": "今日签入",
-    "statsOpenAlerts": "未处置预警"
+    "statsOpenAlerts": "未处置预警",
+    "statusApproving": "审批中"
   },
   "zone": {
     "title": "区域与权限分级",
@@ -106,7 +107,8 @@
     "template": "模板版本",
     "signature": "手写签名",
     "signatureHint": "由访客在闸机端手写签名，留存存证哈希",
-    "bindVisit": "关联访客单"
+    "bindVisit": "关联访客单",
+    "signatureRequired": "请先手写签名后再提交"
   },
   "credential": {
     "title": "通行凭证",

@@ -343,6 +343,10 @@ onMounted(() => {
             </template>
           </el-table-column>
         </template>
+        <!-- 移动端卡片降级：表格的「操作」列在卡片里没有对应位置，补到卡片底部 -->
+        <template #cardFooter="{ row }">
+          <ActionBar :actions="[{ key: 'detail', tip: 'common.action.detail' }]" @select="openDetail(row)" />
+        </template>
       </ListTable>
     </template>
   </ListPage>

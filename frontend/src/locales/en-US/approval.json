@@ -96,6 +96,7 @@
     },
     "bizOa": "OA Request",
     "bizTenderAward": "Tender Award",
-    "bizSalesQuotation": "Quotation Approval"
+    "bizSalesQuotation": "Quotation Approval",
+    "flowGraphMobileHint": "The flow chart is collapsed on small screens; tap to expand"
   }
 }

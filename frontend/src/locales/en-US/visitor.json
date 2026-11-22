@@ -52,7 +52,8 @@
     "statsVisiting": "On Site",
     "statsPending": "Pending",
     "statsTodayCheckins": "Today's Check-ins",
-    "statsOpenAlerts": "Open Alerts"
+    "statsOpenAlerts": "Open Alerts",
+    "statusApproving": "Approving"
   },
   "zone": {
     "title": "Zones & Access Levels",
@@ -106,7 +107,8 @@
     "template": "Template",
     "signature": "Handwritten Signature",
     "signatureHint": "Signed by the visitor at the gate; an evidence hash is retained",
-    "bindVisit": "Linked Visit"
+    "bindVisit": "Linked Visit",
+    "signatureRequired": "Please sign before submitting"
   },
   "credential": {
     "title": "Access Credentials",
