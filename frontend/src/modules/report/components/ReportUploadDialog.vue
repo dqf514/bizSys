@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.vue'
-import { reportItemOptions, uploadReport } from '@/api/report'
+import { reportItemOptions, uploadReport, submitReport } from '@/api/report'
 
 defineOptions({ name: 'ReportUploadDialog' })
 
@@ -60,15 +60,21 @@ function onFilePicked(e: Event) {
   input.value = ''
 }
 
-async function save() {
+/** 上传报告：submit=false 只存草稿（uploaded），submit=true 上传后立即提交审批 */
+async function save(submit = false) {
   if (!form.itemId || !pickedFile.value) {
     ElMessage.warning(pickedFile.value ? t('common.form.required') : t('report.report.noFile'))
     return
   }
   saving.value = true
   try {
-    await uploadReport(form.itemId, pickedFile.value)
-    ElMessage.success(t('common.message.createSuccess'))
+    const created = await uploadReport(form.itemId, pickedFile.value)
+    if (submit && created?.id) {
+      await submitReport(created.id)
+      ElMessage.success(t('common.message.submitSuccess'))
+    } else {
+      ElMessage.success(t('common.message.createSuccess'))
+    }
     visible.value = false
     emit('uploaded')
   } catch {
@@ -97,7 +103,15 @@ async function save() {
     <input ref="fileInputRef" type="file" accept=".pdf,.doc,.docx" class="hidden-input" @change="onFilePicked" />
     <template #footer>
       <el-button @click="visible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button
+        v-permission="'report:submit'"
+        type="primary"
+        :loading="saving"
+        @click="save(true)"
+      >
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 </template>

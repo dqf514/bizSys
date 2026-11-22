@@ -305,6 +305,10 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 - **导航**：系统管理区固定在侧边导航**底部**（图标 + 文字，仅在存在可见的管理菜单时显示，展开态点击弹出向上的 popover、折叠态向右弹出）。折叠/展开按钮同在该底部工具条，**绝不在左上角**。折叠态只显示图标（原生 `title` 提示），系统管理入口折叠态仅图标但 popover 仍可用。导航分区排序在 `NavSortDialog`，入口在 TopBar 头像菜单（同时承载外观/语言）。展开态分区**手风琴**（一次只展开一个分区，分区头可点击折叠 + 计数徽标；展开状态记 `localStorage['bs.navZoneOpen']`）；折叠态为**图标轨 + 分区浮层**（悬停分区图标弹出该分区菜单）。
 - **移动端外壳**（<768px，`useIsMobile`）：侧边导航收进汉堡抽屉（`MobileNavDrawer`，同样的分区/菜单数据与权限过滤，分区头同样可手风琴折叠，与桌面共用 `bs.navZoneOpen`）；右侧上下文面板变浮动按钮 + 右抽屉；状态栏隐藏。底部常驻 `MobileDock`：放大的中间 Workbench 按钮 + 4 个可自定义快捷项（长按 Dock 或头像菜单「Dock Shortcuts」打开 `DockSettingsDialog`；存用户 prefs `dockShortcuts`，按权限过滤，默认 todo/tasks/contracts/OA-apply）。全局覆盖样式在 `src/styles/mobile.css`。
 - **动效**：见上文「样式与动效」。
+- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 16 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
+  - **例外**：后端**没有草稿态**的单据（结算单 `settlement`、开票申请 `invoice`、报告用章 `report_seal`、访客登记 `visitor`）只有**一个** primary 按钮，文案必须是「提交审批」，**不得**写成含糊的「提交」或「保存」；结算单这类要在表单上方加 `el-alert` 说明"提交后立即发起审批"（`finance.settlement.submitTip`）。
+  - 「提交审批」按钮按权限点隐藏（`v-permission="'<域>:<资源>:submit'"`），`v-permission` 支持**数组**表示"任一满足"（`['hr:timesheet:submit','hr:timesheet:create']`）。
+  - **新增单据类型时**：先在 `registry.py::BINDINGS` 登记 `submit_from`（必须含 `draft`），再照上面加两个按钮；流程总开关关掉时只显示「保存草稿」（用 `useFlowCapability().flowEnabled(bizType)` 判断）。
 
 ## 代码风格
 

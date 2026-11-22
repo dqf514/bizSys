@@ -1040,7 +1040,7 @@
 - `GET /approval/flow-capabilities`（**仅登录**，无额外权限）→ `{items:[{bizType,label,managed,enabled,definitionReady,submitFrom[],statuses:{...},submitPerm}]}`
   前端 `useFlowCapability()` 缓存该结果：流程启用 → 显示「提交审批」；流程停用 → 显示历史人工动作（验收 / 批准 / 签章）。
 
-### 4. 流程驱动的单据端点（B6 新增）
+### 4. 流程驱动的单据端点（F5 新增）
 
 | 端点 | 权限 | 说明 |
 |---|---|---|
@@ -1054,6 +1054,22 @@
 
 - 已有历史人工端点在流程启用时被拦截并返回 **70005**（例：`POST /asset/receipts/{rid}/accept`、
   `POST /report/reports/{id}/seal`），需改走提交审批；流程停用后恢复可用。
+
+### 4.1 填报端的「保存草稿 / 提交审批」约定（前端强制，全站一致）
+
+凡注册在 `BINDINGS` 的单据，其**填报弹窗/详情页**必须提供两个明确动作，避免填报者误解：
+
+| 按钮 | 文案键 | 行为 |
+|---|---|---|
+| 保存草稿 | `common.action.saveDraft` | 只落库（状态 `draft`），**不**发起审批 |
+| 提交审批 | `common.action.submitApproval` | 落库后立即调 `POST …/submit` 发起审批（primary） |
+
+- **没有草稿态的单据**（`settlement` / `invoice` / `report_seal` / `visitor` 登记）：只有**一个** primary 按钮，
+  文案必须是「提交审批」，**不得**写「提交」或「保存」；结算单等在表单上方用 `el-alert` 说明
+  "提交后立即发起审批"（`finance.settlement.submitTip`）。
+- 「提交审批」按钮按权限点隐藏（`v-permission`）；`v-permission` 支持**数组**表示"任一权限满足"。
+- 流程总开关关闭时（`GET /approval/flow-capabilities` 的 `flowEnabled(bizType)` 为 false）只显示「保存草稿」。
+- 新增单据类型时：先在 `registry.py::BINDINGS` 登记（`submit_from` 必须含 `draft`），再按上表加两个按钮。
 
 ### 5. 事件目录与触发开关
 

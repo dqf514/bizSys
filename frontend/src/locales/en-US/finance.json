@@ -13,6 +13,7 @@
     "searchQ": "Keyword",
     "placeholderQ": "Settlement no. / task no. / customer",
     "create": "New Settlement",
+    "submitTip": "Submitting starts the settlement approval; invoicing and payment registration unlock after it passes",
     "selectTask": "Select Task",
     "detail": "Settlement Detail",
     "applyInvoice": "Apply Invoice",

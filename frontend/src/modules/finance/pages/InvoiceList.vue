@@ -362,7 +362,7 @@ async function doApply() {
     <template #footer>
       <el-button @click="applyVisible = false">{{ t('common.action.cancel') }}</el-button>
       <el-button type="primary" :disabled="!applySettlementId" :loading="applySaving" @click="doApply">
-        {{ t('common.action.submit') }}
+        {{ t('common.action.submitApproval') }}
       </el-button>
     </template>
   </el-dialog>

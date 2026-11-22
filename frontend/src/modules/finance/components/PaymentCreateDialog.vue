@@ -6,7 +6,8 @@ import RemoteSelect, { type RemoteOption } from '@/components/form/RemoteSelect.
 import SmartInput from '@/components/form/SmartInput.vue'
 import { useDictOptions } from '@/composables/useDict'
 import { recordSmartHistory } from '@/composables/smartInputHistory'
-import { createPayment, listSettlements } from '@/api/finance'
+import { createPayment, listSettlements, submitPayment } from '@/api/finance'
+import { useFlowCapability } from '@/composables/useFlowCapability'
 import type { Settlement } from '@/api/types'
 
 const props = withDefaults(
@@ -24,6 +25,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+/** F5：回款复核流程开关（关闭时只存草稿，由列表页人工处理） */
+const { flowEnabled } = useFlowCapability()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -73,14 +76,15 @@ async function fetchSettlements(q: string): Promise<RemoteOption[]> {
   }
 }
 
-async function save() {
+/** 保存：submit=false 只存草稿；submit=true 保存后立即提交复核（进入审批中） */
+async function save(submit = false) {
   if (!formRef.value) return
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
   if (!form.settlementId) return
   saving.value = true
   try {
-    await createPayment({
+    const created = await createPayment({
       settlementId: form.settlementId,
       payType: form.payType,
       payerName: form.payerName,
@@ -93,6 +97,10 @@ async function save() {
     recordSmartHistory('finance.payment.payerName', form.payerName)
     recordSmartHistory('finance.payment.bank', form.bank)
     ElMessage.success(t('common.message.createSuccess'))
+    if (submit && created?.id) {
+      await submitPayment(created.id)
+      ElMessage.success(t('common.message.submitSuccess'))
+    }
     visible.value = false
     emit('saved')
   } catch {
@@ -166,7 +174,16 @@ async function save() {
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button
+        v-if="flowEnabled('payment')"
+        v-permission="'finance:payment:submit'"
+        type="primary"
+        :loading="saving"
+        @click="save(true)"
+      >
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 </template>

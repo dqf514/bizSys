@@ -18,6 +18,7 @@ import BackButton from '@/components/common/BackButton.vue'
 import CustomerSelect from '@/components/form/CustomerSelect.vue'
 import ContractSelect from '@/components/form/ContractSelect.vue'
 import { useListPage } from '@/composables/useListPage'
+import { useFlowCapability } from '@/composables/useFlowCapability'
 import {
   createProject,
   createProjectFromContract,
@@ -42,6 +43,8 @@ const ProjectGantt = defineAsyncComponent(() => import('../components/ProjectGan
 defineOptions({ name: 'ProjectList' })
 
 const { t } = useI18n()
+/** F5：立项审批流程开关（关闭时只存草稿，由列表页人工处理） */
+const { flowEnabled } = useFlowCapability()
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
@@ -186,7 +189,8 @@ function onCustomerChange(v: number | string | null, opt?: { label?: string }) {
   form.customerName = opt?.label ?? form.customerName
 }
 
-async function saveProject() {
+/** 保存：submit=false 只存草稿；submit=true 保存后立即提交立项审批（进入审批中） */
+async function saveProject(submit = false) {
   if (!form.name.trim()) {
     ElMessage.warning(t('common.form.required'))
     return
@@ -208,14 +212,19 @@ async function saveProject() {
     status: formDialog.id ? form.status : 'draft',
   }
   try {
+    let savedId = formDialog.id
     if (formDialog.id) {
       await updateProject(formDialog.id, payload)
     } else if (formDialog.fromContract) {
-      await createProjectFromContract(payload)
+      savedId = (await createProjectFromContract(payload))?.id
     } else {
-      await createProject(payload)
+      savedId = (await createProject(payload))?.id
     }
     ElMessage.success(t('common.message.saveSuccess'))
+    if (submit && savedId) {
+      await submitProject(savedId)
+      ElMessage.success(t('common.message.submitSuccess'))
+    }
     formDialog.visible = false
     list.refresh()
   } catch {
@@ -677,8 +686,17 @@ const GROUP_OPTIONS = [
     </el-form>
     <template #footer>
       <el-button @click="formDialog.visible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="formDialog.loading" @click="saveProject">
-        {{ t('common.action.save') }}
+      <el-button :loading="formDialog.loading" @click="saveProject(false)">
+        {{ t('common.action.saveDraft') }}
+      </el-button>
+      <el-button
+        v-if="flowEnabled('project')"
+        v-permission="'project:submit'"
+        type="primary"
+        :loading="formDialog.loading"
+        @click="saveProject(true)"
+      >
+        {{ t('common.action.submitApproval') }}
       </el-button>
     </template>
   </el-dialog>

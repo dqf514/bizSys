@@ -226,7 +226,8 @@ function openEdit(row: PurchaseRequest) {
   dialogVisible.value = true
 }
 
-async function save() {
+/** 保存：submit=false 只存草稿；submit=true 保存后立即提交审批（进入审批中） */
+async function save(submit = false) {
   if (!formRef.value) return
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
@@ -244,9 +245,14 @@ async function save() {
       items,
       version: form.version,
     }
+    let savedId = editingId.value
     if (editingId.value) await updatePurchaseRequest(editingId.value, payload)
-    else await createPurchaseRequest(payload)
+    else savedId = (await createPurchaseRequest(payload))?.id
     ElMessage.success(t('common.message.saveSuccess'))
+    if (submit && savedId) {
+      await submitPurchaseRequest(savedId)
+      ElMessage.success(t('common.message.submitSuccess'))
+    }
     dialogVisible.value = false
     list.refresh()
   } catch {
@@ -554,7 +560,15 @@ function fmtAmount(v: unknown) {
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button
+        v-permission="'procurement:request:submit'"
+        type="primary"
+        :loading="saving"
+        @click="save(true)"
+      >
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 

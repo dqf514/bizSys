@@ -366,6 +366,7 @@ function openPaymentRegister(row: Settlement) {
   </ListPage>
 
   <el-dialog v-model="createVisible" :title="t('finance.settlement.create')" width="var(--bs-layout-dialog-md)" append-to-body>
+    <el-alert type="info" :closable="false" :title="t('finance.settlement.submitTip')" class="create-tip" />
     <el-form ref="createFormRef" :model="createForm" label-width="110px">
       <el-form-item
         :label="t('finance.settlement.selectTask')"
@@ -396,7 +397,9 @@ function openPaymentRegister(row: Settlement) {
     </el-form>
     <template #footer>
       <el-button @click="createVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="createSaving" @click="saveCreate">{{ t('common.action.save') }}</el-button>
+      <el-button type="primary" :loading="createSaving" @click="saveCreate">
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 
@@ -430,3 +433,9 @@ function openPaymentRegister(row: Settlement) {
 
   <SettlementDetailDrawer ref="drawerRef" v-model="detailVisible" :settlement-id="detailId" @changed="list.refresh()" />
 </template>
+
+<style scoped>
+.create-tip {
+  margin-bottom: var(--bs-space-3);
+}
+</style>

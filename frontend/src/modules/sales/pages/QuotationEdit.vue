@@ -400,9 +400,9 @@ onMounted(async () => {
       </el-form-item>
 
       <div class="qe-actions" v-if="!readonly">
-        <el-button :loading="saving" @click="save(false)">{{ t('sales.quotation.save') }}</el-button>
+        <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
         <el-button v-permission="'sales:quote:submit'" type="primary" :loading="saving" @click="save(true)">
-          {{ t('sales.quotation.saveAndSubmit') }}
+          {{ t('common.action.submitApproval') }}
         </el-button>
       </div>
     </el-form>

@@ -29,7 +29,6 @@
     "apply": "Apply"
   },
   "form": {
-    "submit": "Submit",
     "submitSuccess": "Application submitted",
     "directPassTip": "No flow bound — submitting approves instantly",
     "aiPrefill": "AI Prefill",
@@ -46,6 +45,7 @@
     "resourceName": "Name",
     "resourceNo": "No. / Info",
     "autoSaved": "Auto-saved at {time}",
+    "draftSaved": "Draft saved — you can continue later",
     "draftRestored": "Restored your last unsubmitted draft",
     "clearDraft": "Clear & refill",
     "clearConfirm": "Clear all entered content and start over? The local draft will also be removed"

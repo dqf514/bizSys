@@ -29,7 +29,6 @@
     "apply": "发起申请"
   },
   "form": {
-    "submit": "提交申请",
     "submitSuccess": "申请已提交",
     "directPassTip": "该表单未绑定审批流程，提交后直接通过",
     "aiPrefill": "AI 预填",
@@ -46,6 +45,7 @@
     "resourceName": "名称",
     "resourceNo": "编号/说明",
     "autoSaved": "已自动保存 {time}",
+    "draftSaved": "草稿已保存，可稍后继续填写",
     "draftRestored": "已恢复上次未提交的草稿",
     "clearDraft": "清空重填",
     "clearConfirm": "确认清空已填写内容并重填？本地草稿也将被清除"

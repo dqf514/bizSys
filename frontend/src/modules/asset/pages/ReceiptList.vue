@@ -268,7 +268,8 @@ function onItemPick(row: AssetReceiptItem, itemId: number | null) {
   if (row.price === null || row.price === undefined) row.price = opt.unitPrice
 }
 
-async function save() {
+/** 保存：submit=false 只存草稿；submit=true 保存后立即提交验收审批（进入审批中） */
+async function save(submit = false) {
   if (!formRef.value) return
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
@@ -280,9 +281,14 @@ async function save() {
   saving.value = true
   try {
     const payload = { ...form, items }
+    let savedId = editingId.value
     if (editingId.value) await updateReceipt(editingId.value, payload)
-    else await createReceipt(payload)
+    else savedId = (await createReceipt(payload))?.id
     ElMessage.success(t('common.message.saveSuccess'))
+    if (submit && savedId) {
+      await submitReceipt(savedId)
+      ElMessage.success(t('common.message.submitSuccess'))
+    }
     dialogVisible.value = false
     list.refresh()
   } catch {
@@ -520,7 +526,16 @@ watch(
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button
+        v-if="flowEnabled('asset_receipt')"
+        v-permission="'asset:receipt:submit'"
+        type="primary"
+        :loading="saving"
+        @click="save(true)"
+      >
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 

@@ -602,7 +602,7 @@ function levelText(level: string) {
     </el-form>
     <template #footer>
       <el-button @click="createVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" @click="submitCreate">{{ t('common.action.submit') }}</el-button>
+      <el-button type="primary" @click="submitCreate">{{ t('common.action.submitApproval') }}</el-button>
     </template>
   </el-dialog>
 </template>

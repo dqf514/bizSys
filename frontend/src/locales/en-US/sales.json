@@ -92,8 +92,6 @@
     "preview": "Preview",
     "timeline": "Approval Timeline",
     "deleteConfirm": "Delete this draft quotation?",
-    "save": "Save Draft",
-    "saveAndSubmit": "Save & Submit",
     "needItems": "Please add at least one line item",
     "createSuccess": "Quotation saved",
     "readonlyTip": "Read-only: quotations under approval or already processed cannot be edited",

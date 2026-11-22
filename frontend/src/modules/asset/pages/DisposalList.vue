@@ -222,15 +222,21 @@ function openEdit(row: AssetDisposal) {
   dialogVisible.value = true
 }
 
-async function save() {
+/** 保存：submit=false 只存草稿；submit=true 保存后立即提交处置审批（进入审批中） */
+async function save(submit = false) {
   if (!formRef.value) return
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
   saving.value = true
   try {
+    let savedId = editingId.value
     if (editingId.value) await updateDisposal(editingId.value, { ...form })
-    else await createDisposal({ ...form })
+    else savedId = (await createDisposal({ ...form }))?.id
     ElMessage.success(t('common.message.saveSuccess'))
+    if (submit && savedId) {
+      await submitDisposal(savedId)
+      ElMessage.success(t('common.message.submitSuccess'))
+    }
     dialogVisible.value = false
     list.refresh()
   } catch {
@@ -418,7 +424,16 @@ watch(
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="save">{{ t('common.action.save') }}</el-button>
+      <el-button :loading="saving" @click="save(false)">{{ t('common.action.saveDraft') }}</el-button>
+      <el-button
+        v-if="flowEnabled('asset_disposal')"
+        v-permission="'asset:disposal:submit'"
+        type="primary"
+        :loading="saving"
+        @click="save(true)"
+      >
+        {{ t('common.action.submitApproval') }}
+      </el-button>
     </template>
   </el-dialog>
 

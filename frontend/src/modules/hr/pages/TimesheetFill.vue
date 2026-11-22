@@ -500,10 +500,16 @@ watch(view, (v) => {
               {{ t('hr.fill.aiPrefill') }}
             </el-button>
             <el-button :size="ctrlSize" :loading="saving === row.key" @click="saveRow(row, false)">
-              {{ t('hr.fill.saveDraft') }}
+              {{ t('common.action.saveDraft') }}
             </el-button>
-            <el-button type="primary" :size="ctrlSize" :loading="saving === row.key" @click="saveRow(row, true)">
-              {{ t('hr.fill.submitEntry') }}
+            <el-button
+              v-permission="['hr:timesheet:submit', 'hr:timesheet:create']"
+              type="primary"
+              :size="ctrlSize"
+              :loading="saving === row.key"
+              @click="saveRow(row, true)"
+            >
+              {{ t('common.action.submitApproval') }}
             </el-button>
             <el-button
               :type="row.id ? 'danger' : 'default'"

@@ -51,5 +51,8 @@ export function useFlowCapability() {
     return from.includes(status)
   }
 
+  // 首次使用即拉取（模块级缓存 + 单飞，重复调用不会重复请求）
+  void load()
+
   return { caps, loaded, load, flowEnabled, submitFrom, canSubmit }
 }

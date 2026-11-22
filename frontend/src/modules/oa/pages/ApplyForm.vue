@@ -159,6 +159,14 @@ async function resetForm() {
   formData.value = defaultData(currentForm.value)
 }
 
+/** 保存草稿：立即落本地草稿并关闭弹窗（不发起审批） */
+function saveDraft() {
+  if (!currentForm.value) return
+  persistDraft()
+  ElMessage.success(t('oa.form.draftSaved'))
+  dialogVisible.value = false
+}
+
 async function submit() {
   const ok = await rendererRef.value?.validate()
   if (!ok) {
@@ -278,7 +286,10 @@ onMounted(() => void aiCaps.ensureLoaded())
         </div>
         <div>
           <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
-          <el-button type="primary" :loading="submitting" @click="submit">{{ t('oa.form.submit') }}</el-button>
+          <el-button @click="saveDraft">{{ t('common.action.saveDraft') }}</el-button>
+          <el-button type="primary" :loading="submitting" @click="submit">
+            {{ t('common.action.submitApproval') }}
+          </el-button>
         </div>
       </div>
     </template>

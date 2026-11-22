@@ -92,8 +92,6 @@
     "preview": "预览",
     "timeline": "审批时间线",
     "deleteConfirm": "确认删除该草稿报价单？",
-    "save": "保存草稿",
-    "saveAndSubmit": "保存并提交审批",
     "needItems": "请至少填写一行明细",
     "createSuccess": "报价单已保存",
     "readonlyTip": "当前状态只读：审批中/已流转的报价单不可编辑",

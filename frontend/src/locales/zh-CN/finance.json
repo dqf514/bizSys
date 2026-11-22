@@ -13,6 +13,7 @@
     "searchQ": "关键词",
     "placeholderQ": "请输入结算单号/任务号/客户",
     "create": "新建结算",
+    "submitTip": "提交后立即发起结算审批，审批通过后方可开票与回款登记",
     "selectTask": "选择任务",
     "detail": "结算详情",
     "applyInvoice": "申请开票",
