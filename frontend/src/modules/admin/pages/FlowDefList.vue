@@ -85,7 +85,19 @@ const form = reactive({
   enabled: true,
   nodes: [] as FlowNodeRow[],
   processGraph: null as FlowGraphData | null,
+  /** 流程变量声明（FORM_* 审批人类型的变量名必须在其中声明） */
+  variables: [] as { key: string; label: string }[],
 })
+
+const variableKeys = computed(() => form.variables.map((v) => v.key.trim()).filter(Boolean))
+
+function addVariable() {
+  form.variables.push({ key: '', label: '' })
+}
+
+function removeVariable(idx: number) {
+  form.variables.splice(idx, 1)
+}
 
 const roleOptions = ref<{ id: number; name: string; code?: string }[]>([])
 const userOptions = ref<{ id: number; name: string }[]>([])
@@ -149,6 +161,7 @@ function openCreate() {
     enabled: true,
     nodes: [blankNode(1)],
     processGraph: null,
+    variables: [],
   })
   mode.value = 'simple'
   dialogVisible.value = true
@@ -165,6 +178,13 @@ function openEdit(row: FlowDef) {
     enabled: Boolean(row.enabled),
     nodes: (row.nodes ?? []).map((n) => normalizeNode({ ...n })),
     processGraph: row.processGraph ?? null,
+    variables: Object.entries(row.variablesSchema ?? {}).map(([key, v]) => ({
+      key,
+      label:
+        v && typeof v === 'object' && 'label' in v
+          ? String((v as { label?: unknown }).label ?? key)
+          : String(v ?? key),
+    })),
   })
   if (!form.nodes.length) form.nodes.push(blankNode(1))
   // 含条件/抄送节点的定义只能竖链模式编辑（简易表格无法表达分支）
@@ -263,6 +283,11 @@ async function save() {
   try {
     const payload: Record<string, unknown> = {
       code: form.code,
+      variablesSchema: Object.fromEntries(
+        form.variables
+          .filter((v) => v.key.trim())
+          .map((v) => [v.key.trim(), { type: 'string', label: v.label || v.key.trim() }]),
+      ),
       name: form.name,
       bizType: form.bizType,
       enabled: form.enabled,
@@ -577,7 +602,24 @@ function onDefAction(key: string, row: FlowDef) {
           v-model:nodes="form.nodes"
           :user-options="userOptions"
           :role-options="roleOptions"
+          :variable-keys="variableKeys"
         />
+      </el-form-item>
+
+      <el-form-item :label="t('admin.flow.variables')">
+        <div class="variable-list">
+          <div v-for="(v, idx) in form.variables" :key="idx" class="variable-row">
+            <el-input v-model="v.key" :placeholder="t('admin.flow.variableKey')" class="variable-key" />
+            <el-input v-model="v.label" :placeholder="t('admin.flow.variableLabel')" class="variable-label" />
+            <el-button link type="danger" @click="removeVariable(idx)">
+              {{ t('common.action.delete') }}
+            </el-button>
+          </div>
+          <el-button size="small" plain @click="addVariable">
+            {{ t('admin.flow.addVariable') }}
+          </el-button>
+          <div class="field-tip">{{ t('admin.flow.variablesTip') }}</div>
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -637,6 +679,33 @@ function onDefAction(key: string, row: FlowDef) {
 
 <style scoped>
 .muted {
+  color: var(--bs-color-fg-muted);
+}
+
+.variable-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+}
+
+.variable-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.variable-key {
+  width: 180px;
+}
+
+.variable-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-tip {
+  font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
 }
 

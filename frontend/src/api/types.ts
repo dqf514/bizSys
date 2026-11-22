@@ -237,7 +237,16 @@ export interface Dept {
 export type FlowNodeType = 'approval' | 'condition' | 'cc'
 export type FlowSignMode = 'or' | 'and' | 'sequential'
 /** 审批人类型：固定人/角色 + 组织任职（DEPT_LEADER 本部门负责人 / PARENT_DEPT_LEADER 上级部门负责人 / SUPERVISOR_CHAIN 逐级上级） */
-export type FlowApproverType = 'USER' | 'ROLE' | 'DEPT_LEADER' | 'PARENT_DEPT_LEADER' | 'SUPERVISOR_CHAIN'
+export type FlowApproverType =
+  | 'USER'
+  | 'ROLE'
+  | 'DEPT_LEADER'
+  | 'PARENT_DEPT_LEADER'
+  | 'SUPERVISOR_CHAIN'
+  /** 按表单字段解析：approverValue 为流程变量名（见 variablesSchema） */
+  | 'FORM_USER'
+  | 'FORM_ROLE'
+  | 'FORM_DEPT_LEADER'
 
 export interface FlowBranch {
   expr: { field: string; op: string; value: unknown }
@@ -2621,6 +2630,195 @@ export interface PortalStaff {
   reviewComment: string
   createTime: string
 }
+
+/* ---------------- F6 对外门户扩展 ---------------- */
+
+/** 门户错误码（镜像 backend/app/core/response.py） */
+export const PORTAL_ERR = {
+  AUTH_EXPIRED: 20001,
+  ACCOUNT_DISABLED: 96004,
+  SCOPE_DENIED: 96008,
+  VISITOR_FORBIDDEN: 98011,
+  VISITOR_CREDENTIAL_EXPIRED: 98012,
+  DOWNLOAD_CODE_INVALID: 98013,
+} as const
+
+/** 门户站点信息（GET /portal/branding，公开） */
+export interface PortalBranding {
+  siteName: string
+  companyName: string
+  phone: string
+  email: string
+  address: string
+  icp: string
+  notice: string
+}
+
+/** 被访人候选项（公开，只含姓名/部门，不含手机号邮箱） */
+export interface PortalHostOption {
+  id: number
+  name: string
+  deptName: string
+  employeeNo: string
+}
+
+/** 可申请访客区域（公开） */
+export interface PortalZoneOption {
+  id: number
+  name: string
+  zoneType: string
+  zoneTypeText: string
+  securityLevel: number
+  needNda: boolean
+  needExtraApproval: boolean
+  needEscort: boolean
+}
+
+export type PortalVisitStatus =
+  | 'pending'
+  | 'approving'
+  | 'approved'
+  | 'rejected'
+  | 'visiting'
+  | 'left'
+  | 'overdue'
+  | 'cancelled'
+
+/** 门户访客预约 */
+export interface PortalVisit {
+  id: number
+  visitNo: string
+  visitorName: string
+  visitorCompany: string
+  phone: string
+  hostUserId: number | null
+  hostName: string
+  hostDeptName: string
+  purpose: string
+  zoneNames: string[]
+  planStart: string
+  planEnd: string
+  status: PortalVisitStatus
+  statusText: string
+  credentialNo: string
+  credentialCode: string
+  credentialExpireAt: string
+  flowInstanceId: number | null
+  remark: string
+  createTime: string
+}
+
+/** 访客预约审批时间线 */
+export interface PortalVisitTimeline {
+  action: string
+  nodeName: string
+  operatorName: string
+  comment: string
+  at: string
+}
+
+export interface PortalVisitDetail extends PortalVisit {
+  timeline: PortalVisitTimeline[]
+}
+
+/** 进度看板阶段（委托 / 任务 / 结算 / 开票 / 回款） */
+export interface PortalProgressStage {
+  stage: 'entrust' | 'task' | 'settlement' | 'invoice' | 'payment'
+  stageText: string
+  refNo: string
+  title: string
+  status: string
+  statusText: string
+  amount?: number | null
+  progress?: number
+  reportCount?: number
+  updatedAt: string
+}
+
+export interface PortalProgressSummary {
+  entrustCount: number
+  taskCount: number
+  settledAmount: number
+  invoicedAmount: number
+  paidAmount: number
+}
+
+export interface PortalProgress {
+  stages: PortalProgressStage[]
+  summary: PortalProgressSummary
+}
+
+/** 可查阅的正式报告（仅已签章） */
+export interface PortalReport {
+  id: number
+  reportNo: string
+  fileName: string
+  status: string
+  statusText: string
+  taskId: number | null
+  sealedAt: string
+  createTime: string
+}
+
+export interface PortalBillingInvoice {
+  invoiceNo: string
+  amount: number | null
+  status: string
+  statusText: string
+  invoiceDate: string
+}
+
+export interface PortalBillingPayment {
+  paymentNo: string
+  amount: number | null
+  status: string
+  statusText: string
+  paidAt: string
+}
+
+export interface PortalBillingItem {
+  settlementId: number
+  settlementNo: string
+  taskNo: string
+  amount: number | null
+  invoiceableAmount: number | null
+  status: string
+  statusText: string
+  invoices: PortalBillingInvoice[]
+  payments: PortalBillingPayment[]
+  settledAmount: number
+  paidAmount: number
+  createTime: string
+}
+
+export interface PortalBillingSummary {
+  totalAmount: number
+  invoicedAmount: number
+  paidAmount: number
+  pendingAmount: number
+}
+
+export interface PortalBilling {
+  items: PortalBillingItem[]
+  summary: PortalBillingSummary
+}
+
+/** 样品 / 样车交接单 */
+export interface PortalHandover {
+  id: number
+  handoverNo: string
+  sampleNo: string
+  sampleName: string
+  sampleType: string
+  qty: number
+  handoverUserName: string
+  receiveUserName: string
+  handoverAt: string
+  status: string
+  statusText: string
+  visitId: number | null
+}
+
 
 /* ---------------- 访客与安全（B3） ---------------- */
 

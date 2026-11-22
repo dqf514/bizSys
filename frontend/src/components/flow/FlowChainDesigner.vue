@@ -13,6 +13,7 @@ import FlowChainConnector from './FlowChainConnector.vue'
 import {
   buildGraphFromNodes,
   insertNodeAt,
+  isFormApproverType,
   isOrgApproverType,
   normalizeNode,
   removeNodeRow,
@@ -29,6 +30,8 @@ const props = defineProps<{
   nodes: FlowNodeRow[]
   userOptions: { id: number; name: string }[]
   roleOptions: { id: number; name: string; code?: string }[]
+  /** 可用的流程变量键（来自定义的 variablesSchema），FORM_* 审批人类型据此选变量 */
+  variableKeys?: string[]
 }>()
 
 const emit = defineEmits<{ (e: 'update:nodes', v: FlowNodeRow[]): void }>()
@@ -47,13 +50,25 @@ const OP_LABELS: Record<string, string> = {
   contains: 'contains',
 }
 
-const APPROVER_TYPES: FlowApproverType[] = ['USER', 'ROLE', 'DEPT_LEADER', 'PARENT_DEPT_LEADER', 'SUPERVISOR_CHAIN']
+const APPROVER_TYPES: FlowApproverType[] = [
+  'USER',
+  'ROLE',
+  'DEPT_LEADER',
+  'PARENT_DEPT_LEADER',
+  'SUPERVISOR_CHAIN',
+  'FORM_USER',
+  'FORM_ROLE',
+  'FORM_DEPT_LEADER',
+]
 const APPROVER_TYPE_KEYS: Record<FlowApproverType, string> = {
   USER: 'admin.flow.approverUser',
   ROLE: 'admin.flow.approverRole',
   DEPT_LEADER: 'admin.flow.approverDeptLeader',
   PARENT_DEPT_LEADER: 'admin.flow.approverParentDeptLeader',
   SUPERVISOR_CHAIN: 'admin.flow.approverSupervisorChain',
+  FORM_USER: 'admin.flow.approverFormUser',
+  FORM_ROLE: 'admin.flow.approverFormRole',
+  FORM_DEPT_LEADER: 'admin.flow.approverFormDeptLeader',
 }
 
 /* ---------- 结构操作 ---------- */
@@ -104,6 +119,12 @@ function onApproverValueChange(n: FlowNodeRow, ids: (number | string)[]) {
     .map((id) => list.find((x) => String(x.id) === String(id))?.name ?? '')
     .filter(Boolean)
     .join(',')
+}
+
+/** FORM_* 审批人：approverValue 存流程变量名（如 hostUserId），不是用户/角色 ID */
+function onFormVariableChange(n: FlowNodeRow, key: string) {
+  n.approverValue = key || ''
+  n.approverName = key || ''
 }
 
 /** 组织类型兜底角色：存角色 code（后端按 code 解析，见 engine._resolve_role_users） */
@@ -263,7 +284,22 @@ defineExpose({ validate, exportGraph })
               <div class="field-tip">{{ t('admin.flow.chainLevelsTip') }}</div>
             </el-form-item>
 
-            <el-form-item v-if="isOrgApproverType(current.approverType)" :label="t('admin.flow.orgFallbackRole')">
+            <el-form-item v-if="isFormApproverType(current.approverType)" :label="t('admin.flow.formVariable')">
+              <el-select
+                :model-value="String(current.approverValue ?? '')"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                style="width: 100%"
+                :placeholder="t('admin.flow.formVariablePlaceholder')"
+                @update:model-value="onFormVariableChange(current, String($event ?? ''))"
+              >
+                <el-option v-for="k in props.variableKeys ?? []" :key="k" :label="k" :value="k" />
+              </el-select>
+              <div class="field-tip">{{ t('admin.flow.formVariableTip') }}</div>
+            </el-form-item>
+            <el-form-item v-else-if="isOrgApproverType(current.approverType)" :label="t('admin.flow.orgFallbackRole')">
               <el-select
                 :model-value="approverIds(current)"
                 multiple

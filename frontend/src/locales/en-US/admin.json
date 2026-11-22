@@ -264,7 +264,18 @@
     "version": "Version",
     "historyVersion": "History",
     "savedAsNewVersion": "Saved as new version v{version} ({count} running instance(s) still follow the old version)",
-    "deleteDisabledInstead": "Running instances exist; the version was disabled instead of deleted"
+    "deleteDisabledInstead": "Running instances exist; the version was disabled instead of deleted",
+    "variables": "Flow variables",
+    "variableKey": "Variable key (e.g. hostUserId)",
+    "variableLabel": "Display label",
+    "addVariable": "Add variable",
+    "variablesTip": "Variables used by \"from form field\" approver types; values are supplied by the business document on submit",
+    "approverFormUser": "Form field - user",
+    "approverFormRole": "Form field - role",
+    "approverFormDeptLeader": "Form field - dept leader",
+    "formVariable": "Variable key",
+    "formVariablePlaceholder": "Select or type a flow variable key",
+    "formVariableTip": "Approver is resolved from the submitted variables: form field-user = user id, form field-role = role code, form field-dept leader = dept id"
   },
   "common": {
     "enabled": "Enabled",

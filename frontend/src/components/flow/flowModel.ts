@@ -25,6 +25,13 @@ export function isOrgApproverType(t?: string): boolean {
   return ORG_APPROVER_TYPES.includes(t as FlowApproverType)
 }
 
+/** 按表单字段解析的审批人类型：approverValue 是流程变量名（如 hostUserId） */
+export const FORM_APPROVER_TYPES: FlowApproverType[] = ['FORM_USER', 'FORM_ROLE', 'FORM_DEPT_LEADER']
+
+export function isFormApproverType(t?: string): boolean {
+  return FORM_APPROVER_TYPES.includes(t as FlowApproverType)
+}
+
 export interface FlowNodeRow extends FlowNode {
   nodeType: FlowNodeType
   signMode: FlowSignMode

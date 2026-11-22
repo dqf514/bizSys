@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { insertNodeAt, normalizeNode, removeNodeRow, type FlowNodeRow } from './flowModel'
+import {
+  FORM_APPROVER_TYPES,
+  insertNodeAt,
+  isFormApproverType,
+  isOrgApproverType,
+  normalizeNode,
+  removeNodeRow,
+  validateFlowNodes,
+  type FlowNodeRow,
+} from './flowModel'
 
 function makeNode(seq: number, nodeType: FlowNodeRow['nodeType'] = 'approval'): FlowNodeRow {
   return normalizeNode({
@@ -66,5 +75,34 @@ describe('flowModel structural ops (FlowChainDesigner v-model:nodes semantics)',
     const next = removeNodeRow([cond, tail], tail)
     expect(next).toHaveLength(1)
     expect(next![0]!.defaultSeq).toBeNull()
+  })
+})
+
+/** FORM_* 审批人：approverValue 存流程变量名（如 hostUserId），不是用户/角色 ID */
+describe('FORM_* approver types', () => {
+  it('recognizes exactly the three form-resolved approver types', () => {
+    expect(FORM_APPROVER_TYPES).toEqual(['FORM_USER', 'FORM_ROLE', 'FORM_DEPT_LEADER'])
+    expect(isFormApproverType('FORM_USER')).toBe(true)
+    expect(isFormApproverType('FORM_ROLE')).toBe(true)
+    expect(isFormApproverType('FORM_DEPT_LEADER')).toBe(true)
+    expect(isFormApproverType('USER')).toBe(false)
+    expect(isFormApproverType('ROLE')).toBe(false)
+    expect(isFormApproverType(undefined)).toBe(false)
+  })
+
+  it('FORM_* types are not org types (they resolve by form field, not by initiator dept)', () => {
+    expect(isOrgApproverType('FORM_USER')).toBe(false)
+    expect(isOrgApproverType('FORM_DEPT_LEADER')).toBe(false)
+    expect(isOrgApproverType('DEPT_LEADER')).toBe(true)
+  })
+
+  it('validateFlowNodes requires a variable name for FORM_* approvers', () => {
+    const node = makeNode(1)
+    node.approverType = 'FORM_USER'
+    node.approverValue = ''
+    expect(validateFlowNodes([node])).toContain('admin.flow.errApprover')
+
+    node.approverValue = 'hostUserId'
+    expect(validateFlowNodes([node])).not.toContain('admin.flow.errApprover')
   })
 })

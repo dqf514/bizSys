@@ -264,7 +264,18 @@
     "version": "版本",
     "historyVersion": "历史版本",
     "savedAsNewVersion": "存在进行中的实例，已存为新版本 v{version}（{count} 个进行中实例仍按旧版本流转）",
-    "deleteDisabledInstead": "存在进行中的实例，已改为停用该版本（实例流转完后可再次删除）"
+    "deleteDisabledInstead": "存在进行中的实例，已改为停用该版本（实例流转完后可再次删除）",
+    "variables": "流程变量",
+    "variableKey": "变量名（如 hostUserId）",
+    "variableLabel": "显示名",
+    "addVariable": "添加变量",
+    "variablesTip": "「按表单字段」审批人类型从这里选变量名；变量值由业务单据提交时带入",
+    "approverFormUser": "表单字段-用户",
+    "approverFormRole": "表单字段-角色",
+    "approverFormDeptLeader": "表单字段-部门负责人",
+    "formVariable": "变量名",
+    "formVariablePlaceholder": "选择或输入流程变量名",
+    "formVariableTip": "审批人从单据提交的变量中解析：表单字段-用户=用户ID，表单字段-角色=角色code，表单字段-部门负责人=部门ID"
   },
   "common": {
     "enabled": "启用",
