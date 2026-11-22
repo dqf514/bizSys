@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ResponsiveTable from '@/components/common/ResponsiveTable.vue'
+import type { ListColumn } from '@/components/list/types'
 import { myPortalStaffs, portalRegisterStaff } from '@/api/portal'
 import type { PortalStaff } from '@/api/types'
 
@@ -13,6 +15,18 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const staffs = ref<PortalStaff[]>([])
+
+const staffColumns: ListColumn[] = [
+  { prop: 'name', labelKey: 'portal.portal.staff.name', width: 120 },
+  { prop: 'staffType', labelKey: 'portal.portal.staff.typeLabel', width: 120 },
+  { prop: 'position', labelKey: 'portal.portal.staff.position', width: 130 },
+  { prop: 'phone', labelKey: 'portal.portal.staff.phone', width: 140 },
+  { prop: 'plateNo', labelKey: 'portal.portal.staff.plateNo', width: 120 },
+  { prop: 'planVisitDate', labelKey: 'portal.portal.staff.planVisitDate', width: 120 },
+  { prop: 'ndaSigned', labelKey: 'portal.portal.staff.ndaSigned', width: 90, align: 'center' },
+  { prop: 'status', labelKey: 'portal.portal.status', width: 110, align: 'center' },
+  { prop: 'reviewComment', labelKey: 'portal.portal.reviewComment', minWidth: 140 },
+]
 
 /** 人员类型：试验人员 / 支持人员 / 见证专家 / 厂商工程师（与后端字典 partner_staff_type 对齐） */
 const typeOptions = computed(() => [
@@ -124,12 +138,12 @@ function typeLabel(v: string) {
 
     <el-form label-position="top" class="staff-form">
       <el-row :gutter="12">
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.name')" required>
             <el-input v-model="form.name" :maxlength="64" />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.gender')">
             <el-select v-model="form.gender" style="width: 100%" clearable>
               <el-option :label="t('portal.portal.staff.genderMale')" value="male" />
@@ -139,38 +153,38 @@ function typeLabel(v: string) {
         </el-col>
       </el-row>
       <el-row :gutter="12">
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.position')">
             <el-input v-model="form.position" :maxlength="64" />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.phone')">
             <el-input v-model="form.phone" :maxlength="32" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="12">
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.idNo')">
             <el-input v-model="form.id_no" :maxlength="64" />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.plateNo')">
             <el-input v-model="form.plate_no" :maxlength="32" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="12">
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.typeLabel')">
             <el-select v-model="form.staff_type" style="width: 100%">
               <el-option v-for="o in typeOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :sm="12">
           <el-form-item :label="t('portal.portal.staff.planVisitDate')">
             <el-date-picker v-model="form.plan_visit_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
@@ -188,28 +202,25 @@ function typeLabel(v: string) {
     </el-form>
 
     <h3 class="bs-page-title staff-sub-title">{{ t('portal.portal.staff.myList') }}</h3>
-    <el-table v-loading="loading" :data="staffs" border stripe>
-      <el-table-column :label="t('portal.portal.staff.name')" prop="name" width="120" />
-      <el-table-column :label="t('portal.portal.staff.typeLabel')" width="120">
-        <template #default="{ row }">{{ typeLabel(row.staffType) }}</template>
-      </el-table-column>
-      <el-table-column :label="t('portal.portal.staff.position')" prop="position" width="130" />
-      <el-table-column :label="t('portal.portal.staff.phone')" prop="phone" width="140" />
-      <el-table-column :label="t('portal.portal.staff.plateNo')" prop="plateNo" width="120" />
-      <el-table-column :label="t('portal.portal.staff.planVisitDate')" prop="planVisitDate" width="120" />
-      <el-table-column :label="t('portal.portal.staff.ndaSigned')" width="90" align="center">
-        <template #default="{ row }">{{ row.ndaSigned ? t('common.action.yes') : t('common.action.no') }}</template>
-      </el-table-column>
-      <el-table-column :label="t('portal.portal.status')" width="110" align="center">
-        <template #default="{ row }">
-          <StatusTag :status="String(row.status)" i18n-prefix="portal.portal.staff.status" />
-        </template>
-      </el-table-column>
-      <el-table-column :label="t('portal.portal.reviewComment')" prop="reviewComment" min-width="140">
-        <template #default="{ row }">{{ row.reviewComment || '-' }}</template>
-      </el-table-column>
-      <template #empty>{{ t('portal.portal.empty') }}</template>
-    </el-table>
+    <ResponsiveTable
+      v-loading="loading"
+      :columns="staffColumns"
+      :data="staffs as unknown as Record<string, unknown>[]"
+      :show-pagination="false"
+    >
+      <template #cell="{ row, col }">
+        <span v-if="col.prop === 'staffType'">{{ typeLabel(String(row.staffType)) }}</span>
+        <span v-else-if="col.prop === 'ndaSigned'">
+          {{ row.ndaSigned ? t('common.action.yes') : t('common.action.no') }}
+        </span>
+        <StatusTag
+          v-else-if="col.prop === 'status'"
+          :status="String(row.status)"
+          i18n-prefix="portal.portal.staff.status"
+        />
+        <span v-else>{{ row[col.prop] ?? '-' }}</span>
+      </template>
+    </ResponsiveTable>
   </div>
 </template>
 

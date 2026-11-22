@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Search } from '@element-plus/icons-vue'
+import { Check, Filter, Search } from '@element-plus/icons-vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import PortalTenderDetailPanel from './PortalTenderDetailPanel.vue'
 import { listPortalTenders } from '@/api/portal'
@@ -28,6 +28,24 @@ const keyword = ref('')
 const statusFilter = ref('')
 
 const STATUS_OPTIONS = ['published', 'evaluating', 'awarding', 'awarded']
+
+/* ---- 移动端筛选：底部弹层（桌面用筛选 chip 行） ---- */
+const filterSheetVisible = ref(false)
+const pendingStatus = ref('')
+
+function openFilterSheet() {
+  pendingStatus.value = statusFilter.value
+  filterSheetVisible.value = true
+}
+
+function applyFilter() {
+  statusFilter.value = pendingStatus.value
+  filterSheetVisible.value = false
+}
+
+function resetFilter() {
+  pendingStatus.value = ''
+}
 
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
@@ -89,7 +107,16 @@ watch(filtered, (list) => {
         clearable
         class="list-search"
       />
-      <div class="list-filter">
+      <div v-if="isMobile" class="filter-trigger-row">
+        <button type="button" class="filter-trigger" @click="openFilterSheet">
+          <el-icon><Filter /></el-icon>
+          <span>{{ t('portal.portal.filter') }}</span>
+          <span v-if="statusFilter" class="filter-trigger-value">
+            {{ t(`common.status.${statusFilter}`) }}
+          </span>
+        </button>
+      </div>
+      <div v-else class="list-filter">
         <button
           type="button"
           class="filter-chip"
@@ -151,6 +178,43 @@ watch(filtered, (list) => {
         <p>{{ t('portal.portal.selectHint') }}</p>
       </div>
     </section>
+
+    <!-- 移动端：筛选底部弹层 -->
+    <el-drawer
+      v-model="filterSheetVisible"
+      direction="btt"
+      size="auto"
+      append-to-body
+      class="portal-filter-drawer"
+      :title="t('portal.portal.filterStatus')"
+    >
+      <div class="sheet-options">
+        <button
+          type="button"
+          class="sheet-option"
+          :class="{ active: !pendingStatus }"
+          @click="pendingStatus = ''"
+        >
+          <span>{{ t('common.status.all') }}</span>
+          <el-icon v-if="!pendingStatus"><Check /></el-icon>
+        </button>
+        <button
+          v-for="s in STATUS_OPTIONS"
+          :key="s"
+          type="button"
+          class="sheet-option"
+          :class="{ active: pendingStatus === s }"
+          @click="pendingStatus = s"
+        >
+          <span>{{ t(`common.status.${s}`) }}</span>
+          <el-icon v-if="pendingStatus === s"><Check /></el-icon>
+        </button>
+      </div>
+      <div class="sheet-footer">
+        <el-button @click="resetFilter">{{ t('common.action.reset') }}</el-button>
+        <el-button type="primary" @click="applyFilter">{{ t('common.action.confirm') }}</el-button>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -308,6 +372,79 @@ watch(filtered, (list) => {
   min-height: 240px;
   color: var(--bs-color-fg-muted);
   font-size: var(--bs-typography-font-size-sm);
+}
+
+/* ---- 移动端：筛选入口 + 底部弹层 ---- */
+.filter-trigger-row {
+  display: flex;
+  gap: var(--bs-space-2);
+}
+
+.filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  min-height: 40px;
+  padding: 0 var(--bs-space-3);
+  border: 1px solid var(--bs-color-border-default);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-color-bg-surface);
+  color: var(--bs-color-fg-secondary);
+  font-size: var(--bs-typography-font-size-sm);
+  cursor: pointer;
+}
+
+.filter-trigger-value {
+  color: var(--bs-color-primary);
+  font-weight: 600;
+}
+
+.sheet-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bs-space-2);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--bs-space-2) var(--bs-space-1);
+  border: none;
+  border-bottom: 1px solid var(--bs-color-border-subtle);
+  background: transparent;
+  color: var(--bs-color-fg-default);
+  font-size: var(--bs-typography-font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-option.active {
+  color: var(--bs-color-primary);
+  font-weight: 600;
+}
+
+.sheet-footer {
+  display: flex;
+  gap: var(--bs-space-2);
+  padding-top: var(--bs-space-3);
+}
+
+.sheet-footer :deep(.el-button) {
+  flex: 1;
+  margin-left: 0;
+  min-height: 44px;
+}
+
+.portal-filter-drawer :deep(.el-drawer__body) {
+  padding: 0 var(--bs-space-4) calc(var(--bs-space-4) + env(safe-area-inset-bottom));
+}
+
+.portal-filter-drawer :deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: var(--bs-space-4) var(--bs-space-4) var(--bs-space-2);
 }
 
 /* ---- 移动端：清单 → 详情单栏切换 ---- */

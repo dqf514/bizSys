@@ -120,6 +120,7 @@ const scopeOptions = computed(() => [
   { label: t('crm.customerAccount.scopeEntrust'), value: 'entrust' },
   { label: t('crm.customerAccount.scopeStaff'), value: 'staff' },
   { label: t('crm.customerAccount.scopeTender'), value: 'tender' },
+  { label: t('crm.customerAccount.scopeVisit'), value: 'visit' },
 ])
 
 function openReview(row: CustomerAccount, action: 'approve' | 'reject') {

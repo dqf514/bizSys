@@ -84,25 +84,25 @@ async function doRegister() {
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="t('portal.portal.username')" prop="username">
-          <el-input v-model="form.username" :maxlength="64" />
+          <el-input v-model="form.username" :maxlength="64" autocomplete="username" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.password')" prop="password">
-          <el-input v-model="form.password" type="password" show-password :maxlength="64" />
+          <el-input v-model="form.password" type="password" show-password :maxlength="64" autocomplete="new-password" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.passwordConfirm')" prop="passwordConfirm">
-          <el-input v-model="form.passwordConfirm" type="password" show-password :maxlength="64" />
+          <el-input v-model="form.passwordConfirm" type="password" show-password :maxlength="64" autocomplete="new-password" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.companyName')" prop="companyName">
-          <el-input v-model="form.companyName" :maxlength="255" />
+          <el-input v-model="form.companyName" :maxlength="255" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.contactName')">
-          <el-input v-model="form.contactName" :maxlength="64" />
+          <el-input v-model="form.contactName" :maxlength="64" autocomplete="name" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.phone')">
-          <el-input v-model="form.phone" :maxlength="32" />
+          <el-input v-model="form.phone" :maxlength="32" inputmode="tel" autocomplete="tel" enterkeyhint="next" />
         </el-form-item>
         <el-form-item :label="t('portal.portal.email')">
-          <el-input v-model="form.email" :maxlength="128" />
+          <el-input v-model="form.email" :maxlength="128" inputmode="email" autocomplete="email" enterkeyhint="done" />
         </el-form-item>
         <el-button type="primary" size="large" class="portal-auth-btn" :loading="loading" @click="doRegister">
           {{ t('portal.portal.registerBtn') }}
@@ -119,15 +119,11 @@ async function doRegister() {
 </template>
 
 <style scoped>
+/* 门户注册：走门户布局（顶栏/页脚/移动 Dock），不再用 fixed 覆盖层 */
 .portal-auth-page {
-  position: fixed;
-  inset: 0;
   display: flex;
-  align-items: center;
   justify-content: center;
-  background: var(--bs-color-bg-app);
-  overflow: auto;
-  padding: var(--bs-space-6) 0;
+  padding: var(--bs-space-5) 0;
 }
 
 .portal-auth-card {
@@ -150,13 +146,33 @@ async function doRegister() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--bs-space-2);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
+  .portal-auth-page {
+    padding: 0;
+  }
+
   .portal-auth-card,
   .portal-auth-card.wide {
-    width: calc(100vw - 2 * var(--bs-space-6));
-    padding: var(--bs-space-5);
+    width: 100%;
+    padding: var(--bs-space-4);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  /* 移动端：触控热区放大，键盘输入更友好 */
+  .portal-auth-form :deep(.el-input__wrapper) {
+    min-height: 44px;
+  }
+
+  .portal-auth-btn {
+    min-height: 48px;
+    font-size: var(--bs-typography-font-size-md);
   }
 }
 

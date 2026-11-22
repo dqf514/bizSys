@@ -212,18 +212,23 @@ function fmtAmount(v: unknown) {
             </el-button>
           </div>
         </template>
-        <el-form v-else-if="canRegister" class="action-form" label-width="90px">
+        <el-form
+          v-else-if="canRegister"
+          class="action-form"
+          :label-position="isMobile ? 'top' : 'right'"
+          :label-width="isMobile ? undefined : '90px'"
+        >
           <el-form-item :label="t('portal.portal.contactName')">
-            <el-input v-model="regForm.contactName" :maxlength="64" style="width: 220px" />
+            <el-input v-model="regForm.contactName" :maxlength="64" class="field-narrow" enterkeyhint="next" />
           </el-form-item>
           <el-form-item :label="t('portal.portal.phone')">
-            <el-input v-model="regForm.contactPhone" :maxlength="32" style="width: 220px" />
+            <el-input v-model="regForm.contactPhone" :maxlength="32" class="field-narrow" inputmode="tel" enterkeyhint="done" />
           </el-form-item>
           <el-form-item :label="t('portal.portal.qualification')">
             <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip" @change="onRegFile" />
             <span class="muted file-tip">{{ t('portal.portal.fileTip') }}</span>
           </el-form-item>
-          <el-form-item>
+          <el-form-item class="form-actions">
             <el-button type="primary" :loading="regSaving" @click="doRegister">{{ t('portal.portal.submitRegister') }}</el-button>
           </el-form-item>
         </el-form>
@@ -253,9 +258,14 @@ function fmtAmount(v: unknown) {
         </div>
         <div v-else-if="detail.status !== 'published'" class="muted">{{ t('portal.portal.bidClosed') }}</div>
 
-        <el-form v-if="canBid" class="action-form" label-width="90px">
+        <el-form
+          v-if="canBid"
+          class="action-form"
+          :label-position="isMobile ? 'top' : 'right'"
+          :label-width="isMobile ? undefined : '90px'"
+        >
           <el-form-item :label="t('portal.portal.price')" required>
-            <el-input-number v-model="bidForm.price" :min="0.01" :precision="2" :controls="false" style="width: 220px" />
+            <el-input-number v-model="bidForm.price" :min="0.01" :precision="2" :controls="false" class="field-narrow" />
           </el-form-item>
           <el-form-item :label="t('portal.portal.bidComment')">
             <el-input v-model="bidForm.comment" :maxlength="500" style="width: 100%" />
@@ -264,7 +274,7 @@ function fmtAmount(v: unknown) {
             <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip" @change="onBidFile" />
             <span class="muted file-tip">{{ t('portal.portal.fileTip') }}</span>
           </el-form-item>
-          <el-form-item>
+          <el-form-item class="form-actions">
             <el-button type="primary" :loading="bidSaving" :disabled="!bidForm.price" @click="doBid">
               {{ detail.myBid ? t('portal.portal.updateBid') : t('portal.portal.submitBid') }}
             </el-button>
@@ -381,6 +391,45 @@ function fmtAmount(v: unknown) {
 
 .action-form {
   max-width: 560px;
+}
+
+/* 窄屏表单：控件占满整行，避免固定宽度被裁切 */
+.field-narrow {
+  width: 100%;
+  max-width: 220px;
+}
+
+@media (max-width: 767px) {
+  .field-narrow {
+    max-width: none;
+  }
+
+  /* 主操作吸底：手机上滚动到表单底部即可提交 */
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 calc(-1 * var(--bs-space-3)) var(--bs-space-3);
+    padding: var(--bs-space-3) var(--bs-space-3) calc(var(--bs-space-3) + env(safe-area-inset-bottom));
+    background: var(--bs-color-bg-surface);
+    border-top: 1px solid var(--bs-color-border-subtle);
+  }
+
+  .form-actions :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+    min-height: 44px;
+  }
+
+  .guide-actions {
+    flex-direction: column;
+  }
+
+  .guide-actions :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+    min-height: 44px;
+  }
 }
 
 .muted {

@@ -203,6 +203,7 @@
     "disable": "停用",
     "enable": "启用",
     "reviewTitle": "账号审核",
-    "comment": "审核意见"
+    "comment": "审核意见",
+    "scopeVisit": "访客预约"
   }
 }

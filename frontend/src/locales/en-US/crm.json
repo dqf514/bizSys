@@ -203,6 +203,7 @@
     "disable": "Disable",
     "enable": "Enable",
     "reviewTitle": "Account Review",
-    "comment": "Review Comment"
+    "comment": "Review Comment",
+    "scopeVisit": "Visitor booking"
   }
 }

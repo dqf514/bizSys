@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import StatusTag from '@/components/common/StatusTag.vue'
+import ResponsiveTable from '@/components/common/ResponsiveTable.vue'
+import type { ListColumn } from '@/components/list/types'
 import {
   myPortalContracts,
   myPortalEntrusts,
@@ -20,6 +22,19 @@ const activeTab = ref<'create' | 'mine'>('create')
 const loading = ref(false)
 const contracts = ref<PortalContract[]>([])
 const entrusts = ref<PortalEntrust[]>([])
+
+const entrustColumns: ListColumn[] = [
+  { prop: 'entrustNo', labelKey: 'portal.portal.entrust.entrustNo', width: 150 },
+  { prop: 'title', labelKey: 'portal.portal.entrust.titleLabel', minWidth: 180 },
+  { prop: 'entrustType', labelKey: 'portal.portal.entrust.typeLabel', width: 110 },
+  { prop: 'contractNo', labelKey: 'portal.portal.entrust.contract', width: 150 },
+  { prop: 'planEndDate', labelKey: 'portal.portal.entrust.planEndDate', width: 120 },
+  { prop: 'taskNo', labelKey: 'portal.portal.entrust.taskNo', width: 150 },
+  { prop: 'status', labelKey: 'portal.portal.status', width: 110, align: 'center' },
+  { prop: 'reviewComment', labelKey: 'portal.portal.reviewComment', minWidth: 140 },
+  { prop: 'createTime', labelKey: 'portal.portal.entrust.createTime', width: 160 },
+  { prop: '__operate', labelKey: 'common.action.operate', width: 100, align: 'center' },
+]
 
 /** 委托类型：仿真 / 模型 / 试验 / 委外（与后端字典 entrust_type 对齐） */
 const typeOptions = computed(() => [
@@ -183,14 +198,14 @@ function typeLabel(v: string) {
             <el-input v-model="form.title" :maxlength="255" :placeholder="t('portal.portal.entrust.titlePlaceholder')" />
           </el-form-item>
           <el-row :gutter="12">
-            <el-col :span="12">
+            <el-col :xs="24" :sm="12">
               <el-form-item :label="t('portal.portal.entrust.typeLabel')">
                 <el-select v-model="form.entrust_type" style="width: 100%">
                   <el-option v-for="o in typeOptions" :key="o.value" :label="o.label" :value="o.value" />
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :sm="12">
               <el-form-item :label="t('portal.portal.entrust.priority')">
                 <el-radio-group v-model="form.priority">
                   <el-radio value="normal">{{ t('portal.portal.entrust.priorityNormal') }}</el-radio>
@@ -200,12 +215,12 @@ function typeLabel(v: string) {
             </el-col>
           </el-row>
           <el-row :gutter="12">
-            <el-col :span="12">
+            <el-col :xs="24" :sm="12">
               <el-form-item :label="t('portal.portal.entrust.planStartDate')">
                 <el-date-picker v-model="form.plan_start_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
               </el-form-item>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :sm="12">
               <el-form-item :label="t('portal.portal.entrust.planEndDate')">
                 <el-date-picker v-model="form.plan_end_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
               </el-form-item>
@@ -244,38 +259,31 @@ function typeLabel(v: string) {
       </el-tab-pane>
 
       <el-tab-pane :label="t('portal.portal.entrust.myTab')" name="mine">
-        <el-table v-loading="loading" :data="entrusts" border stripe>
-          <el-table-column :label="t('portal.portal.entrust.entrustNo')" prop="entrustNo" width="150">
-            <template #default="{ row }">{{ row.entrustNo || '-' }}</template>
-          </el-table-column>
-          <el-table-column :label="t('portal.portal.entrust.titleLabel')" prop="title" min-width="180" />
-          <el-table-column :label="t('portal.portal.entrust.typeLabel')" width="110">
-            <template #default="{ row }">{{ typeLabel(row.entrustType) }}</template>
-          </el-table-column>
-          <el-table-column :label="t('portal.portal.entrust.contract')" prop="contractNo" width="150" />
-          <el-table-column :label="t('portal.portal.entrust.planEndDate')" prop="planEndDate" width="120" />
-          <el-table-column :label="t('portal.portal.entrust.taskNo')" prop="taskNo" width="150">
-            <template #default="{ row }">{{ row.taskNo || '-' }}</template>
-          </el-table-column>
-          <el-table-column :label="t('portal.portal.status')" width="110" align="center">
-            <template #default="{ row }">
-              <StatusTag :status="String(row.status)" i18n-prefix="portal.portal.entrust.status" />
-            </template>
-          </el-table-column>
-          <el-table-column :label="t('portal.portal.reviewComment')" prop="reviewComment" min-width="140">
-            <template #default="{ row }">{{ row.reviewComment || '-' }}</template>
-          </el-table-column>
-          <el-table-column :label="t('portal.portal.entrust.createTime')" prop="createTime" width="160" />
-          <el-table-column :label="t('common.action.operate')" width="100" align="center">
-            <template #default="{ row }">
-              <el-button v-if="canCancel(row)" link type="danger" @click="cancel(row)">
-                {{ t('portal.portal.entrust.cancel') }}
-              </el-button>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-          <template #empty>{{ t('portal.portal.empty') }}</template>
-        </el-table>
+        <ResponsiveTable
+          v-loading="loading"
+          :columns="entrustColumns"
+          :data="entrusts as unknown as Record<string, unknown>[]"
+          :show-pagination="false"
+        >
+          <template #cell="{ row, col }">
+            <span v-if="col.prop === 'entrustType'">{{ typeLabel(String(row.entrustType)) }}</span>
+            <StatusTag
+              v-else-if="col.prop === 'status'"
+              :status="String(row.status)"
+              i18n-prefix="portal.portal.entrust.status"
+            />
+            <el-button
+              v-else-if="col.prop === '__operate'"
+              :disabled="!canCancel(row as unknown as PortalEntrust)"
+              link
+              type="danger"
+              @click="cancel(row as unknown as PortalEntrust)"
+            >
+              {{ canCancel(row as unknown as PortalEntrust) ? t('portal.portal.entrust.cancel') : '-' }}
+            </el-button>
+            <span v-else>{{ row[col.prop] ?? '-' }}</span>
+          </template>
+        </ResponsiveTable>
       </el-tab-pane>
     </el-tabs>
   </div>

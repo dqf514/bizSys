@@ -228,18 +228,23 @@ const router = createRouter({
       redirect: (to) => ({ path: '/login', query: { ...to.query, tab: 'partner' } }),
     },
     {
-      path: '/portal/register',
-      name: 'PortalRegister',
-      component: () => import('@/modules/portal/pages/PortalRegister.vue'),
-      meta: { public: true, portalPublic: true, tabless: true },
-    },
-    {
       path: '/portal',
       name: 'Portal',
       component: () => import('@/modules/portal/pages/PortalLayout.vue'),
       meta: { tabless: true },
       children: [
-        { path: '', redirect: '/portal/tenders' },
+        {
+          path: '',
+          name: 'PortalHome',
+          component: () => import('@/modules/portal/pages/PortalHome.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.home.title' },
+        },
+        {
+          path: 'register',
+          name: 'PortalRegister',
+          component: () => import('@/modules/portal/pages/PortalRegister.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.register' },
+        },
         {
           path: 'tenders',
           name: 'PortalTenders',
@@ -269,6 +274,44 @@ const router = createRouter({
           name: 'PortalStaff',
           component: () => import('@/modules/portal/pages/PortalStaff.vue'),
           meta: { tabless: true, titleKey: 'portal.portal.staff.title' },
+        },
+        // F6：访客预约闭环（预约 → 内部审批 → 通行凭证 → 扫码签到）
+        {
+          path: 'visits',
+          name: 'PortalVisits',
+          component: () => import('@/modules/portal/pages/PortalVisits.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.visits.title' },
+        },
+        {
+          path: 'visits/:id',
+          name: 'PortalVisitDetail',
+          component: () => import('@/modules/portal/pages/PortalVisitDetail.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.visits.detail.title' },
+        },
+        // F6：对外业务能力（进度 / 报告 / 对账 / 交接）
+        {
+          path: 'progress',
+          name: 'PortalProgress',
+          component: () => import('@/modules/portal/pages/PortalProgress.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.progress.title' },
+        },
+        {
+          path: 'reports',
+          name: 'PortalReports',
+          component: () => import('@/modules/portal/pages/PortalReports.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.reports.title' },
+        },
+        {
+          path: 'billing',
+          name: 'PortalBilling',
+          component: () => import('@/modules/portal/pages/PortalBilling.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.billing.title' },
+        },
+        {
+          path: 'handovers',
+          name: 'PortalHandovers',
+          component: () => import('@/modules/portal/pages/PortalHandovers.vue'),
+          meta: { tabless: true, titleKey: 'portal.portal.handovers.title' },
         },
       ],
     },

@@ -41,6 +41,8 @@
     "qualification": "资质附件",
     "chooseFile": "选择文件",
     "fileTip": "支持 pdf/doc/docx/xls/xlsx/jpg/png/zip，不超过 50MB",
+    "filter": "筛选",
+    "filterStatus": "按状态筛选",
     "submitRegister": "提交报名",
     "registerPending": "报名待审核",
     "registerApproved": "报名已通过",
@@ -157,6 +159,134 @@
       "statusApproved": "已备案",
       "statusRejected": "已驳回",
       "statusDisabled": "已停用"
+    },
+    "home": {
+      "title": "门户首页",
+      "heroSub": "合作方服务门户 —— 招标、委托、来访预约、项目进度与对账，一站式办理。",
+      "browseTenders": "浏览招标公告",
+      "bookVisit": "预约来访",
+      "ctaLogin": "登录 / 注册",
+      "services": {
+        "tenderDesc": "查看公开招标公告、报名与投标",
+        "visitDesc": "提交来访申请，审批通过后出示通行凭证",
+        "progressDesc": "查看委托与任务进度、开票与回款",
+        "reportDesc": "在线查阅已签章的正式报告",
+        "billingDesc": "查看结算单、开票与到账状态",
+        "handoverDesc": "查询样品与样车交接记录",
+        "entrustDesc": "基于合同在线提交试验委托",
+        "staffDesc": "登记来访的试验与支持人员"
+      },
+      "statEntrust": "委托单",
+      "statTask": "任务",
+      "statSettled": "已结算",
+      "statInvoiced": "已开票",
+      "statPaid": "已到账",
+      "serviceTitle": "服务入口"
+    },
+    "dock": {
+      "title": "门户快捷导航",
+      "home": "首页",
+      "tender": "招标",
+      "visit": "访客",
+      "my": "我的"
+    },
+    "footer": {
+      "phone": "电话"
+    },
+    "visits": {
+      "title": "访客预约",
+      "navTitle": "来访预约",
+      "tip": "提交来访申请后，由被访人与安保在内部审批；审批通过即可出示通行凭证扫码入园。",
+      "newBooking": "新建预约",
+      "viewDetail": "查看详情",
+      "cancelAction": "取消预约",
+      "cancelSuccess": "预约已取消",
+      "submitSuccess": "预约已提交，等待内部审批",
+      "checkin": "扫码签到",
+      "checkout": "签离",
+      "checkinSuccess": "签到成功",
+      "checkoutSuccess": "已签离",
+      "form": {
+        "title": "新建来访预约",
+        "submit": "提交预约"
+      },
+      "field": {
+        "visitorName": "访客姓名",
+        "visitorCompany": "访客单位",
+        "phone": "联系电话",
+        "idNo": "证件号",
+        "plateNo": "车牌号",
+        "host": "被访人",
+        "zones": "申请区域",
+        "purpose": "来访事由",
+        "plan": "来访时段",
+        "planStart": "计划开始",
+        "planEnd": "计划结束",
+        "escort": "陪同与见证人",
+        "nda": "已阅读并同意签署保密协议",
+        "remark": "备注",
+        "visitNo": "预约单号",
+        "credentialNo": "凭证编号",
+        "expireAt": "有效期至",
+        "visitorNameRequired": "请填写访客姓名",
+        "hostRequired": "请选择被访人",
+        "zonesRequired": "请至少选择一个区域",
+        "ndaRequired": "该区域需要先确认保密协议"
+      },
+      "status": {
+        "pending": "待审批",
+        "approving": "审批中",
+        "approved": "已通过",
+        "rejected": "已驳回",
+        "visiting": "在访中",
+        "left": "已离场",
+        "overdue": "已超时",
+        "cancelled": "已取消"
+      },
+      "timeline": {
+        "title": "审批进度"
+      },
+      "qr": {
+        "title": "通行凭证"
+      },
+      "detail": {
+        "title": "预约详情"
+      }
+    },
+    "progress": {
+      "title": "项目进度",
+      "navTitle": "进度看板"
+    },
+    "reports": {
+      "title": "报告查阅",
+      "navTitle": "报告查阅",
+      "tip": "仅展示已签章的正式报告。下载采用一次性链接码，可转发给同事代下载。",
+      "download": "下载",
+      "downloadNow": "立即下载",
+      "downloadSuccess": "下载已开始",
+      "codeTitle": "一次性下载码",
+      "codeTip": "该下载码 30 分钟内有效且仅可使用一次，请及时保存。",
+      "copyCode": "复制",
+      "codeCopied": "下载码已复制"
+    },
+    "billing": {
+      "title": "对账单",
+      "navTitle": "对账单",
+      "statTotal": "结算总额",
+      "statPending": "待回款",
+      "invoiceTitle": "开票记录",
+      "paymentTitle": "到账记录"
+    },
+    "handovers": {
+      "title": "样品交接",
+      "navTitle": "交接记录",
+      "field": {
+        "no": "交接单号",
+        "sampleNo": "样品编号",
+        "qty": "数量",
+        "time": "交接时间",
+        "users": "交接双方"
+      }
     }
   }
 }

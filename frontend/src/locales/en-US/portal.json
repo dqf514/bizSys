@@ -41,6 +41,8 @@
     "qualification": "Qualification File",
     "chooseFile": "Choose File",
     "fileTip": "pdf/doc/docx/xls/xlsx/jpg/png/zip up to 50MB",
+    "filter": "Filter",
+    "filterStatus": "Filter by status",
     "submitRegister": "Submit Registration",
     "registerPending": "Registration pending review",
     "registerApproved": "Registration approved",
@@ -157,6 +159,134 @@
       "statusApproved": "Registered",
       "statusRejected": "Rejected",
       "statusDisabled": "Disabled"
+    },
+    "home": {
+      "title": "Portal Home",
+      "heroSub": "Partner service portal — tenders, entrusts, visit booking, progress and billing in one place.",
+      "browseTenders": "Browse tenders",
+      "bookVisit": "Book a visit",
+      "ctaLogin": "Sign in / Register",
+      "services": {
+        "tenderDesc": "Browse public tenders, register and bid",
+        "visitDesc": "Book a visit and show your access pass once approved",
+        "progressDesc": "Track entrusts, tasks, invoicing and payments",
+        "reportDesc": "Read sealed reports online",
+        "billingDesc": "Check settlements, invoices and receipts",
+        "handoverDesc": "Look up sample and vehicle handovers",
+        "entrustDesc": "Submit test entrusts against your contracts",
+        "staffDesc": "Register testers and support staff"
+      },
+      "statEntrust": "Entrusts",
+      "statTask": "Tasks",
+      "statSettled": "Settled",
+      "statInvoiced": "Invoiced",
+      "statPaid": "Paid",
+      "serviceTitle": "Services"
+    },
+    "dock": {
+      "title": "Portal navigation",
+      "home": "Home",
+      "tender": "Tenders",
+      "visit": "Visits",
+      "my": "Mine"
+    },
+    "footer": {
+      "phone": "Tel"
+    },
+    "visits": {
+      "title": "Visit Booking",
+      "navTitle": "Visits",
+      "tip": "Your request is reviewed internally by the host and security. Once approved, show the pass to enter.",
+      "newBooking": "New booking",
+      "viewDetail": "View details",
+      "cancelAction": "Cancel",
+      "cancelSuccess": "Booking cancelled",
+      "submitSuccess": "Booking submitted, waiting for internal approval",
+      "checkin": "Check in",
+      "checkout": "Check out",
+      "checkinSuccess": "Checked in",
+      "checkoutSuccess": "Checked out",
+      "form": {
+        "title": "New visit booking",
+        "submit": "Submit booking"
+      },
+      "field": {
+        "visitorName": "Visitor Name",
+        "visitorCompany": "Visitor Company",
+        "phone": "Phone",
+        "idNo": "ID No.",
+        "plateNo": "Plate No.",
+        "host": "Host",
+        "zones": "Requested Zones",
+        "purpose": "Purpose",
+        "plan": "Visit Window",
+        "planStart": "Planned Start",
+        "planEnd": "Planned End",
+        "escort": "Escort / Witnesses",
+        "nda": "I have read and agree to sign the NDA",
+        "remark": "Remark",
+        "visitNo": "Booking No.",
+        "credentialNo": "Pass No.",
+        "expireAt": "Valid Until",
+        "visitorNameRequired": "Please fill in the visitor name",
+        "hostRequired": "Please choose a host",
+        "zonesRequired": "Please choose at least one zone",
+        "ndaRequired": "This zone requires the NDA confirmation"
+      },
+      "status": {
+        "pending": "Pending",
+        "approving": "In approval",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "visiting": "On site",
+        "left": "Left",
+        "overdue": "Overdue",
+        "cancelled": "Cancelled"
+      },
+      "timeline": {
+        "title": "Approval Progress"
+      },
+      "qr": {
+        "title": "Access Pass"
+      },
+      "detail": {
+        "title": "Booking Detail"
+      }
+    },
+    "progress": {
+      "title": "Project Progress",
+      "navTitle": "Progress"
+    },
+    "reports": {
+      "title": "Reports",
+      "navTitle": "Reports",
+      "tip": "Only sealed reports are listed. Downloads use a one-time link code you can forward to a colleague.",
+      "download": "Download",
+      "downloadNow": "Download now",
+      "downloadSuccess": "Download started",
+      "codeTitle": "One-time download code",
+      "codeTip": "The code is valid for 30 minutes and can be used only once. Please save it now.",
+      "copyCode": "Copy",
+      "codeCopied": "Code copied"
+    },
+    "billing": {
+      "title": "Billing",
+      "navTitle": "Billing",
+      "statTotal": "Total Settled",
+      "statPending": "Outstanding",
+      "invoiceTitle": "Invoices",
+      "paymentTitle": "Payments"
+    },
+    "handovers": {
+      "title": "Sample Handovers",
+      "navTitle": "Handovers",
+      "field": {
+        "no": "Handover No.",
+        "sampleNo": "Sample No.",
+        "qty": "Qty",
+        "time": "Handed Over At",
+        "users": "Parties"
+      }
     }
   }
 }

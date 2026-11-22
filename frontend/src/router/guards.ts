@@ -2,14 +2,35 @@ import type { Router } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTabsStore } from '@/stores/tabs'
 import { clearTokens } from '@/api/http'
-import { getPortalToken } from '@/api/portalHttp'
+import { getPortalToken, setPortalUnauthorizedHandler } from '@/api/portalHttp'
 import { registerMenuRoutes, isRoutesRegistered } from './index'
 
 const PUBLIC_PATHS = ['/login']
-// 门户公告对外公开：仅「我的参与」需要门户 token，其余 /portal 页面免登录可浏览
-const PORTAL_AUTH_REQUIRED = ['/portal/my']
+// 门户「我的」类页面需要门户 token；公告浏览与门户首页对外公开
+const PORTAL_AUTH_REQUIRED = [
+  '/portal/my',
+  '/portal/orders',
+  '/portal/staff',
+  '/portal/visits',
+  '/portal/progress',
+  '/portal/reports',
+  '/portal/billing',
+  '/portal/handovers',
+]
 // 合作方门户 shell 内的路径（独立认证体系，公开浏览）
-const PORTAL_SHELL_PATHS = ['/portal/tenders', '/portal/my', '/portal/register', '/portal/login']
+const PORTAL_SHELL_PATHS = [
+  '/portal/tenders',
+  '/portal/my',
+  '/portal/orders',
+  '/portal/staff',
+  '/portal/visits',
+  '/portal/progress',
+  '/portal/reports',
+  '/portal/billing',
+  '/portal/handovers',
+  '/portal/register',
+  '/portal/login',
+]
 
 /**
  * 是否属于合作方门户 shell。
@@ -41,6 +62,13 @@ function reloadOnce(path: string) {
 }
 
 export function setupGuards(router: Router) {
+  // 门户 token 失效时走路由内跳转（保留 SPA 状态与已填表单），不整页刷新
+  setPortalUnauthorizedHandler(() => {
+    const redirect = router.currentRoute.value.fullPath
+    if (router.currentRoute.value.path.startsWith('/login')) return
+    router.replace({ path: '/login', query: { redirect, tab: 'partner' } })
+  })
+
   // 懒加载路由组件失败（多见于发版后旧页面未刷新）→ 自动刷新一次
   router.onError((err, to) => {
     if (isChunkLoadError(err)) reloadOnce(to.fullPath || to.path)
