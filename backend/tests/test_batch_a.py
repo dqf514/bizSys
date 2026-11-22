@@ -122,7 +122,7 @@ def test_menu_tree_biz_group(client, admin_headers):
     assert child_names == expected, child_names
     finance = find(tree, "Finance")
     fin_names = [c["name"] for c in finance["children"]]
-    assert fin_names == ["FinanceInvoices", "FinanceSettlements", "FinancePayments"], fin_names
+    assert fin_names == ["FinanceSettlements", "FinanceInvoices", "FinancePayments"], fin_names
     sample = find(tree, "Samples")
     assert sample["path"] == "/task/samples" and sample["permission"] == "task:sample:list"
     # 样品已迁入「生产资源 → 样品与物料」

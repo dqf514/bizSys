@@ -32,7 +32,7 @@ from app.modules.auth.models import User
 HIDDEN_MENUS = {"PartnerAccounts"}
 
 MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
-    # 业务中心：往来单位/合同/任务/报告/项目/财务（开票→结算→到账 保持既有顺序）
+    # 业务中心：往来单位/合同/任务/报告/项目/财务（财务分组按业务顺序：结算→开票→到账）
     (
         "menu.bizCenter",
         "BizSystem",
@@ -134,17 +134,6 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "",
                 [
                     (
-                        "menu.financeInvoice",
-                        "FinanceInvoices",
-                        "/finance/invoices",
-                        "finance/InvoiceList",
-                        "Postcard",
-                        "finance:invoice:list",
-                        [
-                            (None, "invoice-export", "", "", "", "finance:invoice:export", []),
-                        ],
-                    ),
-                    (
                         "menu.financeSettlement",
                         "FinanceSettlements",
                         "/finance/settlements",
@@ -157,6 +146,17 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                             (None, "settlement-confirm", "", "", "", "finance:settlement:confirm", []),
                             (None, "invoice-apply", "", "", "", "finance:invoice:apply", []),
                             (None, "invoice-edit", "", "", "", "finance:invoice:edit", []),
+                        ],
+                    ),
+                    (
+                        "menu.financeInvoice",
+                        "FinanceInvoices",
+                        "/finance/invoices",
+                        "finance/InvoiceList",
+                        "Postcard",
+                        "finance:invoice:list",
+                        [
+                            (None, "invoice-export", "", "", "", "finance:invoice:export", []),
                         ],
                     ),
                     (

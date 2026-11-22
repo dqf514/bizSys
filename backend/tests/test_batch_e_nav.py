@@ -100,7 +100,7 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "Finance",
     ]
     finance = _find(tree, "Finance")
-    assert _children(finance) == ["FinanceInvoices", "FinanceSettlements", "FinancePayments"]
+    assert _children(finance) == ["FinanceSettlements", "FinanceInvoices", "FinancePayments"]
 
     # 生产资源：设备→排程→样品与物料→采购→产能；样品与物料 内 样品 + 物料
     res = _find(tree, "Resources")
