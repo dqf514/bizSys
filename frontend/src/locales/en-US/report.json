@@ -42,6 +42,17 @@
       "sealing": "Seal Approving",
       "seal_approved": "Seal Approved",
       "sealed": "Sealed"
-    }
+    },
+    "verifySeal": "Verify Seal",
+    "sealVerifyOk": "Both the seal signature and the content hash verified successfully",
+    "sealVerifyBad": "Seal verification failed: signature or content hash does not match",
+    "sealSignatureValid": "Signature Valid",
+    "sealContentMatch": "Content Matches",
+    "sealContentUnavailable": "Content file is missing, the content hash cannot be compared",
+    "sealAlg": "Signature Algorithm",
+    "sealAt": "Sealed At",
+    "sealContentHash": "Content Hash",
+    "sealReason": "Verdict Detail",
+    "sealVerifyEmpty": "No verification result available"
   }
 }

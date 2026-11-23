@@ -97,5 +97,90 @@
     "content": "工作内容",
     "empty": "所选条件下暂无已提交工时",
     "onlySubmitted": "仅统计已提交工时"
+  },
+  "authorization": {
+    "title": "人员授权台账",
+    "keyword": "关键词",
+    "authNo": "授权编号",
+    "userName": "被授权人",
+    "userPlaceholder": "输入姓名或账号检索",
+    "deptName": "部门",
+    "authType": "授权类型",
+    "roleCode": "授权角色",
+    "scopeMethod": "检测方法",
+    "scopeParams": "方法参数",
+    "scopeDevice": "设备",
+    "scopeDeviceId": "设备ID",
+    "scopeDomain": "业务域",
+    "validFrom": "生效时间",
+    "validTo": "失效时间",
+    "status": {
+      "draft": "草稿",
+      "approving": "审批中",
+      "confirmed": "已确认",
+      "active": "生效中",
+      "suspended": "已暂停",
+      "expired": "已过期",
+      "revoked": "已撤销",
+      "rejected": "已驳回"
+    },
+    "applicantName": "申请人",
+    "approverName": "批准人",
+    "approvedAt": "批准时间",
+    "activatedAt": "生效时间",
+    "effectiveAt": "生效时刻",
+    "effective": "当时是否有效",
+    "lastReason": "最近原因",
+    "create": "新建授权",
+    "edit": "编辑授权",
+    "detail": "授权详情",
+    "timeline": "变更轨迹",
+    "timelineEmpty": "暂无变更记录",
+    "stateAt": "时点回放",
+    "stateAtTip": "选择历史时点，回放该时刻的授权状态（合规要求：授权当时有效才认可当时的操作）",
+    "stateAtPlaceholder": "选择时间点",
+    "stateAtRun": "回放",
+    "stateAtNotFound": "该时点无授权记录",
+    "activate": "授权生效",
+    "suspend": "暂停授权",
+    "resume": "恢复授权",
+    "revoke": "撤销授权",
+    "expire": "标记过期",
+    "reasonRequired": "原因必填（合规留痕）",
+    "reasonPlaceholder": "填写原因",
+    "reasonTip": {
+      "suspend": "暂停授权需填写原因（合规留痕）",
+      "revoke": "撤销授权需填写原因（合规留痕）",
+      "expire": "标记过期需填写原因（合规留痕）"
+    },
+    "confirmTip": {
+      "activate": "确认让该授权生效？",
+      "resume": "确认恢复该授权？恢复后被授权人可继续执行对应检测活动。"
+    },
+    "submitTip": "授权须经审批确认后方可生效；点击「提交审批」将立即发起审批流程。",
+    "type": {
+      "test_item": "检测项目",
+      "device": "设备操作",
+      "report_role": "报告角色",
+      "signer": "授权签字"
+    },
+    "role": {
+      "preparer": "编制",
+      "reviewer": "复核",
+      "approver": "批准",
+      "signer": "签字"
+    },
+    "event": {
+      "create": "创建",
+      "submit": "提交审批",
+      "approve": "审批通过",
+      "activate": "生效",
+      "suspend": "暂停",
+      "resume": "恢复",
+      "revoke": "撤销",
+      "expire": "过期",
+      "other": "状态变更"
+    },
+    "statusLabel": "状态"
   }
 }

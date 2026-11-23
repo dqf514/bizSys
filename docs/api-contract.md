@@ -1164,6 +1164,188 @@
 
 前端镜像在 `src/api/types.ts`。
 
+## B9 检测机构合规基线（审计证据链 + 电子签名 + 人员授权）
+
+> 对应《第三方检测机构运营平台合规开发原则》与《人力资源管理模块功能说明》。
+> 逐条对照见 [`compliance-baseline.md`](compliance-baseline.md)。三个控制点：
+> **C1 审计证据链**（字段级 + 哈希链 + 不可清空）、**C2 电子签名密码学绑定 + 签章后锁定**、**C3 人员授权台账 + 拦截点前置**。
+
+### 1. C1 审计证据链
+
+**`sys_audit_log` 表结构变更**（继承 `AppendOnlyModel`，**物理删除** `deleted` / `version` / `update_time` / `update_by`）
+
+| 新增列 | 类型 | 说明 |
+|---|---|---|
+| `field_name` | String(64) | 变更字段名（合规 2.2「哪个字段」） |
+| `old_value` | Text | 变更前值 |
+| `new_value` | Text | 变更后值 |
+| `reason` | Text | 变更原因 |
+| `user_agent` | String(255) | 终端 UA |
+| `chain_seq` | BigInteger **唯一索引** | 链上序号；**存量行为 NULL**（不回填，不伪造历史） |
+| `prev_hash` | String(64) | 上一行哈希 |
+| `row_hash` | String(64) | 本行哈希 |
+| `hash_alg` | String(16) | 哈希算法标识（`HMAC-SHA256`） |
+
+- `create_time` 精度改 **`DATETIME(3)`**（毫秒）。**row_hash 含时间戳，秒精度会让整链重算必失败** —— 迁移 / 模型 / `tests/conftest.py::_ensure_columns` 三处必须同时改。
+- `row_hash = HMAC-SHA256(prev_hash ‖ canonical(row))`；`canonical` 按固定字段序生成 `name=value\n` 串，**字段重排 → 哈希不同**。
+- 链头表 `sys_audit_chain_head`（单行 `chain_key='main'`）：`last_seq` / `last_hash` / `last_row_id` / `anchored_seq` / `anchored_hash` / `anchored_at` / `write_failures` / `key_version`。
+  **链头是唯一权威游标**（`SELECT … FOR UPDATE NOWAIT`），**不用 `MAX(id)`** —— 并发下 `MAX(id)` 必然产生同 `prev_hash` 分叉。
+- 失败台账 `sys_audit_failure`（只追加）：审计写不进去时留痕，**证据缺口本身也要留痕**。
+- 迁移里加 `BEFORE UPDATE` / `BEFORE DELETE` 触发器 `SIGNAL SQLSTATE '45000'` 物理阻断 `sys_audit_log` 改删；`downgrade()` 必须 `DROP TRIGGER`。
+- **`record()` 保持全部旧参数**，新增 keyword-only 且带默认值（`field_name` / `old_value` / `new_value` / `reason` / `user_agent` / `strict`）→ **全仓 283 处调用点零改动**。
+  - 默认尽力而为：失败只记 `sys_audit_failure`，不阻断业务；
+  - `strict=True`（或全局开关 `audit.strict.enabled`）时抛 **30005**，由调用方 `db.commit()` 回滚整个事务。
+  - `trace_id` / `ip` / `user_agent` 缺省从 `app/core/reqctx.py` 的请求上下文取（`server_now` 每请求缓存一次）。
+
+**端点**（`app/modules/admin/router.py`，权限 `admin:audit:list`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/audit-logs` | 列表；出参新增 `fieldName` `oldValue` `newValue` `reason` `userAgent` `chainSeq` `rowHash` `hashAlg` `username` |
+| GET | `/admin/audit-logs/chain/verify?mode=full\|since_anchor&fromSeq=` | 链完整性校验 → `{ok, mode, checked, firstSeq, lastSeq, headSeq, headHash, headMatchesLastRow, brokenAt:{seq,rowId,reason,expected,actual}, anchor:{seq,hash,at,file,truncated,match}, legacyRows, writeFailures, hashAlg, keyVersion}` |
+| GET | `/admin/audit-logs/anchors` | 锚点历史（倒序）→ `{items:[{seq,hash,at,file}]}` |
+| POST | `/admin/audit-logs/anchor` | 立即锚定当前链头 → `{seq, hash, at, file}` |
+| GET | `/admin/audit-logs/{row_id}/evidence` | 单条证据详情 → 链上位置 + `recalculatedHash` + `hashValid`（存量行 `chainSeq` 为空 → `hashValid=false`） |
+| GET | `/admin/audit-logs/export` | 导出新增字段级列与链序号 |
+
+- `brokenAt.reason` 取值：`seq_gap`（断号 = 有行被删）/ `prev_hash_mismatch`（链接断裂）/ `row_hash_mismatch`（内容被改）/ `head_mismatch`（链头被改）。
+- **锚点写在 DB 之外的文件** `backend/data/audit-anchor/anchor-YYYYMMDD.txt`（只追加，每行 `seq|hash|ts|hmac`）→ 整链被重写/截断时锚点对不上。DB 里的 `anchored_seq/anchored_hash` 只用于 UI 展示，**校验以文件为准**。备份成功后自动锚定。
+
+**「一键清空」变更**（`app/modules/maintenance/service.py`）
+
+- `sys_audit_log` / `vis_access_log` / `vis_nda` **移出清空清单** → 新常量 `RETAINED_AUDIT_TABLES`；`purge()` 返回体新增 `retainedAuditTables` 公开保留清单。
+- `hr_authorization` / `hr_authorization_event` **必须登记进清空清单**（否则编号序列清零后撞唯一键，见 CLAUDE.md 已知坑）。
+
+### 2. C2 电子签名密码学绑定
+
+**`app/core/signature.py`**：HMAC-SHA256 签名/验签。密钥 `sha256("bizsys:evidence-signature:" + jwt_secret)`（与 `app/core/crypto.py` 同源、**域分隔前缀不同**）；`hmac.compare_digest` 比对。固定字段组 `NDA_FIELDS` / `REPORT_SEAL_FIELDS`。
+
+**NDA**（`vis_nda` 新增列 `signed_by_id` `signed_by_name` `signed_ip` `sign_alg` `sign_version`）
+
+- 签名绑定内容：`biz_type + nda_no + 姓名/单位/证件号/标题 + 签署时间 + 签署人 id/姓名 + 真实 IP + 手写图 sha256`。
+  **用单号而不是自增 id** —— id 在 insert 前未知会造成循环依赖。
+- 真实 IP 从 `reqctx.current().ip` 取（原先 `ip=""` 硬编码为空）。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/visitor/nda/{nid}/verify` | → `{id, ndaNo, valid, verdict, alg, signedBy, signedAt, signedIp, reason}` |
+
+- `verdict`：`valid`（签名与内容一致）/ `invalid`（内容被改或签名被伪造）/ **`legacy-unverifiable`**（存量行 —— 无密钥 sha256，离线可复算，**不能当密码学证据**）。
+- 存量行迁移时标 `sign_version='legacy-sha256'`；前端打灰标「不可作为密码学证据」。
+- 验签失败时写审计（`visitor` / `nda_verify`）。
+
+**报告签章**（`rpt_report` 新增列 `seal_by_name` `seal_content_hash` `seal_signature` `seal_alg` + 三级角色 `preparer_id/name` `reviewer_id/name` `approver_id/name`）
+
+- 内容哈希 `compute_content_hash(db, r)` = `sha256(最终PDF字节sha256 | report_no | task_item_id | sha256(conclusion))`；文件丢失返回空串（只能验签名）。
+- **顺序铁律**：内容哈希必须在 `apply_seal_watermark()` **之后**算 —— 盖章会产出新 PDF，先算必然对不上。
+- `seal_time` 列是 `DATETIME(0)`，签名载荷按**秒口径**计算。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/report/reports/{rid}/seal/verify` | → `{id, reportNo, signatureValid, contentMatch, contentUnavailable, alg, sealedBy, sealedAt, contentHash, reason}` |
+
+- `signatureValid` = 签名未被伪造且单据关键字段未被改；`contentMatch` = 签章后内容没被改；`contentUnavailable` = 最终 PDF 已丢失。
+- **签章后锁定**：`report/service.py::assert_report_editable()`，`status == 'sealed'` 抛 **61003**（统一挂到 `update_remark` / `update_conclusion` / AI 摘要采用 / AI 辅助采用）。
+
+### 3. C3 人员授权台账
+
+**表 `hr_authorization`**（继承 `BaseModel`；单号前缀 `AU`）
+
+| 列 | 说明 |
+|---|---|
+| `auth_no` | 授权编号（唯一） |
+| `user_id` / `user_name` | 被授权人 |
+| `dept_id` / `dept_name` | 被授权人部门（新建/编辑时从 `sys_user` 回填） |
+| `auth_type` | `test_item` 检测项目 / `device` 设备操作 / `report_role` 报告角色 / `signer` 授权签字 |
+| `role_code` | `preparer` 编制 / `reviewer` 复核 / `approver` 批准 / `signer` 签字 |
+| `scope_method` / `scope_params` | 检测方法/标准 + 方法参数 |
+| `scope_device_id` / `scope_device_name` | 具体设备 |
+| `scope_domain` | 业务域/专业域 |
+| `scope_json` | 范围快照 —— **只做展示兜底，不做过滤依据** |
+| `valid_from` / `valid_to` | 有效期 |
+| `status` | `draft` / `approving` / `confirmed` / `active` / `suspended` / `expired` / `revoked` / `rejected` |
+| `applicant_id/name` `approver_id/name` `approved_at` `activated_at` `flow_instance_id` `last_reason` `remark` | 申请与审批 |
+
+索引：`(user_id, auth_type, status)`、`(auth_type, status)`、`(status, valid_to)`。
+
+**表 `hr_authorization_event`**（继承 `AppendOnlyModel`，**只追加**，无 `deleted`/`version`）：`authorization_id` `auth_no` `event_type` `from_status` `to_status` `operator_id/name` `reason` `effective_at` `snapshot` → 支撑**回放任一历史时点的授权状态**。
+
+**状态机**：`draft → confirmed → active ⇄ suspended → expired / revoked`（另有 `approving` / `rejected`）。
+暂停 / 撤销 / 过期**原因必填**；每次变更写事件表 + **字段级审计**（`field_name='status'`、`old_value`、`new_value`、`reason`、`strict=True`）。
+
+**端点**（`app/modules/hr/authorization_router.py`，prefix `/hr`）
+
+| 方法 | 路径 | 权限码 | 说明 |
+|---|---|---|---|
+| GET | `/hr/authorizations` | `hr:authorization:list` | 列表；`q` 搜 `auth_no`/`user_name`/`scope_*`/`remark`；`filters[auth_type]` `filters[role_code]` `filters[user_id]` `filters[dept_id]` `filters[status]`；`range[valid_from]` `range[valid_to]`；`sort` |
+| GET | `/hr/authorizations/counts` | `hr:authorization:list` | 状态页签计数（含 `all`） |
+| GET | `/hr/authorizations/export` | `hr:authorization:export` | xlsx（与列表同一套过滤口径） |
+| GET | `/hr/authorizations/options/users?q=` | `hr:authorization:list` | 被授权人远程检索 → `[{value,label,sub,deptName}]` |
+| GET | `/hr/authorizations/{aid}` | `hr:authorization:list` | 详情（附 `timeline`） |
+| GET | `/hr/authorizations/{aid}/timeline` | `hr:authorization:list` | 变更轨迹（只追加，倒序） |
+| GET | `/hr/authorizations/{aid}/state-at?at=` | `hr:authorization:list` | **回放某历史时点的授权状态** |
+| POST | `/hr/authorizations` | `hr:authorization:create` | 新建（草稿）；201 |
+| PUT | `/hr/authorizations/{aid}` | `hr:authorization:edit` | 编辑（仅 `draft` / `rejected`） |
+| POST | `/hr/authorizations/{aid}/submit` | `hr:authorization:submit` | 提交审批（**不允许人工直通**：未配置流程定义直接报错） |
+| POST | `/hr/authorizations/{aid}/activate` | `hr:authorization:activate` | 生效（`confirmed → active`） |
+| POST | `/hr/authorizations/{aid}/suspend` | `hr:authorization:activate` | 暂停（**原因必填**） |
+| POST | `/hr/authorizations/{aid}/resume` | `hr:authorization:activate` | 恢复（`suspended → active`） |
+| POST | `/hr/authorizations/{aid}/revoke` | `hr:authorization:revoke` | 撤销（**原因必填**；立即生效） |
+| POST | `/hr/authorizations/{aid}/expire` | `hr:authorization:revoke` | 过期（**原因必填**） |
+
+**拦截点前置**（`app/modules/hr/authorization.py::assert_authorized`）
+
+| 位置 | 校验 |
+|---|---|
+| `report/router.py:224`（报告编制） | 编制人须有 `report_role=preparer` 授权（+ 方法维度 = `TaskItem.std`） |
+| `report/router.py:307`（报告用章） | 用章人须有 `report_role=approver` 或 `signer` 授权 |
+| `task/process_router.py:249,257`（派工 / 派设备） | 受派人须有该任务方法的 `test_item` 授权；派设备须有 `device` 授权 |
+| `task/router.py:974`（检测进度录入） | 录入人须有 `test_item`（+ `device`）授权 |
+
+- **超管旁路**（`role_code='super'`）+ **`sys_config` 双开关** `auth.enforce.report` / `auth.enforce.task`（默认开）。
+- **不做跨请求缓存**（撤销必须立即生效）；请求内 memo 走 `db.info`。
+- 越权抛 **63007**；授权过期抛 **63009**。
+
+**SoD 动态探测**（`report/service.py::resolve_report_roles`）：从签批实例的 `approval_record` 取通过序列 → 编制/复核/批准；`node_count >= 2` 时**硬拦截**（三人不得同人 + 各自持对应角色授权 → 63008），否则**降级告警**写审计。管理员在「流程设置」给 `report_sign` 发新版本加节点 → `flow_version` 递增 → **代码零改动即变硬拦截**。
+
+**流程绑定**（`app/modules/approval/registry.py`，BINDINGS 共 **18** 条）
+
+```
+FlowBinding(biz_type="hr_authorization", definition_code="hr_authorization_approve",
+            submit_from=("draft","rejected"), approving_status="approving",
+            approved_status="confirmed", rejected_status="rejected",
+            pass_through=False, submit_perm="hr:authorization:submit", doc_no_field="auth_no")
+```
+
+`pass_through=False` → 未配置流程定义时提交直接报错，**授权不允许绕过审批**。总开关 `flow.hr_authorization.enabled`（`GET/PUT /admin/automation`）。
+种子流程 `hr_authorization_approve`：科室（`DEPT_LEADER`）→ 技术负责人 `tech1` → 质量负责人 `qa1`。**不用 ROLE 节点**（无人拥有该角色时引擎会"解析失败自动跳过" → 审批形同虚设）。
+
+### 4. B9 新增错误码
+
+| 码 | 常量 | 含义 |
+|---|---|---|
+| 30003 | `ADMIN_AUDIT_CHAIN_BROKEN` | 审计链校验不通过（断链/篡改） |
+| 30004 | `ADMIN_AUDIT_CHAIN_LOCK_TIMEOUT` | 审计链写入锁冲突，请重试 |
+| 30005 | `ADMIN_AUDIT_WRITE_FAILED` | 审计写入失败，操作已回滚 |
+| 61003 | `REPORT_SEALED_LOCKED` | 报告已签章锁定，需作废重做 |
+| 61004 | `REPORT_SIGNATURE_INVALID` | 签章签名或内容哈希校验失败 |
+| 63005 | `HR_AUTH_INVALID_STATE` | 授权状态不允许该操作 |
+| 63006 | `HR_AUTH_NOT_FOUND` | 授权记录不存在 |
+| 63007 | `HR_AUTH_DENIED` | 无相应授权（越权拦截） |
+| 63008 | `HR_AUTH_SOD_VIOLATION` | 职责分离冲突（编制/复核/批准不得同人） |
+| 63009 | `HR_AUTH_EXPIRED` | 授权已过期 |
+| 98014 | `VISITOR_NDA_SIGNATURE_INVALID` | NDA 签名校验失败 |
+
+前端镜像在 `src/api/types.ts`（**新增业务错误码必须同时在两侧登记**）。
+
+### 5. 种子与菜单
+
+- 菜单：`menu.hrCenter` 下新增 `menu.authorization` → 路径 `/hr/authorizations`，componentKey `hr/AuthorizationList`，权限 `hr:authorization:list`；按钮权限 `create` / `edit` / `submit` / `approve` / `activate` / `revoke` / `export`。
+  `menu.staff`（`hr:staff:list` 占位页，承载 HR L1 人员档案）**保留不动**。
+- 角色：新增 `hr_manager`（人事管理员，挂全部 `hr:authorization:*`）；`biz_user` 只加 `hr:authorization:list`（只读反查）—— 授权管理属质量/人事职责，与检测员**职责分离**。
+- 账号：`tech1`（技术负责人）/ `qa1`（质量负责人）/ `hr1`（人事管理员），密码 `Test@123456`。
+- 编号规则：新增 `hr_authorization` → 前缀 `AU`。
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
@@ -1171,7 +1353,7 @@ finance/SettlementList  finance/InvoiceList  finance/PaymentList
 procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/StockOrderList
 procurement/TenderList  procurement/PartnerAccountList
 report/ReportList
-hr/TimesheetFill  hr/TimesheetStats
+hr/TimesheetFill  hr/TimesheetStats  hr/AuthorizationList
 sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList

@@ -220,6 +220,16 @@ export interface AuditLog {
   bizType: string
   bizId: number | string | null
   detail: string
+  /** B9：字段级证据（变更字段 / 旧值 → 新值 / 原因） */
+  fieldName: string
+  oldValue: string | null
+  newValue: string | null
+  reason: string | null
+  userAgent: string
+  /** B9：证据链（链序号 / 行哈希 / 算法） */
+  chainSeq: number | null
+  rowHash: string
+  hashAlg: string
   traceId: string
   ip: string
   createTime: string
@@ -3202,4 +3212,212 @@ export interface ProjectGantt {
   milestones: ProjectTask[]
   total: number
   created?: number
+}
+
+/* ---------------- B9 合规基线：人员授权台账 + 审计证据链 ---------------- */
+
+/** B9 新增错误码（镜像 backend/app/core/response.py） */
+export const B9_ERR = {
+  /** 审计链校验不通过（断链 / 篡改） */
+  AUDIT_CHAIN_BROKEN: 30003,
+  /** 审计链写入锁冲突，请重试 */
+  AUDIT_CHAIN_LOCK_TIMEOUT: 30004,
+  /** 审计写入失败，操作已回滚 */
+  AUDIT_WRITE_FAILED: 30005,
+  /** 报告已签章锁定，需作废重做 */
+  REPORT_SEALED_LOCKED: 61003,
+  /** 签章签名或内容哈希校验失败 */
+  REPORT_SIGNATURE_INVALID: 61004,
+  /** 授权状态不允许该操作 */
+  HR_AUTH_INVALID_STATE: 63005,
+  /** 授权记录不存在 */
+  HR_AUTH_NOT_FOUND: 63006,
+  /** 无相应授权（越权拦截） */
+  HR_AUTH_DENIED: 63007,
+  /** 职责分离冲突（编制 / 复核 / 批准不得同人） */
+  HR_AUTH_SOD_VIOLATION: 63008,
+  /** 授权已过期 */
+  HR_AUTH_EXPIRED: 63009,
+  /** NDA 签名校验失败 */
+  VISITOR_NDA_SIGNATURE_INVALID: 98014,
+} as const
+
+/** 授权类型 */
+export type HrAuthType = 'test_item' | 'device' | 'report_role' | 'signer'
+
+/** 授权角色（报告三级审核） */
+export type HrAuthRole = 'preparer' | 'reviewer' | 'approver' | 'signer'
+
+/** 授权状态机 */
+export type HrAuthStatus =
+  | 'draft'
+  | 'approving'
+  | 'confirmed'
+  | 'active'
+  | 'suspended'
+  | 'expired'
+  | 'revoked'
+  | 'rejected'
+
+/** 人员授权台账行（GET /hr/authorizations） */
+export interface HrAuthorization {
+  id: number
+  authNo: string
+  userId: number
+  userName: string
+  deptId: number | null
+  deptName: string
+  authType: string
+  authTypeText: string
+  roleCode: string
+  roleCodeText: string
+  scopeMethod: string
+  scopeParams: string
+  scopeDeviceId: number | null
+  scopeDeviceName: string
+  scopeDomain: string
+  validFrom: string
+  validTo: string
+  status: string
+  statusText: string
+  applicantId: number | null
+  applicantName: string
+  approverId: number | null
+  approverName: string
+  approvedAt: string
+  activatedAt: string
+  flowInstanceId: number | null
+  lastReason: string
+  remark: string
+  createTime: string
+}
+
+/** 授权变更轨迹（只追加，倒序） */
+export interface HrAuthorizationEvent {
+  id: number
+  eventType: string
+  fromStatus: string
+  toStatus: string
+  operatorId: number | null
+  operatorName: string
+  reason: string
+  effectiveAt: string
+  createTime: string
+}
+
+/** 授权详情（带变更轨迹） */
+export interface HrAuthorizationDetail extends HrAuthorization {
+  timeline: HrAuthorizationEvent[]
+}
+
+/** 某历史时点的授权状态（回放） */
+export interface HrAuthorizationStateAt {
+  authorizationId: number
+  at: string
+  status: string
+  effectiveAt: string
+  reason: string
+  effective: boolean
+}
+
+/** 授权变更轨迹条目 */
+export interface HrAuthorizationTimeline {
+  items: HrAuthorizationEvent[]
+}
+
+/** 审计链断链定位信息 */
+export interface AuditChainBroken {
+  seq: number | null
+  rowId: number | null
+  reason: string
+  expected: string
+  actual: string
+}
+
+/** 审计链锚点（DB 之外的文件为准） */
+export interface AuditChainAnchor {
+  seq: number
+  hash: string
+  at: string
+  file: string
+  truncated: boolean
+  match: boolean | null
+}
+
+/** 审计链完整性校验结论（GET /admin/audit-logs/chain/verify） */
+export interface AuditChainVerifyResult {
+  ok: boolean
+  mode: string
+  checked: number
+  firstSeq: number | null
+  lastSeq: number | null
+  headSeq: number
+  headHash: string
+  headMatchesLastRow: boolean
+  brokenAt: AuditChainBroken | null
+  anchor: AuditChainAnchor | null
+  legacyRows: number
+  writeFailures: number
+  hashAlg: string
+  keyVersion: string
+}
+
+/** 审计锚点条目（GET /admin/audit-logs/anchors） */
+export interface AuditAnchorEntry {
+  seq: number
+  hash: string
+  at: string
+  file?: string
+}
+
+/** 单条审计证据详情（GET /admin/audit-logs/{id}/evidence） */
+export interface AuditEvidenceDetail {
+  id: number
+  chainSeq: number | null
+  prevHash: string
+  rowHash: string
+  hashAlg: string
+  recalculatedHash: string
+  hashValid: boolean
+  createTime: string
+  userId: number | null
+  module: string
+  action: string
+  bizType: string
+  bizId: number | string | null
+  fieldName: string
+  oldValue: string | null
+  newValue: string | null
+  reason: string | null
+  detail: string
+  traceId: string
+  ip: string
+  userAgent: string
+}
+
+/** NDA 验签结论（GET /visitor/nda/{id}/verify） */
+export interface NdaVerifyResult {
+  id: number
+  ndaNo: string
+  valid: boolean
+  verdict: 'valid' | 'invalid' | 'legacy-unverifiable'
+  alg: string
+  signedBy: string
+  signedAt: string
+  signedIp: string
+  reason: string
+}
+
+/** 报告签章验签结论（GET /report/reports/{id}/seal/verify） */
+export interface SealVerifyResult {
+  id: number
+  reportNo: string
+  signatureValid: boolean
+  contentMatch: boolean
+  contentUnavailable: boolean
+  alg: string
+  sealedBy: string
+  sealedAt: string
+  contentHash: string
+  reason: string
 }

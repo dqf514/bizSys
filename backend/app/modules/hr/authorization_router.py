@@ -112,6 +112,14 @@ def _user_name(db: Session, user_id: int) -> str:
     return (u.name or u.username) if u else ""
 
 
+def _user_dept(db: Session, user_id: int) -> tuple[int | None, str]:
+    """被授权人的部门（授权台账按部门维度检索 / 职责分离统计用）。"""
+    u = db.get(User, user_id)
+    if not u:
+        return None, ""
+    return u.dept_id, u.dept_name or ""
+
+
 def _auth_out(a: HrAuthorization) -> dict:
     data = auth_svc.out(a)
     data["statusText"] = AUTH_STATUS_CN.get(a.status, a.status)
@@ -221,7 +229,10 @@ def authorization_user_options(
         like = f"%{kw}%"
         stmt = stmt.where(User.name.like(like) | User.username.like(like))
     rows = db.scalars(stmt.order_by(User.id).limit(50)).all()
-    return [{"value": u.id, "label": u.name or u.username, "sub": u.username} for u in rows]
+    return [
+        {"value": u.id, "label": u.name or u.username, "sub": u.username, "deptName": u.dept_name or ""}
+        for u in rows
+    ]
 
 
 @router.get("/authorizations/{aid}")
@@ -269,10 +280,13 @@ def create_authorization(
     db: Session = Depends(get_db),
 ):
     """新建授权（草稿）。授权须经审批确认后方可生效。"""
+    dept_id, dept_name = _user_dept(db, body.user_id)
     a = HrAuthorization(
         auth_no=next_no(db, "hr_authorization"),
         user_id=body.user_id,
         user_name=_user_name(db, body.user_id),
+        dept_id=dept_id,
+        dept_name=dept_name,
         auth_type=body.auth_type,
         role_code=body.role_code,
         scope_method=body.scope_method,
@@ -331,6 +345,7 @@ def update_authorization(
         raise BizException(R.HR_AUTH_INVALID_STATE, f"状态「{a.status}」不允许编辑授权")
     a.user_id = body.user_id
     a.user_name = _user_name(db, body.user_id)
+    a.dept_id, a.dept_name = _user_dept(db, body.user_id)
     a.auth_type = body.auth_type
     a.role_code = body.role_code
     a.scope_method = body.scope_method

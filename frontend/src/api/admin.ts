@@ -1,6 +1,9 @@
 import { request, download, toQuery } from './http'
 import type {
   AdminUser,
+  AuditAnchorEntry,
+  AuditChainVerifyResult,
+  AuditEvidenceDetail,
   AuditLog,
   Dept,
   DictItem,
@@ -194,6 +197,32 @@ export function exportAuditLogs(params: ListQuery) {
     { url: '/admin/audit-logs/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
     'audit_logs.xlsx',
   )
+}
+
+/* ---- 审计证据链（B9） ---- */
+
+/** 链完整性校验：断链 / 篡改 / 截断 / 链头被改 */
+export function verifyAuditChain(params?: { mode?: 'full' | 'since_anchor'; fromSeq?: number }) {
+  return request<AuditChainVerifyResult>({
+    url: '/admin/audit-logs/chain/verify',
+    method: 'get',
+    params: params ?? {},
+  })
+}
+
+/** 立即锚定当前链头（锚点写在 DB 之外的文件） */
+export function createAuditAnchor() {
+  return request<AuditAnchorEntry>({ url: '/admin/audit-logs/anchor', method: 'post' })
+}
+
+/** 锚点历史 */
+export function listAuditAnchors() {
+  return request<{ items: AuditAnchorEntry[] }>({ url: '/admin/audit-logs/anchors', method: 'get' })
+}
+
+/** 单条审计证据详情（含重算哈希比对） */
+export function getAuditEvidence(id: number) {
+  return request<AuditEvidenceDetail>({ url: `/admin/audit-logs/${id}/evidence`, method: 'get' })
 }
 
 // ---- depts ----

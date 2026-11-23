@@ -20,9 +20,10 @@ import {
   sealReport,
   downloadReport,
   exportReports,
+  verifyReportSeal,
 } from '@/api/report'
 import { useFlowCapability } from '@/composables/useFlowCapability'
-import type { Report } from '@/api/types'
+import type { Report, SealVerifyResult } from '@/api/types'
 
 defineOptions({ name: 'ReportList' })
 
@@ -118,6 +119,10 @@ function rowActions(row: Report): ActionItem[] {
   }
   acts.push({ key: 'downloadRaw', tip: 'report.report.downloadRaw', icon: 'Download' })
   if (row.pdfReady) acts.push({ key: 'downloadPdf', tip: 'report.report.downloadPdf', icon: 'Document' })
+  // B9-C2：签章后锁定的报告可验签（签名 + 内容哈希比对）
+  if (row.status === 'sealed') {
+    acts.push({ key: 'verify', tip: 'report.report.verifySeal', icon: 'CircleCheck', perm: 'report:seal' })
+  }
   return acts
 }
 
@@ -126,6 +131,7 @@ function onRowAction(key: string, row: Report) {
   else if (key === 'submit') void doSubmit(row)
   else if (key === 'sealApply') void doSealApply(row)
   else if (key === 'seal') void doSeal(row)
+  else if (key === 'verify') void doVerifySeal(row)
   else if (key === 'downloadRaw') doDownload(row, false)
   else if (key === 'downloadPdf') doDownload(row, true)
 }
@@ -194,6 +200,24 @@ function openDetail(row: Report) {
   detailId.value = row.id
   detailVisible.value = true
 }
+
+/* ---------- 签章验签（B9-C2） ---------- */
+const verifyVisible = ref(false)
+const verifyLoading = ref(false)
+const verifyResult = ref<SealVerifyResult | null>(null)
+
+async function doVerifySeal(row: Report) {
+  verifyVisible.value = true
+  verifyLoading.value = true
+  verifyResult.value = null
+  try {
+    verifyResult.value = await verifyReportSeal(row.id)
+  } catch {
+    verifyResult.value = null
+  } finally {
+    verifyLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -257,4 +281,66 @@ function openDetail(row: Report) {
   <ReportUploadDialog v-model="uploadVisible" @uploaded="list.refresh()" />
 
   <ReportDetailDrawer v-model="detailVisible" :report-id="detailId" />
+
+  <!-- 签章验签 -->
+  <el-dialog v-model="verifyVisible" :title="t('report.report.verifySeal')" width="var(--bs-layout-dialog-md)" append-to-body>
+    <div v-loading="verifyLoading">
+      <template v-if="verifyResult">
+        <el-alert
+          :type="verifyResult.signatureValid && verifyResult.contentMatch ? 'success' : 'error'"
+          :title="
+            verifyResult.signatureValid && verifyResult.contentMatch
+              ? t('report.report.sealVerifyOk')
+              : t('report.report.sealVerifyBad')
+          "
+          :closable="false"
+          show-icon
+        />
+        <el-descriptions :column="1" border size="small" class="verify-desc">
+          <el-descriptions-item :label="t('report.report.reportNo')">
+            {{ verifyResult.reportNo || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealSignatureValid')">
+            {{ verifyResult.signatureValid ? t('common.action.yes') : t('common.action.no') }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealContentMatch')">
+            <template v-if="verifyResult.contentUnavailable">
+              {{ t('report.report.sealContentUnavailable') }}
+            </template>
+            <template v-else>
+              {{ verifyResult.contentMatch ? t('common.action.yes') : t('common.action.no') }}
+            </template>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealAlg')">
+            {{ verifyResult.alg || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealBy')">
+            {{ verifyResult.sealedBy || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealAt')">
+            {{ verifyResult.sealedAt || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealContentHash')">
+            <span class="hash-text">{{ verifyResult.contentHash || '-' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('report.report.sealReason')">
+            {{ verifyResult.reason || '-' }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+      <el-empty v-else :description="t('report.report.sealVerifyEmpty')" :image-size="60" />
+    </div>
+  </el-dialog>
 </template>
+
+<style scoped>
+.verify-desc {
+  margin-top: var(--bs-space-3);
+}
+
+.hash-text {
+  font-family: var(--bs-typography-font-family-mono);
+  font-size: var(--bs-typography-font-size-xs);
+  word-break: break-all;
+}
+</style>

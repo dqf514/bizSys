@@ -108,7 +108,17 @@
     "signature": "Handwritten Signature",
     "signatureHint": "Signed by the visitor at the gate; an evidence hash is retained",
     "bindVisit": "Linked Visit",
-    "signatureRequired": "Please sign before submitting"
+    "signatureRequired": "Please sign before submitting",
+    "verify": "Verify Signature",
+    "verifyOk": "Signature verified: the signed content is validly bound to the signer",
+    "verifyBad": "Signature verification failed: content or signer information was tampered with",
+    "verifyLegacy": "Legacy NDA has no cryptographic binding (the historical hash is keyless) and cannot serve as cryptographic evidence",
+    "verifyAlg": "Signature Algorithm",
+    "verifySignedBy": "Signed By",
+    "verifySignedAt": "Signed At",
+    "verifySignedIp": "Signed IP",
+    "verifyReason": "Verdict Detail",
+    "verifyEmpty": "No verification result available"
   },
   "credential": {
     "title": "Access Credentials",

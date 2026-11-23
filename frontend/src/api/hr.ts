@@ -1,5 +1,9 @@
 import { download, request, toQuery } from './http'
 import type {
+  HrAuthorization,
+  HrAuthorizationDetail,
+  HrAuthorizationStateAt,
+  HrAuthorizationTimeline,
   HrContractOption,
   HrDayData,
   HrStatsOption,
@@ -137,4 +141,131 @@ export function exportTimesheetStats(params: TimesheetStatsQuery) {
     { url: '/hr/timesheets/stats/export', method: 'get', params: toQuery({ ...params }) },
     `hr_timesheet_stats_${params.dimension}.xlsx`,
   )
+}
+
+/* ---------- 人员授权台账（B9-C3） ---------- */
+
+export interface AuthorizationPayload {
+  userId: number
+  authType: string
+  roleCode?: string
+  scopeMethod?: string
+  scopeParams?: string
+  scopeDeviceId?: number | null
+  scopeDeviceName?: string
+  scopeDomain?: string
+  validFrom?: string | null
+  validTo?: string | null
+  remark?: string
+}
+
+export interface AuthorizationActionPayload {
+  reason?: string
+}
+
+export function listAuthorizations(params: ListQuery) {
+  return request<PageResult<HrAuthorization>>({
+    url: '/hr/authorizations',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function authorizationCounts() {
+  return request<Record<string, number>>({ url: '/hr/authorizations/counts', method: 'get' })
+}
+
+export function exportAuthorizations(params: ListQuery) {
+  return download(
+    { url: '/hr/authorizations/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
+    'hr_authorizations.xlsx',
+  )
+}
+
+/** 被授权人远程检索项 */
+export interface AuthorizationUserOption {
+  value: number
+  label: string
+  sub?: string
+  deptName?: string
+}
+
+export function searchAuthorizationUsers(q = '') {
+  return request<AuthorizationUserOption[]>({
+    url: '/hr/authorizations/options/users',
+    method: 'get',
+    params: { q },
+  })
+}
+
+export function getAuthorization(id: number) {
+  return request<HrAuthorizationDetail>({ url: `/hr/authorizations/${id}`, method: 'get' })
+}
+
+export function getAuthorizationTimeline(id: number) {
+  return request<HrAuthorizationTimeline>({ url: `/hr/authorizations/${id}/timeline`, method: 'get' })
+}
+
+export function getAuthorizationStateAt(id: number, at: string) {
+  return request<HrAuthorizationStateAt>({
+    url: `/hr/authorizations/${id}/state-at`,
+    method: 'get',
+    params: { at },
+  })
+}
+
+export function createAuthorization(data: AuthorizationPayload) {
+  return request<HrAuthorization>({ url: '/hr/authorizations', method: 'post', data })
+}
+
+export function updateAuthorization(id: number, data: AuthorizationPayload) {
+  return request<HrAuthorization>({ url: `/hr/authorizations/${id}`, method: 'put', data })
+}
+
+export function submitAuthorization(id: number, comment?: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/submit`,
+    method: 'post',
+    data: { comment },
+  })
+}
+
+export function activateAuthorization(id: number, reason?: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/activate`,
+    method: 'post',
+    data: { reason },
+  })
+}
+
+export function suspendAuthorization(id: number, reason: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/suspend`,
+    method: 'post',
+    data: { reason },
+  })
+}
+
+export function resumeAuthorization(id: number, reason?: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/resume`,
+    method: 'post',
+    data: { reason },
+  })
+}
+
+export function revokeAuthorization(id: number, reason: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/revoke`,
+    method: 'post',
+    data: { reason },
+  })
+}
+
+export function expireAuthorization(id: number, reason: string) {
+  return request<HrAuthorization>({
+    url: `/hr/authorizations/${id}/expire`,
+    method: 'post',
+    data: { reason },
+  })
 }

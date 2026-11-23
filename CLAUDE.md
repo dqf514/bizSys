@@ -10,7 +10,7 @@ bizSys 是一个 pnpm workspace 单体仓库：Python 后端（FastAPI + SQLAlch
 backend/    FastAPI + SQLAlchemy 2（同步）
 frontend/   Vue 3 + TS 单包应用
 deploy/     Docker Compose + Dockerfile + nginx
-docs/       ADR-0001~0004 + api-contract.md + roadmap-2026-11.md + 各域设计文档
+docs/       ADR-0001~0004 + api-contract.md + roadmap-2026-11.md + compliance-baseline.md + 各域设计文档
 pre/        前期会议素材（截图/字幕/纪要）
 ```
 
@@ -134,7 +134,7 @@ current: User = Depends(get_current_user)              # 仅登录
 
 ### 流程注册表与事件开关（F5，全流程驱动）
 
-- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 17 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
+- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 18 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
 - **未配置启用的流程定义 → 按人工审核口径直通**（`passThrough` + `passThroughStatus`），不产生审批实例；**流程总开关关闭 → 禁止提交审批（70006），同时恢复人工直通后门**。
 - `app/modules/approval/wiring.py::install()` — 显式装配订阅（幂等），在 `main.py` 调用；不再依赖各域 service 模块级 `subscribe()` 的隐式导入。
 - `app/modules/settings/automation.py` — 「流程与事件开关」面板数据：流程总开关 `flow.<bizType>.enabled` 与事件触发开关 `event.trigger.<事件>.<处理器>` 都落 `sys_config`，写入即生效。端点 `GET/PUT /admin/automation`（`admin:automation:list` / `admin:automation:edit`）。
@@ -166,7 +166,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n7a2b3c4d5e6_portal_visitor_flow.py`。新迁移用可读递增 id（如 `n8a2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `n9a2b3c4d5e6_hr_authorization.py`。新迁移用可读递增 id（如 `na2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
@@ -181,6 +181,24 @@ current: User = Depends(get_current_user)              # 仅登录
 - **二维码用 `segno` 服务端生成**：`app/modules/visitor/qr.py::credential_qr_svg()`（纯 Python、零传递依赖、已在 `backend/pyproject.toml`）。前端**不要用 `<img src>` 直连**（不会带 `Authorization` 头），要用 `portalHttp` 以 `responseType:'blob'` 取回再 `URL.createObjectURL`。
 - **访客单接审批引擎后的迁移是手写的**：`n7a2b3c4d5e6_portal_visitor_flow.py` 给 `vis_visit` 加 `flow_instance_id` 与 `approving` 状态 —— `alembic/env.py` 未 import visitor models，autogenerate 会误删表（见上一条）。
 - **`FORM_*` 审批人类型存的是"变量名"**：`approval/registry.py` 之外的 `FlowNode.approverValue` 在 `approverType ∈ {FORM_USER, FORM_ROLE, FORM_DEPT_LEADER}` 时存**流程变量名**（如 `hostUserId`），不是用户/角色 ID；可用变量由流程定义 `variables_schema` 声明。别把它当 id 传给引擎。
+- **审计表是只追加的，不可改不可删**（B9）：`sys_audit_log` / `sys_audit_failure` / `hr_authorization_event` 继承 `app/common/models.py::AppendOnlyModel`（**没有** `deleted`/`version`/`update_*` 列），`vis_access_log` / `vis_nda` 同理。迁移里给 `sys_audit_log` 加了 `BEFORE UPDATE`/`BEFORE DELETE` 触发器 `SIGNAL SQLSTATE '45000'`。**审计类表禁止登记进「一键清空」清单**（`maintenance/service.py::RETAINED_AUDIT_TABLES` 是保留清单）；而 `hr_authorization` / `hr_authorization_event` **必须**登记进 `_PURGE_TABLES`（否则编号序列清零撞唯一键）。
+- **`sys_audit_log.create_time` 必须是 `DATETIME(3)`**（B9）：`row_hash` 含毫秒时间戳，秒精度会让整条链重算**必然**报 `row_hash_mismatch`。迁移、模型、`tests/conftest.py::_ensure_columns` **三处必须同时改**。
+- **审计链头是唯一权威游标**（B9）：`sys_audit_chain_head`（`chain_key='main'`）的 `last_seq`/`last_hash` 决定下一行位置，写入用 `SELECT … FOR UPDATE NOWAIT`。**不要用 `MAX(id)`** —— 并发下会产出两行同 `prev_hash` 的分叉。存量行 `chain_seq IS NULL`，**不回填历史哈希**（不伪造历史），校验时计入 `legacyRows`。
+- **存量 NDA / 报告签章不可密码学验证**（B9）：存量 `vis_nda` 是无密钥 sha256（离线可复算），验签返回 `verdict="legacy-unverifiable"`；存量 `rpt_report` 无 `seal_signature`，`verify_seal` 返回 `signatureValid=false`。前端要打灰标说明"不可作为密码学证据"。
+- **报告内容哈希必须在 `apply_seal_watermark()` 之后算**（B9）：盖章会产出新 PDF，先算必然对不上。`seal_time` 列是 `DATETIME(0)`，签名载荷按**秒口径**计算。
+- **授权校验不做跨请求缓存**（B9）：`hr/authorization.py::check_authorization()` 只允许请求内 memo（`db.info`）—— 撤销必须立即生效。过滤永远走显式列（`scope_method`/`scope_params`/`scope_device_id`/`scope_domain`），**`scope_json` 只是展示快照，不做过滤依据**。
+- **`hr_authorization` 的流程绑定 `pass_through=False`**（B9）：未配置流程定义时提交审批直接报错 —— 授权不允许绕过审批，这是刻意的。
+
+## 合规基线（B9）
+
+> 详细逐条对照见 [`docs/compliance-baseline.md`](docs/compliance-baseline.md)（原则 → 现状 → 机制 → 验收方法）。
+> 需求方原始 docx 已入库：B9 落地的三个控制点为 **C1 审计证据链**、**C2 电子签名密码学绑定 + 签章后锁定**、**C3 人员授权台账 + 拦截点前置**。
+
+- **C1 审计证据链** —— `app/common/audit.py::record()` 保持旧参数不变，新增 keyword-only 默认参数（`field_name`/`old_value`/`new_value`/`reason`/`user_agent`/`strict`），**全仓调用点零改动**。默认尽力而为（失败记 `sys_audit_failure`）；`strict=True` 或 `sys_config` 开关 `audit.strict.enabled` 时抛 30005 并由调用方 `db.commit()` 回滚。校验端点 `GET /admin/audit-logs/chain/verify`，锚点写在 **DB 之外** 的 `backend/data/audit-anchor/anchor-YYYYMMDD.txt`（只追加）→ 整链被重写/截断时锚点对不上。
+- **C2 电子签名** —— `app/core/signature.py`（HMAC-SHA256，密钥 `sha256("bizsys:evidence-signature:" + jwt_secret)`，域分隔前缀与 `core/crypto.py` 不同）。NDA 用 `nda_no`（不是自增 id）参与签名；报告内容哈希含最终 PDF 字节。签章后 `report/service.py::assert_report_editable()` 抛 61003 锁定记录。
+- **C3 人员授权** —— `app/modules/hr/authorization.py` + `hr_authorization` / `hr_authorization_event`。状态机 `draft→confirmed→active⇄suspended→expired/revoked`（+`approving`/`rejected`），暂停/撤销/过期**原因必填**。**四处拦截点前置**：报告编制、报告用章、检测进度录入、任务派工；超管旁路 + `auth.enforce.report`/`auth.enforce.task` 双开关。SoD 靠 `report/service.py::resolve_report_roles()` **动态探测**审批节点数（≥2 硬拦截 63008），管理员发流程新版本即生效，**代码零改动**。
+- 审计、签名、授权三处的错误码（30003–30005 / 61003–61004 / 63005–63009 / 98014）**必须**在 `app/core/response.py` 与 `frontend/src/api/types.ts` **双侧登记**。
+- **审计日志"开了不等于合格"**：当前只有手动校验入口，**定期审阅机制未建**（排 B10-6）。
 
 ## 前端架构
 
@@ -333,7 +351,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
   - **画布/流程图**：LogicFlow 画布窄屏不可用（需横向拖拽且隐藏容器 `fitView` 会失效）—— 用「点击展开」折叠，展开时才懒初始化、折叠时销毁。
   - **签字**：触屏签名用 `components/common/SignaturePad.vue`（canvas Pointer Events），不要用 textarea 代替。
   - **安全区**：全站固定元素（底部 Dock、吸底操作条）必须加 `env(safe-area-inset-bottom)`。
-- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 17 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
+- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 18 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
   - **例外**：后端**没有草稿态**的单据（结算单 `settlement`、开票申请 `invoice`、报告用章 `report_seal`、访客登记 `visitor`）只有**一个** primary 按钮，文案必须是「提交审批」，**不得**写成含糊的「提交」或「保存」；结算单这类要在表单上方加 `el-alert` 说明"提交后立即发起审批"（`finance.settlement.submitTip`）。
   - 「提交审批」按钮按权限点隐藏（`v-permission="'<域>:<资源>:submit'"`），`v-permission` 支持**数组**表示"任一满足"（`['hr:timesheet:submit','hr:timesheet:create']`）。
   - **新增单据类型时**：先在 `registry.py::BINDINGS` 登记 `submit_from`（必须含 `draft`），再照上面加两个按钮；流程总开关关掉时只显示「保存草稿」（用 `useFlowCapability().flowEnabled(bizType)` 判断）。

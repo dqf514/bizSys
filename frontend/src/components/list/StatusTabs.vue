@@ -43,6 +43,9 @@ function labelOf(tab: StatusTabItem) {
   align-items: center;
   gap: var(--bs-space-1);
   border-bottom: 1px solid var(--bs-color-border-subtle);
+  /* 页签多时（授权台账 9 个状态）横向滚动，不撑破容器 */
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .status-tab {
@@ -55,6 +58,7 @@ function labelOf(tab: StatusTabItem) {
   background: transparent;
   color: var(--bs-color-fg-secondary);
   font-size: var(--bs-typography-font-size-sm);
+  white-space: nowrap;
   cursor: pointer;
 }
 

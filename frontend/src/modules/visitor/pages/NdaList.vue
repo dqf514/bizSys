@@ -11,8 +11,8 @@ import ActionBar, { type ActionItem } from '@/components/list/ActionBar.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import SignaturePad from '@/components/common/SignaturePad.vue'
 import { useListPage } from '@/composables/useListPage'
-import { listVisitorNdas, revokeVisitorNda, signVisitorNda, visitorNdaCounts } from '@/api/visitor'
-import type { VisitorNda } from '@/api/types'
+import { listVisitorNdas, revokeVisitorNda, signVisitorNda, visitorNdaCounts, verifyVisitorNda } from '@/api/visitor'
+import type { NdaVerifyResult, VisitorNda } from '@/api/types'
 
 defineOptions({ name: 'NdaList' })
 
@@ -78,9 +78,29 @@ const columns: ListColumn[] = [
 function rowActions(row: VisitorNda): ActionItem[] {
   const acts: ActionItem[] = []
   if (row.status === 'signed') {
+    // B9-C2：签署后验签（密码学绑定，存量行标记为不可密码学验证）
+    acts.push({ key: 'verify', tip: 'visitor.nda.verify', icon: 'CircleCheck', perm: 'visitor:nda:sign' })
     acts.push({ key: 'revoke', tip: 'visitor.nda.revoke', icon: 'TurnOff', danger: true, perm: 'visitor:nda:sign' })
   }
   return acts
+}
+
+/* ---------------- 验签（B9-C2） ---------------- */
+const verifyVisible = ref(false)
+const verifyLoading = ref(false)
+const verifyResult = ref<NdaVerifyResult | null>(null)
+
+async function doVerify(row: VisitorNda) {
+  verifyVisible.value = true
+  verifyLoading.value = true
+  verifyResult.value = null
+  try {
+    verifyResult.value = await verifyVisitorNda(row.id)
+  } catch {
+    verifyResult.value = null
+  } finally {
+    verifyLoading.value = false
+  }
 }
 
 /* ---------------- 签署 ---------------- */
@@ -154,6 +174,7 @@ async function doRevoke(row: VisitorNda) {
 
 function onRowAction(key: string, row: VisitorNda) {
   if (key === 'revoke') void doRevoke(row)
+  else if (key === 'verify') void doVerify(row)
 }
 </script>
 
@@ -259,4 +280,51 @@ function onRowAction(key: string, row: VisitorNda) {
       <el-button type="primary" @click="submitSign">{{ t('common.action.submit') }}</el-button>
     </template>
   </el-dialog>
+
+  <!-- 验签 -->
+  <el-dialog v-model="verifyVisible" :title="t('visitor.nda.verify')" width="var(--bs-layout-dialog-md)" append-to-body>
+    <div v-loading="verifyLoading">
+      <template v-if="verifyResult">
+        <el-alert
+          :type="verifyResult.verdict === 'valid' ? 'success' : verifyResult.verdict === 'invalid' ? 'error' : 'warning'"
+          :title="
+            verifyResult.verdict === 'valid'
+              ? t('visitor.nda.verifyOk')
+              : verifyResult.verdict === 'invalid'
+                ? t('visitor.nda.verifyBad')
+                : t('visitor.nda.verifyLegacy')
+          "
+          :closable="false"
+          show-icon
+        />
+        <el-descriptions :column="1" border size="small" class="verify-desc">
+          <el-descriptions-item :label="t('visitor.nda.ndaNo')">
+            {{ verifyResult.ndaNo || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('visitor.nda.verifyAlg')">
+            {{ verifyResult.alg || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('visitor.nda.verifySignedBy')">
+            {{ verifyResult.signedBy || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('visitor.nda.verifySignedAt')">
+            {{ verifyResult.signedAt || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('visitor.nda.verifySignedIp')">
+            {{ verifyResult.signedIp || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('visitor.nda.verifyReason')">
+            {{ verifyResult.reason || '-' }}
+          </el-descriptions-item>
+        </el-descriptions>
+      </template>
+      <el-empty v-else :description="t('visitor.nda.verifyEmpty')" :image-size="60" />
+    </div>
+  </el-dialog>
 </template>
+
+<style scoped>
+.verify-desc {
+  margin-top: var(--bs-space-3);
+}
+</style>

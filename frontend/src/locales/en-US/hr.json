@@ -97,5 +97,90 @@
     "content": "Work Content",
     "empty": "No submitted hours under current filters",
     "onlySubmitted": "Submitted entries only"
+  },
+  "authorization": {
+    "title": "Personnel Authorization Ledger",
+    "keyword": "Keyword",
+    "authNo": "Authorization No.",
+    "userName": "Holder",
+    "userPlaceholder": "Search by name or account",
+    "deptName": "Department",
+    "authType": "Authorization Type",
+    "roleCode": "Authorization Role",
+    "scopeMethod": "Test Method",
+    "scopeParams": "Method Parameters",
+    "scopeDevice": "Equipment",
+    "scopeDeviceId": "Equipment ID",
+    "scopeDomain": "Business Domain",
+    "validFrom": "Valid From",
+    "validTo": "Valid To",
+    "status": {
+      "draft": "Draft",
+      "approving": "Approving",
+      "confirmed": "Confirmed",
+      "active": "Active",
+      "suspended": "Suspended",
+      "expired": "Expired",
+      "revoked": "Revoked",
+      "rejected": "Rejected"
+    },
+    "applicantName": "Applicant",
+    "approverName": "Approver",
+    "approvedAt": "Approved At",
+    "activatedAt": "Activated At",
+    "effectiveAt": "Effective At",
+    "effective": "Effective Then",
+    "lastReason": "Latest Reason",
+    "create": "New Authorization",
+    "edit": "Edit Authorization",
+    "detail": "Authorization Detail",
+    "timeline": "Change Trail",
+    "timelineEmpty": "No change records",
+    "stateAt": "Point-in-Time Replay",
+    "stateAtTip": "Pick a historical moment to replay the authorization status then (compliance: an action counts only if the authorization was valid at that moment).",
+    "stateAtPlaceholder": "Pick a timestamp",
+    "stateAtRun": "Replay",
+    "stateAtNotFound": "No authorization record at that moment",
+    "activate": "Activate",
+    "suspend": "Suspend",
+    "resume": "Resume",
+    "revoke": "Revoke",
+    "expire": "Mark Expired",
+    "reasonRequired": "Reason is required (compliance evidence)",
+    "reasonPlaceholder": "Enter the reason",
+    "reasonTip": {
+      "suspend": "Suspending an authorization requires a reason (compliance evidence)",
+      "revoke": "Revoking an authorization requires a reason (compliance evidence)",
+      "expire": "Marking an authorization expired requires a reason (compliance evidence)"
+    },
+    "confirmTip": {
+      "activate": "Make this authorization effective now?",
+      "resume": "Resume this authorization? The holder can continue the related testing activities."
+    },
+    "submitTip": "An authorization takes effect only after approval; clicking “Submit for Approval” starts the approval flow immediately.",
+    "type": {
+      "test_item": "Test Item",
+      "device": "Equipment Operation",
+      "report_role": "Report Role",
+      "signer": "Authorized Signer"
+    },
+    "role": {
+      "preparer": "Preparer",
+      "reviewer": "Reviewer",
+      "approver": "Approver",
+      "signer": "Signer"
+    },
+    "event": {
+      "create": "Created",
+      "submit": "Submitted",
+      "approve": "Approved",
+      "activate": "Activated",
+      "suspend": "Suspended",
+      "resume": "Resumed",
+      "revoke": "Revoked",
+      "expire": "Expired",
+      "other": "Status Change"
+    },
+    "statusLabel": "Status"
   }
 }

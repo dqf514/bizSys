@@ -108,7 +108,17 @@
     "signature": "手写签名",
     "signatureHint": "由访客在闸机端手写签名，留存存证哈希",
     "bindVisit": "关联访客单",
-    "signatureRequired": "请先手写签名后再提交"
+    "signatureRequired": "请先手写签名后再提交",
+    "verify": "验签",
+    "verifyOk": "签名校验通过：签署内容与签署人绑定有效",
+    "verifyBad": "签名校验不通过：内容或签署信息已被篡改",
+    "verifyLegacy": "存量协议无密码学绑定（历史哈希无密钥），不可作为密码学证据",
+    "verifyAlg": "签名算法",
+    "verifySignedBy": "签署人",
+    "verifySignedAt": "签署时间",
+    "verifySignedIp": "签署 IP",
+    "verifyReason": "结论说明",
+    "verifyEmpty": "未获取到验签结果"
   },
   "credential": {
     "title": "通行凭证",

@@ -1,5 +1,5 @@
 import { request, download, toQuery } from './http'
-import type { ListQuery, PageResult, Report, ReportDetail, ReportItemOption } from './types'
+import type { ListQuery, PageResult, Report, ReportDetail, ReportItemOption, SealVerifyResult } from './types'
 
 export function listReports(params: ListQuery) {
   return request<PageResult<Report>>({
@@ -76,4 +76,11 @@ export function exportReports(params: ListQuery) {
     },
     'reports.xlsx',
   )
+}
+
+/* ---------------- 签章验签（B9 合规 2.4） ---------------- */
+
+/** 签名有效性 + 签章后内容是否被改 */
+export function verifyReportSeal(id: number) {
+  return request<SealVerifyResult>({ url: `/report/reports/${id}/seal/verify`, method: 'get' })
 }

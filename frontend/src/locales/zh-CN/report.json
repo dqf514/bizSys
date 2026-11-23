@@ -42,6 +42,17 @@
       "sealing": "用章审批中",
       "seal_approved": "用章已批准",
       "sealed": "签章完成"
-    }
+    },
+    "verifySeal": "验签",
+    "sealVerifyOk": "签章签名与内容哈希均校验通过",
+    "sealVerifyBad": "签章校验不通过：签名或内容哈希不匹配",
+    "sealSignatureValid": "签名有效",
+    "sealContentMatch": "内容一致",
+    "sealContentUnavailable": "内容文件缺失，无法比对内容哈希",
+    "sealAlg": "签名算法",
+    "sealAt": "签章时间",
+    "sealContentHash": "内容哈希",
+    "sealReason": "结论说明",
+    "sealVerifyEmpty": "未获取到验签结果"
   }
 }

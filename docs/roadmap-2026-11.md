@@ -18,8 +18,10 @@
 | **B8** | 报告模板与审批流、结算计费对接、安全巡检、知识库扩展、流程中心联动、作业申请流程、人力资源扩展 | 24–29、32 | B5 | 待开发 |
 | **F5** | 全流程驱动 / 业务事件驱动 + 流程与事件开关面板（横切批次，非 CSV 条目） | — | B1–B5 | **已交付** |
 | **F6** | 对外门户专业化 + 访客预约闭环 + 全站移动优先（横切批次，非 CSV 条目） | — | B2 账号体系、B3 访客域、F5 流程引擎 | **已交付** |
+| **B9** | 检测机构合规基线落地 + 人员能力授权纵切（CSV 1、26） | 1、26 | 需求方两份 docx（已入库） | **已交付** |
+| **B10** | HR L1/L3/L4/L5 + 质量体系域（CSV 26 剩余层） | 26 | B9 授权台账 | 排期中 |
 
-外部依赖项（不排入批次）：**第 1 项**「运营平台合规开发原则」与**第 2 项**「SSO / 统一权限中心（UPMS）」均指向需求方提供的 docx，文件未入库，落地前需先拿到原文；第 2 项同时涉及外部身份系统对接，需单独立项。
+外部依赖项：**第 1 项**「运营平台合规开发原则」与**第 2 项**「SSO / 统一权限中心（UPMS）」原为"文件未入库"的历史遗留 —— 两份 docx 已由需求方提供并入库（仓库根目录），第 1 项已在 **B9** 逐条核查并落地为可执行约束（见 [`docs/compliance-baseline.md`](compliance-baseline.md)）；第 2 项仍涉及外部身份系统对接（企微 SSO 已在 B6/F5 落地，UPMS 统一权限中心对接需单独立项，不排入当前批次）。
 
 ---
 
@@ -309,6 +311,85 @@
 - 门户尚未对接**微信/小程序原生入口**（当前是可在微信内打开的 H5 + 「添加到主屏」PWA）。
 - 访客短信通道依赖 `msg.sms.custom.url` 配置，未配置时**静默跳过**不阻断业务（访客可在门户页面直接看到状态）。
 - 报告下载码目前为**单次有效**，未做「有效期 + 次数」策略。
+
+---
+
+## B9 — 检测机构合规基线落地 + 人员能力授权纵切（CSV 1、26）
+
+> **状态：已交付（2026-11-23）** —— 来源：需求方把《第三方检测机构运营平台合规开发原则.docx》与《第三方检测机构运营平台_人力资源管理模块功能说明.docx》（V1.0，CMA/CNAS/TISAX）放到仓库根目录，要求"分析并展开核查与进化"。
+> 这两份是路线图里**唯二挂着"等文档"的两条线**。本批次把文档逐条吃进来、核对现状、落地**三个最有杠杆的控制点**（审计证据链 / 电子签名密码学绑定 / 人员授权台账），其余写进 B10 排期。
+
+### B9.1 核查结论
+
+《合规开发原则》共 20 余条控制要求，逐条核对现状后识别出 **4 个核心缺口**（详见 [`docs/compliance-baseline.md`](compliance-baseline.md)）：
+
+| 缺口 | 文档要求 | 原状 |
+| --- | --- | --- |
+| 审计追踪非字段级 | 谁/何时/哪表/**哪字段**/**旧值→新值**/原因/终端/IP | `sys_audit_log` 只有 `detail(JSON)` 汇总；`trace_id` 参数全仓 283 处调用点无人传值 |
+| 审计日志可删改 | WORM / 哈希链 / 不可清空 | `AuditLog` 继承 `BaseModel` → 带 `deleted`/`version`，**可软删**；全仓零哈希链；`sys_audit_log` / `vis_access_log` / `vis_nda` **都在「一键清空」清单里** |
+| 电子签名无密码学绑定 | 禁图片章、代签 | 全仓零密码学签名；`vis_nda.evidence_hash` 是**无密钥 sha256**（可离线复算），`ip=""` 硬编码为空；报告用章是 pypdf 文字水印占位 |
+| 职责分离（SoD）无落地 | 检测/复核/批准/系统管理四权分立 | 无角色互斥；`report_sign` 种子是单级；`rpt_report` 无编制/复核/批准字段 |
+
+HR 模块文档 L1–L5 共 35 个菜单，`hr` 域原状**只有 `hr_timesheet` 一张表**，`StaffList.vue` 是占位页。
+
+### B9.2 已交付
+
+| 项 | 内容 |
+| --- | --- |
+| **C1 审计证据链** | `AuditLog` 改继承只追加基类 `AppendOnlyModel`（**物理删** `deleted`/`version`/`update_time`/`update_by`），新增字段级列 `field_name` `old_value` `new_value` `reason` `user_agent` + 链列 `chain_seq`（唯一索引）`prev_hash` `row_hash` `hash_alg`；`create_time` 精度提为 `DATETIME(3)`（哈希含毫秒时间戳，秒精度必算错） |
+| | 新表 `sys_audit_chain_head`（单行 `chain_key='main'`，**链头是唯一权威游标**，不用 `MAX(id)` —— 并发下必然分叉）与 `sys_audit_failure`（只追加，写失败台账） |
+| | `common/audit.py::record()` 保持全部旧参数并新增 keyword-only 默认参数 → **283 处调用点零改动**；链头 `SELECT ... FOR UPDATE NOWAIT` 拿不到锁立即失败（不挂死业务）；`sys_config` 开关 `audit.strict.enabled` 控制是否回滚业务事务 |
+| | 链校验 `verify_chain(db, mode='full'\|'since_anchor')` 逐行校验四件事：① `chain_seq` 连续 ② `prev_hash` 相连 ③ 重算 `row_hash` ④ 链头与末行一致；存量行 `chain_seq IS NULL` 计入 `legacyRows`，**不回填历史哈希**（不伪造历史） |
+| | 锚定写 **DB 之外的文件** `backend/data/audit-anchor/anchor-YYYYMMDD.txt`（只追加，每行 `seq\|hash\|ts\|hmac`）→ 用于发现整链被重写/截断；写入时机 = 备份成功后 + 手动端点 |
+| | 「一键清空」移除 `sys_audit_log` / `vis_access_log` / `vis_nda`，新增 `RETAINED_AUDIT_TABLES` 常量并在返回体 `retainedAuditTables` 里公开 |
+| | 物理加固：迁移里加 `BEFORE UPDATE` / `BEFORE DELETE` 触发器 `SIGNAL SQLSTATE '45000'` 阻断改删（测试库由 `create_all` 建表无触发器，测试不依赖触发器） |
+| **C2 电子签名密码学绑定** | 新增 `core/signature.py`：HMAC-SHA256 签名/验签，密钥 `sha256("bizsys:evidence-signature:" + jwt_secret)`（与 `crypto.py` 同源、域分隔前缀不同），`canonical(payload)` 按**固定字段序**生成 `name=value\n` 串，`compare_digest` 比对；字段组 `NDA_FIELDS` / `REPORT_SEAL_FIELDS` |
+| | NDA：签名绑定 `biz_type + nda_no（单号，稳定可复算）+ 姓名/单位/证件号/标题 + 签署时间 + 签署人 id/姓名 + 真实 IP + 手写图 sha256`；`ip=""` 硬编码改为从请求上下文取真实 IP；存量行标 `legacy-sha256`，验签返回 `verdict="legacy-unverifiable"`（旧哈希无密钥、离线可复算，**不能当密码学证据**） |
+| | 报告用章：新增 `seal_by_name` `seal_content_hash` `seal_signature` `seal_alg` + 三级角色 `preparer/reviewer/approver` 的 id/name 列；**内容哈希必须在 `apply_seal_watermark()` 之后算**（盖章会产出新 PDF，先算必然对不上）；文件缺失返回 `""` 并在验签端点返回 `contentUnavailable`（签名本身仍可验） |
+| | 签章后锁定：`report/service.py::assert_report_editable()`，`status == 'sealed'` 抛 **61003**；统一挂到 `update_remark` / `update_conclusion` / AI 摘要采用 / AI 辅助采用路径 |
+| **C3 人员授权台账** | 新表 `hr_authorization`（继承 `BaseModel`）+ `hr_authorization_event`（继承 `AppendOnlyModel`，只追加）；维度四列 `scope_method` / `scope_params` / `scope_device_id`+name / `scope_domain` **显式建模可索引**，`scope_json` 只是展示兜底**不做过滤依据**（避免"快照里恰好有值"这种隐性授权） |
+| | 状态机 `draft→confirmed→active⇄suspended→expired/revoked`（+ `approving`/`rejected` 审批态）；**暂停 / 撤销 / 过期原因必填**；非法跃迁一律拒绝 |
+| | `check_authorization()` 单条 SELECT 走复合索引，作用域在 Python 侧匹配（记录维度为空 = 该维度不限；**授权有值但请求未带该维度 → 不匹配**）；请求内 memo（`db.info`）避免重复打库；**不做跨请求缓存**（撤销必须立即生效） |
+| | `assert_authorized()` 统一拦截入口 —— **超管（`role_code=super`）旁路** + `sys_config` 双开关 `auth.enforce.report` / `auth.enforce.task`（默认开）+ 越权抛 **63007** |
+| | 拦截点前置：**报告编制**、**报告用章**、**检测进度录入**、**任务派工**四处；每次状态变更写**字段级**审计（`field_name='status'` / `old_value` / `new_value` / `reason`，`strict=True`） |
+| | **SoD 动态探测**（不改流程定义）：`resolve_report_roles()` 从签批实例的 `approval_record` 取通过序列 → 编制/复核/批准；`node_count >= 2` 时**硬拦截**（三人不得同人 + 各自持对应角色授权），否则降级告警写审计。管理员在「流程设置」给 `report_sign` 发新版本加节点 → `flow_version` 递增 → 自动变硬拦截，**代码零改动** |
+| | 流程接入：`registry.py` 新增 `FlowBinding(biz_type="hr_authorization")`，`pass_through=False` → **授权不允许绕过审批**（未配流程定义时提交直接报错） |
+| | 新端点（prefix `/hr`，`hr/authorization_router.py`）：列表 / counts / 导出 / options/users / 详情 / **timeline** / **state-at**（回放任一历史时点状态）/ 新建 / 编辑 / submit / activate / suspend / resume / revoke / expire |
+| **种子** | `MENU_TREE` 新增 `menu.authorization`（「行政人事 → 人员授权」，图标 `Key`，权限 `hr:authorization:list` + 按钮 create/edit/submit/approve/activate/revoke/export）；新增角色 `hr_manager`（人事管理员，挂全部 `hr:authorization:*`），`biz_user` 只加 `hr:authorization:list`（**授权管理属质量/人事职责，与检测员职责分离**）；新增演示账号 `tech1` / `qa1` / `hr1`；新增流程 `hr_authorization_approve`（科室负责人 → 技术负责人 → 质量负责人，**固定 USER 节点**而非 ROLE 节点 —— 无人拥有该角色时引擎会"解析失败自动跳过"，审批形同虚设）；编号规则新增 `AU` |
+| **前端** | 新增 `modules/hr/pages/AuthorizationList.vue`（检索 + 8 状态页签含计数 + 明细表 + 详情抽屉（变更轨迹时间线 + **时点回放**）+ 新建/编辑弹窗「保存草稿 / 提交审批」双按钮）；`modules/admin/pages/AuditLogList.vue` 补字段级列 + **链校验面板**（全量/自锚点、断链定位、锚定、证据详情与重算哈希比对）；`NdaList.vue` / `ReportList.vue` 补**验签**入口与结论弹窗（存量 NDA 打灰标提示不可密码学验证） |
+| **迁移** | `n8a2b3c4d5e6_audit_chain_evidence.py`（审计表改精度+增列+DROP 4 列、建链头/失败台账、`vis_nda` 5 列 + 存量标 legacy、`rpt_report` 10 列、只追加触发器）· `n9a2b3c4d5e6_hr_authorization.py`（**手写**建 `hr_authorization` + `hr_authorization_event` —— `alembic/env.py` 未 import hr 域 models，autogenerate 会删表） |
+| **测试** | `tests/test_c1_audit_chain.py`（链连续 / 直接 UPDATE 检出 `row_hash_mismatch` / 删中间行 → `seq_gap` / 删尾部行 → 锚点 `truncated` / 改链头 → `head_mismatch` / 字段级落库 / UA-IP 自动补 / 无写接口 / strict 回滚）· `tests/test_c1_purge_retains_audit.py`（purge 前后审计行数不减）· `tests/test_c2_signature.py`（签名往返 / 改 payload 验签失败 / NDA 新字段落库 + verify 有效 / 存量行 `legacy-unverifiable` / 报告签章 `signatureValid & contentMatch` / 签章后改结论 → `contentMatch=false` / 签章后改 remark → 61003）· `tests/test_c3_authorization.py`（状态机全路径 + 非法跃迁 / 原因必填 / 事件表只追加 / `state_at` 回放 / 授权命中未命中过期 / 超管旁路 / 开关旁路 / SoD / 四处拦截点 / 审批联动 / 台账接口） |
+| **修复** | `init_data.py` 新增 `_repair_user_nodes()` **自愈**：演示账号被删后重建 → 用户 id 变化 → 流程节点里存的旧 id 解析不到人 → 提交审批报"节点未配置可用审批人"，整条审批链卡死（测试库「一键清空」用例、生产账号重建都会触发）。按种子声明的**用户名**把**已失效**节点重指到当前用户 id；**只修失效节点**（管理员在「流程设置」改过的有效节点不动） |
+
+### B9.3 验证
+
+| 范围 | 结果 |
+| --- | --- |
+| 后端 | `uv run ruff check app tests` 通过；`uv run pytest -q` **424 全绿** |
+| 前端 | `pnpm lint` / `typecheck` / `i18n:check`（24 域键集一致）/ `scan:literal:strict` / `scan:colors` / `test:unit` / `build` 全绿 |
+
+### B9.4 遗留（转 B10）
+
+见下节 B10。
+
+---
+
+## B10 — HR L1/L3/L4/L5 + 质量体系域（排期中）
+
+> **状态：排期中（2026-11 起）** —— B9 落地了 HR 的**L2 技术能力与授权**（授权台账 + 拦截点），其余四层与质量体系域按此排期。
+
+| 批次 | 范围 | 依据 | 关键交付 |
+| --- | --- | --- | --- |
+| **B10-1** | HR L1 基础人事 | docx L1 | 组织架构（`sys_dept` 扩展）/ 岗位 / 员工主数据（`sys_user` 的 `employee_no`/`hire_date`/`job_level` 从"预留"转正式）/ 入职调岗离职 / AB 角代理人 |
+| **B10-2** | HR L3 质量体系活动 | docx L3 | 培训记录 / 人员监督（技术监督活动）/ 能力监控（持证与授权的续期预警）/ 绩效工作量（与工时汇总打通） |
+| **B10-3** | HR L4 合规与安全 | docx L4 | 背景调查登记 / 保密等级（`sys_user` 加密级）/ 外部人员（复用 `crm_partner_staff`）/ **离岗清权**（离职即批量 `revoke` 授权，依赖 B9 台账）/ 审计追溯（复用 B9 证据链） |
+| **B10-4** | HR L5 分析与集成 | docx L5 | 合规仪表盘（授权覆盖率 / 持证率 / 培训完成率）/ 报表中心 / 评审证据包（一键导出人员能力包）/ LIMS-OA-IAM 集成对接点 |
+| **B10-5** | 质量体系域（新建） | 合规原则 2.5 / 质量体系文件 | 不符合项 / CAPA（纠正与预防措施）/ 内审 / 管理评审 / 标准方法库 / 设备校准台账 / 环境监控 / 质控盲样 / 样品条码全链路 |
+| **B10-6** | 数据权限与字段级权限 | 合规原则 3.4 | `sys_role.data_scope` 落地（当前是**死字段**，无任何查询消费）/ 字段级可见与可改控制 |
+
+**B10 的前置依赖**：B9 的 `hr_authorization` 台账与 `assert_authorized()` 拦截点是 L3/L4 的底座 —— 离岗清权、能力监控、评审证据包都建立在"授权可查、可回放、越权可拦"之上。
+
+**本批次不做（长期外部依赖）**：CSV（IQ/OQ/PQ 验证方案）、门禁/LIMS 真实厂商对接、备份恢复演练、UPMS 统一权限中心对接。
 
 ---
 

@@ -2,6 +2,7 @@
 import { download, request, toQuery } from './http'
 import type {
   ListQuery,
+  NdaVerifyResult,
   PageResult,
   VisitorAccessLog,
   VisitorAccessLogSummary,
@@ -278,4 +279,11 @@ export function createVisitorHandover(data: {
   remark?: string
 }) {
   return request<VisitorHandover>({ url: '/visitor/handovers', method: 'post', data })
+}
+
+/* ---------------- NDA 验签（B9 合规 2.4） ---------------- */
+
+/** 验签结论：valid 有效 / invalid 签名与内容不一致 / legacy-unverifiable 存量行（无密钥绑定） */
+export function verifyVisitorNda(id: number) {
+  return request<NdaVerifyResult>({ url: `/visitor/nda/${id}/verify`, method: 'get' })
 }
