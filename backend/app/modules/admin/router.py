@@ -132,24 +132,22 @@ def create_user(
         raise BizException(R.ADMIN_USERNAME_EXISTS)
     if not body.password:
         raise BizException(R.GENERIC_PARAM, "初始密码必填")
-    u = User(
+    u = svc.create_user_account(
+        db,
         username=body.username,
-        password_hash=hash_password(body.password),
         name=body.name,
+        password=body.password,
         dept_id=body.dept_id,
         dept_name=body.dept_name,
         mobile=body.mobile,
         email=body.email,
-        status=body.status,
+        role_ids=body.role_ids,
         employee_no=body.employee_no,
         hire_date=body.hire_date,
-        job_level=body.job_level,
-        create_by=current.id,
+        status=body.status,
+        operator_id=current.id,
     )
-    db.add(u)
-    db.flush()
-    org.sync_primary_membership(db, u)
-    svc.set_user_roles(db, u.id, body.role_ids)
+    u.job_level = body.job_level
     audit(db, user_id=current.id, module="admin", action="user_create", biz_type="user", biz_id=u.id)
     db.commit()
     return _user_out(db, u)

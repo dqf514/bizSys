@@ -129,6 +129,7 @@ class EmployeeIn(CamelModel):
     """
 
     employee_no: str = Field(min_length=1, max_length=32)
+    user_id: int | None = None
     name: str = Field(min_length=1, max_length=64)
     id_no: str = Field("", max_length=64)
     id_type: str = Field("id_card", max_length=16)

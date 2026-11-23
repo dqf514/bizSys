@@ -722,7 +722,63 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                     (None, "timesheet-stats-export", "", "", "", "hr:timesheet:stats:export", []),
                 ],
             ),
-            ("menu.staff", "Staff", "/hr/staff", "hr/StaffList", "UserFilled", "hr:staff:list", []),
+            (
+                # 组织架构（B10-1 / HR L1）：场所 → 部门树 + 岗位清单 + 变更轨迹。
+                # 部门的**写入口仍是** /admin/depts（sys_dept 是全站唯一部门表），
+                # 本菜单只承载 `hr:org:list` 权限点与前端入口。
+                "menu.hrOrg",
+                "HrOrg",
+                "/hr/org",
+                "hr/OrgStructureList",
+                "OfficeBuilding",
+                "hr:org:list",
+                [],
+            ),
+            (
+                # 岗位与说明书（B10-1）：岗位职责 / 任职要求 / 关键岗位标记 / A、B 角
+                "menu.hrPosition",
+                "HrPosition",
+                "/hr/positions",
+                "hr/PositionList",
+                "Position",
+                "hr:position:list",
+                [
+                    (None, "hr-position-create", "", "", "", "hr:position:create", []),
+                    (None, "hr-position-edit", "", "", "", "hr:position:edit", []),
+                ],
+            ),
+            (
+                # 人员档案（B10-1）：员工一人一档（证件号加密，出参掩码）
+                "menu.staff",
+                "Staff",
+                "/hr/staff",
+                "hr/StaffList",
+                "UserFilled",
+                "hr:staff:list",
+                [
+                    (None, "hr-staff-create", "", "", "", "hr:staff:create", []),
+                    (None, "hr-staff-edit", "", "", "", "hr:staff:edit", []),
+                    (None, "hr-staff-export", "", "", "", "hr:staff:export", []),
+                    (None, "hr-staff-idno", "", "", "", "hr:staff:idno", []),
+                ],
+            ),
+            (
+                # 人事事务（B10-1）：入职 / 调岗 / 离职 / 返聘 + 代理人（AB 角）
+                "menu.hrEmployment",
+                "HrEmployment",
+                "/hr/employments",
+                "hr/PersonnelAffairsList",
+                "Switch",
+                "hr:employment:list",
+                [
+                    (None, "hr-employment-create", "", "", "", "hr:employment:create", []),
+                    (None, "hr-employment-edit", "", "", "", "hr:employment:edit", []),
+                    (None, "hr-employment-submit", "", "", "", "hr:employment:submit", []),
+                    (None, "hr-employment-effect", "", "", "", "hr:employment:effect", []),
+                    (None, "hr-delegate-list", "", "", "", "hr:delegate:list", []),
+                    (None, "hr-delegate-edit", "", "", "", "hr:delegate:edit", []),
+                ],
+            ),
             (
                 # 人员授权台账（B9-C3 / HR L2 授权管理）：合规 3.1「人员能力」的控制点
                 "menu.authorization",
@@ -1428,6 +1484,8 @@ NUMBER_RULES = [
     ("project", "", "PJ", 4, 2, 2, 4, 1, "", "daily", "PJ202611210001"),
     # 人事行政域单号（B9-C3 人员授权）
     ("hr_authorization", "", "AU", 4, 2, 2, 4, 1, "", "daily", "AU202611230001"),
+    # 人事事务单号（B10-1 入职/调岗/离职/返聘）
+    ("hr_employment", "", "EM", 4, 2, 2, 4, 1, "", "daily", "EM202611230001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -1743,7 +1801,26 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "hr:authorization:export",
         "hr:timesheet:list",
         "hr:timesheet:stats",
+        # —— B10-1 组织架构 / 员工主数据 / 人事事务 ——
+        "hr:org:list",
+        "hr:position:list",
+        "hr:position:create",
+        "hr:position:edit",
         "hr:staff:list",
+        "hr:staff:create",
+        "hr:staff:edit",
+        "hr:staff:export",
+        "hr:staff:idno",
+        "hr:employment:list",
+        "hr:employment:create",
+        "hr:employment:edit",
+        "hr:employment:submit",
+        "hr:employment:effect",
+        "hr:delegate:list",
+        "hr:delegate:edit",
+        # 部门树由人事维护 —— 因此给到 admin:dept 的查看/编辑权
+        "admin:dept:list",
+        "admin:dept:edit",
     ):
         if p in perm_to_id:
             db.add(RoleMenu(role_id=hr_role.id, menu_id=perm_to_id[p]))
@@ -1974,6 +2051,16 @@ def _seed_flows(db: Session) -> None:
         biz_type="hr_authorization",
         remark="授权须经技术负责人 + 质量负责人两级确认后生效（不允许人工直通）",
         nodes=((1, "技术负责人审批", "tech1"), (2, "质量负责人审批", "qa1")),
+    )
+    # 人事事务审批（B10-1）：固定 USER 节点（人事主管 hr1 → 总经理 admin）。
+    # 同样刻意不用 ROLE 节点；审批通过 ≠ 生效，副作用统一走 POST /hr/employments/{id}/effect。
+    _seed_flow(
+        db,
+        code="hr_employment_approve",
+        name="人事事务审批",
+        biz_type="hr_employment",
+        remark="入职/调岗/离职/返聘须经人事主管 + 总经理审批；审批通过不等于生效，副作用走生效动作",
+        nodes=((1, "人事主管审核", "hr1"), (2, "总经理审批", "admin")),
     )
     # OA 示例流程：请假=组织多级（本部门负责人 → 上级部门负责人）；报销/用章=固定人两级
     _seed_flow(

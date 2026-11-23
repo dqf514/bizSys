@@ -1,9 +1,15 @@
-"""系统管理业务：菜单树、角色授权、偏好等。"""
+"""系统管理业务：菜单树、角色授权、偏好、账号创建等。"""
+
+from datetime import date
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core import response as R
+from app.core.exceptions import BizException
+from app.core.security import hash_password
 from app.modules.admin.models import Menu, Role, RoleMenu, UserPref, UserRole
+from app.modules.admin.org import sync_primary_membership
 from app.modules.auth.models import User
 
 
@@ -110,6 +116,51 @@ def set_user_roles(db: Session, user_id: int, role_ids: list[int]) -> None:
 
 def user_role_ids(db: Session, user_id: int) -> list[int]:
     return list(db.scalars(select(UserRole.role_id).where(UserRole.user_id == user_id, UserRole.deleted == 0)).all())
+
+
+def create_user_account(
+    db: Session,
+    *,
+    username: str,
+    name: str,
+    password: str,
+    dept_id: int | None = None,
+    dept_name: str = "",
+    mobile: str = "",
+    email: str = "",
+    role_ids: list[int] | None = None,
+    employee_no: str = "",
+    hire_date: date | None = None,
+    status: str = "enabled",
+    operator_id: int | None = None,
+) -> User:
+    """创建系统账号（`admin/router.py::create_user` 与 HR 入职生效共用）。
+
+    **只 flush 不 commit** —— 事务边界在调用方（人事生效必须与档案变更同事务）。
+
+    登录名重复直接抛 `ADMIN_USERNAME_EXISTS`，由调用方决定转成什么业务错误。
+    """
+    if db.scalar(select(User).where(User.username == username, User.deleted == 0)):
+        raise BizException(R.ADMIN_USERNAME_EXISTS, f"登录名已存在：{username}")
+    u = User(
+        username=username,
+        password_hash=hash_password(password),
+        name=name,
+        dept_id=dept_id,
+        dept_name=dept_name,
+        mobile=mobile,
+        email=email,
+        status=status,
+        employee_no=employee_no,
+        hire_date=hire_date,
+        create_by=operator_id,
+    )
+    db.add(u)
+    db.flush()
+    sync_primary_membership(db, u)
+    set_user_roles(db, u.id, role_ids or [])
+    db.flush()
+    return u
 
 
 def upsert_prefs(db: Session, user_id: int, prefs: dict[str, str]) -> None:

@@ -112,6 +112,8 @@ from app.modules.crm.router import router as crm_router  # noqa: E402
 from app.modules.crm.selfservice_router import router as crm_self_router  # noqa: E402  客户自助体系（B2）
 from app.modules.finance.router import router as finance_router  # noqa: E402
 from app.modules.hr.authorization_router import router as hr_auth_router  # noqa: E402  人员授权台账（B9-C3）
+from app.modules.hr.employee_router import router as hr_emp_router  # noqa: E402  员工主数据（B10-1）
+from app.modules.hr.employment_router import router as hr_employment_router  # noqa: E402  人事事务/代理（B10-1）
 from app.modules.hr.org_router import router as hr_org_router  # noqa: E402  组织架构/岗位（B10-1）
 from app.modules.hr.router import router as hr_router  # noqa: E402
 from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 通知通道（F5 订阅见 wiring）
@@ -151,6 +153,8 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
 app.include_router(hr_auth_router, prefix="/api/v1")
 app.include_router(hr_org_router, prefix="/api/v1")
+app.include_router(hr_emp_router, prefix="/api/v1")
+app.include_router(hr_employment_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
 app.include_router(aicenter_router, prefix="/api/v1")

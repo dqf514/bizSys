@@ -320,6 +320,19 @@ class HrEmployment(BaseModel):
     approver_name: Mapped[str] = mapped_column(String(64), default="", comment="批准人姓名")
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="批准时间")
     remark: Mapped[str] = mapped_column(String(500), default="", comment="备注")
+    # —— 入职开号（生效时创建系统账号）——
+    create_account: Mapped[int] = mapped_column(
+        Integer, default=0, comment="生效时是否创建系统账号 0/1"
+    )
+    account_username: Mapped[str] = mapped_column(
+        String(64), default="", comment="账号登录名（留空则用工号）"
+    )
+    account_password: Mapped[str] = mapped_column(
+        String(255), default="", comment="初始密码（AES-GCM 密文 enc: 前缀）"
+    )
+    account_roles: Mapped[str] = mapped_column(
+        String(255), default="", comment="逗号分隔的角色 id"
+    )
 
 
 class HrEmploymentEvent(AppendOnlyModel):

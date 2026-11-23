@@ -1,10 +1,14 @@
-"""HR 域的审批事件回调（B9-C3 人员授权）。
+"""HR 域的审批事件回调（B9-C3 人员授权 / B10-1 人事事务）。
 
-授权是**不允许绕过审批**的单据（`pass_through=False`）：未配置启用的流程定义时
-提交审批直接报错，不存在"人工直通"后门。
+授权与人事事务都是**不允许绕过审批**的单据（`pass_through=False`）：未配置启用的
+流程定义时提交审批直接报错，不存在"人工直通"后门。
+
+人事事务的**副作用不在这里执行** —— 审批通过只改单据状态，副作用统一由
+`POST /hr/employments/{id}/effect` 触发（离职需择时生效）。
 """
 
 from app.modules.hr import authorization as auth
+from app.modules.hr import employment as emp
 
 
 def _operator_name(db, operator_id: int | None) -> str:
@@ -55,4 +59,48 @@ def on_authorization_rejected(db, row, event) -> None:
         operator_id=operator_id,
         operator_name=operator_name,
         reason=getattr(event, "comment", "") or "授权审批驳回",
+    )
+
+
+def on_employment_approved(db, row, event) -> None:
+    """人事事务审批通过 → approved（批准人落库 + 写变更轨迹）。
+
+    通用运行时（`approval/registry.py::apply_result`）已经把状态改成 `approved`，
+    这里补批准人字段与**只追加**的变更轨迹。
+
+    **注意**：这里不执行任何副作用 —— 副作用统一由 `effect_employment()` 触发
+    （离职需择时生效：审批通过 ≠ 权限已回收）。
+    """
+    operator_id = getattr(event, "operator_id", None)
+    operator_name = _operator_name(db, operator_id)
+    row.approver_id = operator_id
+    row.approver_name = operator_name
+    row.approved_at = emp._now()
+    db.flush()
+    emp.write_event(
+        db,
+        row,
+        event_type="approve",
+        from_status=emp.STATUS_APPROVING,
+        to_status=emp.STATUS_APPROVED,
+        operator_id=operator_id,
+        operator_name=operator_name,
+        reason=getattr(event, "comment", "") or "人事事务审批通过",
+    )
+
+
+def on_employment_rejected(db, row, event) -> None:
+    """人事事务审批驳回 → rejected（可修改后重新提交）。"""
+    operator_id = getattr(event, "operator_id", None)
+    operator_name = _operator_name(db, operator_id)
+    db.flush()
+    emp.write_event(
+        db,
+        row,
+        event_type="reject",
+        from_status=emp.STATUS_APPROVING,
+        to_status=emp.STATUS_REJECTED,
+        operator_id=operator_id,
+        operator_name=operator_name,
+        reason=getattr(event, "comment", "") or "人事事务审批驳回",
     )
