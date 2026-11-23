@@ -66,7 +66,8 @@
     "no": "否",
     "ok": "好的",
     "moveUp": "上移",
-    "moveDown": "下移"
+    "moveDown": "下移",
+    "withdraw": "撤回"
   },
   "table": {
     "total": "共 {total} 条",

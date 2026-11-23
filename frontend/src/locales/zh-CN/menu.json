@@ -91,5 +91,8 @@
   "aiUsage": "用量监控",
   "aiSettings": "AI 设置",
   "aiKnowledge": "知识库",
-  "knowledgeAsk": "知识库问答"
+  "knowledgeAsk": "知识库问答",
+  "hrOrg": "组织架构",
+  "hrPosition": "岗位与说明书",
+  "hrEmployment": "人事事务"
 }

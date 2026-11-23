@@ -91,5 +91,8 @@
   "aiUsage": "Usage Monitor",
   "aiSettings": "AI Settings",
   "aiKnowledge": "Knowledge Base",
-  "knowledgeAsk": "Knowledge Q&A"
+  "knowledgeAsk": "Knowledge Q&A",
+  "hrOrg": "Organization",
+  "hrPosition": "Positions",
+  "hrEmployment": "Personnel Actions"
 }

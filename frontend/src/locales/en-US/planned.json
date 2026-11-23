@@ -64,9 +64,9 @@
     "staffList": {
       "no": "26",
       "name": "Staff Directory",
-      "desc": "Human resources module (details in the third-party lab platform HR module specification; document pending from requester)",
+      "desc": "Delivered: org structure, job descriptions, one-profile-per-employee, personnel actions",
       "batch": "B8",
-      "status": "planned"
+      "status": "done"
     },
     "workApplyList": {
       "no": "32",

@@ -6,6 +6,18 @@ import type {
   HrAuthorizationTimeline,
   HrContractOption,
   HrDayData,
+  HrDelegate,
+  HrEmployee,
+  HrEmployeeControl,
+  HrEmployeeDetail,
+  HrEmployeeOption,
+  HrEmployeeTimelineItem,
+  HrEmployment,
+  HrEmploymentDetail,
+  HrEmploymentEvent,
+  HrOrgChange,
+  HrOrgOptions,
+  HrPosition,
   HrStatsOption,
   HrStatsResult,
   HrTaskOption,
@@ -268,4 +280,256 @@ export function expireAuthorization(id: number, reason: string) {
     method: 'post',
     data: { reason },
   })
+}
+
+/* ---------- 组织架构：岗位 / 变更轨迹 / 选项（B10-1） ---------- */
+
+export interface PositionPayload {
+  code: string
+  name: string
+  deptId?: number | null
+  siteId?: number | null
+  positionType: string
+  duty?: string
+  requirement?: string
+  reportToId?: number | null
+  keyRole?: string
+  primaryUserId?: number | null
+  backupUserId?: number | null
+  status?: string
+  remark?: string
+}
+
+export function listPositions(params: ListQuery) {
+  return request<PageResult<HrPosition>>({
+    url: '/hr/org/positions',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function positionCounts() {
+  return request<Record<string, number>>({ url: '/hr/org/positions/counts', method: 'get' })
+}
+
+export function exportPositions(params: ListQuery) {
+  return download(
+    { url: '/hr/org/positions/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
+    'hr_positions.xlsx',
+  )
+}
+
+export function createPosition(data: PositionPayload) {
+  return request<HrPosition>({ url: '/hr/org/positions', method: 'post', data })
+}
+
+export function updatePosition(id: number, data: PositionPayload) {
+  return request<HrPosition>({ url: `/hr/org/positions/${id}`, method: 'put', data })
+}
+
+export function deletePosition(id: number) {
+  return request<void>({ url: `/hr/org/positions/${id}`, method: 'delete' })
+}
+
+export function listOrgChanges(params: ListQuery) {
+  return request<PageResult<HrOrgChange>>({
+    url: '/hr/org/changes',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function getOrgOptions() {
+  return request<HrOrgOptions>({ url: '/hr/org/options', method: 'get' })
+}
+
+/* ---------- 员工主数据（B10-1） ---------- */
+
+export interface EmployeePayload {
+  employeeNo: string
+  name: string
+  userId?: number | null
+  idNo?: string
+  idType?: string
+  gender?: string
+  birthDate?: string | null
+  education?: string
+  major?: string
+  mobile?: string
+  email?: string
+  employType: string
+  employStatus: string
+  deptId?: number | null
+  positionId?: number | null
+  hireDate?: string | null
+  leaveDate?: string | null
+  contractNo?: string
+  contractStart?: string | null
+  contractEnd?: string | null
+  emergencyContact?: string
+  emergencyMobile?: string
+  status?: string
+  remark?: string
+}
+
+export function listEmployees(params: ListQuery) {
+  return request<PageResult<HrEmployee>>({
+    url: '/hr/employees',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function employeeCounts() {
+  return request<Record<string, number>>({ url: '/hr/employees/counts', method: 'get' })
+}
+
+export function employeeOptions() {
+  return request<{ all: HrEmployeeOption[]; active: HrEmployeeOption[] }>({
+    url: '/hr/employees/options',
+    method: 'get',
+  })
+}
+
+export function exportEmployees(params: ListQuery) {
+  return download(
+    { url: '/hr/employees/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
+    'hr_employees.xlsx',
+  )
+}
+
+export function getEmployee(id: number) {
+  return request<HrEmployeeDetail>({ url: `/hr/employees/${id}`, method: 'get' })
+}
+
+/** 证件号明文 —— **唯一出口**，后端每次访问写审计日志 */
+export function getEmployeeIdNo(id: number) {
+  return request<{ idNo: string; masked: string }>({ url: `/hr/employees/${id}/id-no`, method: 'get' })
+}
+
+export function employeeTimeline(id: number) {
+  return request<{ items: HrEmployeeTimelineItem[] }>({ url: `/hr/employees/${id}/timeline`, method: 'get' })
+}
+
+export function createEmployee(data: EmployeePayload) {
+  return request<HrEmployee>({ url: '/hr/employees', method: 'post', data })
+}
+
+export function updateEmployee(id: number, data: EmployeePayload) {
+  return request<HrEmployee>({ url: `/hr/employees/${id}`, method: 'put', data })
+}
+
+export function deleteEmployee(id: number) {
+  return request<void>({ url: `/hr/employees/${id}`, method: 'delete' })
+}
+
+export interface EmployeeControlPayload {
+  controlType: string
+  reason: string
+  effectiveFrom?: string | null
+  effectiveTo?: string | null
+  status?: string
+  remark?: string
+}
+
+export function createEmployeeControl(id: number, data: EmployeeControlPayload) {
+  return request<HrEmployeeControl>({ url: `/hr/employees/${id}/control`, method: 'post', data })
+}
+
+/* ---------- 人事事务 / 代理人（B10-1） ---------- */
+
+export interface EmploymentPayload {
+  employeeId: number
+  eventType: string
+  newDeptId?: number | null
+  newPositionId?: number | null
+  effectiveDate?: string | null
+  reason?: string
+  remark?: string
+  createAccount?: boolean
+  username?: string
+  password?: string
+  roleIds?: number[]
+}
+
+export function listEmployments(params: ListQuery) {
+  return request<PageResult<HrEmployment>>({
+    url: '/hr/employments',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function employmentCounts() {
+  return request<Record<string, number>>({ url: '/hr/employments/counts', method: 'get' })
+}
+
+export function getEmployment(id: number) {
+  return request<HrEmploymentDetail>({ url: `/hr/employments/${id}`, method: 'get' })
+}
+
+export function employmentTimeline(id: number) {
+  return request<{ items: HrEmploymentEvent[] }>({ url: `/hr/employments/${id}/timeline`, method: 'get' })
+}
+
+export function createEmployment(data: EmploymentPayload) {
+  return request<HrEmployment>({ url: '/hr/employments', method: 'post', data })
+}
+
+export function updateEmployment(id: number, data: EmploymentPayload) {
+  return request<HrEmployment>({ url: `/hr/employments/${id}`, method: 'put', data })
+}
+
+export function submitEmployment(id: number, comment?: string) {
+  return request<HrEmployment>({
+    url: `/hr/employments/${id}/submit`,
+    method: 'post',
+    data: { comment },
+  })
+}
+
+export function withdrawEmployment(id: number, comment?: string) {
+  return request<HrEmployment>({
+    url: `/hr/employments/${id}/withdraw`,
+    method: 'post',
+    data: { comment },
+  })
+}
+
+/** 生效：执行副作用（开号 / 调岗 / 离职清权 / 返聘） */
+export function effectEmployment(id: number) {
+  return request<HrEmploymentDetail>({ url: `/hr/employments/${id}/effect`, method: 'post' })
+}
+
+export interface DelegatePayload {
+  principalId: number
+  agentId: number
+  scope: string
+  positionId?: number | null
+  authId?: number | null
+  reason?: string
+  effectiveFrom?: string | null
+  effectiveTo?: string | null
+  autoTakeover?: number
+  remark?: string
+}
+
+export function listDelegates(params: ListQuery) {
+  return request<PageResult<HrDelegate>>({
+    url: '/hr/delegates',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function createDelegate(data: DelegatePayload) {
+  return request<HrDelegate>({ url: '/hr/delegates', method: 'post', data })
+}
+
+export function updateDelegate(id: number, data: DelegatePayload) {
+  return request<HrDelegate>({ url: `/hr/delegates/${id}`, method: 'put', data })
+}
+
+export function deleteDelegate(id: number) {
+  return request<void>({ url: `/hr/delegates/${id}`, method: 'delete' })
 }

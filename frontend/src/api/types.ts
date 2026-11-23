@@ -242,6 +242,19 @@ export interface Dept {
   code: string
   sort: number
   children?: Dept[]
+  /** B10-1 组织架构扩展 */
+  status?: string
+  deptType?: string
+  deptTypeText?: string
+  siteCode?: string
+  address?: string
+  managerId?: number | null
+  managerName?: string
+  effectiveFrom?: string | null
+  effectiveTo?: string | null
+  memberCount?: number
+  positionCount?: number
+  createTime?: string
 }
 
 export type FlowNodeType = 'approval' | 'condition' | 'cc'
@@ -3438,4 +3451,288 @@ export interface SealVerifyResult {
   sealedAt: string
   contentHash: string
   reason: string
+}
+
+/* ================= HR L1 组织架构 / 员工主数据 / 人事事务（B10-1） ================= */
+
+/** 部门（sys_dept，含组织架构扩展列；GET /admin/depts） */
+export interface HrDept {
+  id: number
+  parentId: number | null
+  name: string
+  code: string
+  sort: number
+  status: string
+  deptType: string
+  deptTypeText: string
+  siteCode: string
+  address: string
+  managerId: number | null
+  managerName: string
+  effectiveFrom: string
+  effectiveTo: string
+  memberCount: number
+  positionCount: number
+  createTime: string
+}
+
+/** 岗位（hr_position） */
+export interface HrPosition {
+  id: number
+  code: string
+  name: string
+  deptId: number | null
+  deptName: string
+  siteId: number | null
+  siteName: string
+  positionType: string
+  positionTypeText: string
+  duty: string
+  requirement: string
+  reportToId: number | null
+  reportToName: string
+  keyRole: string
+  keyRoleText: string
+  primaryUserId: number | null
+  primaryUserName: string
+  backupUserId: number | null
+  backupUserName: string
+  status: string
+  statusText: string
+  remark: string
+  createTime: string
+}
+
+/** 名单管控（黑白名单） */
+export interface HrEmployeeControl {
+  id: number
+  employeeId: number
+  userId: number | null
+  controlType: string
+  controlTypeText: string
+  reason: string
+  effectiveFrom: string
+  effectiveTo: string
+  status: string
+  remark: string
+  createTime: string
+}
+
+/** 员工档案行（GET /hr/employees；证件号始终掩码） */
+export interface HrEmployee {
+  id: number
+  employeeNo: string
+  userId: number | null
+  userName: string
+  name: string
+  idNo: string
+  idType: string
+  gender: string
+  birthDate: string
+  education: string
+  major: string
+  mobile: string
+  email: string
+  employType: string
+  employTypeText: string
+  employStatus: string
+  employStatusText: string
+  deptId: number | null
+  deptName: string
+  positionId: number | null
+  positionName: string
+  hireDate: string
+  leaveDate: string
+  contractNo: string
+  contractStart: string
+  contractEnd: string
+  emergencyContact: string
+  emergencyMobile: string
+  status: string
+  statusText: string
+  remark: string
+  createTime: string
+}
+
+/** 员工任职（多部门） */
+export interface HrEmployeeMembership {
+  deptId: number
+  deptName: string
+  isPrimary: number
+  isLeader: number
+}
+
+/** 员工档案轨迹条目（人事事务变更 + 组织变更快照） */
+export interface HrEmployeeTimelineItem {
+  kind: 'employment' | 'org'
+  id: number
+  empNo: string
+  eventType: string
+  fromStatus: string
+  toStatus: string
+  operatorId: number | null
+  operatorName: string
+  reason: string
+  effectiveAt: string
+}
+
+/** 员工档案详情（GET /hr/employees/{id}） */
+export interface HrEmployeeDetail extends HrEmployee {
+  controls: HrEmployeeControl[]
+  memberships: HrEmployeeMembership[]
+  timeline: HrEmployeeTimelineItem[]
+  authorizations: HrAuthorization[]
+  delegates: HrDelegate[]
+  employments: HrEmploymentBrief[]
+}
+
+/** 人事事务简表项（嵌在员工详情里） */
+export interface HrEmploymentBrief {
+  id: number
+  empNo: string
+  eventType: string
+  status: string
+  effectiveDate: string
+  reason: string
+}
+
+/** 人事事务（hr_employment） */
+export interface HrEmployment {
+  id: number
+  empNo: string
+  eventType: string
+  eventTypeText: string
+  employeeId: number
+  userId: number | null
+  userName: string
+  deptId: number | null
+  deptName: string
+  newDeptId: number | null
+  newDeptName: string
+  positionId: number | null
+  positionName: string
+  newPositionId: number | null
+  newPositionName: string
+  effectiveDate: string
+  reason: string
+  status: string
+  statusText: string
+  flowInstanceId: number | null
+  applicantId: number | null
+  applicantName: string
+  approverId: number | null
+  approverName: string
+  approvedAt: string
+  remark: string
+  createAccount: number
+  accountUsername: string
+  createTime: string
+}
+
+/** 人事事务变更轨迹（只追加，倒序） */
+export interface HrEmploymentEvent {
+  id: number
+  employmentId: number
+  empNo: string
+  eventType: string
+  fromStatus: string
+  toStatus: string
+  operatorId: number | null
+  operatorName: string
+  reason: string
+  effectiveAt: string
+}
+
+/** 人事事务详情 */
+export interface HrEmploymentDetail extends HrEmployment {
+  timeline: HrEmploymentEvent[]
+  employee: { id: number; employeeNo: string; name: string; employStatus: string; userId: number } | null
+  effect?: HrEmploymentEffect
+}
+
+/** 生效副作用摘要 */
+export interface HrEmploymentEffect {
+  account: Record<string, unknown>
+  notes: string[]
+  revokedAuth?: number
+  expiredDelegates?: number
+  clearedPositions?: number
+}
+
+/** 代理人（AB 角 / 临时代理） */
+export interface HrDelegate {
+  id: number
+  principalId: number
+  principalName: string
+  agentId: number
+  agentName: string
+  scope: string
+  scopeText: string
+  positionId: number | null
+  authId: number | null
+  reason: string
+  effectiveFrom: string
+  effectiveTo: string
+  status: string
+  autoTakeover: number
+  remark: string
+  createTime: string
+}
+
+/** 组织变更快照（只追加，倒序） */
+export interface HrOrgChange {
+  id: number
+  objectType: string
+  objectTypeText: string
+  objectId: number
+  objectName: string
+  changeType: string
+  changeTypeText: string
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  operatorId: number | null
+  operatorName: string
+  effectiveAt: string
+  reason: string
+  createTime: string
+}
+
+/** 组织下拉选项（GET /hr/org/options） */
+export interface HrOrgOptions {
+  sites: { value: number; label: string; siteCode: string; deptType: string }[]
+  depts: { value: number; label: string; parentId: number | null; deptType: string }[]
+  positions: {
+    value: number
+    label: string
+    code: string
+    deptId: number | null
+    keyRole: string
+    primaryUserId: number | null
+    primaryUserName: string
+    backupUserId: number | null
+    backupUserName: string
+  }[]
+  keyPositions: {
+    value: number
+    label: string
+    keyRole: string
+    keyRoleText: string
+    primaryUserId: number | null
+    primaryUserName: string
+    backupUserId: number | null
+    backupUserName: string
+  }[]
+  deptTypes: { value: string; label: string }[]
+  positionTypes: { value: string; label: string }[]
+  keyRoles: { value: string; label: string }[]
+}
+
+/** 员工下拉选项（GET /hr/employees/options） */
+export interface HrEmployeeOption {
+  value: number
+  label: string
+  sub: string
+  employStatus: string
+  deptName: string
+  userId: number
 }
