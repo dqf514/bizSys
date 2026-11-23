@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core import reqctx
 from app.core import response as R
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
@@ -48,7 +49,18 @@ app.add_middleware(
 async def trace_middleware(request: Request, call_next):
     trace_id = request.headers.get("X-Trace-Id") or uuid.uuid4().hex[:16]
     request.state.trace_id = trace_id
-    response = await call_next(request)
+    # 合规取证上下文（B9）：审计链需要自动带上终端 / IP，不必改 280+ 个 record() 调用点
+    ctx_token = reqctx.set_context(
+        reqctx.RequestContext(
+            trace_id=trace_id,
+            ip=request.client.host if request.client else "",
+            user_agent=(request.headers.get("user-agent") or "")[:255],
+        )
+    )
+    try:
+        response = await call_next(request)
+    finally:
+        reqctx.reset_context(ctx_token)
     response.headers["X-Trace-Id"] = trace_id
     return response
 

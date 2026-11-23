@@ -16,7 +16,15 @@ _PREFIX = "enc:"
 
 
 def _key() -> bytes:
-    return hashlib.sha256(f"bizsys:config-secret:{settings.jwt_secret}".encode()).digest()
+    return derive_key("config-secret")
+
+
+def derive_key(domain: str) -> bytes:
+    """从 jwt_secret 派生带域分隔的子密钥。
+
+    不同用途用不同 domain，避免同一密钥被跨用途复用（配置密文 / 电子签名 / 审计链）。
+    """
+    return hashlib.sha256(f"bizsys:{domain}:{settings.jwt_secret}".encode()).digest()
 
 
 def encrypt_text(plain: str) -> str:
