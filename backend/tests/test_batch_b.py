@@ -229,7 +229,7 @@ def test_bank_audit_no_full_card(client, admin_headers, db):
                     json={"bankName": "招商银行", "cardNo": card, "holderName": "批次B审计"})
     assert r.status_code == 201
     row = db.query(AuditLog).filter(
-        AuditLog.module == "auth", AuditLog.action == "bank_create", AuditLog.deleted == 0
+        AuditLog.module == "auth", AuditLog.action == "bank_create"
     ).order_by(AuditLog.id.desc()).first()
     assert row is not None
     assert card not in (row.detail or "")

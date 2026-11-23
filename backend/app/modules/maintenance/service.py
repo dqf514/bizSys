@@ -6,10 +6,15 @@
   报价单+明细+发送留痕+报价模板、资产与库存域（仓库/库位/物料/采购订单/验收单/流水/盘点/样件/
   固定资产/折旧/处置/工具）、知识库条目、员工紧急联系人与银行账号；
 - 审批运行数据：实例/待办/时间线/抄送/已读水位；
-- 系统运行数据：通知、审计日志、登录日志、编号序列（归零）；
+- 系统运行数据：通知、登录日志、编号序列（归零）；
 - 用户：除 username=admin 外的全部用户及其角色绑定/任职/偏好；
 - 文件：uploads 下 contract/report/portal 业务目录（branding 品牌文件保留）。
-保留：流程定义与节点、角色/菜单/权限、字典、编号规则、部门、系统配置（sys_config）、admin 账号。
+
+**保留（合规证据，B9）**：审计日志（sys_audit_log）、访客通行审计（vis_access_log）、
+访客保密协议（vis_nda）—— 见 `RETAINED_AUDIT_TABLES`。
+《合规开发原则》4.4 要求审计日志只追加、不可清空；一键清空会直接构成"审计日志可后台清空"
+这一评审高频不符合项，因此合规相关表一律不参与清空。
+其余保留：流程定义与节点、角色/菜单/权限、字典、编号规则、部门、系统配置（sys_config）、admin 账号。
 """
 
 from pathlib import Path
@@ -120,13 +125,12 @@ _PURGE_TABLES = [
     TaskTrace,
     TaskAssignment,
     TaskProcess,
-    # 访客与安全域（子表在前）：合规审计日志 vis_access_log 一并清空
+    # 访客与安全域（子表在前）：
+    # 注意 vis_access_log / vis_nda 属合规证据，**不参与清空**（见 RETAINED_AUDIT_TABLES）
     VisitorAlert,
     VisitorSampleHandover,
-    VisitorAccessLog,
     VisitorCredential,
     VisitorApproval,
-    VisitorNda,
     VisitorBlacklist,
     VisitorVisit,
     VisitorZone,
@@ -195,12 +199,18 @@ _PURGE_TABLES = [
     PartnerStaff,
     Customer,
     Notify,
-    AuditLog,
     LoginLog,
     NumberSeq,
     UserEmergencyContact,
     UserBankAccount,
 ]
+
+# 合规证据表：一键清空**不触碰**（《合规开发原则》4.4 审计日志只追加、不可清空）
+RETAINED_AUDIT_TABLES = (
+    AuditLog,  # sys_audit_log —— 审计追踪 + 哈希链
+    VisitorAccessLog,  # vis_access_log —— 访客通行审计（只追加）
+    VisitorNda,  # vis_nda —— 保密协议电子签证据
+)
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）
 _PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner", "task_progress")
@@ -300,4 +310,9 @@ def purge(db: Session, admin: User, password: str, confirm: str, force_backup_sk
     except Exception:  # noqa: BLE001 Redis 不可用不阻断清空（access token 短效且用户已删）
         counts["refresh_tokens_revoked"] = -1
 
-    return {"counts": counts, "backup": backup_info}
+    return {
+        "counts": counts,
+        "backup": backup_info,
+        # 合规证据表不参与清空 —— 明确回报，避免误以为"审计日志也被清了"
+        "retainedAuditTables": [m.__tablename__ for m in RETAINED_AUDIT_TABLES],
+    }

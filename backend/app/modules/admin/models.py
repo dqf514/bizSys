@@ -2,10 +2,20 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.common.models import BaseModel
+from app.common.models import AppendOnlyModel, BaseModel
 
 
 class Role(BaseModel):
@@ -110,8 +120,25 @@ class NumberSeq(BaseModel):
     value: Mapped[int] = mapped_column(Integer, default=0)
 
 
-class AuditLog(BaseModel):
+class AuditLog(AppendOnlyModel):
+    """审计追踪 —— 字段级证据链（B9 合规基线）。
+
+    只追加（无 deleted / version / update_*），并在迁移里加 BEFORE UPDATE/DELETE
+    触发器物理阻断改删。
+
+    字段级：field_name / old_value / new_value / reason 满足合规原则 2.2 的
+    「谁、何时、哪张表、哪个字段、旧值→新值、原因、终端 / IP」。
+
+    哈希链：chain_seq（链上序号）+ prev_hash + row_hash 构成 HMAC-SHA256 链，
+    `sys_audit_chain_head` 的链头是唯一权威游标（见 app/common/audit.py）。
+    """
+
     __tablename__ = "sys_audit_log"
+
+    # 毫秒精度：row_hash 含 create_time，秒精度会导致重算哈希必然不一致
+    create_time: Mapped[datetime] = mapped_column(
+        DATETIME(fsp=3), server_default=text("CURRENT_TIMESTAMP(3)"), comment="写入时间"
+    )
 
     user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     module: Mapped[str] = mapped_column(String(32), index=True)
@@ -121,10 +148,58 @@ class AuditLog(BaseModel):
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     trace_id: Mapped[str] = mapped_column(String(32), default="")
     ip: Mapped[str] = mapped_column(String(64), default="")
+    # —— 字段级（合规原则 2.2）——
+    field_name: Mapped[str] = mapped_column(String(64), default="", comment="变更字段名")
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True, comment="变更前值")
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True, comment="变更后值")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="变更原因")
+    user_agent: Mapped[str] = mapped_column(String(255), default="", comment="终端 UA")
+    # —— 哈希链（B9）——
+    chain_seq: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, unique=True, index=True, comment="链上序号（存量行为 NULL）"
+    )
+    prev_hash: Mapped[str] = mapped_column(String(64), default="", comment="上一行哈希")
+    row_hash: Mapped[str] = mapped_column(String(64), default="", comment="本行哈希")
+    hash_alg: Mapped[str] = mapped_column(String(16), default="", comment="哈希算法标识")
 
 
 # audit.record 里的别名
 SysAuditLog = AuditLog
+
+
+class AuditChainHead(BaseModel):
+    """审计链链头 —— **唯一权威游标**。
+
+    只有本表的 last_seq/last_hash 决定下一行的链上位置；不用 MAX(id)，
+    否则并发下会出现两行同 prev_hash 的分叉。
+    """
+
+    __tablename__ = "sys_audit_chain_head"
+
+    chain_key: Mapped[str] = mapped_column(String(32), unique=True, index=True, default="main")
+    last_seq: Mapped[int] = mapped_column(BigInteger, default=0, comment="链上最后序号")
+    last_hash: Mapped[str] = mapped_column(String(64), default="", comment="链上最后哈希")
+    last_row_id: Mapped[int] = mapped_column(BigInteger, default=0, comment="链上最后一行 id")
+    anchored_seq: Mapped[int] = mapped_column(BigInteger, default=0, comment="已锚定序号")
+    anchored_hash: Mapped[str] = mapped_column(String(64), default="", comment="已锚定哈希")
+    anchored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="锚定时间")
+    write_failures: Mapped[int] = mapped_column(Integer, default=0, comment="审计写入失败次数")
+    key_version: Mapped[str] = mapped_column(String(16), default="v1", comment="密钥版本")
+
+
+class AuditFailure(AppendOnlyModel):
+    """审计写入失败台账 —— 证据缺口本身也要留痕（只追加）。"""
+
+    __tablename__ = "sys_audit_failure"
+
+    user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    module: Mapped[str] = mapped_column(String(32), default="", index=True)
+    action: Mapped[str] = mapped_column(String(32), default="")
+    biz_type: Mapped[str] = mapped_column(String(32), default="")
+    biz_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error: Mapped[str] = mapped_column(String(255), default="", comment="失败原因")
+    attempted_seq: Mapped[int] = mapped_column(BigInteger, default=0, comment="尝试写入的链上序号")
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class LoginLog(BaseModel):

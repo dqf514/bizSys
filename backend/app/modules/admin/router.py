@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common.audit import evidence_detail, list_anchors, verify_chain, write_anchor
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -732,8 +733,16 @@ def list_audit_logs(
                 "bizType": r.biz_type,
                 "bizId": r.biz_id,
                 "detail": r.detail,
+                "fieldName": r.field_name,
+                "oldValue": r.old_value,
+                "newValue": r.new_value,
+                "reason": r.reason,
+                "userAgent": r.user_agent,
                 "traceId": r.trace_id,
                 "ip": r.ip,
+                "chainSeq": r.chain_seq,
+                "rowHash": r.row_hash,
+                "hashAlg": r.hash_alg,
                 "createTime": _t(r.create_time),
             }
             for r in rows
@@ -744,15 +753,81 @@ def list_audit_logs(
     }
 
 
+# ---------------- 审计证据链（B9） ----------------
+@router.get("/audit-logs/chain/verify")
+def verify_audit_chain(
+    mode: str = Query("full", pattern="^(full|since_anchor)$"),
+    from_seq: int | None = Query(None, alias="fromSeq", ge=1),
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """审计链完整性校验：断链 / 篡改 / 截断 / 链头被改。"""
+    result = verify_chain(db, mode=mode, from_seq=from_seq)
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="audit_chain_verify",
+        detail={"mode": mode, "ok": result["ok"], "checked": result["checked"]},
+    )
+    db.commit()
+    return result
+
+
+@router.get("/audit-logs/anchors")
+def list_audit_anchors(
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """锚点历史（DB 之外的文件为准，用于发现整链重写/截断）。"""
+    return {"items": list_anchors()}
+
+
+@router.post("/audit-logs/anchor")
+def create_audit_anchor(
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """立即锚定当前链头。"""
+    info = write_anchor(db)
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="audit_anchor_create",
+        detail={"seq": info["seq"], "hash": info["hash"]},
+        strict=True,
+    )
+    db.commit()
+    return info
+
+
+@router.get("/audit-logs/{row_id}/evidence")
+def get_audit_evidence(
+    row_id: int,
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """单条审计证据详情：链上位置 + 重算哈希比对。"""
+    return evidence_detail(db, row_id)
+
+
 AUDIT_EXPORT_COLS = [
     {"key": "username", "label": "操作人", "width": 14},
     {"key": "module", "label": "模块", "width": 12},
     {"key": "action", "label": "动作", "width": 20},
     {"key": "bizType", "label": "业务类型", "width": 12},
     {"key": "bizId", "label": "业务ID", "width": 10},
-    {"key": "detail", "label": "明细", "width": 48},
+    {"key": "fieldName", "label": "变更字段", "width": 16},
+    {"key": "oldValue", "label": "变更前", "width": 24},
+    {"key": "newValue", "label": "变更后", "width": 24},
+    {"key": "reason", "label": "变更原因", "width": 24},
+    {"key": "detail", "label": "明细", "width": 40},
+    {"key": "chainSeq", "label": "链序号", "width": 10},
+    {"key": "rowHash", "label": "链哈希", "width": 24},
     {"key": "traceId", "label": "追踪ID", "width": 24},
     {"key": "ip", "label": "IP", "width": 14},
+    {"key": "userAgent", "label": "终端", "width": 28},
     {"key": "createTime", "label": "时间", "width": 19},
 ]
 
@@ -788,15 +863,29 @@ def export_audit_logs(
             "action": r.action,
             "bizType": r.biz_type or "",
             "bizId": r.biz_id or "",
+            "fieldName": r.field_name or "",
+            "oldValue": r.old_value or "",
+            "newValue": r.new_value or "",
+            "reason": r.reason or "",
             "detail": r.detail or "",
+            "chainSeq": r.chain_seq or "",
+            "rowHash": r.row_hash or "",
             "traceId": r.trace_id or "",
             "ip": r.ip or "",
+            "userAgent": r.user_agent or "",
             "createTime": _t(r.create_time),
         }
         for r in logs
     ]
     payload = export_xlsx_styled(rows, AUDIT_EXPORT_COLS, "audit_logs")
-    audit(db, user_id=current.id, module="admin", action="audit_export", detail={"count": len(rows)})
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="audit_export",
+        detail={"count": len(rows)},
+        strict=True,
+    )
     db.commit()
     return Response(
         payload,

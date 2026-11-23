@@ -52,6 +52,9 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
     dicts_before = _count(DictType)
     flows_before = _count(ApprovalDefinition)
     roles_before = _count(Role)
+    from app.modules.admin.models import AuditLog
+
+    audit_before = _count(AuditLog)
 
     # 执行清空
     r = client.post(
@@ -63,6 +66,8 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
     counts = r["data"]["counts"]
     assert counts.get("sys_user", 0) >= 1  # 删掉了非 admin 用户
     assert r["data"]["backup"]["name"].endswith(".sql.gz")  # 清空前自动备份
+    # 合规证据表不参与清空（《合规开发原则》4.4 审计日志不可清空）
+    assert set(r["data"]["retainedAuditTables"]) == {"sys_audit_log", "vis_access_log", "vis_nda"}
 
     db = SessionLocal()
     try:
@@ -76,10 +81,10 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
         assert usernames == ["admin"]
         # 清空集
         assert _count(Customer) == 0 and _count(Contract) == 0
-        from app.modules.admin.models import AuditLog
-
+        # 审计日志**保留**：清空前已有记录 + 本次清空记录
         actions = list(db.scalars(select(AuditLog.action)))
-        assert actions == ["maintenance_purge"]  # 审计清空后只剩本次清空记录
+        assert "maintenance_purge" in actions
+        assert len(actions) >= audit_before
     finally:
         db.close()
 

@@ -109,8 +109,15 @@ def purge(
     except Exception:
         db.rollback()
         raise
-    # 清空后写一条新的审计记录（审计表已清空，这条是清空动作本身的凭证）
-    audit(db, user_id=current.id, module="admin", action="maintenance_purge", detail=result["counts"])
+    # 清空动作本身的审计凭证（审计表**不参与清空**，这条是清空动作的留痕）
+    audit(
+        db,
+        user_id=current.id,
+        module="admin",
+        action="maintenance_purge",
+        detail=result["counts"],
+        strict=True,
+    )
     db.commit()
     return result
 

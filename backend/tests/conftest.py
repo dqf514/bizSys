@@ -23,6 +23,8 @@ os.environ["DB_URL"] = TEST_URL
 import tempfile  # noqa: E402
 
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="bizsys_test_uploads_"))
+# 审计链锚点文件同样隔离到临时目录（锚点写在 DB 之外，不能污染开发目录）
+os.environ.setdefault("AUDIT_ANCHOR_DIR", tempfile.mkdtemp(prefix="bizsys_test_audit_anchor_"))
 
 import pytest  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
@@ -50,6 +52,29 @@ def _ensure_columns(table: str, cols: dict[str, str]) -> None:
         for name, ddl in cols.items():
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
+
+
+def _drop_columns(table: str, cols: list[str]) -> None:
+    """删列（幂等）—— 用于把旧测试库调整到"只追加"的新结构。"""
+    with engine.begin() as conn:
+        existing = {r[0] for r in conn.execute(text(f"SHOW COLUMNS FROM {table}")).all()}
+        for name in cols:
+            if name in existing:
+                conn.execute(text(f"ALTER TABLE {table} DROP COLUMN {name}"))
+
+
+def _ensure_indexes(table: str, idx: dict[str, str]) -> None:
+    # SHOW INDEX 的列序：Table, Non_unique, Key_name, ... → 索引名在第 3 列
+    with engine.begin() as conn:
+        existing = {r[2] for r in conn.execute(text(f"SHOW INDEX FROM {table}")).all()}
+        for name, ddl in idx.items():
+            if name not in existing:
+                conn.execute(text(ddl))
+
+
+def _modify_column(table: str, column: str, ddl: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {table} MODIFY COLUMN {column} {ddl}"))
 
 
 _ensure_columns(
@@ -139,6 +164,88 @@ _ensure_columns(
     {
         "flow_instance_id": "flow_instance_id BIGINT NULL COMMENT '审批引擎实例 id'",
         "partner_user_id": "partner_user_id BIGINT NULL COMMENT '门户合作方账号 id'",
+    },
+)
+
+# B9 补充：审计证据链（字段级 + 哈希链）+ 只追加结构
+_ensure_columns(
+    "sys_audit_log",
+    {
+        "field_name": "field_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '变更字段名'",
+        "old_value": "old_value TEXT NULL COMMENT '变更前值'",
+        "new_value": "new_value TEXT NULL COMMENT '变更后值'",
+        "reason": "reason TEXT NULL COMMENT '变更原因'",
+        "user_agent": "user_agent VARCHAR(255) NOT NULL DEFAULT '' COMMENT '终端 UA'",
+        "chain_seq": "chain_seq BIGINT NULL COMMENT '链上序号'",
+        "prev_hash": "prev_hash VARCHAR(64) NOT NULL DEFAULT '' COMMENT '上一行哈希'",
+        "row_hash": "row_hash VARCHAR(64) NOT NULL DEFAULT '' COMMENT '本行哈希'",
+        "hash_alg": "hash_alg VARCHAR(16) NOT NULL DEFAULT '' COMMENT '哈希算法标识'",
+    },
+)
+# 毫秒精度：row_hash 含 create_time，秒精度会让链校验重算必然不一致
+_modify_column(
+    "sys_audit_log",
+    "create_time",
+    "DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '写入时间'",
+)
+# 只追加：物理删掉可改可删的列（与迁移 n8 一致）
+_drop_columns("sys_audit_log", ["deleted", "version", "update_time", "update_by", "create_by"])
+_ensure_indexes(
+    "sys_audit_log",
+    {
+        "ix_sys_audit_log_chain_seq": (
+            "CREATE UNIQUE INDEX ix_sys_audit_log_chain_seq ON sys_audit_log (chain_seq)"
+        ),
+    },
+)
+# 链头单行（链上唯一权威游标）
+with engine.begin() as conn:
+    conn.execute(
+        text(
+            "INSERT IGNORE INTO sys_audit_chain_head "
+            "(chain_key, last_seq, last_hash, last_row_id, anchored_seq, anchored_hash, "
+            "write_failures, key_version, deleted, version) "
+            "VALUES ('main', 0, '', 0, 0, '', 0, 'v1', 0, 0)"
+        )
+    )
+    # 测试库跨次运行残留：上一轮用例可能删过链行（篡改检测用例），
+    # 整链校验会因此必然失败。这里把链行清掉、链头归零，让每个测试会话
+    # 都从 seq=1 重新开始，保证链校验用例可重复。存量无链行（chain_seq IS NULL）
+    # 的历史审计保留不动（验证 legacyRows 口径）。
+    conn.execute(text("DELETE FROM sys_audit_log WHERE chain_seq IS NOT NULL"))
+    conn.execute(
+        text(
+            "UPDATE sys_audit_chain_head SET last_seq=0, last_hash='', last_row_id=0, "
+            "anchored_seq=0, anchored_hash='', write_failures=0 WHERE chain_key='main'"
+        )
+    )
+
+# B9 补充：NDA 密码学签名绑定列（存量标 legacy）
+_ensure_columns(
+    "vis_nda",
+    {
+        "signed_by_id": "signed_by_id BIGINT NULL COMMENT '签署人 id'",
+        "signed_by_name": "signed_by_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '签署人姓名'",
+        "signed_ip": "signed_ip VARCHAR(64) NOT NULL DEFAULT '' COMMENT '签署真实 IP'",
+        "sign_alg": "sign_alg VARCHAR(16) NOT NULL DEFAULT '' COMMENT '签名算法'",
+        "sign_version": "sign_version VARCHAR(16) NOT NULL DEFAULT '' COMMENT '签名口径'",
+    },
+)
+
+# B9 补充：报告签章绑定列 + 三级审核角色
+_ensure_columns(
+    "rpt_report",
+    {
+        "seal_by_name": "seal_by_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '签章人姓名'",
+        "seal_content_hash": "seal_content_hash VARCHAR(64) NOT NULL DEFAULT '' COMMENT '签章内容哈希'",
+        "seal_signature": "seal_signature VARCHAR(64) NOT NULL DEFAULT '' COMMENT '签章签名'",
+        "seal_alg": "seal_alg VARCHAR(16) NOT NULL DEFAULT '' COMMENT '签名算法'",
+        "preparer_id": "preparer_id BIGINT NULL COMMENT '编制人 id'",
+        "preparer_name": "preparer_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '编制人姓名'",
+        "reviewer_id": "reviewer_id BIGINT NULL COMMENT '复核人 id'",
+        "reviewer_name": "reviewer_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '复核人姓名'",
+        "approver_id": "approver_id BIGINT NULL COMMENT '批准人 id'",
+        "approver_name": "approver_name VARCHAR(64) NOT NULL DEFAULT '' COMMENT '批准人姓名'",
     },
 )
 

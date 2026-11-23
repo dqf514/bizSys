@@ -36,6 +36,19 @@ class Report(BaseModel):
     pdf_file_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="转换后 PDF rpt_file.id")
     seal_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="签章人")
     seal_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="签章时间")
+    # —— B9 签章密码学绑定 + 三级审核角色 ——
+    seal_by_name: Mapped[str] = mapped_column(String(64), default="", comment="签章人姓名")
+    seal_content_hash: Mapped[str] = mapped_column(
+        String(64), default="", comment="签章内容哈希（最终 PDF + 单号 + 条目 + 结论）"
+    )
+    seal_signature: Mapped[str] = mapped_column(String(64), default="", comment="签章签名（HMAC-SHA256）")
+    seal_alg: Mapped[str] = mapped_column(String(16), default="", comment="签名算法")
+    preparer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="编制人 id")
+    preparer_name: Mapped[str] = mapped_column(String(64), default="", comment="编制人姓名")
+    reviewer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="复核人 id")
+    reviewer_name: Mapped[str] = mapped_column(String(64), default="", comment="复核人姓名")
+    approver_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="批准人 id")
+    approver_name: Mapped[str] = mapped_column(String(64), default="", comment="批准人姓名")
     remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     conclusion: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="结论与不确定度段（AI 草稿人工采用后落库）"

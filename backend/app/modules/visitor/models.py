@@ -12,21 +12,10 @@ from datetime import datetime
 from sqlalchemy import BigInteger, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.common.models import BaseModel
-from app.core.db import Base
+from app.common.models import AppendOnlyModel, BaseModel
 
-
-class AppendOnlyModel(Base):
-    """只追加基类 —— 合规审计日志。
-
-    刻意**不继承** `BaseModel`：没有 `deleted` / `version` / `update_*`，
-    从数据模型层面保证"日志不可删改"；接口层同样不提供 update / delete。
-    """
-
-    __abstract__ = True
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="主键")
-    create_time: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), comment="写入时间")
+# AppendOnlyModel 已上移到 app.common.models（审计链 / 授权事件表共用），
+# 这里保留 re-export 以兼容既有 `from app.modules.visitor.models import AppendOnlyModel`。
 
 
 class VisitorZone(BaseModel):
@@ -169,8 +158,16 @@ class VisitorNda(BaseModel):
     id_no: Mapped[str] = mapped_column(String(64), default="", comment="证件号")
     signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="签署时间")
     signature_data: Mapped[str] = mapped_column(Text, default="", comment="签名数据（手写签名图片 base64）")
-    evidence_hash: Mapped[str] = mapped_column(String(64), default="", comment="存证哈希（防篡改）")
+    evidence_hash: Mapped[str] = mapped_column(String(64), default="", comment="存证哈希（HMAC-SHA256 签名）")
     ip: Mapped[str] = mapped_column(String(64), default="", comment="签署 IP")
+    # —— B9 密码学绑定：签名须绑定账号 / 时间 / 内容哈希，签名后记录锁定 ——
+    signed_by_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="签署人 id（内部账号）")
+    signed_by_name: Mapped[str] = mapped_column(String(64), default="", comment="签署人姓名")
+    signed_ip: Mapped[str] = mapped_column(String(64), default="", comment="签署真实 IP")
+    sign_alg: Mapped[str] = mapped_column(String(16), default="", comment="签名算法（HMAC-SHA256）")
+    sign_version: Mapped[str] = mapped_column(
+        String(16), default="", comment="签名口径：v1=密码学绑定 / legacy-sha256=存量无密钥哈希"
+    )
     valid_from: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="生效时间")
     valid_to: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="失效时间")
     status: Mapped[str] = mapped_column(String(16), default="signed", comment="signed/expired/revoked")
