@@ -253,6 +253,19 @@ _ensure_columns(
 with engine.begin() as conn:
     conn.execute(text("UPDATE fin_payment SET status = 'confirmed' WHERE status IS NULL OR status = 'draft'"))
 
+# B10-1 补充：组织架构扩展列（sys_dept 是既有表，create_all 不会补列）
+_ensure_columns(
+    "sys_dept",
+    {
+        "dept_type": "dept_type VARCHAR(16) NOT NULL DEFAULT 'dept' COMMENT '层级 site/company/division/dept/lab/team'",
+        "site_code": "site_code VARCHAR(32) NOT NULL DEFAULT '' COMMENT '场所编码'",
+        "address": "address VARCHAR(255) NOT NULL DEFAULT '' COMMENT '办公地址'",
+        "manager_id": "manager_id BIGINT NULL COMMENT '部门负责人 sys_user.id'",
+        "effective_from": "effective_from DATE NULL COMMENT '生效日期'",
+        "effective_to": "effective_to DATE NULL COMMENT '失效日期'",
+    },
+)
+
 # B9-C3 补充：人员授权台账（hr_authorization 是新表，create_all 自动建）
 # 变更轨迹的生效时间改毫秒精度 —— 同一秒内的多次状态变更要能区分先后，
 # 否则「回溯任一历史时点状态」只能精确到秒。

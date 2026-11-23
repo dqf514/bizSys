@@ -60,7 +60,18 @@ from app.modules.auth.models import User, UserBankAccount, UserEmergencyContact
 from app.modules.contract.models import Contract, ContractAttachment
 from app.modules.crm.models import Customer, PartnerAttachment, PartnerContact, PartnerStaff
 from app.modules.finance.models import Invoice, Payment, Settlement, SettlementConfirmRecord
-from app.modules.hr.models import HrAuthorization, HrAuthorizationEvent, HrTimesheet
+from app.modules.hr.models import (
+    HrAuthorization,
+    HrAuthorizationEvent,
+    HrDelegate,
+    HrEmployee,
+    HrEmployeeControl,
+    HrEmployment,
+    HrEmploymentEvent,
+    HrOrgChange,
+    HrPosition,
+    HrTimesheet,
+)
 from app.modules.maintenance import backup as backup_svc
 from app.modules.oa.models import OaForm, OaInstance
 from app.modules.portal.models import PartnerUser
@@ -146,6 +157,15 @@ _PURGE_TABLES = [
     # 授权行必须一起清空 —— AU 单号计数器同步归零，否则下次取号会撞唯一键
     HrAuthorizationEvent,
     HrAuthorization,
+    # HR L1 组织架构 / 员工主数据 / 人事事务（B10-1）：事件与轨迹表先于主表删除；
+    # 人事事务单号 EM 的计数器同步归零，否则下次取号会撞唯一键
+    HrEmploymentEvent,
+    HrOrgChange,
+    HrEmployment,
+    HrDelegate,
+    HrEmployeeControl,
+    HrEmployee,
+    HrPosition,
     AiUsageLog,
     KnowledgeEntry,
     SalesQuoteSendLog,

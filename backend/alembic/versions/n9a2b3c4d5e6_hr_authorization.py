@@ -14,6 +14,7 @@ Create Date: 2026-11-23
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.mysql import DATETIME
 
 revision = "n9a2b3c4d5e6"
 down_revision = "n8a2b3c4d5e6"
@@ -113,7 +114,7 @@ def upgrade() -> None:
         sa.Column("operator_id", sa.BigInteger(), nullable=True, comment="操作人 id"),
         sa.Column("operator_name", sa.String(64), nullable=False, server_default="", comment="操作人姓名"),
         sa.Column("reason", sa.String(500), nullable=False, server_default="", comment="变更原因"),
-        sa.Column("effective_at", sa.DATETIME(fsp=3), nullable=True, comment="生效时间（毫秒精度）"),
+        sa.Column("effective_at", DATETIME(fsp=3), nullable=True, comment="生效时间（毫秒精度）"),
         sa.Column("snapshot", sa.Text(), nullable=False, comment="变更时点的授权快照 JSON"),
         *_APPEND_ONLY_COLS,
         sa.PrimaryKeyConstraint("id"),

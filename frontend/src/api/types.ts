@@ -3238,6 +3238,24 @@ export const B9_ERR = {
   HR_AUTH_SOD_VIOLATION: 63008,
   /** 授权已过期 */
   HR_AUTH_EXPIRED: 63009,
+  /** 组织 / 岗位状态不允许该操作 */
+  HR_ORG_INVALID_STATE: 63010,
+  /** 员工档案不存在 */
+  HR_EMP_NOT_FOUND: 63011,
+  /** 员工档案状态不允许该操作 */
+  HR_EMP_INVALID_STATE: 63012,
+  /** 工号或证件号已存在 */
+  HR_EMP_DUPLICATE: 63013,
+  /** 人事事务状态不允许该操作 */
+  HR_EMPLOYMENT_INVALID_STATE: 63014,
+  /** 人事事务单据不存在 */
+  HR_EMPLOYMENT_NOT_FOUND: 63015,
+  /** 存在雇佣冲突（兼职冲突 / 黑名单限制） */
+  HR_EMP_CONFLICT: 63016,
+  /** 岗位不存在 */
+  HR_POSITION_NOT_FOUND: 63017,
+  /** 代理配置状态不允许该操作 */
+  HR_DELEGATE_INVALID_STATE: 63018,
   /** NDA 签名校验失败 */
   VISITOR_NDA_SIGNATURE_INVALID: 98014,
 } as const

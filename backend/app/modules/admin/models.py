@@ -1,9 +1,10 @@
 """系统管理：角色/菜单/字典/编号规则/审计/偏好。"""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -222,7 +223,15 @@ class UserPref(BaseModel):
 
 
 class Dept(BaseModel):
-    """部门/业务板块。"""
+    """部门/业务板块。
+
+    B10-1 组织架构扩展：仍是**全站唯一的部门表**（asset 域"部门取 sys_dept"、
+    审批引擎 DEPT_LEADER 沿 parent_id 向上解析），新增的列用于承载
+    「多场所 / 科室层级 / 负责人 / 有效期」的组织语义。
+
+    `manager_id` 是**部门负责人的权威写入方**（与 `sys_user_dept.is_leader=1` 双向同步）：
+    在 admin 域写 `manager_id` 会同步任职表的 is_leader 标记，反之亦然。
+    """
 
     __tablename__ = "sys_dept"
 
@@ -231,6 +240,22 @@ class Dept(BaseModel):
     code: Mapped[str] = mapped_column(String(32), default="", unique=True)
     sort: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(16), default="enabled")
+    # —— B10-1 组织架构扩展 ——
+    dept_type: Mapped[str] = mapped_column(
+        String(16),
+        default="dept",
+        index=True,
+        comment="层级 site场所/company公司/division事业部/dept科室/lab实验室/team班组",
+    )
+    site_code: Mapped[str] = mapped_column(
+        String(32), default="", index=True, comment="场所编码（多场所：总部+分支实验室）"
+    )
+    address: Mapped[str] = mapped_column(String(255), default="", comment="办公地址")
+    manager_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True, comment="部门负责人 sys_user.id"
+    )
+    effective_from: Mapped[date | None] = mapped_column(Date, nullable=True, comment="生效日期")
+    effective_to: Mapped[date | None] = mapped_column(Date, nullable=True, comment="失效日期")
 
 
 class UserDept(BaseModel):
