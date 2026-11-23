@@ -162,6 +162,13 @@ class DeptIn(CamelModel):
     code: str = ""
     sort: int = 0
     status: str = "enabled"
+    # —— B10-1 组织架构扩展：多场所 / 层级 / 负责人 / 有效期 ——
+    dept_type: str = Field("dept", max_length=16)
+    site_code: str = Field("", max_length=32)
+    address: str = Field("", max_length=255)
+    manager_id: int | None = None
+    effective_from: OptionalDate = None
+    effective_to: OptionalDate = None
 
 
 class DeptMemberIn(CamelModel):

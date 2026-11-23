@@ -31,6 +31,10 @@ from app.modules.admin.models import (
     UserDept,
 )
 from app.modules.auth.models import User
+
+# 组织架构扩展（B10-1）：admin 域仍是**部门树的唯一写入口**，组织变更轨迹
+# 由 HR 域的纯逻辑层落库（只追加快照）。走 service 而非 router 互引。
+from app.modules.hr import org as hr_org
 from app.services.excel import export_xlsx_styled, now_filename
 from app.services.numbering import preview_no, reset_seq
 
@@ -909,16 +913,26 @@ def save_prefs(
 # ---------------- 部门/业务板块 ----------------
 @router.get("/depts")
 def list_depts(current: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """部门树（B10-1 起含组织架构扩展列：层级 / 场所 / 负责人 / 有效期）。
+
+    仍是**全站唯一的部门写入口**（HR 组织架构页复用本端点，不另开写接口）。
+    """
     rows = db.scalars(
         select(Dept).where(Dept.deleted == 0, Dept.status == "enabled").order_by(Dept.sort, Dept.id)
     ).all()
-    return [{"id": d.id, "parentId": d.parent_id, "name": d.name, "code": d.code, "sort": d.sort} for d in rows]
+    member_counts, position_counts = hr_org.dept_counts(db)
+    manager_names = hr_org.user_names(db, [d.manager_id for d in rows if d.manager_id])
+    return [hr_org.dept_out(db, d, member_counts, position_counts, manager_names) for d in rows]
 
 
 DEPT_EXPORT_COLS = [
     {"key": "name", "label": "部门名称", "width": 22},
     {"key": "code", "label": "部门编码", "width": 12},
     {"key": "parentName", "label": "上级部门", "width": 22},
+    {"key": "deptTypeText", "label": "层级", "width": 10},
+    {"key": "siteCode", "label": "场所编码", "width": 14},
+    {"key": "managerName", "label": "部门负责人", "width": 14},
+    {"key": "memberCount", "label": "在编人数", "width": 10},
     {"key": "sort", "label": "排序", "width": 8},
     {"key": "status", "label": "状态", "width": 8},
 ]
@@ -933,11 +947,17 @@ def export_depts(
     rows = db.scalars(select(Dept).where(Dept.deleted == 0).order_by(Dept.sort, Dept.id)).all()
     name_map = {d.id: d.name for d in rows}
     status_cn = {"enabled": "启用", "disabled": "停用"}
+    member_counts, _ = hr_org.dept_counts(db)
+    manager_names = hr_org.user_names(db, [d.manager_id for d in rows if d.manager_id])
     items = [
         {
             "name": d.name,
             "code": d.code,
             "parentName": name_map.get(d.parent_id, "") if d.parent_id else "",
+            "deptTypeText": hr_org.DEPT_TYPE_CN.get(d.dept_type, d.dept_type),
+            "siteCode": d.site_code,
+            "managerName": manager_names.get(d.manager_id, "") if d.manager_id else "",
+            "memberCount": member_counts.get(d.id, 0),
             "sort": d.sort,
             "status": status_cn.get(d.status, d.status),
         }
@@ -959,7 +979,28 @@ def create_dept(
     current: User = Depends(require_perm("admin:dept:edit")),
     db: Session = Depends(get_db),
 ):
-    db.add(Dept(**body.model_dump(), create_by=current.id))
+    data = body.model_dump()
+    manager_id = data.pop("manager_id", None)
+    d = Dept(**data, create_by=current.id)
+    db.add(d)
+    db.flush()
+    # 部门负责人与任职表 is_leader 双向同步
+    org.apply_dept_manager(db, d, manager_id)
+    db.flush()
+    # 组织变更轨迹（只追加快照，历史版本留存）
+    hr_org.write_org_change(
+        db,
+        object_type="dept",
+        object_id=d.id,
+        object_name=d.name,
+        change_type="create",
+        before=None,
+        after=hr_org.dept_out(db, d),
+        operator_id=current.id,
+        operator_name=current.name or current.username,
+        reason="新建部门",
+    )
+    audit(db, user_id=current.id, module="admin", action="dept_create", biz_type="dept", biz_id=d.id)
     db.commit()
     return None
 
@@ -974,8 +1015,28 @@ def update_dept(
     d = db.get(Dept, did)
     if not d or d.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    for k, v in body.model_dump().items():
+    before = hr_org.dept_out(db, d)
+    data = body.model_dump()
+    manager_id = data.pop("manager_id", None)
+    for k, v in data.items():
         setattr(d, k, v)
+    org.apply_dept_manager(db, d, manager_id)
+    db.flush()
+    after = hr_org.dept_out(db, d)
+    change_type = "move" if before.get("parentId") != after.get("parentId") else "update"
+    hr_org.write_org_change(
+        db,
+        object_type="dept",
+        object_id=d.id,
+        object_name=d.name,
+        change_type=change_type,
+        before=before,
+        after=after,
+        operator_id=current.id,
+        operator_name=current.name or current.username,
+        reason="修改部门",
+    )
+    audit(db, user_id=current.id, module="admin", action="dept_update", biz_type="dept", biz_id=d.id)
     db.commit()
     return None
 
@@ -1053,6 +1114,8 @@ def set_dept_members(
         u.dept_id = did
         u.dept_name = d.name
         org.sync_primary_membership(db, u)
+    # 部门负责人反写：dept.manager_id 与任职表 is_leader 必须一致（B10-1）
+    org.sync_dept_manager_from_members(db, d)
     audit(db, user_id=current.id, module="admin", action="dept_members", biz_type="dept", biz_id=did)
     db.commit()
     return None
