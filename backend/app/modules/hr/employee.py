@@ -239,7 +239,7 @@ def check_employee_conflicts(
 
     if employ_type == "part_time":
         if user_id:
-            q2 = select(HrEmployee.id).where(
+            q2 = select(HrEmployee).where(
                 HrEmployee.user_id == user_id,
                 HrEmployee.employ_type == "part_time",
                 HrEmployee.deleted == 0,

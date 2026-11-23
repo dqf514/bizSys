@@ -266,6 +266,20 @@ _ensure_columns(
     },
 )
 
+# B10-1 补充：人事事务单的「开账号」字段（迁移 nb2b3c4d5e6）
+# 测试库跨次运行残留：hr_employment 已在早前的 create_all 中建过，
+# 后续新增的列不会自动补上 → 必须显式 _ensure_columns。
+_ensure_columns(
+    "hr_employment",
+    {
+        "create_account": "create_account INT NOT NULL DEFAULT 0 COMMENT '生效时是否创建系统账号 0/1'",
+        "account_username": "account_username VARCHAR(64) NOT NULL DEFAULT '' COMMENT '账号登录名（留空则用工号）'",
+        "account_password": "account_password VARCHAR(255) NOT NULL DEFAULT '' "
+        "COMMENT '初始密码（AES-GCM 密文 enc: 前缀）'",
+        "account_roles": "account_roles VARCHAR(255) NOT NULL DEFAULT '' COMMENT '逗号分隔的角色 id'",
+    },
+)
+
 # B9-C3 补充：人员授权台账（hr_authorization 是新表，create_all 自动建）
 # 变更轨迹的生效时间改毫秒精度 —— 同一秒内的多次状态变更要能区分先后，
 # 否则「回溯任一历史时点状态」只能精确到秒。

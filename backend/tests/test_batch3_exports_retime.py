@@ -80,7 +80,17 @@ def test_approval_tasks_export(client, admin_headers):
 def test_admin_exports(client, admin_headers):
     """部门 / 字典 / 审计日志导出（沿用列表查看权限码）。"""
     rows = _xlsx_rows(client.get("/api/v1/admin/depts/export", headers=admin_headers))
-    assert rows[0] == ["部门名称", "部门编码", "上级部门", "排序", "状态"]
+    assert rows[0] == [
+        "部门名称",
+        "部门编码",
+        "上级部门",
+        "层级",
+        "场所编码",
+        "部门负责人",
+        "在编人数",
+        "排序",
+        "状态",
+    ]
     assert any(row[1] == "D00" and not row[2] for row in rows[1:])  # openpyxl 空单元格读出 None
     assert any(row[1] == "D01" and row[2] == "总经办" for row in rows[1:])
 
@@ -188,7 +198,9 @@ def test_retime_approval_record_and_settlement(client, admin_headers, db):
     db.expire_all()
     assert db.get(ApprovalRecord, rec.id).at == datetime(2026, 1, 5, 10, 0, 0)
 
-    st = Settlement(settlement_no=f"HK-RT-{uuid.uuid4().hex[:8]}", task_id=0, task_no="", amount=1,
+    # task_id 上有唯一索引（一任务一结算单），测试库跨次运行残留 → 必须用唯一值
+    st = Settlement(settlement_no=f"HK-RT-{uuid.uuid4().hex[:8]}",
+                    task_id=int(uuid.uuid4().hex[:12], 16), task_no="", amount=1,
                     invoiceable_amount=1, status="pending")
     db.add(st)
     db.commit()

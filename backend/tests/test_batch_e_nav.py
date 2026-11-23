@@ -140,11 +140,14 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "PartnerStaff",
         "KnowledgeBase",
     ]
-    # B9-C3：新增「人员授权」台账菜单
+    # B9-C3：新增「人员授权」台账菜单；B10-1：新增组织架构 / 岗位 / 人事事务
     assert _children(_find(tree, "HrSystem")) == [
         "TimesheetFill",
         "TimesheetStats",
+        "HrOrg",
+        "HrPosition",
         "Staff",
+        "HrEmployment",
         "Authorizations",
     ]
 
