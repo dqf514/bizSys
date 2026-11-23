@@ -444,5 +444,21 @@
       "SchedulePlanPublished": "Schedule Plan Published",
       "TaskCompleted": "Task Completed"
     }
+  },
+  "changelog": {
+    "title": "Changelog",
+    "currentVersion": "Current version",
+    "latest": "Latest",
+    "unreleased": "Unreleased",
+    "empty": "No changelog entries yet",
+    "specTip": "Content comes from CHANGELOG.md at the repository root and follows the Keep a Changelog and Semantic Versioning conventions. Every functional change adds an entry here.",
+    "type": {
+      "added": "Added",
+      "changed": "Changed",
+      "deprecated": "Deprecated",
+      "removed": "Removed",
+      "fixed": "Fixed",
+      "security": "Security"
+    }
   }
 }

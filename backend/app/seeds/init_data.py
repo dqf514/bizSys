@@ -1123,6 +1123,16 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                             (None, "automation-edit", "", "", "", "admin:automation:edit", []),
                         ],
                     ),
+                    # 变更日志（Keep a Changelog）：数据源 = 仓库根 CHANGELOG.md
+                    (
+                        "menu.changelog",
+                        "Changelog",
+                        "/admin/changelog",
+                        "admin/ChangelogList",
+                        "Tickets",
+                        "admin:changelog:list",
+                        [],
+                    ),
                 ],
             ),
             (

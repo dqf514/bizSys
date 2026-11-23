@@ -83,6 +83,7 @@
   "depts": "Departments",
   "flow": "Flow Definitions",
   "automation": "Flow & Event Switches",
+  "changelog": "Changelog",
   "settings": "Settings",
   "oaAdmin": "OA Admin",
   "oaFlowStats": "Flow Statistics",

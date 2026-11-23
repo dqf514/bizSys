@@ -3736,3 +3736,29 @@ export interface HrEmployeeOption {
   deptName: string
   userId: number
 }
+
+/** 变更日志条目（Keep a Changelog）：GET /admin/changelog */
+export interface ChangelogItem {
+  text: string
+  children: string[]
+}
+
+/** 变更日志分类：added / changed / deprecated / removed / fixed / security */
+export interface ChangelogSection {
+  type: string
+  items: ChangelogItem[]
+}
+
+/** 变更日志版本条目 */
+export interface ChangelogRelease {
+  version: string
+  date: string
+  sections: ChangelogSection[]
+}
+
+export interface ChangelogPayload {
+  currentVersion: string
+  latestVersion: string
+  latestDate: string
+  releases: ChangelogRelease[]
+}

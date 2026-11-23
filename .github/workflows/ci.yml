@@ -6,6 +6,32 @@ on:
   pull_request:
 
 jobs:
+  changelog:
+    name: 变更日志门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 功能性改动必须同步 CHANGELOG.md
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}" 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          else
+            BASE="${{ github.event.before }}"
+            if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+              BASE=$(git rev-list --max-parents=0 HEAD)
+            fi
+          fi
+          CHANGED=$(git diff --name-only "$BASE"..HEAD)
+          printf '%s\n' "$CHANGED"
+          CODE_CHANGED=$(printf '%s\n' "$CHANGED" | grep -E '^(backend/app/|frontend/src/|backend/alembic/)' || true)
+          if [ -n "$CODE_CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qx 'CHANGELOG.md'; then
+            echo "::error::检测到功能性改动但未更新 CHANGELOG.md —— 请在文件顶部按 Keep a Changelog 追加版本条目（Added/Changed/Deprecated/Removed/Fixed/Security），并同步 Settings.app_version、frontend/package.json、backend/pyproject.toml 三处版本号。"
+            exit 1
+          fi
+
   backend:
     runs-on: ubuntu-latest
     services:

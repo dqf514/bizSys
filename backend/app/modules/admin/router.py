@@ -11,11 +11,13 @@ from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import SUPER_ROLE, get_current_user, require_any_perm, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.core.security import hash_password
+from app.modules.admin import changelog as changelog_svc
 from app.modules.admin import org
 from app.modules.admin import schemas as S
 from app.modules.admin import service as svc
@@ -1223,3 +1225,20 @@ def mark_all_read(current: User = Depends(get_current_user), db: Session = Depen
         n.read_flag = 1
     db.commit()
     return None
+
+
+# ---------------- 变更日志 ----------------
+@router.get("/changelog")
+def changelog(_: User = Depends(get_current_user)):
+    """变更日志（Keep a Changelog + 语义化版本）。
+
+    数据源 = 仓库根目录 `CHANGELOG.md`（代码拥有、随版本走），后端只解析不改写。
+    仅需登录即可读；菜单入口在「系统管理 → 系统与审计 → 变更日志」。
+    """
+    releases = changelog_svc.load_releases()
+    return {
+        "currentVersion": settings.app_version,
+        "latestVersion": releases[0].version if releases else "",
+        "latestDate": releases[0].date if releases else "",
+        "releases": [r.out() for r in releases],
+    }

@@ -12,6 +12,7 @@ frontend/   Vue 3 + TS 单包应用
 deploy/     Docker Compose + Dockerfile + nginx
 docs/       ADR-0001~0004 + api-contract.md + roadmap-2026-11.md + compliance-baseline.md + 各域设计文档
 pre/        前期会议素材（截图/字幕/纪要）
+CHANGELOG.md  变更日志（Keep a Changelog + 语义化版本，系统内「变更日志」页渲染此文件）
 ```
 
 代码里常引用 ADR 编号：`ADR-0001` Python/FastAPI + 同步 SQLAlchemy（ADR-0002）自研审批引擎与事件总线、`ADR-0003` 前端单包（不做 monorepo）、`ADR-0004` 工作流引擎合并。**改动前先读对应 ADR**；`docs/api-contract.md` 必须与后端接口变更保持同步。
@@ -205,6 +206,14 @@ current: User = Depends(get_current_user)              # 仅登录
 
 各业务域的 AI 辅助在模块内 `ai_*.py`（`approval/ai_assist.py`、`approval/flow_suggest.py`、`oa/ai_prefill.py`、`oa/ai_anomaly.py`、`hr/ai_prefill.py`、`task/ai_sample_ocr.py`、`finance/ai_invoice_ocr.py`、`procurement/ai_price_ref.py`、`procurement/ai_tender.py`），统一形态：服务端组装并截断上下文 → 解析 JSON 并白名单归一 → 返回**草稿**。**AI 结果一律不自动落库，必须人工确认**。
 
+### 变更日志（Keep a Changelog）
+
+- **单一数据源 = 仓库根目录 `CHANGELOG.md`**（代码拥有、随版本走；镜像内由 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供）。后端**只解析不改写**：`app/modules/admin/changelog.py::parse_changelog`（按 mtime 缓存，改文件即时生效）。
+- 端点 `GET /admin/changelog`（**仅需登录**）：返回 `currentVersion` / `latestVersion` / `latestDate` / `releases[{version, date, sections[{type, items[{text, children}]}]}]`。分类 `added`/`changed`/`deprecated`/`removed`/`fixed`/`security`，未登记的分类原样透传（前端回退显示原名）。
+- 前端页面 `src/modules/admin/pages/ChangelogList.vue`（菜单 `menu.changelog` → `/admin/changelog`，权限 `admin:changelog:list`，挂在「系统管理 → 系统与审计」）；分类徽标走 i18n `admin.changelog.type.*`。
+- **版本号四处必须一致**：`CHANGELOG.md` 顶部版本 == `Settings.app_version` == `frontend/package.json` == `backend/pyproject.toml`（**含 `backend/uv.lock` 的 `bizsys-backend` 版本**，否则 `uv sync --frozen` 失败），版本号严格递减 —— 由 `tests/test_changelog.py` 在 CI 断言。
+- **每次功能性变动都要在 `CHANGELOG.md` 顶部追加条目**（与代码同一次提交），分类按 Keep a Changelog 六类选。
+
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
@@ -236,6 +245,7 @@ current: User = Depends(get_current_user)              # 仅登录
 - **`hr_employment` 的 `pass_through=False`**（B10-1）：人事事务不允许人工直通，未配流程定义时提交直接报错 —— 与 `hr_authorization` 同理，是刻意的。
 - **`hr_employment` / `hr_delegate` 的 `scope` 校验很严**：`scope="position"` 必须同时给 `positionId`（否则 63018），`scope="auth"` 必须给 `authId`。
 - **B10-1 新表都在 `hr` 域，而 `alembic/env.py` 没 import hr models** —— 新增 hr 表的迁移**必须手写**（`na2b3c4d5e6_hr_l1_org_employee.py` / `nb2b3c4d5e6_hr_employment_account.py`），autogenerate 会删表。
+- **变更日志的单一数据源是仓库根 `CHANGELOG.md`**：不要另建表、也不要前端本地副本 —— 后端 `admin/changelog.py` 按 mtime 缓存解析结果，改文件即时生效；**镜像里靠 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供文件，漏改会让容器内读到空变更日志**（页面显示空态，不报错）。
 
 ## 合规基线（B9）
 
@@ -382,6 +392,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 2. **不得硬编码颜色** —— 一律 `var(--bs-*)`；改 `src/styles/tokens/*.tokens.json` 后跑 `pnpm token:build`。`scan:colors` 在 build 中拦截裸 hex（白名单：`modules/auth/Login.vue`、`modules/sales/pages/QuotationPrint.vue`、`modules/sales/components/QuotationPreview.vue`、`utils/chartTheme.ts`）。
 3. 新增 Element Plus 组件要同时改 `src/plugins/element-plus.ts`（组件数组 + 样式 import）；新图标名要登记到 `src/icons.ts`（后端菜单的 `icon` 字符串按名解析）。
 4. 新页面放 `src/modules/<域>/pages/`，并确保 `defineOptions({ name: '...' })` 与路由 `componentName` 一致（KeepAlive 依赖）。
+5. **每次功能性变动都要写变更日志** —— 在仓库根 `CHANGELOG.md` 顶部追加版本条目（Keep a Changelog 六类：`Added`/`Changed`/`Deprecated`/`Removed`/`Fixed`/`Security` + 语义化版本号 + 日期），并把版本号同步到 `Settings.app_version`、`frontend/package.json`、`backend/pyproject.toml`（+ `backend/uv.lock`）。`tests/test_changelog.py` 在 CI 校验一致性。
 
 ## UI 一致性规则
 

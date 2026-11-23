@@ -1492,6 +1492,63 @@ draft ──submit──▶ approving ──approve──▶ approved ──effe
   —— **用固定 USER 节点**（ROLE 节点在无人拥有该角色时会被引擎跳过）。
 - 编号规则：`hr_employment` → 前缀 `EM`（如 `EM202611230001`）。
 
+## 变更日志（Keep a Changelog + 语义化版本）
+
+**单一数据源 = 仓库根目录 `CHANGELOG.md`**（代码拥有、随版本走；镜像内由 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供）。后端只解析不改写。
+
+### 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/admin/changelog` | 仅登录 | 返回当前版本号与全部版本条目 |
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "currentVersion": "0.7.0",       // 应用版本号（Settings.app_version）
+    "latestVersion": "0.7.0",        // CHANGELOG.md 顶部版本
+    "latestDate": "2026-11-23",
+    "releases": [
+      {
+        "version": "0.7.0",
+        "date": "2026-11-23",
+        "sections": [
+          {
+            "type": "added",         // added/changed/deprecated/removed/fixed/security
+            "items": [{ "text": "变更说明", "children": ["缩进子条目"] }]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Markdown 格式
+
+```markdown
+## [0.7.0] - 2026-11-23
+
+### Added
+- 变更说明
+  - 缩进子条目
+### Fixed
+- 修复说明
+```
+
+- 解析器：`app/modules/admin/changelog.py::parse_changelog`（按 mtime 缓存，改文件即时生效）。
+- 定位顺序：`CHANGELOG_PATH` 环境变量 → 仓库根 → 工作目录 → `/app/CHANGELOG.md`。
+- 分类名未登记时原样透传（前端回退显示原名）。
+
+### 版本号一致性（CI 校验）
+
+`CHANGELOG.md` 顶部版本 == `Settings.app_version` == `frontend/package.json` == `backend/pyproject.toml`（含 `uv.lock`），版本号严格递减 —— 由 `tests/test_changelog.py` 断言。
+
+### 菜单
+
+- `menu.changelog` → `/admin/changelog`，componentKey `admin/ChangelogList`，权限 `admin:changelog:list`，挂在「系统管理 → 系统与审计」分组下。
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
@@ -1505,7 +1562,7 @@ sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
-admin/AiUsage  admin/AiSettings  admin/AutomationSettings
+admin/AiUsage  admin/AiSettings  admin/AutomationSettings  admin/ChangelogList
 asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/InventoryItemList
 asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
 asset/FixedAssetList  asset/DisposalList  asset/ToolList

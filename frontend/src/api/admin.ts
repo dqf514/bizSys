@@ -5,6 +5,7 @@ import type {
   AuditChainVerifyResult,
   AuditEvidenceDetail,
   AuditLog,
+  ChangelogPayload,
   Dept,
   DictItem,
   DictItemOption,
@@ -275,4 +276,9 @@ export function updateFlowDef(id: number, data: Partial<FlowDef>) {
 
 export function deleteFlowDef(id: number) {
   return request<{ disabled?: boolean }>({ url: `/approval/definitions/${id}`, method: 'delete' })
+}
+
+// ---- 变更日志（Keep a Changelog）----
+export function getChangelog() {
+  return request<ChangelogPayload>({ url: '/admin/changelog', method: 'get' })
 }

@@ -14,6 +14,8 @@ RUN uv sync --frozen --no-dev
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 COPY backend/app ./app
+# 变更日志数据源（Keep a Changelog）：后端解析它渲染系统内「变更日志」页
+COPY CHANGELOG.md ./CHANGELOG.md
 
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && python -m app.seeds.init_data && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

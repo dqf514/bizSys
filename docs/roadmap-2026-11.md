@@ -42,7 +42,8 @@
 3. 需要调整树形结构时跑 `uv run python scripts/migrate_nav_zones.py`（种子不回写 `parent_id`/`sort`）；
 4. 前端 `src/modules/<域>/pages/<Name>.vue` 建页面，`component_key` 的前缀必须等于模块目录名；
 5. 图标在 `src/icons.ts` 注册；文案进 `src/locales/{zh-CN,en-US}/`；
-6. 占位阶段用 `PlannedFeature.vue`（读 `planned.json` 的 `items.<key>`），功能开工后替换为真实页面并把 `planned.json` 里该条目的 `status` 改成 `inProgress` / `done`。
+6. 占位阶段用 `PlannedFeature.vue`（读 `planned.json` 的 `items.<key>`），功能开工后替换为真实页面并把 `planned.json` 里该条目的 `status` 改成 `inProgress` / `done`；
+7. **在仓库根 `CHANGELOG.md` 顶部追加变更条目**（Keep a Changelog：版本号 + 日期 + `Added`/`Changed`/`Deprecated`/`Removed`/`Fixed`/`Security` 分类），并把版本号同步到 `Settings.app_version`、`frontend/package.json`、`backend/pyproject.toml`（+ `backend/uv.lock`）—— 系统内「系统管理 → 变更日志」页直接渲染该文件，CI 会校验一致性。
 
 ---
 
