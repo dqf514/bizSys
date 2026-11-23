@@ -880,6 +880,11 @@ def _out_nda(n: VisitorNda) -> dict:
         "idNo": n.id_no,
         "signedAt": _t(n.signed_at),
         "evidenceHash": n.evidence_hash,
+        "signedById": n.signed_by_id,
+        "signedByName": n.signed_by_name or "",
+        "signedIp": n.signed_ip or "",
+        "signAlg": n.sign_alg or "",
+        "signVersion": n.sign_version or "",
         "validFrom": _t(n.valid_from),
         "validTo": _t(n.valid_to),
         "status": n.status,
@@ -934,14 +939,41 @@ def sign_nda(
     current: User = Depends(require_perm("visitor:nda:sign")),
     db: Session = Depends(get_db),
 ):
-    nda = svc.sign_nda(db, body, current.name or current.username)
+    nda = svc.sign_nda(db, body, current.name or current.username, signed_by_id=current.id)
     audit(
         db, user_id=current.id, module="visitor", action="nda_sign",
         biz_type="visitor_nda", biz_id=nda.id,
-        detail={"visitor": nda.visitor_name, "hash": nda.evidence_hash[:16]},
+        detail={
+            "visitor": nda.visitor_name,
+            "hash": nda.evidence_hash[:16],
+            "alg": nda.sign_alg,
+            "signedIp": nda.signed_ip,
+        },
     )
     db.commit()
     return _out_nda(nda)
+
+
+@router.get("/nda/{nid}/verify")
+def verify_nda(
+    nid: int,
+    user: User = Depends(require_perm("visitor:nda:list")),
+    db: Session = Depends(get_db),
+):
+    """NDA 验签（B9 合规 2.4）：签名与内容一致性 + 存量行口径说明。"""
+    n = db.get(VisitorNda, nid)
+    if not n or n.deleted:
+        raise BizException(R.VISITOR_NOT_FOUND, "NDA 不存在")
+    result = svc.verify_nda_signature(n)
+    if not result["valid"] and result["verdict"] == "invalid":
+        audit(
+            db, user_id=user.id, module="visitor", action="nda_verify",
+            biz_type="visitor_nda", biz_id=nid,
+            detail={"verdict": result["verdict"], "reason": result["reason"]},
+            strict=False,
+        )
+        db.commit()
+    return {"id": n.id, "ndaNo": n.nda_no, **result}
 
 
 @router.post("/nda/{nid}/revoke")

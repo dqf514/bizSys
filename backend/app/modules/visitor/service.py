@@ -3,7 +3,6 @@
 约定：接收同步 `Session` 作为首参，**不自己 commit**（由 router 统一提交）。
 """
 
-import hashlib
 import secrets
 from datetime import datetime, timedelta
 
@@ -11,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.common.notify import notify, users_with_perm
+from app.core import reqctx, signature
 from app.core import response as R
 from app.core.exceptions import BizException
 from app.modules.visitor.models import (
@@ -548,23 +548,34 @@ def scan_overdue(db: Session) -> int:
 # ---------------- NDA ----------------
 
 
-def sign_nda(db: Session, body, creator_name: str) -> VisitorNda:
-    """NDA 电子签：生成编号 + 存证哈希（防篡改）。"""
-    signed_at = _now()
-    evidence = hashlib.sha256(
-        "|".join(
-            [
-                body.visitor_name,
-                body.visitor_company,
-                body.id_no,
-                body.title or "保密协议",
-                signed_at.isoformat(timespec="seconds"),
-                body.signature_data[:512],
-            ]
-        ).encode("utf-8")
-    ).hexdigest()
+def sign_nda(db: Session, body, creator_name: str, signed_by_id: int | None = None) -> VisitorNda:
+    """NDA 电子签：**密码学绑定**签名（B9 合规 2.4 / HR 5.2）。
+
+    签名覆盖：单号 + 签署人身份 + 真实 IP + 签署时间 + 协议关键字段 + 手写图 sha256。
+    - 用 `nda_no`（业务单号）而非自增 id 入签：id 在 insert 前未知会造成循环依赖；
+    - 真实 IP 取自请求上下文（`app/core/reqctx.py`），不再硬编码空串；
+    - 密钥在服务端（HMAC-SHA256），**离线不可复算** —— 这是与存量无密钥 sha256 的本质区别。
+    """
+    signed_at = _now().replace(microsecond=0)
+    nda_no = next_no(db, "visitor_nda")
+    signed_ip = reqctx.current().ip or ""
+    title = body.title or "保密协议"
+    payload = {
+        "biz_type": "visitor_nda",
+        "nda_no": nda_no,
+        "visitor_name": body.visitor_name,
+        "visitor_company": body.visitor_company,
+        "id_no": body.id_no,
+        "title": title,
+        "signed_at": signed_at.isoformat(timespec="seconds"),
+        "signed_by_id": signed_by_id or 0,
+        "signed_by_name": creator_name or "",
+        "signed_ip": signed_ip,
+        "signature_sha256": signature.sha256_hex(body.signature_data or ""),
+    }
+    evidence = signature.sign(payload, signature.NDA_FIELDS)
     nda = VisitorNda(
-        nda_no=next_no(db, "visitor_nda"),
+        nda_no=nda_no,
         title=body.title or "访客保密协议",
         template=body.template,
         visitor_name=body.visitor_name,
@@ -574,7 +585,12 @@ def sign_nda(db: Session, body, creator_name: str) -> VisitorNda:
         signed_at=signed_at,
         signature_data=body.signature_data,
         evidence_hash=evidence,
-        ip="",
+        ip=signed_ip,
+        signed_by_id=signed_by_id,
+        signed_by_name=creator_name or "",
+        signed_ip=signed_ip,
+        sign_alg=signature.ALG,
+        sign_version=signature.KEY_VERSION,
         valid_from=body.valid_from,
         valid_to=body.valid_to,
         status="signed",
@@ -589,6 +605,55 @@ def sign_nda(db: Session, body, creator_name: str) -> VisitorNda:
         if visit:
             visit.nda_id = nda.id
     return nda
+
+
+def nda_sign_payload(nda: VisitorNda) -> dict:
+    """按签署时同样的口径重建签名载荷（验签用）。"""
+    return {
+        "biz_type": "visitor_nda",
+        "nda_no": nda.nda_no,
+        "visitor_name": nda.visitor_name,
+        "visitor_company": nda.visitor_company,
+        "id_no": nda.id_no,
+        "title": nda.title,
+        "signed_at": nda.signed_at.isoformat(timespec="seconds") if nda.signed_at else "",
+        "signed_by_id": nda.signed_by_id or 0,
+        "signed_by_name": nda.signed_by_name or "",
+        "signed_ip": nda.signed_ip or "",
+        "signature_sha256": signature.sha256_hex(nda.signature_data or ""),
+    }
+
+
+def verify_nda_signature(nda: VisitorNda) -> dict:
+    """NDA 验签结论。
+
+    verdict：
+    - `valid`：HMAC-SHA256 签名与内容一致；
+    - `invalid`：签名与内容不一致（内容被改或签名被伪造）；
+    - `legacy-unverifiable`：存量行（无密钥 sha256，离线可复算）—— **不能当密码学证据**。
+    """
+    legacy = (nda.sign_version or "") != signature.KEY_VERSION
+    if legacy:
+        return {
+            "valid": False,
+            "verdict": "legacy-unverifiable",
+            "alg": nda.sign_alg or "sha256",
+            "signedBy": nda.signed_by_name or "",
+            "signedAt": nda.signed_at.isoformat(timespec="seconds") if nda.signed_at else "",
+            "signedIp": nda.signed_ip or "",
+            "reason": "存量签名无服务端密钥绑定，离线可复算，不能作为密码学证据",
+        }
+    payload = nda_sign_payload(nda)
+    ok = signature.verify(payload, signature.NDA_FIELDS, nda.evidence_hash)
+    return {
+        "valid": ok,
+        "verdict": "valid" if ok else "invalid",
+        "alg": nda.sign_alg or signature.ALG,
+        "signedBy": nda.signed_by_name or "",
+        "signedAt": nda.signed_at.isoformat(timespec="seconds") if nda.signed_at else "",
+        "signedIp": nda.signed_ip or "",
+        "reason": "" if ok else "签名与当前内容不一致（内容被修改或签名被伪造）",
+    }
 
 
 # ---------------- 样品 / 样车交接 ----------------

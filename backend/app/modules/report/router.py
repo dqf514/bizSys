@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
+from app.core import reqctx
 from app.core import response as R
 from app.core.config import settings
 from app.core.db import get_db
@@ -297,7 +298,8 @@ def seal_report(
         )
     r.status = "sealed"
     r.seal_by = current.id
-    r.seal_time = datetime.now()
+    # 截断到秒：seal_time 列是 DATETIME(0)，签名载荷按秒口径计算
+    r.seal_time = datetime.now().replace(microsecond=0)
     r.version += 1
     r.update_time = datetime.now()
     stamped = svc.apply_seal_watermark(db, r, current.name or current.username)
@@ -305,11 +307,44 @@ def seal_report(
         r.remark = svc._append_remark(r.remark, "已叠加签章水印(占位)")
     if body and body.comment:
         r.remark = svc._append_remark(r.remark, body.comment)
+    # B9：签章密码学绑定 —— 内容哈希必须在叠章之后算（盖章会产出新 PDF）
+    svc.sign_seal(db, r, current.name or current.username)
     svc.sync_item_status(db, r.task_item_id, "sealed")
     audit(db, user_id=current.id, module="report", action="report_seal", biz_type="report", biz_id=rid,
-          detail={"reportNo": r.report_no, "watermark": stamped})
+          detail={
+              "reportNo": r.report_no,
+              "watermark": stamped,
+              "alg": r.seal_alg,
+              "contentHash": r.seal_content_hash,
+              "sealedIp": reqctx.current().ip,
+          })
     db.commit()
-    return {"id": r.id, "status": r.status, "sealTime": _t(r.seal_time)}
+    return {
+        "id": r.id,
+        "status": r.status,
+        "sealTime": _t(r.seal_time),
+        "sealAlg": r.seal_alg,
+        "sealContentHash": r.seal_content_hash,
+    }
+
+
+@router.get("/reports/{rid}/seal/verify")
+def verify_seal(
+    rid: int,
+    user: User = Depends(require_perm("report:list")),
+    db: Session = Depends(get_db),
+):
+    """签章验签（B9 合规 2.4）：签名有效性 + 签章后内容是否被改。"""
+    r = _load_report(db, rid)
+    result = svc.verify_seal(db, r)
+    if not result["signatureValid"]:
+        audit(
+            db, user_id=user.id, module="report", action="report_seal_verify",
+            biz_type="report", biz_id=rid,
+            detail={"reportNo": r.report_no, "reason": result["reason"]},
+        )
+        db.commit()
+    return {"id": r.id, "reportNo": r.report_no, **result}
 
 
 @router.post("/reports/{rid}/seal-apply")

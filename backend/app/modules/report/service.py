@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.core import response as R
+from app.core import signature
 from app.core.config import settings
 from app.core.exceptions import BizException
 from app.modules.auth.models import User
@@ -161,6 +162,110 @@ def apply_seal_watermark(db: Session, r: Report, operator_name: str) -> bool:
         return False
 
 
+# ---------------- B9 签章密码学绑定 + 签章后锁定 ----------------
+
+
+def compute_content_hash(db: Session, r: Report) -> str:
+    """签章内容哈希 = sha256(最终PDF字节 | 单号 | 条目id | sha256(结论))。
+
+    **铁律**：必须在 `apply_seal_watermark()` 之后计算 —— 盖章会产出新的 PDF 文件，
+    先算必然与最终交付物对不上。文件缺失时 PDF 段留空（验签端点仍可验签名本身）。
+    """
+    file_hash = ""
+    fid = r.pdf_file_id or r.file_id
+    if fid:
+        f = db.get(ReportFile, fid)
+        if f and not f.deleted:
+            path = file_path(f)
+            if path.exists():
+                file_hash = signature.sha256_file(str(path))
+    parts = [
+        file_hash,
+        r.report_no or "",
+        str(r.task_item_id or 0),
+        signature.sha256_hex(r.conclusion or ""),
+    ]
+    return signature.sha256_hex("|".join(parts))
+
+
+def seal_sign_payload(r: Report) -> dict:
+    """按签章时同样的口径重建签名载荷（验签用）。
+
+    时间戳统一截断到秒：`seal_time` 列是 DATETIME(0)，MySQL 对带小数的
+    时间值会**四舍五入**而不是截断，签名里若用未截断值会与落库值不一致。
+    """
+    return {
+        "biz_type": "report",
+        "report_no": r.report_no or "",
+        "task_item_id": r.task_item_id or 0,
+        "content_hash": r.seal_content_hash or "",
+        "sealed_by_id": r.seal_by or 0,
+        "sealed_by_name": r.seal_by_name or "",
+        "sealed_at": r.seal_time.replace(microsecond=0).isoformat(timespec="seconds") if r.seal_time else "",
+    }
+
+
+def sign_seal(db: Session, r: Report, sealed_by_name: str) -> None:
+    """签章后落签名（内容哈希 + HMAC 签名），落在同一事务内。"""
+    r.seal_by_name = sealed_by_name or ""
+    r.seal_content_hash = compute_content_hash(db, r)
+    r.seal_signature = signature.sign(seal_sign_payload(r), signature.REPORT_SEAL_FIELDS)
+    r.seal_alg = signature.ALG
+
+
+def verify_seal(db: Session, r: Report) -> dict:
+    """签章验签结论。
+
+    - `signatureValid`：签名与当前单据字段一致（签名没被伪造）；
+    - `contentMatch`：当前内容哈希与签章时一致（内容签完没被改）；
+    - `contentUnavailable`：最终 PDF 已丢失，只能验签名、无法验内容。
+    """
+    if not r.seal_signature:
+        return {
+            "signatureValid": False,
+            "contentMatch": False,
+            "contentUnavailable": False,
+            "alg": r.seal_alg or "",
+            "sealedBy": r.seal_by_name or "",
+            "sealedAt": r.seal_time.isoformat(timespec="seconds") if r.seal_time else "",
+            "contentHash": r.seal_content_hash or "",
+            "reason": "该报告未签章或为存量行（无密码学绑定）",
+        }
+    signature_valid = signature.verify(seal_sign_payload(r), signature.REPORT_SEAL_FIELDS, r.seal_signature)
+    current_hash = compute_content_hash(db, r)
+    content_match = current_hash == (r.seal_content_hash or "")
+    fid = r.pdf_file_id or r.file_id
+    unavailable = True
+    if fid:
+        f = db.get(ReportFile, fid)
+        if f and not f.deleted and file_path(f).exists():
+            unavailable = False
+    reason = ""
+    if not signature_valid:
+        reason = "签章签名与当前单据字段不一致（签名被伪造或单据关键字段被改）"
+    elif not content_match:
+        reason = "签章后内容发生变化（结论或交付文件被修改）"
+    return {
+        "signatureValid": signature_valid,
+        "contentMatch": content_match,
+        "contentUnavailable": unavailable,
+        "alg": r.seal_alg or signature.ALG,
+        "sealedBy": r.seal_by_name or "",
+        "sealedAt": r.seal_time.isoformat(timespec="seconds") if r.seal_time else "",
+        "contentHash": r.seal_content_hash or "",
+        "reason": reason,
+    }
+
+
+def assert_report_editable(db: Session, r: Report) -> None:
+    """签章后锁定（B9 合规 2.4「签名后记录锁定」）。
+
+    已签章的报告不得原地修改 —— 只能作废后重做，避免"签完再改"导致签章失效。
+    """
+    if r.status == "sealed":
+        raise BizException(R.REPORT_SEALED_LOCKED, f"报告 {r.report_no} 已签章锁定，不能原地修改")
+
+
 def _handle_completed(event: ApprovalCompleted) -> None:
     """签批通过 → approved + 自动转 PDF（同事务，失败降级不阻断）。"""
     if event.biz_type != "report":
@@ -257,6 +362,7 @@ def ai_summary(db: Session, r: Report, user: User) -> dict:
 
 def update_remark(db: Session, r: Report, remark: str, user: User) -> Report:
     """采用 AI 摘要/人工编辑结论：仅 uploaded/rejected 可改（审批中/已签章锁定）。"""
+    assert_report_editable(db, r)
     if r.status not in ("uploaded", "rejected"):
         raise BizException(R.REPORT_INVALID_STATE, "当前报告状态不允许修改摘要")
     r.remark = remark.strip()
@@ -446,6 +552,7 @@ def ai_assist(db: Session, r: Report, user: User, kind: str) -> dict:
 
 def update_conclusion(db: Session, r: Report, conclusion: str, user: User) -> Report:
     """采用结论段（AI 草稿人工编辑后）：仅 uploaded/rejected 可改（审批中/已签章锁定）。"""
+    assert_report_editable(db, r)
     if r.status not in ("uploaded", "rejected"):
         raise BizException(R.REPORT_INVALID_STATE, "当前报告状态不允许修改结论")
     r.conclusion = conclusion.strip()
