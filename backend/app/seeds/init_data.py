@@ -24,6 +24,8 @@ from app.modules.admin.models import (
 from app.modules.approval.graph import build_process_graph, dumps_graph
 from app.modules.approval.models import ApprovalDefinition, ApprovalNode
 from app.modules.auth.models import User
+from app.modules.hr.models import HrAuthorization, HrAuthorizationEvent
+from app.services.numbering import next_no
 
 # (title_key, name, path, component_key, icon, permission, children)
 # children 中 permission 为空串表示纯目录
@@ -721,6 +723,24 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 ],
             ),
             ("menu.staff", "Staff", "/hr/staff", "hr/StaffList", "UserFilled", "hr:staff:list", []),
+            (
+                # 人员授权台账（B9-C3 / HR L2 授权管理）：合规 3.1「人员能力」的控制点
+                "menu.authorization",
+                "Authorizations",
+                "/hr/authorizations",
+                "hr/AuthorizationList",
+                "Key",
+                "hr:authorization:list",
+                [
+                    (None, "authorization-create", "", "", "", "hr:authorization:create", []),
+                    (None, "authorization-edit", "", "", "", "hr:authorization:edit", []),
+                    (None, "authorization-submit", "", "", "", "hr:authorization:submit", []),
+                    (None, "authorization-approve", "", "", "", "hr:authorization:approve", []),
+                    (None, "authorization-activate", "", "", "", "hr:authorization:activate", []),
+                    (None, "authorization-revoke", "", "", "", "hr:authorization:revoke", []),
+                    (None, "authorization-export", "", "", "", "hr:authorization:export", []),
+                ],
+            ),
         ],
     ),
     (
@@ -1406,6 +1426,8 @@ NUMBER_RULES = [
     ("production_plan", "", "PL", 4, 2, 2, 4, 1, "", "daily", "PL202611210001"),
     ("production_schedule", "", "SC", 4, 2, 2, 4, 1, "", "daily", "SC202611210001"),
     ("project", "", "PJ", 4, 2, 2, 4, 1, "", "daily", "PJ202611210001"),
+    # 人事行政域单号（B9-C3 人员授权）
+    ("hr_authorization", "", "AU", 4, 2, 2, 4, 1, "", "daily", "AU202611230001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -1601,6 +1623,8 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "hr:timesheet:create",
         "hr:timesheet:submit",
         "hr:timesheet:list:export",
+        # 人员授权台账（B9-C3）：业务角色只读反查（授权管理属人事/质量职责，与检测岗分离）
+        "hr:authorization:list",
         "sales:quote:list",
         "sales:quote:create",
         "sales:quote:edit",
@@ -1699,6 +1723,30 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
     for p in VISITOR_PERMS:
         if p in perm_to_id:
             db.add(RoleMenu(role_id=security_role.id, menu_id=perm_to_id[p]))
+
+    # 人事管理员（B9-C3 人员授权台账）：授权的申请/生效/撤销由人事把关，
+    # 与检测岗职责分离 —— 检测员不持有授权管理权限。
+    hr_role = db.scalar(select(Role).where(Role.code == "hr_manager", Role.deleted == 0))
+    if not hr_role:
+        hr_role = Role(code="hr_manager", name="人事管理员", data_scope="all")
+        db.add(hr_role)
+        db.flush()
+    db.query(RoleMenu).filter(RoleMenu.role_id == hr_role.id).delete()
+    for p in (
+        "hr:authorization:list",
+        "hr:authorization:create",
+        "hr:authorization:edit",
+        "hr:authorization:submit",
+        "hr:authorization:approve",
+        "hr:authorization:activate",
+        "hr:authorization:revoke",
+        "hr:authorization:export",
+        "hr:timesheet:list",
+        "hr:timesheet:stats",
+        "hr:staff:list",
+    ):
+        if p in perm_to_id:
+            db.add(RoleMenu(role_id=hr_role.id, menu_id=perm_to_id[p]))
     return super_role
 
 
@@ -1732,6 +1780,32 @@ def _seed_admin(db: Session, super_role: Role) -> None:
             db.flush()
         if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
             db.add(UserRole(user_id=u.id, role_id=biz_role.id))
+
+    # B9-C3 演示账号：技术负责人 / 质量负责人（授权审批人）+ 人事管理员（授权管理）
+    hr_role = db.scalar(select(Role).where(Role.code == "hr_manager", Role.deleted == 0))
+    for username, name, role_code in (
+        ("tech1", "技术负责人", "biz_user"),
+        ("qa1", "质量负责人", "biz_user"),
+        ("hr1", "人事管理员", "hr_manager"),
+    ):
+        u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+        if not u:
+            u = User(
+                username=username,
+                password_hash=hash_password("Test@123456"),
+                name=name,
+                status="enabled",
+            )
+            db.add(u)
+            db.flush()
+        if not db.scalar(select(UserRole).where(UserRole.user_id == u.id, UserRole.deleted == 0)):
+            target_role = (
+                db.scalar(select(Role).where(Role.code == role_code, Role.deleted == 0))
+                if role_code != "hr_manager"
+                else hr_role
+            )
+            if target_role is not None:
+                db.add(UserRole(user_id=u.id, role_id=target_role.id))
 
     # 演示分组角色用户（B5：仿真 / 模型 / 试验 / 委外专员）
     for username, name, role_code in (
@@ -1891,6 +1965,16 @@ def _seed_flows(db: Session) -> None:
         remark="定标默认单级审批（分管领导）",
         nodes=((1, "分管领导审批", "leader1"),),
     )
+    # 人员授权审批（B9-C3）：固定 USER 节点（技术负责人 → 质量负责人）。
+    # 刻意不用 ROLE 节点 —— 无人持有该角色时引擎会「解析失败自动跳过」，审批形同虚设。
+    _seed_flow(
+        db,
+        code="hr_authorization_approve",
+        name="人员授权审批",
+        biz_type="hr_authorization",
+        remark="授权须经技术负责人 + 质量负责人两级确认后生效（不允许人工直通）",
+        nodes=((1, "技术负责人审批", "tech1"), (2, "质量负责人审批", "qa1")),
+    )
     # OA 示例流程：请假=组织多级（本部门负责人 → 上级部门负责人）；报销/用章=固定人两级
     _seed_flow(
         db,
@@ -2009,6 +2093,65 @@ def _seed_flows(db: Session) -> None:
     )
 
 
+def _declared_usernames(entry) -> list[str]:
+    """从节点声明里取出「固定人（USER）」节点对应的用户名列表（非固定人节点返回空）。"""
+    if isinstance(entry, dict):
+        return list(entry.get("users") or [])
+    if len(entry) == 3:
+        return [entry[2]]
+    return []
+
+
+def _repair_user_nodes(db: Session, d: ApprovalDefinition, nodes) -> None:
+    """修复失效的固定人（USER）审批节点。
+
+    演示账号被删后重建 → 用户 id 变化 → 流程节点里存的旧 id 解析不到人，
+    提交审批会报「节点『xx』未配置可用审批人」，整条审批链直接卡死
+    （测试库的「一键清空」用例、生产的账号重建都会触发）。
+
+    这里按种子声明的**用户名**把**已失效**的节点重新指到当前用户 id：
+    - 只修失效节点 —— 管理员在「流程设置」里改过的有效节点不动；
+    - 只修种子声明过的 seq —— 管理员新增的节点不动。
+    """
+    for entry in nodes:
+        usernames = _declared_usernames(entry)
+        if not usernames:
+            continue
+        seq = entry["seq"] if isinstance(entry, dict) else entry[0]
+        node = db.scalar(
+            select(ApprovalNode).where(
+                ApprovalNode.definition_id == d.id,
+                ApprovalNode.seq == seq,
+                ApprovalNode.approver_type == "USER",
+                ApprovalNode.deleted == 0,
+            )
+        )
+        if node is None:
+            continue
+        ids = [v.strip() for v in (node.approver_value or "").split(",") if v.strip()]
+        if len(ids) == len(usernames) and all(i.isdigit() for i in ids):
+            alive = db.scalars(
+                select(User.id).where(
+                    User.id.in_([int(i) for i in ids]),
+                    User.deleted == 0,
+                    User.status == "enabled",
+                )
+            ).all()
+            if len(alive) == len(ids):
+                continue  # 节点仍然有效 —— 不动（保留管理员改动）
+        # 失效 → 按用户名重新解析当前用户 id
+        new_ids, new_names = [], []
+        for username in usernames:
+            u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+            if not u:
+                break
+            new_ids.append(str(u.id))
+            new_names.append(u.name or u.username)
+        else:
+            node.approver_value = ",".join(new_ids)
+            node.approver_name = ",".join(new_names)
+
+
 def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str, nodes, variables_schema=None) -> None:
     """节点条目三种形态：
     - (seq, 节点名, 用户名)：固定人 USER 节点；
@@ -2018,8 +2161,15 @@ def _seed_flow(db: Session, *, code: str, name: str, biz_type: str, remark: str,
       或 {"seq","name","node_type":"condition","branches":[...],"default_seq":N} 条件分支节点。
 
     `variables_schema` 声明流程变量（FORM_* 审批人类型的变量名必须在其中声明）。
+
+    定义已存在时不重建（保留管理员在「流程设置」里的改动），但会**修复失效的
+    固定人节点**（见 `_repair_user_nodes`）。
     """
-    if db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)):
+    existing = db.scalar(
+        select(ApprovalDefinition).where(ApprovalDefinition.code == code, ApprovalDefinition.deleted == 0)
+    )
+    if existing:
+        _repair_user_nodes(db, existing, nodes)
         return
     d = ApprovalDefinition(code=code, name=name, biz_type=biz_type, remark=remark)
     if variables_schema:
@@ -2389,6 +2539,75 @@ def _seed_knowledge(db: Session) -> None:
         db.add(KnowledgeEntry(title=title, category=category, content=content))
 
 
+def _seed_authorizations(db: Session) -> None:
+    """演示授权（B9-C3）：给演示账号播种基础授权，避免开箱即用就被拦截。
+
+    幂等：按 (user, auth_type, role_code) 查重；授权范围留空 = 不限。
+    职责分离示范：编制（manager1）/ 复核批准（leader1、tech1、qa1）分属不同人。
+    """
+    db.flush()  # 单号规则可能尚未落库（autoflush=False）
+    demo = (
+        ("manager1", "test_item", "", "部门负责人 · 检测项目操作授权"),
+        ("manager1", "report_role", "preparer", "报告编制授权"),
+        ("manager1", "report_role", "signer", "报告用章授权"),
+        ("leader1", "test_item", "", "分管领导 · 检测项目操作授权"),
+        ("leader1", "report_role", "approver", "报告批准授权"),
+        ("leader1", "report_role", "reviewer", "报告复核授权"),
+        ("test1", "test_item", "", "试验岗 · 检测项目操作授权"),
+        ("tech1", "test_item", "", "技术负责人 · 检测项目操作授权"),
+        ("tech1", "report_role", "approver", "报告批准授权"),
+        ("qa1", "test_item", "", "质量负责人 · 检测项目操作授权"),
+        ("qa1", "report_role", "approver", "报告批准授权"),
+    )
+    now = datetime.now().replace(microsecond=0)
+    for username, auth_type, role_code, remark in demo:
+        u = db.scalar(select(User).where(User.username == username, User.deleted == 0))
+        if not u:
+            continue
+        exists = db.scalar(
+            select(HrAuthorization).where(
+                HrAuthorization.user_id == u.id,
+                HrAuthorization.auth_type == auth_type,
+                HrAuthorization.role_code == role_code,
+                HrAuthorization.deleted == 0,
+            )
+        )
+        if exists:
+            continue
+        a = HrAuthorization(
+            auth_no=next_no(db, "hr_authorization"),
+            user_id=u.id,
+            user_name=u.name or u.username,
+            auth_type=auth_type,
+            role_code=role_code,
+            valid_from=now,
+            status="active",
+            applicant_id=u.id,
+            applicant_name=u.name or "",
+            approver_id=u.id,
+            approver_name=u.name or "",
+            activated_at=now,
+            remark=remark,
+            create_by=u.id,
+        )
+        db.add(a)
+        db.flush()
+        db.add(
+            HrAuthorizationEvent(
+                authorization_id=a.id,
+                auth_no=a.auth_no,
+                event_type="create",
+                from_status="",
+                to_status="active",
+                operator_id=u.id,
+                operator_name=u.name or "",
+                reason="演示种子授权",
+                effective_at=now,
+                snapshot="{}",
+            )
+        )
+
+
 def main() -> None:
     db: Session = SessionLocal()
     try:
@@ -2403,6 +2622,7 @@ def main() -> None:
         _seed_oa_forms(db)
         _seed_quote_templates(db)
         _seed_knowledge(db)
+        _seed_authorizations(db)
         db.commit()
         print(f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}")
     except Exception:

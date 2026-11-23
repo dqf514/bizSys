@@ -18,6 +18,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common.audit import record as audit
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.core import response as R
 from app.core import signature
@@ -264,6 +265,150 @@ def assert_report_editable(db: Session, r: Report) -> None:
     """
     if r.status == "sealed":
         raise BizException(R.REPORT_SEALED_LOCKED, f"报告 {r.report_no} 已签章锁定，不能原地修改")
+
+
+# ---------------------------------------------------------------------------
+# B9-C3 三级审核与职责分离（SoD）
+# ---------------------------------------------------------------------------
+
+
+def resolve_report_roles(db: Session, r: Report) -> dict:
+    """解析报告的编制 / 复核 / 批准三人 + 当前签批流程的审批节点数。
+
+    **动态探测**（不改流程定义）：管理员在「流程设置」给 `report_sign` 发新版本
+    加节点 → `flow_version` 递增 → 新实例取新版本 → 节点数从 1 变 2/3，
+    本函数自动识别为三级审核，代码零改动即变硬拦截。
+
+    - `node_count` = 签批实例所用流程定义中 `approval` 类型节点数；
+    - 复核人 = 时间线里第 1 个通过人，批准人 = 第 2 个通过人；
+    - 编制人 = 报告上传人（`preparer_id` / `create_by`）。
+    """
+    preparer_id = r.preparer_id or r.create_by
+    reviewer_id = r.reviewer_id
+    approver_id = r.approver_id
+    node_count = 0
+
+    inst = None
+    if r.approval_instance_id:
+        from app.modules.approval.models import ApprovalInstance
+
+        inst = db.get(ApprovalInstance, r.approval_instance_id)
+    if inst is not None and inst.definition_id:
+        from app.modules.approval.models import ApprovalNode
+
+        node_count = len(
+            db.scalars(
+                select(ApprovalNode).where(
+                    ApprovalNode.definition_id == inst.definition_id,
+                    ApprovalNode.node_type == "approval",
+                    ApprovalNode.deleted == 0,
+                )
+            ).all()
+        )
+        if node_count >= 2:
+            from app.modules.approval.models import ApprovalRecord
+
+            records = db.scalars(
+                select(ApprovalRecord)
+                .where(ApprovalRecord.instance_id == inst.id, ApprovalRecord.action == "agree")
+                .order_by(ApprovalRecord.seq, ApprovalRecord.id)
+            ).all()
+            approvers: list[int] = []
+            for rec in records:
+                if rec.operator_id and rec.operator_id not in approvers:
+                    approvers.append(rec.operator_id)
+            if not reviewer_id and len(approvers) >= 1:
+                reviewer_id = approvers[0]
+            if not approver_id and len(approvers) >= 2:
+                approver_id = approvers[1]
+
+    names: dict[int, str] = {}
+    ids = [i for i in (preparer_id, reviewer_id, approver_id) if i]
+    if ids:
+        from app.modules.auth.models import User as _User
+
+        for u in db.scalars(select(_User).where(_User.id.in_(ids))).all():
+            names[u.id] = u.name or u.username
+
+    return {
+        "nodeCount": node_count,
+        "level": "triple" if node_count >= 2 else "single",
+        "preparerId": preparer_id or 0,
+        "preparerName": names.get(preparer_id or 0, "") or (r.preparer_name or ""),
+        "reviewerId": reviewer_id or 0,
+        "reviewerName": names.get(reviewer_id or 0, "") or (r.reviewer_name or ""),
+        "approverId": approver_id or 0,
+        "approverName": names.get(approver_id or 0, "") or (r.approver_name or ""),
+    }
+
+
+def assert_report_sod(db: Session, r: Report) -> dict:
+    """职责分离校验（合规 2.3 / HR 3.4）。
+
+    - 三级审核（审批节点数 ≥ 2）→ **硬拦截**：编制 / 复核 / 批准不得同一人，
+      且三人各自须持对应角色的有效授权；
+    - 单级审核（节点数 = 1）→ **降级告警**：写审计，不阻断（流程尚未升级到三级）。
+    """
+    from app.modules.hr import authorization as auth
+
+    roles = resolve_report_roles(db, r)
+    node_count = roles["nodeCount"]
+    if node_count < 2:
+        audit(
+            db,
+            user_id=None,
+            module="report",
+            action="report_sod_warning",
+            biz_type="report",
+            biz_id=r.id,
+            reason="签批流程仍为单级，未启用编制/复核/批准三方职责分离",
+            detail={
+                "reportNo": r.report_no,
+                "nodeCount": node_count,
+                "preparerId": roles["preparerId"],
+                "approverId": roles["approverId"],
+            },
+        )
+        return roles
+
+    auth.assert_sod(
+        db,
+        preparer_id=roles["preparerId"] or None,
+        reviewer_id=roles["reviewerId"] or None,
+        approver_id=roles["approverId"] or None,
+    )
+    # 三方各自须持对应角色授权（缺一即不合规）
+    for role, uid in (
+        (auth.ROLE_PREPARER, roles["preparerId"]),
+        (auth.ROLE_REVIEWER, roles["reviewerId"]),
+        (auth.ROLE_APPROVER, roles["approverId"]),
+    ):
+        if not uid:
+            continue
+        auth.assert_authorized(
+            db,
+            _UserRef(uid),
+            auth_type=auth.AUTH_TYPE_REPORT_ROLE,
+            role_code=role,
+            label=f"报告 {r.report_no} 的{_ROLE_CN.get(role, role)}",
+        )
+    return roles
+
+
+class _UserRef:
+    """轻量用户引用（只有 id / name 即可满足授权校验接口）。"""
+
+    __slots__ = ("id", "name", "username", "role_codes")
+
+    def __init__(self, uid: int, name: str = "", role_codes: tuple[str, ...] = ()):
+        self.id = uid
+        self.name = name
+        self.username = ""
+        self.role_codes = role_codes
+
+
+_ROLE_CN = {"preparer": "编制", "reviewer": "复核", "approver": "批准", "signer": "签字"}
+
 
 
 def _handle_completed(event: ApprovalCompleted) -> None:

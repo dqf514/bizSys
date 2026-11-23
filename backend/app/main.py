@@ -111,6 +111,7 @@ from app.modules.contract.router import router as contract_router  # noqa: E402
 from app.modules.crm.router import router as crm_router  # noqa: E402
 from app.modules.crm.selfservice_router import router as crm_self_router  # noqa: E402  客户自助体系（B2）
 from app.modules.finance.router import router as finance_router  # noqa: E402
+from app.modules.hr.authorization_router import router as hr_auth_router  # noqa: E402  人员授权台账（B9-C3）
 from app.modules.hr.router import router as hr_router  # noqa: E402
 from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 通知通道（F5 订阅见 wiring）
 from app.modules.integration.router import router as integration_router  # noqa: E402
@@ -147,6 +148,7 @@ app.include_router(task_entrust_router, prefix="/api/v1")
 app.include_router(visitor_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(hr_router, prefix="/api/v1")
+app.include_router(hr_auth_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
 app.include_router(aicenter_router, prefix="/api/v1")

@@ -320,6 +320,17 @@ def next_sample_no(db: Session, task: Task) -> str:
 # ---------------- 进度记录（拍照记进度：AI 分析草稿 → 人工确认落库） ----------------
 
 
+def task_standards(db: Session, task_id: int) -> list[str]:
+    """任务各条目的依据标准集合（去重、保序）。
+
+    B9-C3 授权的**方法维度**：一个人只要持有其中任一标准的授权即可操作该任务。
+    """
+    rows = db.scalars(
+        select(TaskItem.std).where(TaskItem.task_id == task_id, TaskItem.deleted == 0)
+    ).all()
+    return [s for s in dict.fromkeys([r for r in rows if r])]
+
+
 def list_progress(db: Session, task_id: int) -> list[dict]:
     from app.modules.task.models import TaskProgressLog
 

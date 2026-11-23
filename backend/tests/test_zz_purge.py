@@ -102,7 +102,13 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
     try:
         # purge 删除用户后种子以新 id 重建，需把种子流程 USER 节点的 approver_value 重指到新 id
         # （会签节点为 CSV：approver_name/approver_value 同位映射）
-        name_to_username = {"部门负责人": "manager1", "分管领导": "leader1", "系统管理员": "admin"}
+        name_to_username = {
+            "部门负责人": "manager1",
+            "分管领导": "leader1",
+            "系统管理员": "admin",
+            "技术负责人": "tech1",
+            "质量负责人": "qa1",
+        }
         from app.modules.approval.models import ApprovalNode
 
         for n in db.scalars(select(ApprovalNode).where(ApprovalNode.approver_type == "USER")):

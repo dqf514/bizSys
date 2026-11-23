@@ -21,6 +21,7 @@ from app.core.route import EnvelopeRoute
 from app.modules.approval import registry
 from app.modules.approval import service as approval_svc
 from app.modules.auth.models import User
+from app.modules.hr import authorization as hr_auth
 from app.modules.report import schemas as S
 from app.modules.report import service as svc
 from app.modules.report.models import Report, ReportFile
@@ -219,6 +220,16 @@ def create_report(
     task = db.get(Task, item.task_id)
     if not task or task.deleted:
         raise BizException(R.GENERIC_NOT_FOUND, "任务不存在")
+    # B9-C3：编制人须持有 report_role=preparer 授权（方法维度 = 条目依据标准）
+    hr_auth.assert_authorized(
+        db,
+        current,
+        auth_type=hr_auth.AUTH_TYPE_REPORT_ROLE,
+        role_code=hr_auth.ROLE_PREPARER,
+        method=item.std or None,
+        domain=item.dept or None,
+        label="编制检测报告",
+    )
     filename = file.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in ALLOWED_EXT or ext not in settings.upload_ext_set:
@@ -240,6 +251,8 @@ def create_report(
         file_name=filename or "file",
         status="uploaded",
         create_by=current.id,
+        preparer_id=current.id,
+        preparer_name=current.name or current.username,
     )
     db.add(r)
     db.flush()
@@ -289,6 +302,19 @@ def seal_report(
     db: Session = Depends(get_db),
 ):
     r = _load_report(db, rid, lock=True)
+    # B9-C3：用章人须持有 report_role=approver 或 signer 授权
+    item = db.get(TaskItem, r.task_item_id)
+    hr_auth.assert_authorized(
+        db,
+        current,
+        auth_type=hr_auth.AUTH_TYPE_REPORT_ROLE,
+        role_codes=(hr_auth.ROLE_APPROVER, hr_auth.ROLE_SIGNER),
+        method=(item.std or None) if item else None,
+        domain=(item.dept or None) if item else None,
+        label="报告用章",
+    )
+    # B9-C3：职责分离 —— 三级审核（节点数 ≥ 2）时编制/复核/批准不得同人且各持授权
+    svc.assert_report_sod(db, r)
     # F5：用章申请与实际签章分离 —— 流程启用时必须先通过用章审批（seal_approved）
     seal_ready = "seal_approved" if registry.flow_enabled(db, "report_seal") else "approved"
     if r.status != seal_ready:

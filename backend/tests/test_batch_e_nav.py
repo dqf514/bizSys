@@ -140,7 +140,13 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "PartnerStaff",
         "KnowledgeBase",
     ]
-    assert _children(_find(tree, "HrSystem")) == ["TimesheetFill", "TimesheetStats", "Staff"]
+    # B9-C3：新增「人员授权」台账菜单
+    assert _children(_find(tree, "HrSystem")) == [
+        "TimesheetFill",
+        "TimesheetStats",
+        "Staff",
+        "Authorizations",
+    ]
 
     # 流程与办公：流程待办已解除隐藏并挂到本区，消息中心为正式入口
     oa = _find(tree, "OaSystem")

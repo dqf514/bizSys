@@ -16,8 +16,10 @@ from app.core.deps import require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
+from app.modules.hr import authorization as hr_auth
 from app.modules.task import extension as ext
 from app.modules.task import schemas as S
+from app.modules.task import service as svc
 from app.modules.task.models import Task, TaskAssignment, TaskProcess, TaskTrace
 
 router = APIRouter(prefix="/task", tags=["task"], route_class=EnvelopeRoute)
@@ -238,6 +240,27 @@ def create_assignment(
 ):
     task = _load_task(db, tid)
     ext.assert_task_visible(db, task, current)
+    # B9-C3 派工授权校验：
+    # - 派「人」→ 受派人须持有该任务依据标准的 test_item 授权；
+    # - 派「机」→ 派工人须持有覆盖该设备的 device 授权（无授权不得把设备纳入任务资源）。
+    if body.dimension == "person" and body.resource_id:
+        assignee = db.get(User, body.resource_id)
+        if assignee:
+            hr_auth.assert_authorized(
+                db,
+                assignee,
+                auth_type=hr_auth.AUTH_TYPE_TEST_ITEM,
+                methods=svc.task_standards(db, tid),
+                label=f"承接任务 {task.task_no}",
+            )
+    elif body.dimension == "equipment" and body.resource_id:
+        hr_auth.assert_authorized(
+            db,
+            current,
+            auth_type=hr_auth.AUTH_TYPE_DEVICE,
+            device_id=body.resource_id,
+            label=f"调度设备 {body.resource_name or body.resource_id}",
+        )
     row = TaskAssignment(
         task_id=tid,
         dimension=body.dimension,

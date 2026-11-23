@@ -17,6 +17,7 @@ from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
+from app.modules.hr import authorization as hr_auth
 from app.modules.task import extension as ext
 from app.modules.task import schemas as S
 from app.modules.task import service as svc
@@ -969,6 +970,14 @@ def add_progress(
     db: Session = Depends(get_db),
 ):
     t = _load(db, tid)
+    # B9-C3：录入人须持有该任务依据标准的 test_item 授权（HR 3.4「未授权不能录入数据」）
+    hr_auth.assert_authorized(
+        db,
+        current,
+        auth_type=hr_auth.AUTH_TYPE_TEST_ITEM,
+        methods=svc.task_standards(db, t.id),
+        label="录入检测进度",
+    )
     row = svc.add_progress(db, t, body, current)
     audit(db, user_id=current.id, module="task", action="task_progress_add", biz_type="task", biz_id=tid,
           detail={"percent": body.percent, "source": body.source})

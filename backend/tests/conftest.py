@@ -253,6 +253,15 @@ _ensure_columns(
 with engine.begin() as conn:
     conn.execute(text("UPDATE fin_payment SET status = 'confirmed' WHERE status IS NULL OR status = 'draft'"))
 
+# B9-C3 补充：人员授权台账（hr_authorization 是新表，create_all 自动建）
+# 变更轨迹的生效时间改毫秒精度 —— 同一秒内的多次状态变更要能区分先后，
+# 否则「回溯任一历史时点状态」只能精确到秒。
+_modify_column(
+    "hr_authorization_event",
+    "effective_at",
+    "DATETIME(3) NULL DEFAULT NULL COMMENT '生效时间（毫秒精度）'",
+)
+
 from app.seeds import init_data as seed  # noqa: E402
 
 _seed_session = SessionLocal()
