@@ -134,13 +134,13 @@ current: User = Depends(get_current_user)              # 仅登录
 
 ### 流程注册表与事件开关（F5，全流程驱动）
 
-- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + 18 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
+- `app/modules/approval/registry.py` — **流程注册表**（`FlowBinding` 冻结 dataclass + **19** 条 `BINDINGS`）：把每类单据登记为 `bizType` / 流程定义 code / 可发起状态 / 审批中·通过·驳回·撤回四个状态口径 / 发起权限 / 通过后钩子。核心 API：`submit_flow()`（发起审批）、`apply_result()`（回写状态）、`require_manual()`（人工直通守卫，流程启用时抛 70005）、`flow_enabled()`（读流程总开关）、`switch_key()`、`bindings_out()`、`capabilities_out()`。
 - **未配置启用的流程定义 → 按人工审核口径直通**（`passThrough` + `passThroughStatus`），不产生审批实例；**流程总开关关闭 → 禁止提交审批（70006），同时恢复人工直通后门**。
 - `app/modules/approval/wiring.py::install()` — 显式装配订阅（幂等），在 `main.py` 调用；不再依赖各域 service 模块级 `subscribe()` 的隐式导入。
 - `app/modules/settings/automation.py` — 「流程与事件开关」面板数据：流程总开关 `flow.<bizType>.enabled` 与事件触发开关 `event.trigger.<事件>.<处理器>` 都落 `sys_config`，写入即生效。端点 `GET/PUT /admin/automation`（`admin:automation:list` / `admin:automation:edit`）。
 - `GET /approval/flow-capabilities`（**仅登录**）→ 前端 `useFlowCapability()` 据此决定单据页显示「提交审批」还是历史人工动作（验收 / 批准 / 用章）。
 - 事件目录 `EVENT_CATALOG`（9 个事件）；每个处理器可挂开关键，`critical=true` 的失败会回滚业务事务。
-- 新增流程驱动端点：`POST /project/projects/{id}/submit`、`POST /hr/timesheets/{id}/submit`、`POST /finance/payments/{id}/submit`、`POST /asset/receipts/{id}/submit`、`POST /asset/disposals/{id}/submit`、`POST /report/reports/{id}/seal-apply`（用章申请与实际签章分离）。
+- 新增流程驱动端点：`POST /project/projects/{id}/submit`、`POST /hr/timesheets/{id}/submit`、`POST /hr/employments/{id}/submit`、`POST /finance/payments/{id}/submit`、`POST /asset/receipts/{id}/submit`、`POST /asset/disposals/{id}/submit`、`POST /report/reports/{id}/seal-apply`（用章申请与实际签章分离）。
 - 前端页面 `src/modules/admin/pages/AutomationSettings.vue`（菜单 `menu.automation`，权限 `admin:automation:list` / `admin:automation:edit`）。
 
 ### 任务扩展 / 工序流转 / 排程 / 项目（B5）
@@ -150,6 +150,48 @@ current: User = Depends(get_current_user)              # 仅登录
 - `app/modules/production/` — 智能排程（`prd_plan` + `prd_schedule`，`PL`/`SC` 单号）：规则式贪心排期，设备/人员/样车**时段独占**、物料**数量占用**。**能顺延到空档就算正常排期（`scheduled`），只有排不下或物料缺量才 `conflict`**；发布时二次校验冲突（99004）并回写任务计划日期。
 - `app/modules/project/` — 项目与项目任务（甘特行）（`prj_project` + `prj_project_task`，`PJ` 单号）：项目状态机 `draft→planning→executing→accepting→closed`（仅 draft/cancelled 可删，99101）；甘特行可从任务自动生成（起止日期优先取已发布排程），进度按权重加权回算。
 - 三者**已通过流程注册表接入审批引擎**（项目立项、工时填报、回款复核、到货验收、资产处置均有 `POST .../submit`；见上文「流程注册表与事件开关」）。
+
+### HR L1 组织与人事（B10-1）
+
+> 对应《人力资源管理模块功能说明》**L1 基础人事**。组织架构与员工主数据是其余所有域的地基 ——
+> 部门树决定审批链解析（`DEPT_LEADER` / `SUPERVISOR_CHAIN` 走 `sys_dept.parent_id`），
+> 员工在职状态决定 B9 授权台账是否应当继续生效。
+
+**单一写入口**：`sys_dept` 是**全站唯一的部门表**（B10-1 起扩 6 列：`dept_type` / `site_code` / `address` / `manager_id` / `effective_from` / `effective_to`），
+**写入口只有 `POST/PUT /admin/depts`**（`admin:dept:edit`）；HR 域只提供**岗位**与**变更轨迹**，**不要新建部门表或第二个写入口**。
+写 `manager_id` 时必须同步任职表 `sys_user_dept.is_leader`（`admin/org.py::apply_dept_manager`）—— 审批引擎的 `DEPT_LEADER` 读的是任职表。
+
+**新表**（`app/modules/hr/models.py`，均已登记进 `maintenance/service.py::_PURGE_TABLES`）
+
+| 表 | 基类 | 说明 |
+| --- | --- | --- |
+| `hr_position` | `BaseModel` | 岗位说明书 + `key_role`（技术/质量负责人、授权签字人等关键岗位）+ A/B 角（`primary_user_id` / `backup_user_id`） |
+| `hr_employee` | `BaseModel` | 员工一人一档（`employee_no` 唯一；`user_id` 1:1 → `sys_user`，可空 = 未开账号） |
+| `hr_employee_control` | `BaseModel` | 黑白名单（`control_type` = blacklist / whitelist） |
+| `hr_employment` | `BaseModel` | 人事事务单据（单号前缀 `EM`）：入职 / 调岗 / 离职 / 返聘 |
+| `hr_employment_event` | `AppendOnlyModel` | 人事事务变更轨迹（**只追加**） |
+| `hr_delegate` | `BaseModel` | 代理人（AB 角，**不借账号**；委托人离岗自动 `expired`） |
+| `hr_org_change` | `AppendOnlyModel` | 组织变更快照（**只追加**） |
+
+**敏感个人信息**：`hr_employee.id_no` 以 AES-GCM 密文（`enc:` 前缀，域 `hr-employee-idno`，与配置密钥 / 签名密钥**域分隔**）落库；
+出参一律掩码（`hr/employee.py::mask_id_no`，前 4 + `*`×(len-8) + 后 4）；
+**明文唯一出口** `GET /hr/employees/{eid}/id-no`（权限 `hr:staff:idno`），**每次访问写 `sys_audit_log`**（action `hr_employee_idno_view`）。
+证件号唯一性只能**解密后逐条比对**（密文不可 SQL 比对）。
+
+**审批接入**：`registry.py::BINDINGS` 第 **19** 条 —— `biz_type="hr_employment"` / `definition_code="hr_employment_approve"` / **`pass_through=False`**（人事事务不允许人工直通）。
+
+**审批通过 ≠ 生效**：状态机 `draft→approving→approved→effective` / `rejected`；副作用**统一**由
+`POST /hr/employments/{id}/effect` → `hr/employment.py::effect_employment()` 触发：
+
+| 事件 | 副作用 |
+| --- | --- |
+| onboard 入职 | 建 `sys_user`（**自动生成**的初始密码明文**只在生效响应里出现一次**；HR 表单填的密码不回显）→ 按岗位 `position_type` 绑默认角色（`staff` → `biz_user`）→ 建主部门任职（`is_primary=1`）→ 回填 `hr_employee.user_id` → 同步 `sys_user.employee_no` / `hire_date` → `employ_status=probation` |
+| transfer 调岗 | 更新 `hr_employee.dept_id/position_id` + `sys_user.dept_id/dept_name` + 主部门任职同步 |
+| resign 离职 | **禁号**（`sys_user.status='disabled'`，**不删除**保 ALCOA 完整）+ **撤 MFA** + **撤销 B9 授权台账**（批量 `revoked` + 写 `hr_authorization_event`）+ **代理失效** + **清岗位 A/B 角** → `employ_status='resigned'`；**物理权限（门禁/钥匙/工牌）无对接 → 写「待现场确认」审计** |
+| rehire 返聘 | 恢复原账号（`status='enabled'`，一人一号历史连续）+ `employ_status='regular'`；**不恢复授权**（能力须重新确认） |
+
+前端四页：`src/modules/hr/pages/OrgStructureList.vue`（组织架构）/ `PositionList.vue`（岗位）/ `StaffList.vue`（员工档案）/ `PersonnelAffairsList.vue`（人事事务 + 代理人抽屉）。
+人事事务页页脚**三按钮**：取消 / 保存草稿 / 提交审批（`v-permission="'hr:employment:submit'"`）+ 行内「生效」（`hr:employment:effect`）。
 
 ### AI 能力
 
@@ -166,7 +208,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `n9a2b3c4d5e6_hr_authorization.py`。新迁移用可读递增 id（如 `na2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `nb2b3c4d5e6_hr_employment_account.py`。新迁移用可读递增 id（如 `nc2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
@@ -188,6 +230,12 @@ current: User = Depends(get_current_user)              # 仅登录
 - **报告内容哈希必须在 `apply_seal_watermark()` 之后算**（B9）：盖章会产出新 PDF，先算必然对不上。`seal_time` 列是 `DATETIME(0)`，签名载荷按**秒口径**计算。
 - **授权校验不做跨请求缓存**（B9）：`hr/authorization.py::check_authorization()` 只允许请求内 memo（`db.info`）—— 撤销必须立即生效。过滤永远走显式列（`scope_method`/`scope_params`/`scope_device_id`/`scope_domain`），**`scope_json` 只是展示快照，不做过滤依据**。
 - **`hr_authorization` 的流程绑定 `pass_through=False`**（B9）：未配置流程定义时提交审批直接报错 —— 授权不允许绕过审批，这是刻意的。
+- **`sys_dept` 是全站唯一的部门表**（B10-1）：扩了 6 列（`dept_type`/`site_code`/`address`/`manager_id`/`effective_from`/`effective_to`），**写入口只有 `POST/PUT /admin/depts`** —— HR 域只提供**岗位**（`hr_position`）与**变更轨迹**（`hr_org_change`），**不要新建部门表或第二个写入口**。`dept.manager_id` 是权威写入方，必须与 `sys_user_dept.is_leader` 双向同步（`admin/org.py::apply_dept_manager` / `sync_dept_manager_from_members`）—— 审批引擎的 `DEPT_LEADER` 解析读的是任职表。
+- **`hr_employee.id_no` 是加密字段**（B10-1）：落库必须是 `enc:` 密文（域 `hr-employee-idno`），出参**一律掩码**；**明文唯一出口**是 `GET /hr/employees/{eid}/id-no`（权限 `hr:staff:idno`），**每次访问必须写审计**。证件号唯一性只能解密后逐条比对，别写 SQL 比对密文。
+- **审批通过 ≠ 生效**（B10-1）：`hr_employment` 状态机 `draft→approving→approved→effective`；副作用**统一**由 `POST /hr/employments/{id}/effect` → `hr/employment.py::effect_employment()` 触发。**不要手工改 `sys_user.status` 来"离职"** —— 那会跳过撤 MFA、撤 B9 授权、代理失效、清岗位 A/B 角四件事，留下"账号已停但授权仍在"的合规缺口；也**不要直接改 `hr_employee.employ_status`**（在职状态是清权的触发源）。
+- **`hr_employment` 的 `pass_through=False`**（B10-1）：人事事务不允许人工直通，未配流程定义时提交直接报错 —— 与 `hr_authorization` 同理，是刻意的。
+- **`hr_employment` / `hr_delegate` 的 `scope` 校验很严**：`scope="position"` 必须同时给 `positionId`（否则 63018），`scope="auth"` 必须给 `authId`。
+- **B10-1 新表都在 `hr` 域，而 `alembic/env.py` 没 import hr models** —— 新增 hr 表的迁移**必须手写**（`na2b3c4d5e6_hr_l1_org_employee.py` / `nb2b3c4d5e6_hr_employment_account.py`），autogenerate 会删表。
 
 ## 合规基线（B9）
 
@@ -199,6 +247,7 @@ current: User = Depends(get_current_user)              # 仅登录
 - **C3 人员授权** —— `app/modules/hr/authorization.py` + `hr_authorization` / `hr_authorization_event`。状态机 `draft→confirmed→active⇄suspended→expired/revoked`（+`approving`/`rejected`），暂停/撤销/过期**原因必填**。**四处拦截点前置**：报告编制、报告用章、检测进度录入、任务派工；超管旁路 + `auth.enforce.report`/`auth.enforce.task` 双开关。SoD 靠 `report/service.py::resolve_report_roles()` **动态探测**审批节点数（≥2 硬拦截 63008），管理员发流程新版本即生效，**代码零改动**。
 - 审计、签名、授权三处的错误码（30003–30005 / 61003–61004 / 63005–63009 / 98014）**必须**在 `app/core/response.py` 与 `frontend/src/api/types.ts` **双侧登记**。
 - **审计日志"开了不等于合格"**：当前只有手动校验入口，**定期审阅机制未建**（排 B10-6）。
+- **B10-1 落地了"离职当日清权"的系统侧**：禁号 + 撤 MFA + 撤 B9 授权 + 代理失效 + 清 A/B 角，全部在 `hr/employment.py::effect_employment()` 里；**物理权限（门禁/钥匙/工牌）无对接**，已写「待现场确认」审计（诚实标注外部依赖，别假装已闭环）。
 
 ## 前端架构
 
@@ -351,7 +400,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
   - **画布/流程图**：LogicFlow 画布窄屏不可用（需横向拖拽且隐藏容器 `fitView` 会失效）—— 用「点击展开」折叠，展开时才懒初始化、折叠时销毁。
   - **签字**：触屏签名用 `components/common/SignaturePad.vue`（canvas Pointer Events），不要用 textarea 代替。
   - **安全区**：全站固定元素（底部 Dock、吸底操作条）必须加 `env(safe-area-inset-bottom)`。
-- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 18 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
+- **草稿 / 提交审批（凡走审批流程的单据表单一律如此）**：只要单据进入审批引擎（见 `app/modules/approval/registry.py::BINDINGS` 的 19 类），填报弹窗/详情页的页脚必须是**两个按钮**：左「`common.action.saveDraft`（保存草稿）」→ 只落库不发起流程；右「`common.action.submitApproval`（提交审批）」primary → 落库后**立即**调 `POST …/submit` 发起审批。参考实现：`ContractEdit` / `TaskEdit`（`saveDraft` + `saveAndSubmit`）、`QuotationEdit` / `TimesheetFill` / `PaymentCreateDialog` / `ReceiptList` / `DisposalList` / `ProjectList` / `PurchaseRequestList` / `PurchaseContractList`（`save(submit = false)` 两分支）。
   - **例外**：后端**没有草稿态**的单据（结算单 `settlement`、开票申请 `invoice`、报告用章 `report_seal`、访客登记 `visitor`）只有**一个** primary 按钮，文案必须是「提交审批」，**不得**写成含糊的「提交」或「保存」；结算单这类要在表单上方加 `el-alert` 说明"提交后立即发起审批"（`finance.settlement.submitTip`）。
   - 「提交审批」按钮按权限点隐藏（`v-permission="'<域>:<资源>:submit'"`），`v-permission` 支持**数组**表示"任一满足"（`['hr:timesheet:submit','hr:timesheet:create']`）。
   - **新增单据类型时**：先在 `registry.py::BINDINGS` 登记 `submit_from`（必须含 `draft`），再照上面加两个按钮；流程总开关关掉时只显示「保存草稿」（用 `useFlowCapability().flowEnabled(bizType)` 判断）。

@@ -1346,6 +1346,152 @@ FlowBinding(biz_type="hr_authorization", definition_code="hr_authorization_appro
 - 账号：`tech1`（技术负责人）/ `qa1`（质量负责人）/ `hr1`（人事管理员），密码 `Test@123456`。
 - 编号规则：新增 `hr_authorization` → 前缀 `AU`。
 
+## B10-1 HR L1 组织架构 + 员工主数据 + 人事事务
+
+> 对应《人力资源管理模块功能说明》**L1 基础人事管理**。组织架构与员工主数据是其余所有域的地基 ——
+> 部门树决定审批链解析（`DEPT_LEADER` / `SUPERVISOR_CHAIN` 走 `sys_dept.parent_id`），
+> 员工在职状态决定 B9 授权台账是否应当继续生效，离职当日清权目前**由本批次首次落进代码**。
+>
+> **单一写入口原则**：部门只有一张表 `sys_dept`（扩列），写入口统一留在 `POST/PUT /admin/depts`；
+> HR 域只提供**岗位**（`hr_position`）与**变更轨迹**（`hr_org_change`），不新建部门表、不开双轨。
+
+### 1. 数据模型
+
+**`sys_dept` 扩展列**（迁移 `na2b3c4d5e6_hr_l1_org_employee.py`，全手写）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| `dept_type` | String(16) default `'dept'` | `site`场所 / `company`公司 / `division`事业部 / `dept`科室 / `lab`实验室 / `team`班组 |
+| `site_code` | String(32) default `''` | 场所编码（多场所：总部 + 分支实验室） |
+| `address` | String(255) default `''` | 办公地址 |
+| `manager_id` | BigInteger nullable | 部门负责人 → `sys_user.id`，**权威写入方**，与任职表 `is_leader` 双向同步 |
+| `effective_from` / `effective_to` | Date nullable | 有效期 |
+
+**新表**（`app/modules/hr/models.py`）
+
+| 表 | 基类 | 说明 |
+|---|---|---|
+| `hr_position` | `BaseModel` | 岗位说明书：`code` / `name` / `dept_id` / `site_id` / `position_type`(staff/manager/key) / `duty` / `requirement` / `report_to_id` / `key_role` / `primary_user_id`(A角) / `backup_user_id`(B角) / `status` |
+| `hr_employee` | `BaseModel` | 员工一人一档：`employee_no`(unique) / `user_id`(1:1 → `sys_user`) / `name` / `id_no`(密文) / `id_type` / `gender` / `birth_date` / `education` / `major` / `mobile` / `email` / `employ_type`(labor/engage/part_time/intern) / `employ_status`(probation/regular/idle/resigned/retired) / `dept_id` / `position_id` / `hire_date` / `leave_date` / `contract_no` / `contract_start` / `contract_end` |
+| `hr_employee_control` | `BaseModel` | 黑白名单：`employee_id` / `control_type`(blacklist/whitelist) / `reason` / `effective_from` / `effective_to` / `status` |
+| `hr_employment` | `BaseModel` | 人事事务单据（单号前缀 `EM`）：`emp_no` / `event_type`(onboard/transfer/resign/rehire) / `employee_id` / `user_id` / `dept_id` / `new_dept_id` / `position_id` / `new_position_id` / `effective_date` / `status` / `flow_instance_id` / `applicant_id` / `approver_id` / `approved_at` / `create_account` / `account_username` / `account_password`(密文) / `account_roles` |
+| `hr_employment_event` | `AppendOnlyModel` | 人事事务变更轨迹（**只追加**，无 `deleted` / `version`） |
+| `hr_delegate` | `BaseModel` | 代理人（AB 角，**不借账号**）：`principal_id` / `agent_id` / `scope`(position/auth/task) / `position_id` / `auth_id` / `effective_from` / `effective_to` / `status`(enabled/expired/revoked) / `auto_takeover` |
+| `hr_org_change` | `AppendOnlyModel` | 组织变更快照：`object_type`(dept/position/employee) / `object_id` / `change_type` / `before_json` / `after_json` / `operator_id` / `effective_at`(`DATETIME(3)`) / `reason` |
+
+### 2. 敏感个人信息：加密 + 脱敏 + 明文唯一出口
+
+- `hr_employee.id_no` 落库为 **AES-GCM 密文**（`enc:` 前缀，域 `hr-employee-idno`，与配置密钥 / 电子签名密钥**域分隔**）。
+- 列表 / 详情出参**一律掩码**：前 4 + `*`×(len-8) + 后 4（如 `3301**********1234`）。
+- **明文唯一出口**：`GET /hr/employees/{eid}/id-no`（权限 `hr:staff:idno`），**每次访问写 `sys_audit_log`**
+  （action `hr_employee_idno_view`，字段级 + 哈希链）—— 谁查看了谁的证件号必须可归因。
+- 证件号唯一性校验**只能解密后逐条比对**（密文不可 SQL 比对），HR 档案量级（千级）开销可忽略。
+
+### 3. 端点
+
+**组织架构**（`app/modules/hr/org_router.py`，prefix `/hr`）
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/hr/org/positions` | `hr:position:list` | 岗位列表（分页 / `q` / `filters[dept_id]` / `filters[key_role]` / `filters[position_type]`） |
+| GET | `/hr/org/positions/counts` | `hr:position:list` | 页签计数 |
+| GET | `/hr/org/positions/export` | `hr:position:list` | 导出 |
+| POST | `/hr/org/positions` | `hr:position:create` | 新建岗位 |
+| PUT | `/hr/org/positions/{pid}` | `hr:position:edit` | 编辑岗位 |
+| DELETE | `/hr/org/positions/{pid}` | `hr:position:edit` | 删除岗位（清理 A/B 角引用） |
+| GET | `/hr/org/changes` | `hr:org:list` | 组织变更轨迹（`filters[object_type]` / `filters[object_id]` / `filters[change_type]`） |
+| GET | `/hr/org/options` | `hr:org:list` | 下拉选项（场所 / 部门 / 岗位 / 关键岗位 / 人员） |
+
+**部门（写入口在 admin 域）**：`POST/PUT /admin/depts`（`admin:dept:edit`）接收扩展字段；写 `manager_id` 时同步任职表 `is_leader=1`。
+
+**员工主数据**（`app/modules/hr/employee_router.py`，prefix `/hr`）
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/hr/employees` | `hr:staff:list` | 员工列表（`filters[employ_status]` / `filters[employ_type]` / `filters[dept_id]` / `filters[position_id]` / `filters[education]`） |
+| GET | `/hr/employees/counts` | `hr:staff:list` | 页签计数（按 `employ_status`） |
+| GET | `/hr/employees/options` | `hr:staff:list` | 人员下拉 |
+| GET | `/hr/employees/export` | `hr:staff:export` | 导出（证件号仍为掩码） |
+| GET | `/hr/employees/{eid}` | `hr:staff:list` | 详情（档案 + 任职 + 授权 + 代理 + 人事轨迹聚合） |
+| GET | `/hr/employees/{eid}/id-no` | `hr:staff:idno` | **证件号明文唯一出口**（写审计） |
+| GET | `/hr/employees/{eid}/timeline` | `hr:staff:list` | 档案变更时间线 |
+| POST | `/hr/employees` | `hr:staff:create` | 建档（工号 / 证件号 / 兼职冲突 / 关键岗位校验） |
+| PUT | `/hr/employees/{eid}` | `hr:staff:edit` | 改档 |
+| DELETE | `/hr/employees/{eid}` | `hr:staff:edit` | 删除（有未完结人事事务时拒绝 → 63012） |
+| POST | `/hr/employees/{eid}/control` | `hr:staff:edit` | 黑白名单管控 |
+
+**人事事务 + 代理人**（`app/modules/hr/employment_router.py`，prefix `/hr`）
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/hr/employments` | `hr:employment:list` | 事务列表（`filters[event_type]` / `status` / `range[effective_date]`） |
+| GET | `/hr/employments/counts` | `hr:employment:list` | 页签计数 |
+| GET | `/hr/employments/{eid}` | `hr:employment:list` | 详情 |
+| GET | `/hr/employments/{eid}/timeline` | `hr:employment:list` | 变更轨迹 |
+| POST | `/hr/employments` | `hr:employment:create` | 新建（草稿）；入职可勾选「开账号」并填初始密码 / 角色 |
+| PUT | `/hr/employments/{eid}` | `hr:employment:edit` | 编辑（仅 `draft` / `rejected` 可编辑） |
+| POST | `/hr/employments/{eid}/submit` | `hr:employment:submit` | 提交审批 |
+| POST | `/hr/employments/{eid}/withdraw` | `hr:employment:submit` | 撤回（仅发起人且无人处理） |
+| POST | `/hr/employments/{eid}/effect` | `hr:employment:effect` | **生效**（执行副作用，见下） |
+| GET | `/hr/delegates` | `hr:delegate:list` | 代理人列表 |
+| POST/PUT/DELETE | `/hr/delegates[/{did}]` | `hr:delegate:edit` | 代理人维护（`scope=position` 必须给 `positionId`） |
+
+### 4. `hr_employment` 状态机与「审批通过 ≠ 生效」
+
+```
+draft ──submit──▶ approving ──approve──▶ approved ──effect──▶ effective
+  ▲                   │                      │
+  └──withdraw─────────┘◀────reject───────────┘
+                      reject ──▶ rejected ──(改档/重新提交)──▶ draft
+```
+
+- **`approved`（审批通过）≠ `effective`（副作用已执行）**。离职需**择时生效**（离职当日回收权限），
+  因此必须有一个独立的 `POST /hr/employments/{eid}/effect` 动作。
+- 流程绑定（`app/modules/approval/registry.py::BINDINGS` 第 **19** 条）：
+  `biz_type="hr_employment"` / `definition_code="hr_employment_approve"` / **`pass_through=False`**
+  —— 人事事务**不允许人工直通**（合规红线）；流程总开关关闭时提交报 **70006**。
+- 状态守卫：`draft` 直接 `effect` → **63014**；`approving` 不可编辑；`approved` 不可编辑。
+
+**生效副作用（`app/modules/hr/employment.py::effect_employment()`，全部写字段级审计 `strict=True`）**
+
+| 事件 | 副作用 |
+|---|---|
+| **onboard** 入职 | 建 `sys_user`（登录名 = 工号或表单指定；**自动生成**的初始密码明文**只在生效响应里出现一次**，HR 表单填的密码不回显）→ 按岗位 `position_type` 绑默认角色（`staff` → `biz_user`）→ 建立主部门任职（`is_primary=1`）→ 回填 `hr_employee.user_id` → 同步 `sys_user.employee_no` / `hire_date` → `employ_status=probation` |
+| **transfer** 调岗 | 更新 `hr_employee.dept_id/position_id` → 更新 `sys_user.dept_id/dept_name` → 同步主部门任职（唯一 `is_primary=1`） |
+| **resign** 离职 | `sys_user.status='disabled'`（**不删除**，ALCOA 完整）→ `mfa_enabled=0` → **撤销 B9 授权台账**（该用户全部 `active/suspended/confirmed` → `revoked` + 写 `hr_authorization_event`）→ **代理失效**（作为委托人 → `expired`；作为代理人且委托人已离职 → 一并 `expired`）→ **清岗位 A/B 角** → `employ_status='resigned'` + `leave_date` → 写一条「**物理权限（门禁 / 钥匙 / 工牌）回收待现场确认**」审计（本系统无门禁对接，诚实标注外部依赖） |
+| **rehire** 返聘 | **恢复原账号**（`status='enabled'`，保持一人一号历史连续）→ `employ_status='regular'`。**不恢复授权** —— 能力须重新确认 |
+
+### 5. B10-1 新增错误码
+
+| 码 | 常量 | 含义 |
+|---|---|---|
+| 63010 | `HR_ORG_INVALID_STATE` | 组织架构状态不允许该操作 |
+| 63011 | `HR_EMP_NOT_FOUND` | 员工档案不存在 |
+| 63012 | `HR_EMP_INVALID_STATE` | 员工档案状态不允许该操作（如存在未完结人事事务时删除） |
+| 63013 | `HR_EMP_DUPLICATE` | 工号 / 证件号重复 |
+| 63014 | `HR_EMPLOYMENT_INVALID_STATE` | 人事事务状态不允许该操作 |
+| 63015 | `HR_EMPLOYMENT_NOT_FOUND` | 人事事务单不存在 |
+| 63016 | `HR_EMP_CONFLICT` | 员工冲突（兼职重复 / 兼职任关键岗位 / 黑名单入职） |
+| 63017 | `HR_POSITION_NOT_FOUND` | 岗位不存在 |
+| 63018 | `HR_DELEGATE_INVALID_STATE` | 代理人配置状态不允许该操作（如 `scope=position` 未指定岗位） |
+
+前端镜像在 `src/api/types.ts::ERROR_CODES`。
+
+### 6. 种子与菜单
+
+- 菜单：`menu.hrCenter` 下新增
+  - `menu.hrOrg` → `/hr/org`，componentKey `hr/OrgStructureList`，权限 `hr:org:list`；
+  - `menu.hrPosition` → `/hr/positions`，componentKey `hr/PositionList`，权限 `hr:position:list`；
+  - `menu.hrEmployment` → `/hr/employments`，componentKey `hr/PersonnelAffairsList`，权限 `hr:employment:list`。
+  `menu.staff` → `/hr/staff`，componentKey `hr/StaffList`，权限 `hr:staff:list`（**占位页已替换为真实列表**）。
+- 按钮权限：`hr:position:create/edit` `hr:staff:create/edit/export/idno` `hr:employment:create/edit/submit/effect` `hr:delegate:list/edit`。
+- 角色：`hr_manager`（人事管理员）加 `hr:org:list` `hr:position:*` `hr:staff:*` `hr:employment:*` `hr:delegate:*`
+  + 菜单 `menu.dept`（从而拿到 `admin:dept:list` / `admin:dept:edit` —— 人事管理员本就该维护部门树）；
+  **`biz_user` 不加员工档案权限**（个人信息隔离）。
+- 审批流程定义 `hr_employment_approve`：`(1,"人事主管审核","hr1") → (2,"总经理审批","admin")`
+  —— **用固定 USER 节点**（ROLE 节点在无人拥有该角色时会被引擎跳过）。
+- 编号规则：`hr_employment` → 前缀 `EM`（如 `EM202611230001`）。
+
 ## 前端组件键（componentKey → 懒加载组件）
 ```
 workbench/Dashboard  crm/CustomerList  contract/ContractList  task/TaskList
@@ -1354,6 +1500,7 @@ procurement/PurchaseRequestList  procurement/PurchaseContractList  procurement/S
 procurement/TenderList  procurement/PartnerAccountList
 report/ReportList
 hr/TimesheetFill  hr/TimesheetStats  hr/AuthorizationList
+hr/OrgStructureList  hr/PositionList  hr/StaffList  hr/PersonnelAffairsList
 sales/QuotationList  sales/QuoteTemplateList
 approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
