@@ -450,7 +450,8 @@ function gotoDesign() {
       <el-button @click="load">{{ t('common.action.refresh') }}</el-button>
     </div>
 
-    <ListTable :columns="columns" :data="filteredForms as unknown as Record<string, unknown>[]" :loading="loading" :total="filteredForms.length" :page="1" :size="Math.max(filteredForms.length, 10)" row-key="id">
+    <!-- 表单设计是前端本地过滤的全量列表，没有服务端分页：显式关掉分页条 -->
+    <ListTable :columns="columns" :data="filteredForms as unknown as Record<string, unknown>[]" :loading="loading" :total="filteredForms.length" :page="1" :size="Math.max(filteredForms.length, 10)" row-key="id" :show-pagination="false">
       <template #category="{ row }">{{ categoryLabel(String(row.category)) }}</template>
       <template #status="{ row }">
         <StatusTag :status="String(row.status)" i18n-prefix="oa.formStatus" />

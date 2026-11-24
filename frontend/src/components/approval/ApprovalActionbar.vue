@@ -12,11 +12,18 @@ import {
 import { userOptions as fetchUserOptions } from '@/api/admin'
 import type { ApprovalTask } from '@/api/types'
 
-const props = defineProps<{
-  task: ApprovalTask
-  canAct?: boolean
-  canWithdraw?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    task: ApprovalTask
+    canAct?: boolean
+    canWithdraw?: boolean
+  }>(),
+  {
+    // Boolean props 未传值时默认为 false —— 这里必须显式给 true，
+    // 否则调用方漏传 can-act 时审批按钮整块不渲染。
+    canAct: true,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'done'): void

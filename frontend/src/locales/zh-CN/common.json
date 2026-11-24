@@ -79,7 +79,10 @@
     "page": "第 {page} 页",
     "sizePerPage": "{size} 条/页",
     "jumpTo": "跳至",
-    "pageUnit": "页"
+    "pageUnit": "页",
+    "prev": "上一页",
+    "next": "下一页",
+    "pageOf": "{page} / {total} 页"
   },
   "form": {
     "required": "必填",

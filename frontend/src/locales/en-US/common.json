@@ -79,7 +79,10 @@
     "page": "Page {page}",
     "sizePerPage": "{size} / page",
     "jumpTo": "Go to",
-    "pageUnit": ""
+    "pageUnit": "",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "{page} / {total}"
   },
   "form": {
     "required": "Required",

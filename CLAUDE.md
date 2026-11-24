@@ -386,7 +386,7 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 ### 共享组件与组合式函数
 
 - `components/list/`：`ListPage`（页面骨架 slots: actions/searchBar/statusTabs/toolbar/table）、`SearchBar`（声明式 `SearchField[]`：`key` `labelKey` `type` `options` `width`）、`StatusTabs`（**每个 tab 必须带 count，含 all，且 all 在最左**）、`ListTable`（`ListColumn[]` + 分页 + 服务端排序；**内部是 `ResponsiveTable` 的适配层**，窄屏自动降级为卡片）、`ActionBar`（行操作，图标/颜色全局统一，`perm` 控显隐，`confirm` 二次确认，超出内联数量收进「更多」）、`ExportButton`；`types.ts` 导出 `ListColumn` / `SortChange`
-- `components/common/`：`BackButton`（页面级返回，**放右上角**）、`PageHeader`（**唯一的页面标题组件**，props `title` + slot `actions`）、`StatusTag`、`CountUp`、**`ResponsiveTable`**（桌面表格 / 窄屏卡片流，列表页统一走它）、**`SignaturePad`**（canvas 手写签名板，触屏可用）
+- `components/common/`：`BackButton`（页面级返回，**放右上角**）、`PageHeader`（**唯一的页面标题组件**，props `title` + slot `actions`）、`StatusTag`、`CountUp`、**`ResponsiveTable`**（桌面表格 / 窄屏卡片流，列表页统一走它；**分页条由它统一渲染**：`.table-pagination` = 左「共 N 条」+ 右 `el-pagination`，`showPagination` 默认 `true`，内嵌表格传 `:show-pagination="false"` 关掉）、**`SignaturePad`**（canvas 手写签名板，触屏可用）
 - `components/form/`：`RemoteSelect` `ContractSelect` `CustomerSelect` `SmartInput`（本地历史）`UploadFiles`
 - `components/flow/`：`FlowChainDesigner` `FlowChainNode` `FlowChainConnector` `FlowGraphViewer` + `flowModel.ts`（`process_graph` 双写兼容 LogicFlow）
 - `components/assistant/AiAssistant.vue`（全局悬浮助手）
@@ -401,10 +401,12 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 3. 新增 Element Plus 组件要同时改 `src/plugins/element-plus.ts`（组件数组 + 样式 import）；新图标名要登记到 `src/icons.ts`（后端菜单的 `icon` 字符串按名解析）。
 4. 新页面放 `src/modules/<域>/pages/`，并确保 `defineOptions({ name: '...' })` 与路由 `componentName` 一致（KeepAlive 依赖）。
 5. **每次功能性变动都要写变更日志** —— 在仓库根 `CHANGELOG.md` 顶部追加版本条目（Keep a Changelog 六类：`Added`/`Changed`/`Deprecated`/`Removed`/`Fixed`/`Security` + 语义化版本号 + 日期），并把版本号同步到 `Settings.app_version`、`frontend/package.json`、`backend/pyproject.toml`（+ `backend/uv.lock`）。`tests/test_changelog.py` 在 CI 校验一致性。
+6. **可选 Boolean prop 必须显式给默认值** —— Vue 的 `Boolean` 类型 props **未传值时默认是 `false`**（不是 `undefined`）。写 `v-if="props.x !== false"`（意为「未传即允许」）时必须用 `withDefaults` 把 `x` 默认成 `true`，否则条件恒为 false、组件永远处于关闭状态（列表页分页条曾经因此全站不渲染）。`frontend/src/components/booleanPropDefaults.test.ts` 在 CI 拦截。
 
 ## UI 一致性规则
 
 - **检索**：所有服务端分页列表页必须有 `SearchBar` 且带关键词字段 `q`；后端缺 `q` 支持时按 `filters` 白名单模式补上。小型全量列表至少给本地关键词过滤。树表（菜单/部门）豁免。
+- **分页与总条数**：列表页的分页条由 `ResponsiveTable` 统一渲染（`.table-pagination`：左「共 N 条」`common.table.total` + 右 `el-pagination`），**默认开启**；`ListTable` 必须把 `:total` / `:page` / `:size` 透传下去，并接 `@update:page` / `@update:size`。纯前端全量列表（无服务端分页）显式传 `:show-pagination="false"`，别留一个点不动的翻页控件。
 - **表格占满内容区**：`el-table` 只拉伸**没有固定 `width`** 的列（EP 内部 `flexColumns = columns.filter(c => !isNumber(c.width))`）；一旦所有列都写死 `width`，表格宽度 = 列宽之和，右侧会留出大片空白，与其他板块观感不一致。列表页至少保留一列弹性列（写 `min-width` 而不是 `width`）；`ListTable.vue` 已内置兜底（自动把最后一列转成弹性列），但原生 `<el-table>` 必须自己保证。
 - **状态页签**：每个 tab 显示计数（含 `all`），`all` 永远最左；缺计数接口时按 `task counts` 的模式补 `…/counts`。
 - **关闭/返回/页脚**：抽屉与弹窗只用内置右上角 `X`，不要额外的自定义关闭按钮；页面级返回用 `src/components/common/BackButton.vue` 放右上角。弹窗页脚：次要操作在左、主要操作在右。

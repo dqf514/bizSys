@@ -11,19 +11,26 @@ import { useI18n } from 'vue-i18n'
 import { useIsMobile } from '@/composables/useIsMobile'
 import type { ListColumn, SortChange } from '@/components/list/types'
 
-const props = defineProps<{
-  columns: ListColumn[]
-  data: Record<string, unknown>[]
-  loading?: boolean
-  total?: number
-  page?: number
-  size?: number
-  selectable?: boolean
-  rowKey?: string
-  height?: string | number
-  /** 内嵌表格（详情页页签）可关闭分页条 */
-  showPagination?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    columns: ListColumn[]
+    data: Record<string, unknown>[]
+    loading?: boolean
+    total?: number
+    page?: number
+    size?: number
+    selectable?: boolean
+    rowKey?: string
+    height?: string | number
+    /** 内嵌表格（详情页页签）可关闭分页条 */
+    showPagination?: boolean
+  }>(),
+  {
+    // 注意：Vue 的 Boolean 类型 props 在「未传值」时默认是 false，
+    // 不显式给 true 默认值的话分页条永远不会渲染（列表页看不到翻页与总条数）。
+    showPagination: true,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'update:page', v: number): void
@@ -46,9 +53,8 @@ const { isMobile } = useIsMobile()
 
 const titleCol = computed<ListColumn | undefined>(() => props.columns[0])
 const detailCols = computed<ListColumn[]>(() => props.columns.slice(1))
-const paginationLayout = computed(() =>
-  isMobile.value ? 'prev, pager, next' : 'sizes, prev, pager, next, jumper',
-)
+/** 桌面翻页条布局（窄屏走紧凑翻页，不用 EP 的翻页条） */
+const paginationLayout = 'sizes, prev, pager, next, jumper'
 
 function labelOf(col: ListColumn) {
   return col.labelKey ? t(col.labelKey) : (col.label ?? col.prop)
@@ -62,6 +68,14 @@ function onSortChange(payload: { prop: string; order: 'ascending' | 'descending'
   const col = props.columns.find((c) => c.prop === payload.prop)
   const sortField = col?.sortable && col.sortable !== 'local' ? col.sortable : undefined
   emit('sort-change', { ...payload, sortField })
+}
+
+/** 总页数（窄屏紧凑翻页用） */
+const pageCount = computed(() => Math.max(1, Math.ceil((props.total || 0) / (props.size || 20))))
+
+function gotoPage(page: number) {
+  const next = Math.min(Math.max(1, page), pageCount.value)
+  if (next !== (props.page || 1)) emit('update:page', next)
 }
 </script>
 
@@ -129,9 +143,28 @@ function onSortChange(payload: { prop: string; order: 'ascending' | 'descending'
       </article>
     </div>
 
-    <div v-if="props.showPagination !== false" class="table-pagination">
+    <div v-if="props.showPagination" class="table-pagination">
       <span class="total-text">{{ t('common.table.total', { total: props.total ?? 0 }) }}</span>
+      <!-- 窄屏：紧凑翻页（EP 的翻页条在窄屏会折成三行，把卡片列表区挤没） -->
+      <div v-if="isMobile" class="pager-compact">
+        <el-button
+          size="small"
+          :disabled="(props.page || 1) <= 1"
+          @click="gotoPage((props.page || 1) - 1)"
+        >
+          {{ t('common.table.prev') }}
+        </el-button>
+        <span class="pager-info">{{ t('common.table.pageOf', { page: props.page || 1, total: pageCount }) }}</span>
+        <el-button
+          size="small"
+          :disabled="(props.page || 1) >= pageCount"
+          @click="gotoPage((props.page || 1) + 1)"
+        >
+          {{ t('common.table.next') }}
+        </el-button>
+      </div>
       <el-pagination
+        v-else
         :current-page="props.page || 1"
         :page-size="props.size || 20"
         :total="props.total || 0"
@@ -237,6 +270,27 @@ function onSortChange(payload: { prop: string; order: 'ascending' | 'descending'
 .total-text {
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
+  white-space: nowrap;
+}
+
+/* 窄屏紧凑翻页：上一页 / 第 X 页共 N 页 / 下一页 */
+.pager-compact {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.pager-info {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  /* 窄屏右下角有悬浮助手按钮（48px）：分页条右侧留位，别压住「下一页」 */
+  .table-pagination {
+    padding-right: calc(var(--bs-space-5) + 48px + var(--bs-space-2));
+  }
 }
 
 :deep(.el-table) {

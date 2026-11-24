@@ -8,6 +8,20 @@
 
 ---
 
+## [0.7.3] - 2026-11-24
+
+### Fixed
+
+- 列表页的**分页条与总条数从来没渲染过**（审计日志、在线任务委托、往来单位、合同等所有服务端分页列表都看不到翻页控件和「共 N 条」）：根因是 Vue 对 `Boolean` 类型 props 在**未传值时默认取 `false`**，`ResponsiveTable` 的 `showPagination` 未传值即 `false`，于是 `v-if="props.showPagination !== false"` 恒不成立。改为用 `withDefaults` 显式默认 `true`，分页条恢复正常。
+- 审批操作条 `ApprovalActionbar` 的 `canAct` 同类隐患：未传值时默认 `false` 会整块隐藏「同意 / 驳回」按钮，改为显式默认 `true`（调用方显式传值的行为不变）。
+- 分页条在窄屏改用紧凑翻页（上一页 / 页码 / 下一页）：Element Plus 的翻页条在 375px 宽度下会折成三行、把卡片列表区挤没。
+
+### Added
+
+- 新增 Boolean prop 默认值守卫（`frontend/src/components/booleanPropDefaults.test.ts`）：可选 Boolean prop 用「未传即允许」写法（`x !== false`）时必须在 `withDefaults` 里显式给默认值；同时锁定列表分页条默认渲染、`ListTable` 显式转发 `showPagination`。
+
+---
+
 ## [0.7.2] - 2026-11-24
 
 ### Fixed

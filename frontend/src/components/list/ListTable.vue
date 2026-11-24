@@ -5,17 +5,25 @@ import type { ListColumn, SortChange } from './types'
 
 export type { ListColumn, SortChange }
 
-const props = defineProps<{
-  columns: ListColumn[]
-  data: Record<string, unknown>[]
-  loading?: boolean
-  total?: number
-  page?: number
-  size?: number
-  selectable?: boolean
-  rowKey?: string
-  height?: string | number
-}>()
+const props = withDefaults(
+  defineProps<{
+    columns: ListColumn[]
+    data: Record<string, unknown>[]
+    loading?: boolean
+    total?: number
+    page?: number
+    size?: number
+    selectable?: boolean
+    rowKey?: string
+    height?: string | number
+    /** 内嵌表格（详情页页签）可关闭分页条 */
+    showPagination?: boolean
+  }>(),
+  {
+    // 与 ResponsiveTable 保持一致：分页条默认显示（Boolean prop 未传值默认为 false）
+    showPagination: true,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'update:page', v: number): void
@@ -55,6 +63,7 @@ const tableColumns = computed<ListColumn[]>(() => {
     :selectable="props.selectable"
     :row-key="props.rowKey"
     :height="props.height"
+    :show-pagination="props.showPagination"
     @update:page="emit('update:page', $event)"
     @update:size="emit('update:size', $event)"
     @selection-change="emit('selection-change', $event)"
