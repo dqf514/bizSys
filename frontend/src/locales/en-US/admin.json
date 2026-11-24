@@ -486,5 +486,29 @@
       "fixed": "Fixed",
       "security": "Security"
     }
+  },
+  "flowPackage": {
+    "title": "Flow Packages",
+    "keyword": "Keyword",
+    "bizType": "Business Type",
+    "name": "Flow Name",
+    "code": "Flow Code",
+    "version": "Version",
+    "nodeCount": "Nodes",
+    "enabled": "Status",
+    "exportOne": "Export Package",
+    "exportAll": "Export All",
+    "import": "Import Package",
+    "importTitle": "Import Flow Package",
+    "fileName": "File",
+    "schema": "Schema",
+    "packageCount": "Packages",
+    "parseFailed": "Failed to parse JSON",
+    "badSchema": "Unsupported package schema: {schema}",
+    "emptyPackages": "No importable package found",
+    "dryRun": "Dry Run (Validate Only)",
+    "confirmImport": "Import",
+    "dryRunSummary": "{total} total: {created} created, {updated} updated flows; {formCreated} created, {formUpdated} updated forms",
+    "importDone": "Imported: {created} created, {updated} updated"
   }
 }

@@ -366,6 +366,18 @@ export interface FlowDefSaveResult extends FlowDef {
   runningCount?: number
 }
 
+/** 流程包导入结果（POST /approval/packages/import） */
+export interface FlowPackageImportResult {
+  schema: string
+  total: number
+  created: number
+  updated: number
+  formCreated: number
+  formUpdated: number
+  errors: string[]
+  dryRun: boolean
+}
+
 /** POST /approval/preview 的分支预演结果 */
 export interface FlowPreviewNode {
   seq: number

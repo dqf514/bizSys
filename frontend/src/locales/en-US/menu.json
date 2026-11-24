@@ -85,6 +85,7 @@
   "maintenance": "Data Maintenance",
   "depts": "Departments",
   "flow": "Flow Definitions",
+  "flowPackages": "Flow Packages",
   "automation": "Flow & Event Switches",
   "changelog": "Changelog",
   "settings": "Settings",

@@ -1,5 +1,7 @@
 """OA 路由 /api/v1/oa：用户侧（目录/发起/我的/相关/统计）+ 管理侧（设计/统计/干预）。"""
 
+import json
+from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -14,12 +16,13 @@ from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.admin.models import DictItem
+from app.modules.approval import packages
 from app.modules.approval import service as approval_svc
 from app.modules.approval.models import ApprovalDefinition
 from app.modules.auth.models import User
 from app.modules.oa import schemas as S
 from app.modules.oa import service as svc
-from app.modules.oa.models import OaInstance
+from app.modules.oa.models import OaForm, OaInstance
 from app.services.excel import export_xlsx_styled, now_filename
 
 router = APIRouter(prefix="/oa", tags=["oa"], route_class=EnvelopeRoute)
@@ -292,6 +295,47 @@ def admin_bind_latest_flow(
            detail={"flowDefinitionId": data["flowDefinitionId"]})
     db.commit()
     return data
+
+
+@router.get("/admin/forms/{form_id}/package")
+def admin_form_package(
+    form_id: int,
+    current: User = Depends(require_perm("admin:flow:export")),
+    db: Session = Depends(get_db),
+):
+    """导出表单对应的流程包（JSON 文件下载）—— schema `bizsys.flowpackage/v1`。"""
+    form = db.get(OaForm, form_id)
+    if form is None or form.deleted:
+        raise BizException(R.GENERIC_NOT_FOUND, "表单不存在")
+    pkg = packages.packages_of_definition(db, form.flow_definition_id) if form.flow_definition_id else None
+    if pkg is None:
+        # 表单尚未绑定流程定义 → 只导出表单部分
+        pkg = {
+            "code": f"{form.key}_approve",
+            "name": form.name,
+            "bizType": "oa",
+            "enabled": True,
+            "remark": form.description or "",
+            "flowVersion": form.form_version,
+            "source": "bizsys",
+            "form": packages.form_payload(form),
+            "flow": {"variablesSchema": {}, "options": {}, "nodes": [], "edges": []},
+        }
+    payload = {"schema": packages.SCHEMA, "exportedAt": datetime.now().isoformat(timespec="seconds"),
+               "packages": [pkg]}
+    record(db, user_id=current.id, module="oa", action="oa_form_package_export",
+           biz_type="oa_form", biz_id=form_id)
+    db.commit()
+    body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    return Response(
+        body,
+        media_type="application/json; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename*=UTF-8''{now_filename(form.key, ext='json')}"
+            )
+        },
+    )
 
 
 @router.get("/admin/flow-defs")

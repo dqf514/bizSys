@@ -12,6 +12,7 @@ import type {
   DictType,
   FlowDef,
   FlowDefSaveResult,
+  FlowPackageImportResult,
   ListQuery,
   MenuNode,
   NumberRule,
@@ -276,6 +277,40 @@ export function updateFlowDef(id: number, data: Partial<FlowDef>) {
 
 export function deleteFlowDef(id: number) {
   return request<{ disabled?: boolean }>({ url: `/approval/definitions/${id}`, method: 'delete' })
+}
+
+// ---- 流程包（E1：审批流程 JSON 化，批量导入导出）----
+export const FLOW_PACKAGE_SCHEMA = 'bizsys.flowpackage/v1'
+
+/** 导出单个流程包（JSON 文件） */
+export function exportFlowPackage(code: string) {
+  return download(
+    { url: `/approval/definitions/${encodeURIComponent(code)}/package`, method: 'get' },
+    `${code}.json`,
+  )
+}
+
+/** 导出全部流程包（JSON 文件，可按 bizType 过滤） */
+export function exportAllFlowPackages(bizType = '') {
+  return download(
+    { url: '/approval/packages/export-all', method: 'get', params: bizType ? { bizType } : {} },
+    'flow_packages.json',
+  )
+}
+
+/** 导入流程包（幂等 upsert 表单 + 流程定义） */
+export function importFlowPackages(payload: unknown, dryRun = false) {
+  return request<FlowPackageImportResult>({
+    url: '/approval/packages/import',
+    method: 'post',
+    params: { dryRun },
+    data: payload,
+  })
+}
+
+/** 导出 OA 表单对应的流程包（JSON 文件） */
+export function exportOaFormPackage(formId: number) {
+  return download({ url: `/oa/admin/forms/${formId}/package`, method: 'get' }, `form_${formId}.json`)
 }
 
 // ---- 变更日志（Keep a Changelog）----

@@ -85,6 +85,7 @@
   "maintenance": "数据维护",
   "depts": "部门管理",
   "flow": "流程配置",
+  "flowPackages": "审批模板包",
   "automation": "流程与事件开关",
   "changelog": "变更日志",
   "settings": "系统设置",

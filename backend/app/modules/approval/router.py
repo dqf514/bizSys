@@ -1,5 +1,6 @@
 """审批中心与流程定义路由 /api/v1/approval。"""
 
+import json
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -13,7 +14,7 @@ from app.core.db import get_db
 from app.core.deps import get_current_user, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
-from app.modules.approval import registry, service
+from app.modules.approval import packages, registry, service
 from app.modules.approval.schemas import (
     AddSignIn,
     CommentIn,
@@ -355,3 +356,72 @@ def flow_capabilities(
     单据不进入审批中，直接落到通过态；开关打开则必须走审批。
     """
     return {"items": registry.capabilities_out(db)}
+
+
+# --- 流程包 JSON 化导入导出（E1：批量迁移用） ---
+
+
+@router.get("/packages/export-all")
+def export_all_packages(
+    biz_type: str = Query("", max_length=32),
+    user: User = Depends(require_perm("admin:flow:export")),
+    db: Session = Depends(get_db),
+):
+    """导出全部流程包（JSON 文件下载）—— schema `bizsys.flowpackage/v1`。"""
+    payload = packages.export_all(db, biz_type)
+    record(db, user_id=user.id, module="approval", action="flow_packages_export",
+           detail={"bizType": biz_type, "count": len(payload["packages"])})
+    db.commit()
+    body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    return Response(
+        body,
+        media_type="application/json; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename*=UTF-8''{now_filename('flow_packages', ext='json')}"
+            )
+        },
+    )
+
+
+@router.get("/definitions/{code}/package")
+def export_one_package(
+    code: str,
+    user: User = Depends(require_perm("admin:flow:export")),
+    db: Session = Depends(get_db),
+):
+    """导出单个流程包（按流程定义 code）。"""
+    payload = packages.export_package(db, code)
+    record(db, user_id=user.id, module="approval", action="flow_package_export", detail={"code": code})
+    db.commit()
+    body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    return Response(
+        body,
+        media_type="application/json; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename*=UTF-8''{now_filename(code, ext='json')}"
+            )
+        },
+    )
+
+
+@router.post("/packages/import")
+def import_flow_packages(
+    body: dict,
+    dry_run: bool = Query(False, description="只校验不落库"),
+    user: User = Depends(require_perm("admin:flow:import")),
+    db: Session = Depends(get_db),
+):
+    """导入流程包（幂等 upsert 表单 + 流程定义）。"""
+    result = packages.import_packages(db, body, dry_run=dry_run)
+    record(
+        db,
+        user_id=user.id,
+        module="approval",
+        action="flow_packages_import",
+        detail={"total": result["total"], "created": result["created"], "updated": result["updated"],
+                "dryRun": dry_run},
+    )
+    db.commit()
+    return result

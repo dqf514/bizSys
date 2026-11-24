@@ -1014,6 +1014,18 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                         ],
                     ),
                     (
+                        # E1：流程包 JSON 化导入导出（批量迁移用）
+                        "menu.flowPackages",
+                        "FlowPackageList",
+                        "/admin/flowpackages",
+                        "admin/FlowPackageList",
+                        "CopyDocument",
+                        "admin:flow:export",
+                        [
+                            (None, "flow-package-import", "", "", "", "admin:flow:import", []),
+                        ],
+                    ),
+                    (
                         "menu.dict",
                         "Dicts",
                         "/admin/dict",

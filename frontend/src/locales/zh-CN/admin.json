@@ -486,5 +486,29 @@
       "fixed": "修复",
       "security": "安全"
     }
+  },
+  "flowPackage": {
+    "title": "审批模板包",
+    "keyword": "关键词",
+    "bizType": "业务类型",
+    "name": "流程名称",
+    "code": "流程标识",
+    "version": "版本",
+    "nodeCount": "节点数",
+    "enabled": "状态",
+    "exportOne": "导出流程包",
+    "exportAll": "导出全部",
+    "import": "导入流程包",
+    "importTitle": "导入审批模板包",
+    "fileName": "文件",
+    "schema": "Schema",
+    "packageCount": "模板包数量",
+    "parseFailed": "JSON 解析失败",
+    "badSchema": "流程包 schema 不受支持：{schema}",
+    "emptyPackages": "流程包内没有可导入的模板",
+    "dryRun": "试导入（只校验）",
+    "confirmImport": "确认导入",
+    "dryRunSummary": "共 {total} 个：新建流程 {created}、更新流程 {updated}、新建表单 {formCreated}、更新表单 {formUpdated}",
+    "importDone": "导入完成：新建 {created}、更新 {updated}"
   }
 }
