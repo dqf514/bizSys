@@ -31,7 +31,19 @@ FIELD_TYPES = (
     "hr_ref",
 )
 # 可作为流程变量注入 instance.variables 的标量类型（条件分支用）
-EXPOSABLE_TYPES = ("text", "number", "money", "date", "select", "radio", "user")
+# E1：checkbox（多选，条件用 contains）/ formula（公式列聚合）/ attendance（假勤原子，小时数）
+EXPOSABLE_TYPES = (
+    "text",
+    "number",
+    "money",
+    "date",
+    "select",
+    "radio",
+    "checkbox",
+    "user",
+    "formula",
+    "attendance",
+)
 OPTION_TYPES = ("select", "radio", "checkbox")
 # 布局控件：不占数据位（key 允许为空）
 LAYOUT_TYPES = ("divider", "text_block")
@@ -165,6 +177,7 @@ class FormFieldIn(CamelModel):
     formula: str = Field(default="", max_length=255)  # type=formula 的表达式（Money-a + Money-b）
     ref_type: str = Field(default="", max_length=32)  # type=attendance/hr_ref 的原子类型
     related_form_keys: list[str] = []  # type=resource(oa_instance) 时可关联的表单 key 集合
+    multiple: bool = False  # E1：人员控件可多选（企微「成员」多选）
 
     @field_validator("type")
     @classmethod

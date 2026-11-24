@@ -1359,6 +1359,13 @@ DICTS: dict[str, tuple[str, list[tuple[str, ...]]]] = {
             ("报销", "Expense", "expense"),
             ("行政", "Administration", "admin"),
             ("其他", "Other", "other"),
+            # E1：企业微信移植的 6 个模板分组
+            ("业务管理", "Tickets", "wc_biz"),
+            ("财务", "Money", "wc_fin"),
+            ("行政（企微）", "Stamp", "wc_admin"),
+            ("假勤", "Calendar", "wc_att"),
+            ("人事", "User", "wc_hr"),
+            ("其他（企微）", "Document", "wc_other"),
         ],
     ),
     "purchase_method": (
@@ -2725,9 +2732,14 @@ def main() -> None:
 
         wc_summary = wecom_org.import_org(db)
         db.commit()
+        # E1 企业微信移植：39 个在用审批模板 → OA 表单 + 审批定义（幂等）
+        from app.seeds import wecom_templates  # noqa: PLC0415 避免种子与模块加载循环
+
+        wt_summary = wecom_templates.import_templates(db)
+        db.commit()
         print(
             f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}, "
-            f"wecom_org={wc_summary}"
+            f"wecom_org={wc_summary}, wecom_templates={wt_summary}"
         )
     except Exception:
         db.rollback()

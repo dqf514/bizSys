@@ -48,11 +48,17 @@ from app.services.numbering import next_no
 _FORMULA_PREFIX_RE = re.compile(r"\b(?:Money|Number|money|number)-")
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _PHONE_RE = re.compile(r"^1[3-9]\d{9}$")
+# E1：聚合函数 SUM(表key.列key) / HOURS(字段key) —— 移植自企微公式控件
+_SUM_CALL_RE = re.compile(r"\bSUM\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
+_HOURS_CALL_RE = re.compile(r"\bHOURS\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
+_AGG_TOKEN_RE = re.compile(r"^__agg\d+__$")
 
 
 def _formula_refs(expr: str) -> list[str]:
     """提取公式引用的控件标识（去重，保持出现顺序）。"""
     src = _FORMULA_PREFIX_RE.sub("", expr or "")
+    src = _SUM_CALL_RE.sub(" ", src)
+    src = _HOURS_CALL_RE.sub(" ", src)
     refs: list[str] = []
     for m in _IDENT_RE.finditer(src):
         name = m.group(0)
@@ -61,15 +67,118 @@ def _formula_refs(expr: str) -> list[str]:
     return refs
 
 
+def _hours_of(value) -> float | None:
+    """假勤时长（小时）归一：数值 / {"hours":n} / 起止日期对。"""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        if "hours" in value:
+            try:
+                return float(value["hours"])
+            except (TypeError, ValueError):
+                return None
+        start, end = value.get("start"), value.get("end")
+        if start and end:
+            return _hours_between(start, end)
+        return None
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return _hours_between(value[0], value[1])
+    return None
+
+
+def _hours_between(start, end) -> float | None:
+    """起止时间差（小时）；按天对齐时按自然日 ×24。"""
+    s = _parse_datetime(start)
+    e = _parse_datetime(end)
+    if s is None or e is None:
+        return None
+    delta = (e - s).total_seconds() / 3600.0
+    if delta < 0:
+        return None
+    return delta
+
+
+def _parse_datetime(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    if not isinstance(value, str):
+        return None
+    raw = value.strip().replace("/", "-")
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _sum_of_column(data: dict, table_key: str, col_key: str) -> float | None:
+    """明细表某列求和（无表 / 无列 → None）。"""
+    rows = data.get(table_key)
+    if not isinstance(rows, list):
+        return None
+    total = 0.0
+    found = False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        cell = row.get(col_key)
+        if isinstance(cell, bool) or cell is None or cell == "":
+            continue
+        try:
+            total += float(cell)
+        except (TypeError, ValueError):
+            return None
+        found = True
+    return total if found else 0.0
+
+
+def _extract_aggregates(expr: str) -> tuple[str, list[tuple[str, str]]]:
+    """把 SUM(...)/HOURS(...) 抽成占位符，返回 (剩余表达式, [(kind, arg)])。"""
+    calls: list[tuple[str, str]] = []
+
+    def _sum_sub(m: re.Match) -> str:
+        calls.append(("sum", f"{m.group(1)}.{m.group(2)}"))
+        return f"__agg{len(calls) - 1}__"
+
+    def _hours_sub(m: re.Match) -> str:
+        calls.append(("hours", m.group(1)))
+        return f"__agg{len(calls) - 1}__"
+
+    src = _SUM_CALL_RE.sub(_sum_sub, expr)
+    src = _HOURS_CALL_RE.sub(_hours_sub, src)
+    return src, calls
+
+
 def _eval_formula(expr: str, data: dict) -> float | None:
-    """受限公式求值：只允许 ``+ - * /``、数字与字段引用；不可求值返回 None。"""
+    """受限公式求值：只允许 ``+ - * /``、数字、字段引用与 SUM()/HOURS() 聚合；不可求值返回 None。"""
     src = _FORMULA_PREFIX_RE.sub("", expr or "").strip()
     if not src:
         return None
     src = src.replace("×", "*").replace("÷", "/").replace("－", "-").replace("＋", "+")
 
+    src, calls = _extract_aggregates(src)
+    agg_values: list[float] = []
+    for kind, arg in calls:
+        if kind == "sum":
+            table_key, _, col_key = arg.partition(".")
+            value = _sum_of_column(data, table_key, col_key)
+        else:
+            value = _hours_of(data.get(arg))
+        if value is None:
+            return None
+        agg_values.append(value)
+
     def _repl(m: re.Match) -> str:
         name = m.group(0)
+        if _AGG_TOKEN_RE.match(name):
+            return name
         return f"_v({name!r})" if name in data else name
 
     src = _IDENT_RE.sub(_repl, src)
@@ -110,8 +219,11 @@ def _eval_formula(expr: str, data: dict) -> float | None:
         except (TypeError, ValueError):
             return 0.0
 
+    env: dict = {"_v": _v, "__builtins__": {}}
+    for idx, value in enumerate(agg_values):
+        env[f"__agg{idx}__"] = value
     try:
-        return float(eval(compile(tree, "<formula>", "eval"), {"_v": _v, "__builtins__": {}}))
+        return float(eval(compile(tree, "<formula>", "eval"), env))
     except Exception:
         return None
 
@@ -178,6 +290,19 @@ def validate_fields(fields: list[FormFieldIn]) -> None:
                 for ref in _formula_refs(f.formula):
                     if ref not in known_keys:
                         errors.append(f"字段「{label}」公式引用的控件不存在：{ref}")
+                for kind, agg in _extract_aggregates(_FORMULA_PREFIX_RE.sub("", f.formula))[1]:
+                    if kind == "sum":
+                        table_key, _, col_key = agg.partition(".")
+                        table_field = next((x for x in fields if x.key == table_key), None)
+                        if table_field is None or table_field.type != "table":
+                            errors.append(f"字段「{label}」公式引用的明细表不存在：{table_key}")
+                        elif col_key not in {c.key for c in table_field.columns}:
+                            errors.append(f"字段「{label}」公式引用的明细列不存在：{table_key}.{col_key}")
+                    elif kind == "hours":
+                        if agg not in known_keys:
+                            errors.append(f"字段「{label}」公式引用的控件不存在：{agg}")
+                    elif agg not in known_keys:
+                        errors.append(f"字段「{label}」公式引用的控件不存在：{agg}")
         if f.type == "attendance" and f.ref_type not in ATTENDANCE_REF_TYPES:
             errors.append(f"字段「{label}」假勤原子类型非法（可选 {', '.join(ATTENDANCE_REF_TYPES)}）")
         if f.type == "hr_ref" and f.ref_type not in HR_REF_TYPES:
@@ -299,7 +424,10 @@ def _validate_value(f: FormFieldIn, v, errors: list[str], data: dict) -> None:
         if not isinstance(v, list) or any(not isinstance(x, str) or not x for x in v):
             errors.append(f"{label} 应为附件 URL 列表")
     elif f.type == "user":
-        if isinstance(v, bool) or not isinstance(v, int):
+        if f.multiple:
+            if not isinstance(v, list) or any(isinstance(x, bool) or not isinstance(x, int) for x in v):
+                errors.append(f"{label} 应为人员 ID 列表")
+        elif isinstance(v, bool) or not isinstance(v, int):
             errors.append(f"{label} 应为人员 ID")
     elif f.type == "resource":
         rid = v.get("id") if isinstance(v, dict) else None
@@ -396,6 +524,27 @@ def _exposed_variables(fields: list[FormFieldIn], data: dict) -> dict:
     }
 
 
+def _flow_variables(fields: list[FormFieldIn], data: dict, form: OaForm, user: User) -> dict:
+    """流程变量 = 暴露字段 + ``org.*``（申请人组织）+ ``form.*``（表单身份）。
+
+    E1：企微条件里大量引用「申请人」「申请部门」「表单类型」，统一收敛到这两个命名空间。
+    """
+    variables = _exposed_variables(fields, data)
+    variables["org"] = {
+        "applicantId": user.id,
+        "applicantName": user.name or user.username,
+        "deptId": user.dept_id,
+        "deptName": user.dept_name or "",
+    }
+    variables["form"] = {
+        "formKey": form.key,
+        "formName": form.name,
+        "category": form.category or "",
+        "instanceNo": "",
+    }
+    return variables
+
+
 def _form_payload(form: OaForm, with_schema: bool = True) -> dict:
     return {
         "id": form.id,
@@ -470,7 +619,7 @@ def apply(db: Session, form_id: int, user: User, data: dict) -> OaInstance:
             "category": form.category,
             "data": data or {},
         },
-        variables=_exposed_variables(fields, data),
+        variables=_flow_variables(fields, data, form, user),
     )
     inst.flow_instance_id = flow.id
     db.flush()
@@ -575,6 +724,9 @@ def _dept_with_descendants(db: Session, dept_ids: set[int]) -> set[int]:
 def _scope_allows(db: Session, scope: dict, user: User) -> bool:
     """模板可见范围判定：部门 / 角色 / 账号任一维度命中即放行；全空 = 全员可见。"""
     if not scope:
+        return True
+    # 超管旁路：可见范围只约束普通用户，管理员始终可见（与权限体系口径一致）
+    if "super" in set(user.role_codes or []):
         return True
     depts = [str(x) for x in (scope.get("depts") or [])]
     roles = [str(x) for x in (scope.get("roles") or [])]

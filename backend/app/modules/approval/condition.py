@@ -57,6 +57,11 @@ def normalize_scalar(val: Any) -> Any:
     if isinstance(val, dict):
         if "amount" in val or "rmb_amount" in val or "currency" in val:
             return _money_scalar(val)
+        if "hours" in val:  # E1：假勤原子（时长小时数）
+            try:
+                return float(val["hours"])
+            except (TypeError, ValueError):
+                return val
         return val
     if isinstance(val, list):
         return [normalize_scalar(x) for x in val]

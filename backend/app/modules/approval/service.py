@@ -507,7 +507,11 @@ def _validate_nodes(body: DefinitionIn) -> None:
                 )
         if n.node_type == "condition":
             if not n.branches:
-                raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」至少配置一条分支")
+                # E1：流程终止节点（无分支、无默认跳转）仅允许作为**最后一个**节点——
+                # 引擎 route_from 走到它时没有后继，实例即结束（企业微信「流程结束」）。
+                if n.default_seq is not None or n.seq != max(seqs):
+                    raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」至少配置一条分支")
+                continue
             for b in n.branches:
                 if b.target_seq not in seq_set:
                     raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」分支目标序号不存在：{b.target_seq}")
