@@ -49,3 +49,10 @@ docs/风洞数字化解决方案V1.docx
 # B9 需求方合规基线原文（本地参考，内容已沉淀为 docs/compliance-baseline.md）
 第三方检测机构运营平台合规开发原则.docx
 第三方检测机构运营平台_人力资源管理模块功能说明.docx
+
+# E1 企业微信原始材料（含**真实人员数据**，不入库）
+# 入库的只有脱敏后的 backend/app/seeds/data/*.json（姓名→模拟员工NN、账号→mockNNN、
+# 手机/邮箱/企微 vid 解析阶段即丢弃）
+企业微信审批与组织数据技术文档.html
+_wecom_text.txt
+WW_verify_*.txt

@@ -2720,8 +2720,15 @@ def main() -> None:
         _seed_quote_templates(db)
         _seed_knowledge(db)
         _seed_authorizations(db)
+        # E1 企业微信移植：全模拟组织 / 人员 / 标签（幂等，重复跑不重复建）
+        from app.seeds import wecom_org  # noqa: PLC0415 避免种子与模块加载循环
+
+        wc_summary = wecom_org.import_org(db)
         db.commit()
-        print(f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}")
+        print(
+            f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}, "
+            f"wecom_org={wc_summary}"
+        )
     except Exception:
         db.rollback()
         raise

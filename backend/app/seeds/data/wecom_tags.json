@@ -1,0 +1,196 @@
+[
+  {
+    "name": "财务部长",
+    "wecom_tagid": "6755399793075628",
+    "member_count": 1,
+    "members": [
+      "模拟员工38"
+    ]
+  },
+  {
+    "name": "财务出纳",
+    "wecom_tagid": "6755400501079732",
+    "member_count": 1,
+    "members": [
+      "模拟员工36"
+    ]
+  },
+  {
+    "name": "董事长",
+    "wecom_tagid": "6755400457074073",
+    "member_count": 1,
+    "members": [
+      "模拟员工01"
+    ]
+  },
+  {
+    "name": "分管领导-财务",
+    "wecom_tagid": "6755400457074069",
+    "member_count": 1,
+    "members": [
+      "模拟员工35"
+    ]
+  },
+  {
+    "name": "分管领导-工程项目",
+    "wecom_tagid": "6755401605074919",
+    "member_count": 1,
+    "members": [
+      "模拟员工13"
+    ]
+  },
+  {
+    "name": "分管领导-技术",
+    "wecom_tagid": "6755401927078052",
+    "member_count": 1,
+    "members": [
+      "模拟员工24"
+    ]
+  },
+  {
+    "name": "分管领导-项目建设",
+    "wecom_tagid": "6755401846075659",
+    "member_count": 1,
+    "members": [
+      "模拟员工13"
+    ]
+  },
+  {
+    "name": "分管领导-业务运营部",
+    "wecom_tagid": "6755400457074071",
+    "member_count": 1,
+    "members": [
+      "模拟员工06"
+    ]
+  },
+  {
+    "name": "分管领导-综合管理部",
+    "wecom_tagid": "6755400457074070",
+    "member_count": 1,
+    "members": [
+      "模拟员工32"
+    ]
+  },
+  {
+    "name": "副总指挥-项目建设部",
+    "wecom_tagid": "6755401099076392",
+    "member_count": 1,
+    "members": [
+      "模拟员工13"
+    ]
+  },
+  {
+    "name": "人事专员",
+    "wecom_tagid": "6755402763071949",
+    "member_count": 1,
+    "members": [
+      "模拟员工34"
+    ]
+  },
+  {
+    "name": "主办会计",
+    "wecom_tagid": "6755402604074189",
+    "member_count": 1,
+    "members": [
+      "模拟员工37"
+    ]
+  },
+  {
+    "name": "总经办会议参会人（总经理外）",
+    "wecom_tagid": "6755400307081758",
+    "member_count": 7,
+    "members": [
+      "模拟员工03",
+      "模拟员工06",
+      "模拟员工13",
+      "模拟员工24",
+      "模拟员工32",
+      "模拟员工35",
+      "模拟员工38"
+    ]
+  },
+  {
+    "name": "总经理",
+    "wecom_tagid": "6755400457074072",
+    "member_count": 1,
+    "members": [
+      "模拟员工04"
+    ]
+  },
+  {
+    "name": "总指挥-项目建设",
+    "wecom_tagid": "6755401927078053",
+    "member_count": 1,
+    "members": [
+      "模拟员工40"
+    ]
+  },
+  {
+    "name": "组员-财务部",
+    "wecom_tagid": "6755401899076754",
+    "member_count": 1,
+    "members": [
+      "模拟员工36"
+    ]
+  },
+  {
+    "name": "组员-业务运营",
+    "wecom_tagid": "6755401846076104",
+    "member_count": 1,
+    "members": [
+      "模拟员工09"
+    ]
+  },
+  {
+    "name": "组长-ALL",
+    "wecom_tagid": "6755401927078051",
+    "member_count": 5,
+    "members": [
+      "模拟员工06",
+      "模拟员工15",
+      "模拟员工16",
+      "模拟员工19",
+      "模拟员工24"
+    ]
+  },
+  {
+    "name": "组长-采购商务",
+    "wecom_tagid": "6755401927078048",
+    "member_count": 1,
+    "members": [
+      "模拟员工06"
+    ]
+  },
+  {
+    "name": "组长-工程",
+    "wecom_tagid": "6755401927078049",
+    "member_count": 1,
+    "members": [
+      "模拟员工16"
+    ]
+  },
+  {
+    "name": "组长-工艺设备",
+    "wecom_tagid": "6755401846076105",
+    "member_count": 1,
+    "members": [
+      "模拟员工19"
+    ]
+  },
+  {
+    "name": "组长-规划",
+    "wecom_tagid": "6755401927078046",
+    "member_count": 1,
+    "members": [
+      "模拟员工15"
+    ]
+  },
+  {
+    "name": "组长-技术总负责人",
+    "wecom_tagid": "6755401927078047",
+    "member_count": 1,
+    "members": [
+      "模拟员工24"
+    ]
+  }
+]

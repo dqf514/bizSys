@@ -1,0 +1,112 @@
+[
+  {
+    "name": "合肥汽车检测认证技术中心",
+    "path": "合肥汽车检测认证技术中心",
+    "wecom_id": "1688857813738451",
+    "parent_name": "—",
+    "level": 1,
+    "direct_count": 5,
+    "recursive_count": 69,
+    "leader": ""
+  },
+  {
+    "name": "其他（待设置部门）",
+    "path": "其他（待设置部门） / 合肥汽车检测认证技术中心 / 其他（待设置部门）",
+    "wecom_id": "1688856752838427",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 0,
+    "recursive_count": 0,
+    "leader": ""
+  },
+  {
+    "name": "业务运营部",
+    "path": "业务运营部 / 合肥汽车检测认证技术中心 / 业务运营部",
+    "wecom_id": "1688857573821925",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 7,
+    "recursive_count": 7,
+    "leader": "模拟员工06"
+  },
+  {
+    "name": "项目建设部",
+    "path": "项目建设部 / 合肥汽车检测认证技术中心 / 项目建设部",
+    "wecom_id": "1688857573822383",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 11,
+    "recursive_count": 21,
+    "leader": "模拟员工13"
+  },
+  {
+    "name": "土建",
+    "path": "土建 / 合肥汽车检测认证技术中心 / 项目建设部 / 土建",
+    "wecom_id": "1688854989853908",
+    "parent_name": "项目建设部",
+    "level": 3,
+    "direct_count": 3,
+    "recursive_count": 3,
+    "leader": "模拟员工16"
+  },
+  {
+    "name": "设备",
+    "path": "设备 / 合肥汽车检测认证技术中心 / 项目建设部 / 设备",
+    "wecom_id": "1688854989854506",
+    "parent_name": "项目建设部",
+    "level": 3,
+    "direct_count": 7,
+    "recursive_count": 7,
+    "leader": "模拟员工15"
+  },
+  {
+    "name": "研发技术部",
+    "path": "研发技术部 / 合肥汽车检测认证技术中心 / 研发技术部",
+    "wecom_id": "1688857573822486",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 8,
+    "recursive_count": 8,
+    "leader": "模拟员工24"
+  },
+  {
+    "name": "综合管理部",
+    "path": "综合管理部 / 合肥汽车检测认证技术中心 / 综合管理部",
+    "wecom_id": "1688857573822540",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 5,
+    "recursive_count": 5,
+    "leader": "模拟员工32"
+  },
+  {
+    "name": "财务部",
+    "path": "财务部 / 合肥汽车检测认证技术中心 / 财务部",
+    "wecom_id": "1688857573822596",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 5,
+    "recursive_count": 5,
+    "leader": "模拟员工35"
+  },
+  {
+    "name": "信息化",
+    "path": "信息化 / 合肥汽车检测认证技术中心 / 信息化",
+    "wecom_id": "1688855931863104",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 0,
+    "recursive_count": 0,
+    "leader": ""
+  },
+  {
+    "name": "建设指挥部",
+    "path": "建设指挥部 / 合肥汽车检测认证技术中心 / 建设指挥部",
+    "wecom_id": "1688858396885406",
+    "parent_name": "合肥汽车检测认证技术中心",
+    "level": 2,
+    "direct_count": 18,
+    "recursive_count": 18,
+    "leader": "模拟员工40"
+  }
+]
