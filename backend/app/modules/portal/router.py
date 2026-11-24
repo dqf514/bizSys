@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core import response as R
+from app.core.client_ip import client_ip
 from app.core.db import get_db
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
@@ -47,13 +48,13 @@ router = APIRouter(prefix="/portal", tags=["portal"], route_class=EnvelopeRoute)
 
 @router.post("/auth/register", status_code=201)
 def register(body: PortalRegisterIn, request: Request, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return svc.register(db, body, ip)
 
 
 @router.post("/auth/login")
 def login(body: PortalLoginIn, request: Request, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     ua = request.headers.get("user-agent", "")
     return svc.login(db, body.username, body.password, ip, ua)
 
@@ -61,7 +62,7 @@ def login(body: PortalLoginIn, request: Request, db: Session = Depends(get_db)):
 @router.post("/auth/refresh")
 def refresh(body: PortalRefreshIn, request: Request, db: Session = Depends(get_db)):
     """刷新门户 access token（refresh token 一次性轮换）。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return svc.refresh(db, body.refresh_token, ip)
 
 
@@ -165,7 +166,7 @@ def register_tender(
     partner: PartnerUser = Depends(get_current_partner),
     db: Session = Depends(get_db),
 ):
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return svc.register_tender(db, tender_id, partner, contact_name, contact_phone, file, ip)
 
 
@@ -184,7 +185,7 @@ def submit_bid(
     partner: PartnerUser = Depends(get_current_partner),
     db: Session = Depends(get_db),
 ):
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return svc.submit_bid(db, tender_id, partner, price, comment, file, ip)
 
 

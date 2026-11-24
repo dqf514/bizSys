@@ -214,6 +214,13 @@ current: User = Depends(get_current_user)              # 仅登录
 - **版本号四处必须一致**：`CHANGELOG.md` 顶部版本 == `Settings.app_version` == `frontend/package.json` == `backend/pyproject.toml`（**含 `backend/uv.lock` 的 `bizsys-backend` 版本**，否则 `uv sync --frozen` 失败），版本号严格递减 —— 由 `tests/test_changelog.py` 在 CI 断言。
 - **每次功能性变动都要在 `CHANGELOG.md` 顶部追加条目**（与代码同一次提交），分类按 Keep a Changelog 六类选。
 
+### 客户端 IP（反向代理链）
+
+- 应用跑在**容器 nginx 之后**（nginx 前面还有一层对外网关 `portal.hmvic.cn`），`request.client.host` 只是 **TCP 对端地址**（nginx / 网关容器的内网 IP）。审计日志、登录日志、NDA 签名绑定要的是**真实客户端 IP** —— 一律走 `app/core/client_ip.py::client_ip(request)`，**不要直接写 `request.client.host`**（全仓 13 处已替换）。
+- 取值逻辑：**跳数模式**（默认）从 `X-Forwarded-For` 右侧往左数 `TRUSTED_PROXY_HOPS` 跳（默认 `2` = 网关 + 容器 nginx；链比跳数短时取最左一条，局域网直连场景结论不变）；配了 `TRUSTED_PROXY_CIDRS` 则改按**网段**判定（从右往左跳过受信任代理网段，优先于跳数）；回落链 = `X-Real-IP` → TCP 对端。`TRUST_PROXY_HEADERS=false` 或 `TRUSTED_PROXY_HOPS=0` = **不采信任何代理头**。
+- nginx 侧**已配好** `X-Real-IP` / `X-Forwarded-For`（追加语义 `$proxy_add_x_forwarded_for`）—— **不用改 nginx**；但**网关侧必须用追加语义**（`$proxy_add_x_forwarded_for`，不要 `$http_x_forwarded_for` 原样透传），否则链首可被客户端伪造。
+- 三个环境变量由 `deploy/docker-compose.yml` 透传给后端容器（`deploy/.env` 可覆盖），改完 `docker compose up -d backend` 生效；口径详见 `deploy/DEPLOY.md` 与 `docs/api-contract.md`。
+
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
@@ -242,6 +249,7 @@ current: User = Depends(get_current_user)              # 仅登录
 - **`sys_dept` 是全站唯一的部门表**（B10-1）：扩了 6 列（`dept_type`/`site_code`/`address`/`manager_id`/`effective_from`/`effective_to`），**写入口只有 `POST/PUT /admin/depts`** —— HR 域只提供**岗位**（`hr_position`）与**变更轨迹**（`hr_org_change`），**不要新建部门表或第二个写入口**。`dept.manager_id` 是权威写入方，必须与 `sys_user_dept.is_leader` 双向同步（`admin/org.py::apply_dept_manager` / `sync_dept_manager_from_members`）—— 审批引擎的 `DEPT_LEADER` 解析读的是任职表。
 - **`hr_employee.id_no` 是加密字段**（B10-1）：落库必须是 `enc:` 密文（域 `hr-employee-idno`），出参**一律掩码**；**明文唯一出口**是 `GET /hr/employees/{eid}/id-no`（权限 `hr:staff:idno`），**每次访问必须写审计**。证件号唯一性只能解密后逐条比对，别写 SQL 比对密文。
 - **审批通过 ≠ 生效**（B10-1）：`hr_employment` 状态机 `draft→approving→approved→effective`；副作用**统一**由 `POST /hr/employments/{id}/effect` → `hr/employment.py::effect_employment()` 触发。**不要手工改 `sys_user.status` 来"离职"** —— 那会跳过撤 MFA、撤 B9 授权、代理失效、清岗位 A/B 角四件事，留下"账号已停但授权仍在"的合规缺口；也**不要直接改 `hr_employee.employ_status`**（在职状态是清权的触发源）。
+- **不要拿 `request.client.host` 当客户端 IP**（B10-2）：那是 TCP 对端（nginx / 网关容器 IP），审计里会显示成内网地址。用 `app/core/client_ip.py::client_ip(request)`（见上文「客户端 IP」）—— 新增 router / 记 IP 的地方一律走它。
 - **`hr_employment` 的 `pass_through=False`**（B10-1）：人事事务不允许人工直通，未配流程定义时提交直接报错 —— 与 `hr_authorization` 同理，是刻意的。
 - **`hr_employment` / `hr_delegate` 的 `scope` 校验很严**：`scope="position"` 必须同时给 `positionId`（否则 63018），`scope="auth"` 必须给 `authId`。
 - **B10-1 新表都在 `hr` 域，而 `alembic/env.py` 没 import hr models** —— 新增 hr 表的迁移**必须手写**（`na2b3c4d5e6_hr_l1_org_employee.py` / `nb2b3c4d5e6_hr_employment_account.py`），autogenerate 会删表。

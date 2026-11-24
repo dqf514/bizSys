@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.common.audit import record as audit
 from app.core import response as R
+from app.core.client_ip import client_ip
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.exceptions import BizException
@@ -73,7 +74,7 @@ def callback(body: WecomCallbackIn, request: Request, db: Session = Depends(get_
     userid = _adapter().sso_userid(corp_id, secret, body.code)
 
     user = db.query(User).filter(User.wecom_userid == userid, User.deleted == 0).first()
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     ua = request.headers.get("user-agent", "")
     if not user:
         auth_svc._login_log(db, userid, 0, reason="企微账号未绑定", ip=ip, ua=ua)

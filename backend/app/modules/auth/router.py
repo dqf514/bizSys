@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import client_ip
 from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.route import EnvelopeRoute
@@ -33,7 +34,7 @@ def captcha():
 
 @router.post("/login")
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     ua = request.headers.get("user-agent", "")
     return service.login(db, body.username, body.password, body.captcha_id, body.captcha_text, ip, ua)
 
@@ -41,14 +42,14 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
 @router.post("/mfa/send")
 def mfa_send(body: MfaSendIn, request: Request, db: Session = Depends(get_db)):
     """MFA 第二步：发送验证码（短信/邮件），60 秒冷却。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return service.mfa_send(db, body.mfa_token, body.channel, ip)
 
 
 @router.post("/mfa/verify")
 def mfa_verify(body: MfaVerifyIn, request: Request, db: Session = Depends(get_db)):
     """MFA 第二步：校验验证码，通过即发正式 token。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     ua = request.headers.get("user-agent", "")
     return service.mfa_verify(db, body.mfa_token, body.code, ip, ua)
 
@@ -61,7 +62,7 @@ def mfa_toggle(
     db: Session = Depends(get_db),
 ):
     """开关本人二步验证：需 X-Step-Up-Token 二次验证。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return service.mfa_toggle(db, user, body.enabled, request.headers.get("x-step-up-token", ""), ip)
 
 
@@ -124,7 +125,7 @@ def step_up(
     db: Session = Depends(get_db),
 ):
     """二次身份验证：密码重验 → 5 分钟 step-up token（method 预留 sms/email）。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return service.step_up(db, user, body.password, body.method, ip)
 
 

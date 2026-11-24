@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import client_ip
 from app.core.db import get_db
 from app.core.route import EnvelopeRoute
 from app.modules.portal import visit_service as vsvc
@@ -79,7 +80,7 @@ def create_visit(
     db: Session = Depends(get_db),
 ):
     """提交来访申请 → 内部审批 → 审批通过后下发通行凭证。"""
-    ip = request.client.host if request.client else ""
+    ip = client_ip(request)
     return vsvc.create_visit(db, partner, body, ip)
 
 

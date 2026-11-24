@@ -8,6 +8,19 @@
 
 ---
 
+## [0.7.1] - 2026-11-24
+
+### Fixed
+
+- 审计日志 / 登录日志 / NDA 签名绑定的客户端 IP 改为**真实访问者 IP**：此前记录的是 TCP 对端地址（容器 nginx、网关容器的内网 IP），现由 `app/core/client_ip.py::client_ip()` 从 `X-Forwarded-For` 按受信任代理跳数还原；全仓 13 处 `request.client.host` 已替换。
+- `FastAPI(version=...)` 改为取 `Settings.app_version`（此前硬编码 `0.1.0`，健康检查与 OpenAPI 报的是旧版本号）。
+
+### Changed
+
+- 新增反向代理链配置：`TRUSTED_PROXY_HOPS`（默认 `2` = 上层网关 + 容器 nginx）/ `TRUST_PROXY_HEADERS` / `TRUSTED_PROXY_CIDRS`（可选，按网段判定代理），由 `deploy/docker-compose.yml` 透传给后端容器；口径见 `deploy/DEPLOY.md`。
+
+---
+
 ## [0.7.0] - 2026-11-23
 
 ### Added

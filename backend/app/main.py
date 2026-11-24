@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core import reqctx
 from app.core import response as R
+from app.core.client_ip import client_ip
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 
@@ -30,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="bizSys API",
-    version="0.1.0",
+    version=settings.app_version,
     docs_url="/docs" if settings.is_dev else None,
     openapi_url="/openapi.json" if settings.is_dev else None,
     lifespan=lifespan,
@@ -53,7 +54,7 @@ async def trace_middleware(request: Request, call_next):
     ctx_token = reqctx.set_context(
         reqctx.RequestContext(
             trace_id=trace_id,
-            ip=request.client.host if request.client else "",
+            ip=client_ip(request),
             user_agent=(request.headers.get("user-agent") or "")[:255],
         )
     )

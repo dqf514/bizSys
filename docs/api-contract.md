@@ -1197,6 +1197,15 @@
   - `strict=True`（或全局开关 `audit.strict.enabled`）时抛 **30005**，由调用方 `db.commit()` 回滚整个事务。
   - `trace_id` / `ip` / `user_agent` 缺省从 `app/core/reqctx.py` 的请求上下文取（`server_now` 每请求缓存一次）。
 
+**客户端 IP 口径（`app/core/client_ip.py`）**
+
+- 审计里的 `ip` / `sys_login_log.ip` / NDA 签名绑定的 IP 一律是**真实客户端 IP**，由 `client_ip(request)` 从 `X-Forwarded-For` 还原：
+  - **跳数模式**（默认）：从链右侧往左数 `TRUSTED_PROXY_HOPS` 跳（默认 `2` = 上层网关 + 容器 nginx）；链短于跳数时取最左一条。
+  - **网段模式**：配了 `TRUSTED_PROXY_CIDRS` 时以网段判定（优先于跳数），从右往左跳过受信任代理网段。
+  - 回落链：无 `X-Forwarded-For` → `X-Real-IP` → TCP 对端地址。`TRUST_PROXY_HEADERS=false` 或 `TRUSTED_PROXY_HOPS=0` 时**不采信任何代理头**。
+- **不要直接用 `request.client.host`** —— 应用在容器 nginx 之后，那只是 nginx / 网关容器的内网 IP。
+- nginx 侧已透传 `X-Real-IP` / `X-Forwarded-For`（追加语义）；**网关侧也必须用追加语义**（nginx：`$proxy_add_x_forwarded_for`），原样透传客户端自带头会让链首可伪造。
+
 **端点**（`app/modules/admin/router.py`，权限 `admin:audit:list`）
 
 | 方法 | 路径 | 说明 |
@@ -1224,7 +1233,7 @@
 
 - 签名绑定内容：`biz_type + nda_no + 姓名/单位/证件号/标题 + 签署时间 + 签署人 id/姓名 + 真实 IP + 手写图 sha256`。
   **用单号而不是自增 id** —— id 在 insert 前未知会造成循环依赖。
-- 真实 IP 从 `reqctx.current().ip` 取（原先 `ip=""` 硬编码为空）。
+- 真实 IP 从 `reqctx.current().ip` 取（原先 `ip=""` 硬编码为空）；该值已是**还原后的真实客户端 IP**（见上文「客户端 IP 口径」）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

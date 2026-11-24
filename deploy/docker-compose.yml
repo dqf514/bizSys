@@ -53,6 +53,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
       ENV: prod
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      # 反向代理链（真实客户端 IP）：上层网关 + 容器 nginx 共 2 跳
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-2}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
     ports:
       - "${API_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
     volumes:
