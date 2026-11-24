@@ -9,7 +9,7 @@ const emit = defineEmits<{ (e: 'add', type: FlowNodeType): void }>()
 
 const { t } = useI18n()
 
-const MENU: FlowNodeType[] = ['approval', 'condition', 'cc']
+const MENU: FlowNodeType[] = ['approval', 'condition', 'cc', 'executor']
 
 function pick(type: FlowNodeType, close: () => void) {
   emit('add', type)
@@ -135,6 +135,10 @@ function pick(type: FlowNodeType, close: () => void) {
 
 .add-cc .add-icon {
   background: var(--bs-color-semantic-success);
+}
+
+.add-executor .add-icon {
+  background: var(--bs-color-accent-purple);
 }
 
 .add-label {

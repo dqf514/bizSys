@@ -257,8 +257,11 @@ export interface Dept {
   createTime?: string
 }
 
-export type FlowNodeType = 'approval' | 'condition' | 'cc'
+export type FlowNodeType = 'approval' | 'condition' | 'cc' | 'executor'
 export type FlowSignMode = 'or' | 'and' | 'sequential'
+/** 节点字段权限：editable 可编辑 / viewonly 仅可见 / hidden 不可见 */
+export type FlowFieldPermission = 'editable' | 'viewonly' | 'hidden'
+export type FlowFieldPermissions = Record<string, FlowFieldPermission>
 /** 审批人类型：固定人/角色 + 组织任职（DEPT_LEADER 本部门负责人 / PARENT_DEPT_LEADER 上级部门负责人 / SUPERVISOR_CHAIN 逐级上级） */
 export type FlowApproverType =
   | 'USER'
@@ -287,6 +290,32 @@ export interface FlowNode {
   chainLevels?: number | null
   branches?: FlowBranch[] | null
   defaultSeq?: number | null
+  /** 该节点对表单字段的权限（仅审批/办理节点有意义） */
+  fieldPermissions?: FlowFieldPermissions | null
+}
+
+/** 流程通用选项（对应企业微信的流程设置项）；未配置 = 保持系统默认行为 */
+export interface FlowDefinitionOptions {
+  /** 审批意见必填 */
+  commentRequired?: boolean
+  /** 审批意见需签名 */
+  commentSignRequired?: boolean
+  /** 允许加签 */
+  allowAddSign?: boolean
+  /** 通过后申请人可撤销 */
+  allowWithdrawAfterApproved?: boolean
+  /** 审批人可修改流程 */
+  allowModifyFlow?: boolean
+  /** 审批人可修改抄送 */
+  allowModifyCc?: boolean
+  /** 办理意见必填 */
+  executorCommentRequired?: boolean
+  /** 办理人可修改表单 */
+  executorCanModify?: boolean
+  /** 允许他人代提交 */
+  allowProxySubmit?: boolean
+  /** 明细表权限控制 */
+  detailTablePermission?: boolean
 }
 
 /** LogicFlow getGraphData 兼容结构（后端 process_graph 原样存储） */
@@ -325,6 +354,8 @@ export interface FlowDef {
   enabled: boolean | number
   remark?: string
   variablesSchema?: Record<string, unknown> | null
+  /** 流程通用选项（意见必填 / 允许加签 / 通过后可撤销 …） */
+  options?: FlowDefinitionOptions | null
   processGraph?: FlowGraphData | null
   nodes: FlowNode[]
 }

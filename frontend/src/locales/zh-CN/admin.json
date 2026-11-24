@@ -235,12 +235,14 @@
     "nodeType": {
       "approval": "审批节点",
       "condition": "条件分支",
-      "cc": "抄送节点"
+      "cc": "抄送节点",
+      "executor": "办理节点"
     },
     "defaultName": {
       "approval": "审批",
       "condition": "条件分支",
-      "cc": "抄送"
+      "cc": "抄送",
+      "executor": "办理"
     },
     "signMode": {
       "label": "签署模式",
@@ -317,7 +319,31 @@
     "approverFormDeptLeader": "表单字段-部门负责人",
     "formVariable": "变量名",
     "formVariablePlaceholder": "选择或输入流程变量名",
-    "formVariableTip": "审批人从单据提交的变量中解析：表单字段-用户=用户ID，表单字段-角色=角色code，表单字段-部门负责人=部门ID"
+    "formVariableTip": "审批人从单据提交的变量中解析：表单字段-用户=用户ID，表单字段-角色=角色code，表单字段-部门负责人=部门ID",
+    "selectExecutor": "选择办理人",
+    "options": "流程通用选项",
+    "optionsTip": "未勾选的选项保持系统默认行为（意见可空、允许加签、通过后不可撤销）",
+    "option": {
+      "commentRequired": "审批意见必填",
+      "commentSignRequired": "审批意见需签名",
+      "allowAddSign": "允许加签",
+      "allowWithdrawAfterApproved": "通过后申请人可撤销",
+      "allowModifyFlow": "审批人可修改流程",
+      "allowModifyCc": "审批人可修改抄送",
+      "executorCommentRequired": "办理意见必填",
+      "executorCanModify": "办理人可修改表单",
+      "allowProxySubmit": "允许他人代提交",
+      "detailTablePermission": "明细表权限控制"
+    },
+    "fieldPermissions": "字段权限",
+    "perm": {
+      "editable": "可编辑",
+      "viewonly": "仅可见",
+      "hidden": "不可见"
+    },
+    "permFieldKey": "字段标识（如 amount）",
+    "permTip": "配置该节点对单据字段的可见与可编辑范围；未列出的字段按默认可编辑处理",
+    "addPerm": "添加字段"
   },
   "common": {
     "enabled": "启用",

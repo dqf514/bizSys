@@ -13,7 +13,14 @@ import { listFlowDefs, createFlowDef, updateFlowDef, deleteFlowDef, listRoles, l
 import { listOaForms } from '@/api/oa'
 import { aiSuggestFlow, previewFlow, type FlowSuggestResult } from '@/api/approval'
 import { useAiCapabilities } from '@/composables/useAiCapabilities'
-import type { FlowApproverType, FlowDef, FlowGraphData, FlowNode, FlowNodeType } from '@/api/types'
+import type {
+  FlowApproverType,
+  FlowDef,
+  FlowDefinitionOptions,
+  FlowGraphData,
+  FlowNode,
+  FlowNodeType,
+} from '@/api/types'
 
 defineOptions({ name: 'FlowDefList' })
 
@@ -87,7 +94,23 @@ const form = reactive({
   processGraph: null as FlowGraphData | null,
   /** 流程变量声明（FORM_* 审批人类型的变量名必须在其中声明） */
   variables: [] as { key: string; label: string }[],
+  /** 流程通用选项（未勾选 = 保持系统默认行为） */
+  options: {} as FlowDefinitionOptions,
 })
+
+/** 流程通用选项开关清单（对应后端 ApprovalDefinition.options 的 10 个键） */
+const OPTION_KEYS: (keyof FlowDefinitionOptions)[] = [
+  'commentRequired',
+  'commentSignRequired',
+  'allowAddSign',
+  'allowWithdrawAfterApproved',
+  'allowModifyFlow',
+  'allowModifyCc',
+  'executorCommentRequired',
+  'executorCanModify',
+  'allowProxySubmit',
+  'detailTablePermission',
+]
 
 const variableKeys = computed(() => form.variables.map((v) => v.key.trim()).filter(Boolean))
 
@@ -162,6 +185,7 @@ function openCreate() {
     nodes: [blankNode(1)],
     processGraph: null,
     variables: [],
+    options: {},
   })
   mode.value = 'simple'
   dialogVisible.value = true
@@ -185,6 +209,7 @@ function openEdit(row: FlowDef) {
           ? String((v as { label?: unknown }).label ?? key)
           : String(v ?? key),
     })),
+    options: { ...(row.options ?? {}) },
   })
   if (!form.nodes.length) form.nodes.push(blankNode(1))
   // 含条件/抄送节点的定义只能竖链模式编辑（简易表格无法表达分支）
@@ -291,6 +316,7 @@ async function save() {
       name: form.name,
       bizType: form.bizType,
       enabled: form.enabled,
+      options: form.options,
       nodes: form.nodes.map((n, i) => ({
         seq: i + 1,
         nodeName: n.nodeName,
@@ -302,6 +328,8 @@ async function save() {
         chainLevels: n.approverType === 'SUPERVISOR_CHAIN' ? (n.chainLevels ?? 0) : null,
         branches: n.nodeType === 'condition' ? (n.branches ?? []) : null,
         defaultSeq: n.nodeType === 'condition' ? n.defaultSeq : null,
+        fieldPermissions:
+          n.fieldPermissions && Object.keys(n.fieldPermissions).length ? { ...n.fieldPermissions } : null,
       })),
     }
     // 竖链模式：由节点行自动生成 LogicFlow 兼容图（自动纵向布局）随节点行一并提交
@@ -474,7 +502,15 @@ function onDefAction(key: string, row: FlowDef) {
               :key="n.seq"
               size="small"
               class="node-tag"
-              :type="n.nodeType === 'condition' ? 'warning' : n.nodeType === 'cc' ? 'info' : 'primary'"
+              :type="
+                n.nodeType === 'condition'
+                  ? 'warning'
+                  : n.nodeType === 'cc'
+                    ? 'info'
+                    : n.nodeType === 'executor'
+                      ? 'success'
+                      : 'primary'
+              "
             >
               {{ n.seq }}. {{ n.nodeName }}
               <template v-if="(n.nodeType ?? 'approval') === 'approval'">
@@ -621,6 +657,19 @@ function onDefAction(key: string, row: FlowDef) {
           <div class="field-tip">{{ t('admin.flow.variablesTip') }}</div>
         </div>
       </el-form-item>
+
+      <el-form-item :label="t('admin.flow.options')">
+        <div class="option-list">
+          <div v-for="key in OPTION_KEYS" :key="key" class="option-row">
+            <span class="option-label">{{ t(`admin.flow.option.${key}`) }}</span>
+            <el-switch
+              :model-value="Boolean(form.options[key])"
+              @update:model-value="form.options[key] = Boolean($event)"
+            />
+          </div>
+          <div class="field-tip">{{ t('admin.flow.optionsTip') }}</div>
+        </div>
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">{{ t('common.action.cancel') }}</el-button>
@@ -707,6 +756,26 @@ function onDefAction(key: string, row: FlowDef) {
 .field-tip {
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
+}
+
+.option-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-1);
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bs-space-2);
+  padding: 2px 0;
+}
+
+.option-label {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-default);
 }
 
 .node-chain {

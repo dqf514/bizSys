@@ -32,6 +32,9 @@ _TASK_STATUS_CN = {
     "cancelled": "已作废",
 }
 
+# 节点字段权限取值（E1：企业微信「仅可见/可编辑」）
+FIELD_PERMISSION_VALUES = ("editable", "viewonly", "hidden")
+
 
 def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
     return {
@@ -415,6 +418,7 @@ def _nodes_payload(definition: ApprovalDefinition) -> list[dict]:
             "chainLevels": n.chain_levels,
             "branches": parse_json(n.branches, None),
             "defaultSeq": n.default_seq,
+            "fieldPermissions": parse_json(n.field_permissions, None),
         }
         for n in definition.nodes
         if n.deleted == 0
@@ -433,6 +437,7 @@ def _definition_payload(d: ApprovalDefinition, latest_versions: dict[str, int] |
         "enabled": d.enabled,
         "remark": d.remark,
         "variablesSchema": parse_json(d.variables_schema, None),
+        "options": parse_json(d.options, None),
         "processGraph": parse_json(d.process_graph, None),
         "nodes": _nodes_payload(d),
     }
@@ -489,7 +494,7 @@ def _validate_nodes(body: DefinitionIn) -> None:
     for n in body.nodes:
         label = n.node_name or n.seq
         if (
-            n.node_type in ("approval", "cc")
+            n.node_type in ("approval", "cc", "executor")
             and n.approver_type not in ORG_APPROVER_TYPES
             and not n.approver_value.strip()
         ):
@@ -508,6 +513,12 @@ def _validate_nodes(body: DefinitionIn) -> None:
                     raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」分支目标序号不存在：{b.target_seq}")
             if n.default_seq is not None and n.default_seq not in seq_set:
                 raise BizException(R.GENERIC_PARAM, f"条件节点「{label}」默认跳转序号不存在：{n.default_seq}")
+        for fkey, perm in (n.field_permissions or {}).items():
+            if perm not in FIELD_PERMISSION_VALUES:
+                raise BizException(
+                    R.GENERIC_PARAM,
+                    f"节点「{label}」字段权限取值非法：{fkey}={perm}（可选 editable/viewonly/hidden）",
+                )
 
 
 def _persist_nodes(db: Session, definition: ApprovalDefinition, body: DefinitionIn) -> None:
@@ -531,6 +542,9 @@ def _persist_nodes(db: Session, definition: ApprovalDefinition, body: Definition
                     else None
                 ),
                 default_seq=n.default_seq,
+                field_permissions=(
+                    json.dumps(n.field_permissions, ensure_ascii=False) if n.field_permissions else None
+                ),
             )
         )
     db.flush()
@@ -559,6 +573,7 @@ def create_definition(db: Session, body: DefinitionIn) -> dict:
         variables_schema=(
             json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
         ),
+        options=json.dumps(body.options, ensure_ascii=False) if body.options else None,
     )
     db.add(d)
     db.flush()
@@ -612,6 +627,7 @@ def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
             variables_schema=(
                 json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
             ),
+            options=json.dumps(body.options, ensure_ascii=False) if body.options else None,
         )
         db.add(nd)
         db.flush()
@@ -626,6 +642,7 @@ def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
     d.enabled = body.enabled
     d.remark = body.remark
     d.variables_schema = json.dumps(body.variables_schema, ensure_ascii=False) if body.variables_schema else None
+    d.options = json.dumps(body.options, ensure_ascii=False) if body.options else None
     # 整组替换节点
     for n in list(d.nodes):
         db.delete(n)

@@ -35,7 +35,7 @@ class BranchIn(CamelModel):
 class NodeIn(CamelModel):
     seq: int = Field(1, ge=1)
     node_name: str = Field("", max_length=64)
-    node_type: str = Field("approval", pattern="^(approval|condition|cc)$")
+    node_type: str = Field("approval", pattern="^(approval|condition|cc|executor)$")
     sign_mode: str = Field("or", pattern="^(or|and|sequential)$")
     approver_type: str = Field(
         "USER",
@@ -48,6 +48,9 @@ class NodeIn(CamelModel):
     chain_levels: int | None = Field(None, ge=0, le=20, description="SUPERVISOR_CHAIN 级数（空/0=到根）")
     branches: list[BranchIn] | None = None
     default_seq: int | None = Field(None, ge=1)
+    field_permissions: dict[str, str] | None = Field(
+        None, description="该节点对表单字段的权限：{字段key: editable|viewonly|hidden}"
+    )
 
 
 class DefinitionIn(CamelModel):
@@ -57,6 +60,16 @@ class DefinitionIn(CamelModel):
     enabled: int = 1
     remark: str = Field("", max_length=255)
     variables_schema: dict[str, Any] | None = None
+    options: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "流程通用选项：commentRequired 意见必填 / commentSignRequired 意见需签名 / "
+            "allowAddSign 允许加签 / allowWithdrawAfterApproved 通过后可撤销 / "
+            "allowModifyFlow 审批人可改流程 / allowModifyCc 审批人可改抄送 / "
+            "executorCommentRequired 办理意见必填 / executorCanModify 办理人可修改 / "
+            "allowProxySubmit 允许代提交 / detailTablePermission 明细表权限控制"
+        ),
+    )
     process_graph: dict[str, Any] | None = Field(
         None, description="LogicFlow 图（设计器提交时原样存储，保留布局；缺省由节点行自动生成）"
     )

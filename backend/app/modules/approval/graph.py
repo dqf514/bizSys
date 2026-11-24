@@ -13,7 +13,7 @@ import json
 from app.modules.approval.condition import eval_condition
 from app.modules.approval.models import ApprovalNode
 
-_NODE_TYPE_LABELS = {"approval": "审批", "condition": "条件分支", "cc": "抄送"}
+_NODE_TYPE_LABELS = {"approval": "审批", "condition": "条件分支", "cc": "抄送", "executor": "办理"}
 
 
 def parse_json(raw: str | None, default):

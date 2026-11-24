@@ -1,4 +1,4 @@
-/** LogicFlow 自定义节点注册：start/approval/condition/cc/end，颜色取自 bizSys 设计令牌。
+/** LogicFlow 自定义节点注册：start/approval/condition/cc/executor/end，颜色取自 bizSys 设计令牌。
  *
  * SVG presentation attribute 不支持 var()，LogicFlow 主题/style 对象最终落在 attribute 上，
  * 因此取色统一走 chartTheme.resolveToken（getComputedStyle 解析令牌；暗色主题切换后重绘即生效）。
@@ -19,6 +19,11 @@ function typeStyle(nodeType: string): { fill: string; stroke: string } {
       return {
         fill: resolveToken('--bs-color-fill-light', '#f5f6f8'),
         stroke: resolveToken('--bs-color-accent-cyan', '#0891b2'),
+      }
+    case 'executor':
+      return {
+        fill: resolveToken('--bs-color-fill-light', '#f5f6f8'),
+        stroke: resolveToken('--bs-color-accent-purple', '#7c3aed'),
       }
     default:
       return {
@@ -140,6 +145,7 @@ export function registerFlowNodes(lf: { register: (arg: { type: string; view: ne
   lf.register({ type: 'approval', view: FlowRectView as never, model: FlowRectModel as never })
   lf.register({ type: 'condition', view: FlowRectView as never, model: FlowRectModel as never })
   lf.register({ type: 'cc', view: FlowRectView as never, model: FlowRectModel as never })
+  lf.register({ type: 'executor', view: FlowRectView as never, model: FlowRectModel as never })
   lf.register({ type: 'start', view: StartView as never, model: FlowCircleModel as never })
   lf.register({ type: 'end', view: EndView as never, model: FlowCircleModel as never })
 }

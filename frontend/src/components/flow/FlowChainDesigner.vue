@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 竖链流程设计器（复刻 TPCworkflow WorkflowVerticalDesigner 交互形态，数据模型保持 bizSys 节点行）。
  *
- * 开始卡片 → 节点卡片竖链（审批/条件/抄送）→ 结束；节点间 "+" 插入菜单；
+ * 开始卡片 → 节点卡片竖链（审批/条件/抄送/办理）→ 结束；节点间 "+" 插入菜单；
  * 条件节点下方分支泳道（条件 N / 默认，显示跳转目标）；点卡片开右侧配置抽屉。
  * 单一真源：节点行数组（v-model）；保存时 exportGraph() 由节点行自动生成
  * LogicFlow 兼容图（自动纵向布局），process_graph 双写语义与旧图形模式一致。
@@ -22,6 +22,7 @@ import {
 } from './flowModel'
 import type {
   FlowApproverType,
+  FlowFieldPermission,
   FlowGraphData,
   FlowNodeType,
 } from '@/api/types'
@@ -101,8 +102,30 @@ const drawerVisible = ref(false)
 const current = ref<FlowNodeRow | null>(null)
 
 function openConfig(n: FlowNodeRow) {
+  if (!n.fieldPermissions) n.fieldPermissions = {}
   current.value = n
   drawerVisible.value = true
+}
+
+/* ---------- 节点字段权限（editable / viewonly / hidden） ---------- */
+
+const PERM_OPTIONS: FlowFieldPermission[] = ['editable', 'viewonly', 'hidden']
+const permKeyInput = ref('')
+const permValueInput = ref<FlowFieldPermission>('viewonly')
+
+function addPerm(n: FlowNodeRow) {
+  const key = permKeyInput.value.trim()
+  if (!key) return
+  if (!n.fieldPermissions) n.fieldPermissions = {}
+  n.fieldPermissions[key] = permValueInput.value
+  permKeyInput.value = ''
+  emitChange()
+}
+
+function removePerm(n: FlowNodeRow, key: string) {
+  if (!n.fieldPermissions) return
+  delete n.fieldPermissions[key]
+  emitChange()
 }
 
 function onApproverTypeChange(n: FlowNodeRow, v: FlowApproverType) {
@@ -321,7 +344,13 @@ defineExpose({ validate, exportGraph })
             </el-form-item>
             <el-form-item
               v-else
-              :label="current.nodeType === 'cc' ? t('admin.flow.selectCc') : t('admin.flow.selectApprover')"
+              :label="
+                current.nodeType === 'cc'
+                  ? t('admin.flow.selectCc')
+                  : current.nodeType === 'executor'
+                    ? t('admin.flow.selectExecutor')
+                    : t('admin.flow.selectApprover')
+              "
             >
               <el-select
                 :model-value="approverIds(current)"
@@ -339,6 +368,36 @@ defineExpose({ validate, exportGraph })
                   :value="String(opt.id)"
                 />
               </el-select>
+            </el-form-item>
+
+            <el-form-item :label="t('admin.flow.fieldPermissions')">
+              <div class="perm-list">
+                <div v-for="fkey in Object.keys(current.fieldPermissions ?? {})" :key="fkey" class="perm-row">
+                  <span class="perm-key">{{ fkey }}</span>
+                  <el-radio-group v-model="current.fieldPermissions![fkey]" size="small">
+                    <el-radio-button v-for="p in PERM_OPTIONS" :key="p" :value="p">
+                      {{ t(`admin.flow.perm.${p}`) }}
+                    </el-radio-button>
+                  </el-radio-group>
+                  <el-button link type="danger" @click="removePerm(current, fkey)">
+                    {{ t('common.action.delete') }}
+                  </el-button>
+                </div>
+                <div class="perm-add">
+                  <el-input
+                    v-model="permKeyInput"
+                    :placeholder="t('admin.flow.permFieldKey')"
+                    class="perm-key-input"
+                  />
+                  <el-select v-model="permValueInput" class="perm-value-select">
+                    <el-option v-for="p in PERM_OPTIONS" :key="p" :value="p" :label="t(`admin.flow.perm.${p}`)" />
+                  </el-select>
+                  <el-button size="small" plain type="primary" @click="addPerm(current)">
+                    {{ t('admin.flow.addPerm') }}
+                  </el-button>
+                </div>
+                <div class="field-tip">{{ t('admin.flow.permTip') }}</div>
+              </div>
             </el-form-item>
           </template>
 
@@ -615,6 +674,44 @@ defineExpose({ validate, exportGraph })
 
 .branch-value {
   flex: 1;
+}
+
+.perm-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bs-space-2);
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+.perm-key {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-default);
+}
+
+.perm-add {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+  flex-wrap: wrap;
+}
+
+.perm-key-input {
+  width: 140px;
+}
+
+.perm-value-select {
+  width: 110px;
 }
 
 .drawer-footer {

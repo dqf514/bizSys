@@ -1,7 +1,8 @@
 """审批引擎核心：start / approve / reject / withdraw / add_sign / transfer。
 
 语义（ADR-0002，F1 合并 TPCworkflow 引擎语义）：
-- 节点类型：approval（审批）/ condition（条件分支，按 instance.variables 路由）/ cc（抄送，不阻塞）；
+- 节点类型：approval（审批）/ condition（条件分支，按 instance.variables 路由）/ cc（抄送，不阻塞）/
+  executor（办理，E1 企业微信移植：产生待办由办理人处理，任一办理人处理即推进）；
 - 审批节点 sign_mode：or（任一通过，其余作废）/ and（全员通过）/ sequential（依次逐个）；
 - 同意到末节点 → instance=approved → 发布 ApprovalCompleted（同事务）；
 - 驳回意见必填 → instance=rejected → 发布 ApprovalRejected；业务侧重新提交即开新实例（与 TPC 对齐）；
@@ -9,6 +10,8 @@
 - 加签：当前节点追加审批人；或签节点一人通过后，同节点其他普通或签待办作废，
   但加签待办保留且须处理完毕节点才推进（对齐 TPC workflow_add_sign.py）；
 - 转办：改派当前待办；每次状态变化写 approval_record 时间线（含 payload）。
+- 流程通用选项（ApprovalDefinition.options，E1）：意见必填 / 办理意见必填 / 允许加签 /
+  通过后可撤销 —— 未配置时**保持既有行为**。
 """
 
 import json
@@ -376,14 +379,16 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
             db.flush()
             seq = route_from(nodes, seq, variables)
             continue
-        # approval 节点
+        # approval / executor 节点
         assignees = _resolve_with_fallback(db, instance, node, operator)
         if assignees is None:  # 组织类型解析失败且无兜底角色：节点自动通过，不卡死流程
             seq = route_from(nodes, seq, variables)
             continue
         if not assignees:
             raise BizException(R.GENERIC_PARAM, f"节点「{node.node_name or node.seq}」未配置可用审批人")
-        node_name = node.node_name or f"第{node.seq}节点"
+        is_executor = node.node_type == "executor"
+        task_type = "executor" if is_executor else "approval"
+        node_name = node.node_name or (f"办理{node.seq}" if is_executor else f"第{node.seq}节点")
         if node.sign_mode == "sequential" or node.approver_type == "SUPERVISOR_CHAIN":
             # SUPERVISOR_CHAIN 复用 sequential 语义：逐级链条每级一个顺序待办
             queue = [u.id for u in assignees]
@@ -393,7 +398,7 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
                     instance_id=instance.id,
                     seq=node.seq,
                     node_name=node_name,
-                    node_type="approval",
+                    node_type=task_type,
                     assignee_id=first.id,
                     assignee_name=first.name or first.username,
                     status="pending",
@@ -410,7 +415,7 @@ def _walk(db: Session, instance: ApprovalInstance, nodes: list[ApprovalNode], se
                         instance_id=instance.id,
                         seq=node.seq,
                         node_name=node_name,
-                        node_type="approval",
+                        node_type=task_type,
                         assignee_id=u.id,
                         assignee_name=u.name or u.username,
                         status="pending",
@@ -525,6 +530,20 @@ def _node_config(nodes: list[ApprovalNode], seq: int) -> ApprovalNode | None:
     return None
 
 
+def _options_of(db: Session, instance: ApprovalInstance) -> dict:
+    """流程通用选项（ApprovalDefinition.options）。
+
+    未配置时返回空 dict —— 所有开关**保持既有行为**（向后兼容，E1 企业微信移植）。
+    """
+    if not instance.definition_id:
+        return {}
+    definition = db.get(ApprovalDefinition, instance.definition_id)
+    if not definition or not definition.options:
+        return {}
+    data = parse_json(definition.options, {})
+    return data if isinstance(data, dict) else {}
+
+
 def _spawn_next_sequential(db: Session, task: ApprovalTask) -> bool:
     """依次签：当前人通过后为队列下一人建待办。返回是否还有后继。"""
     meta = parse_json(task.action_meta, {})
@@ -558,14 +577,27 @@ def _spawn_next_sequential(db: Session, task: ApprovalTask) -> bool:
 def approve(db: Session, task_id: int, user: User, comment: str = "") -> ApprovalInstance:
     task = _get_open_task(db, task_id, user)
     instance, nodes = _load_running(db, task)
+    options = _options_of(db, instance)
+    node = _node_config(nodes, task.seq)
+    # 流程通用选项：意见必填 / 办理意见必填（未配置开关时维持"意见可空"）
+    if options.get("commentRequired") and not (comment or "").strip():
+        raise BizException(R.APPROVAL_COMMENT_REQUIRED)
+    if (
+        node
+        and node.node_type == "executor"
+        and options.get("executorCommentRequired")
+        and not (comment or "").strip()
+    ):
+        raise BizException(R.APPROVAL_COMMENT_REQUIRED, "办理意见必填")
     task.status = "agreed"
     task.comment = comment or ""
     task.acted_at = datetime.now()
     task.acted_by_id = user.id
     _record(db, instance, "agree", user, comment, node_name=task.node_name, seq=task.seq)
 
-    node = _node_config(nodes, task.seq)
     sign_mode = node.sign_mode if node else "or"
+    if node and node.node_type == "executor":
+        sign_mode = "or"  # 办理节点：任一办理人处理即推进
     if node and node.approver_type == "SUPERVISOR_CHAIN":
         sign_mode = "sequential"  # 逐级链条复用 sequential 语义（与 _walk 建待办一致）
     if sign_mode == "sequential" and task.task_kind == "sign":
@@ -617,18 +649,22 @@ def withdraw(db: Session, instance_id: int, user: User, comment: str = "") -> Ap
         raise BizException(R.GENERIC_NOT_FOUND)
     if instance.initiator_id != user.id and "super" not in user.role_codes:
         raise BizException(R.AUTH_FORBIDDEN, http_status=403)
-    if instance.status != "running":
+    options = _options_of(db, instance)
+    # 「通过后申请人可撤销」（企业微信通用选项）：已通过的实例允许发起人撤回
+    withdraw_approved = instance.status == "approved" and bool(options.get("allowWithdrawAfterApproved"))
+    if instance.status != "running" and not withdraw_approved:
         raise BizException(R.APPROVAL_INVALID_STATE)
-    # 转办/加签不算"已审"，仅同意或驳回后不可撤回
-    acted = db.scalar(
-        select(ApprovalTask.id).where(
-            ApprovalTask.instance_id == instance.id,
-            ApprovalTask.status.in_(("agreed", "rejected")),
-            ApprovalTask.deleted == 0,
+    if not withdraw_approved:
+        # 转办/加签不算"已审"，仅同意或驳回后不可撤回
+        acted = db.scalar(
+            select(ApprovalTask.id).where(
+                ApprovalTask.instance_id == instance.id,
+                ApprovalTask.status.in_(("agreed", "rejected")),
+                ApprovalTask.deleted == 0,
+            )
         )
-    )
-    if acted:
-        raise BizException(R.APPROVAL_INVALID_STATE, "已有审批人处理，不能撤回")
+        if acted:
+            raise BizException(R.APPROVAL_INVALID_STATE, "已有审批人处理，不能撤回")
     _cancel_pending(db, instance.id)
     instance.status = "withdrawn"
     instance.current_node_ids = "[]"
@@ -650,6 +686,8 @@ def withdraw(db: Session, instance_id: int, user: User, comment: str = "") -> Ap
 def add_sign(db: Session, task_id: int, user: User, approver: User, comment: str = "") -> ApprovalInstance:
     task = _get_open_task(db, task_id, user)
     instance, _ = _load_running(db, task)
+    if _options_of(db, instance).get("allowAddSign") is False:
+        raise BizException(R.GENERIC_PARAM, "该流程未开启加签")
     if approver.id == user.id:
         raise BizException(R.GENERIC_PARAM, "不能给本人加签")
     exists = db.scalar(

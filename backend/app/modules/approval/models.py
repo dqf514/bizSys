@@ -37,6 +37,9 @@ class ApprovalDefinition(BaseModel):
         Text, nullable=True, comment="LogicFlow 图 JSON（线性定义自动生成等价图）"
     )
     variables_schema: Mapped[str | None] = mapped_column(Text, nullable=True, comment="流程变量声明 JSON")
+    options: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="流程通用选项 JSON（意见必填/允许加签/通过后可撤销/办理人可修改…）"
+    )
 
     nodes = relationship(
         "ApprovalNode",
@@ -48,12 +51,14 @@ class ApprovalDefinition(BaseModel):
 
 
 class ApprovalNode(BaseModel):
-    """流程节点：approval（审批）/ condition（条件分支）/ cc（抄送）。
+    """流程节点：approval（审批）/ condition（条件分支）/ cc（抄送）/ executor（办理）。
 
     - 审批节点 sign_mode ∈ or（任一通过）/ and（全员通过）/ sequential（按序逐个）；
     - approver_type ∈ USER | ROLE；approver_value 逗号分隔；
     - 条件节点用 branches（JSON: [{expr:{field,op,value}, targetSeq}]）+ default_seq 路由；
-    - 抄送节点复用 approver_type/approver_value 解析接收人，不产生待办、不阻塞流转。
+    - 抄送节点复用 approver_type/approver_value 解析接收人，不产生待办、不阻塞流转；
+    - 办理节点（executor）产生待办由办理人处理，任一办理人处理即推进（E1 企业微信移植）；
+    - field_permissions 声明该节点对表单字段的可见/可编辑范围（E1）。
     """
 
     __tablename__ = "approval_node"
@@ -62,7 +67,9 @@ class ApprovalNode(BaseModel):
     definition_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("approval_definition.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer, default=1, comment="节点序号，从 1 起")
     node_name: Mapped[str] = mapped_column(String(64), default="", comment="节点名（如 部门审批）")
-    node_type: Mapped[str] = mapped_column(String(16), default="approval", comment="approval/condition/cc")
+    node_type: Mapped[str] = mapped_column(
+        String(16), default="approval", comment="approval/condition/cc/executor"
+    )
     sign_mode: Mapped[str] = mapped_column(String(16), default="or", comment="or/and/sequential（仅审批节点）")
     approver_type: Mapped[str] = mapped_column(
         String(32), default="USER", comment="USER/ROLE/DEPT_LEADER/PARENT_DEPT_LEADER/SUPERVISOR_CHAIN"
@@ -79,6 +86,9 @@ class ApprovalNode(BaseModel):
     )
     default_seq: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="条件未命中时跳转序号（空=顺序下一节点）"
+    )
+    field_permissions: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="节点字段权限 JSON：{字段key: editable|viewonly|hidden}"
     )
 
 

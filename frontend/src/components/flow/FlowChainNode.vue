@@ -20,7 +20,7 @@ const summary = computed(() => {
     return t('admin.flow.branchCount', { n: n.branches?.length ?? 0 })
   }
   const who = n.approverName || String(n.approverValue || '') || t(`admin.flow.approverTypeShort.${n.approverType}`)
-  if (n.nodeType === 'cc') return who
+  if (n.nodeType === 'cc' || n.nodeType === 'executor') return who
   const sign = t(`admin.flow.signMode.${n.signMode}`)
   if (n.approverType === 'SUPERVISOR_CHAIN') {
     return `${who} · ${t('admin.flow.chainLevelsShort', { n: n.chainLevels ?? 0 })} · ${sign}`
@@ -97,6 +97,10 @@ const summary = computed(() => {
 
 .type-cc .card-header {
   background: var(--bs-color-semantic-success);
+}
+
+.type-executor .card-header {
+  background: var(--bs-color-accent-purple);
 }
 
 .card-del {

@@ -8,6 +8,7 @@
 import type {
   FlowApproverType,
   FlowBranch,
+  FlowFieldPermissions,
   FlowGraphData,
   FlowGraphEdge,
   FlowGraphNode,
@@ -45,6 +46,7 @@ export function normalizeNode(n: FlowNode): FlowNodeRow {
     chainLevels: n.chainLevels ?? null,
     branches: n.branches ?? null,
     defaultSeq: n.defaultSeq ?? null,
+    fieldPermissions: n.fieldPermissions ?? null,
   }
 }
 
@@ -69,6 +71,7 @@ export function toGraphNode(n: FlowNodeRow, x: number, y: number): FlowGraphNode
       approverValue: n.approverValue,
       approverName: n.approverName ?? '',
       chainLevels: n.chainLevels ?? null,
+      fieldPermissions: n.fieldPermissions ?? null,
       subtitle: nodeSubtitle(n),
     },
   }
@@ -154,7 +157,7 @@ export function deriveNodesFromGraph(graph: FlowGraphData): FlowNodeRow[] {
   // 不在主链上的游离业务节点（分支侧挂）按 id 顺序追加，保证不丢配置
   const onChain = new Set(chain.map((n) => n.id))
   const loose = graph.nodes.filter(
-    (n) => !onChain.has(n.id) && !['start', 'end'].includes(n.id) && ['approval', 'condition', 'cc'].includes(n.type),
+    (n) => !onChain.has(n.id) && !['start', 'end'].includes(n.id) && ['approval', 'condition', 'cc', 'executor'].includes(n.type),
   )
 
   const seqOf = new Map<string, number>()
@@ -175,6 +178,7 @@ export function deriveNodesFromGraph(graph: FlowGraphData): FlowNodeRow[] {
       chainLevels: (p.chainLevels as number | null) ?? null,
       branches: null,
       defaultSeq: null,
+      fieldPermissions: (p.fieldPermissions as FlowFieldPermissions | null) ?? null,
     }
     if (nodeType === 'condition') {
       const branches: FlowBranch[] = []
@@ -244,7 +248,7 @@ export function validateFlowNodes(nodes: FlowNodeRow[]): string[] {
     if (!n.nodeName.trim()) errors.push('admin.flow.errNodeName')
     // 组织类型审批人按发起人部门任职解析，approverValue 仅作兜底角色，可空
     if (
-      (n.nodeType === 'approval' || n.nodeType === 'cc') &&
+      (n.nodeType === 'approval' || n.nodeType === 'cc' || n.nodeType === 'executor') &&
       !isOrgApproverType(n.approverType) &&
       !String(n.approverValue ?? '').trim()
     ) {

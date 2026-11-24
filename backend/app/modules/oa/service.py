@@ -1117,7 +1117,7 @@ def restart(db: Session, inst_id: int, seq: int, operator: User, comment: str = 
     definition = db.get(ApprovalDefinition, flow.definition_id) if flow.definition_id else None
     nodes = [n for n in (definition.nodes if definition else []) if n.deleted == 0]
     target = next((n for n in nodes if n.seq == seq), None)
-    if not target or target.node_type != "approval":
+    if not target or target.node_type not in ("approval", "executor"):
         raise BizException(R.GENERIC_PARAM, "目标节点不存在或非审批节点")
     engine._cancel_pending(db, flow.id)
     flow.status = "running"
