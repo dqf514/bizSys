@@ -36,7 +36,8 @@ _TASK_STATUS_CN = {
 FIELD_PERMISSION_VALUES = ("editable", "viewonly", "hidden")
 
 
-def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
+def _task_item(t: ApprovalTask, inst: ApprovalInstance | None, options: dict | None = None) -> dict:
+    opts = options or {}
     return {
         "id": t.id,
         "instanceId": t.instance_id,
@@ -53,6 +54,12 @@ def _task_item(t: ApprovalTask, inst: ApprovalInstance | None) -> dict:
         "assigneeName": t.assignee_name,
         "createTime": t.create_time.strftime("%Y-%m-%d %H:%M:%S") if t.create_time else "",
         "actedAt": t.acted_at.strftime("%Y-%m-%d %H:%M:%S") if t.acted_at else "",
+        # E1：流程通用选项 —— 前端据此决定「同意」是否强制填意见 / 是否要求签名
+        "commentRequired": bool(opts.get("commentRequired")),
+        "commentSignRequired": bool(opts.get("commentSignRequired")),
+        "executorCommentRequired": bool(opts.get("executorCommentRequired")),
+        # 未配置 allowAddSign = 保持既有行为（允许加签）；显式 false 才禁用
+        "allowAddSign": opts.get("allowAddSign", True) is not False,
     }
 
 
@@ -132,7 +139,13 @@ def list_tasks(
             )
         )
         inst_map = _instances_by_id(db, [r.instance_id for r in rows])
-        return page_result([_task_item(r, inst_map.get(r.instance_id)) for r in rows], total, params.page, params.size)
+        opt_map = _options_by_definition(db, list(inst_map.values()))
+        items = []
+        for r in rows:
+            inst = inst_map.get(r.instance_id)
+            opts = opt_map.get(inst.definition_id, {}) if inst else {}
+            items.append(_task_item(r, inst, opts))
+        return page_result(items, total, params.page, params.size)
 
     if tab == "done":
         stmt = select(ApprovalRecord).where(
@@ -298,6 +311,19 @@ def _instances_by_id(db: Session, ids: list[int]) -> dict[int, ApprovalInstance]
         return {}
     rows = db.scalars(select(ApprovalInstance).where(ApprovalInstance.id.in_(ids))).all()
     return {r.id: r for r in rows}
+
+
+def _options_by_definition(db: Session, instances: list[ApprovalInstance]) -> dict[int, dict]:
+    """按流程定义 id 汇总流程通用选项（commentRequired 等）。"""
+    def_ids = {i.definition_id for i in instances if i.definition_id}
+    if not def_ids:
+        return {}
+    rows = db.scalars(select(ApprovalDefinition).where(ApprovalDefinition.id.in_(def_ids))).all()
+    out: dict[int, dict] = {}
+    for d in rows:
+        opts = parse_json(d.options, {}) or {}
+        out[d.id] = opts if isinstance(opts, dict) else {}
+    return out
 
 
 def timeline(db: Session, biz_type: str, biz_id: int) -> dict:

@@ -10,6 +10,7 @@ import {
   withdrawInstance,
 } from '@/api/approval'
 import { userOptions as fetchUserOptions } from '@/api/admin'
+import SignaturePad from '@/components/common/SignaturePad.vue'
 import type { ApprovalTask } from '@/api/types'
 
 const props = withDefaults(
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const comment = ref('')
+const signature = ref('')
 const loading = ref(false)
 const transferVisible = ref(false)
 const addSignVisible = ref(false)
@@ -38,6 +40,18 @@ const targetUserId = ref<number | null>(null)
 const userOptions = ref<{ id: number; name: string }[]>([])
 
 const canAct = computed(() => props.canAct !== false)
+
+/** E1：流程通用选项 —— 意见必填 / 意见需签名 / 允许加签 */
+const isExecutor = computed(() => props.task.nodeType === 'executor')
+const commentRequired = computed(
+  () =>
+    props.task.commentRequired === true ||
+    (isExecutor.value && props.task.executorCommentRequired === true),
+)
+const commentSignRequired = computed(
+  () => props.task.commentSignRequired === true && !isExecutor.value,
+)
+const allowAddSign = computed(() => props.task.allowAddSign !== false)
 
 async function loadUsers() {
   if (userOptions.value.length) return
@@ -51,16 +65,26 @@ async function loadUsers() {
 }
 
 async function act(kind: 'agree' | 'reject') {
+  // 驳回意见恒为必填；流程配置「审批意见必填」时通过也必须填
   if (kind === 'reject' && !comment.value.trim()) {
     ElMessage.warning(t('approval.approval.commentRequired'))
     return
   }
+  if (kind === 'agree' && commentRequired.value && !comment.value.trim()) {
+    ElMessage.warning(t('approval.approval.commentRequired'))
+    return
+  }
+  if (commentSignRequired.value && !signature.value) {
+    ElMessage.warning(t('approval.approval.commentSignRequired'))
+    return
+  }
   loading.value = true
   try {
-    if (kind === 'agree') await approveTask(props.task.id, comment.value)
-    else await rejectTask(props.task.id, comment.value)
+    if (kind === 'agree') await approveTask(props.task.id, comment.value, signature.value)
+    else await rejectTask(props.task.id, comment.value, signature.value)
     ElMessage.success(t('common.message.submitSuccess'))
     comment.value = ''
+    signature.value = ''
     emit('done')
   } catch {
     /* http notifies */
@@ -158,6 +182,11 @@ defineExpose({ setComment })
       :placeholder="t('approval.approval.commentPlaceholder')"
       class="comment-input"
     />
+    <!-- E1：流程配置「审批意见需签名」时展示手写签名板 -->
+    <div v-if="commentSignRequired" class="sign-box">
+      <div class="sign-label">{{ t('approval.approval.commentSignRequired') }}</div>
+      <SignaturePad v-model="signature" :height="160" />
+    </div>
     <div class="action-btns">
       <template v-if="canAct">
         <el-button type="primary" :loading="loading" @click="act('agree')">
@@ -167,7 +196,9 @@ defineExpose({ setComment })
           {{ t('approval.approval.reject') }}
         </el-button>
         <el-button @click="openTransfer">{{ t('approval.approval.transfer') }}</el-button>
-        <el-button @click="openAddSign">{{ t('approval.approval.addSign') }}</el-button>
+        <el-button v-if="allowAddSign" @click="openAddSign">
+          {{ t('approval.approval.addSign') }}
+        </el-button>
       </template>
       <el-button v-if="props.canWithdraw" :loading="loading" @click="doWithdraw">
         {{ t('approval.approval.withdraw') }}

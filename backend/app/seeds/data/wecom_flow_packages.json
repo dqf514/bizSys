@@ -1,6 +1,6 @@
 {
   "schema": "bizsys.flowpackage/v1",
-  "exportedAt": "2026-11-24T13:50:14",
+  "exportedAt": "2026-11-24T14:05:52",
   "packages": [
     {
       "code": "wc_change_approval_approve",
@@ -98,7 +98,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -687,11 +689,12 @@
           "allowModifyCc": true,
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
-          "allowProxySubmit": true,
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": true,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -1015,7 +1018,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -1276,7 +1281,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10537",
+            "approverValue": "10815",
             "approverName": "抄送：模拟员工10",
             "chainLevels": null,
             "branches": [],
@@ -1482,10 +1487,12 @@
           "allowModifyCc": true,
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
-          "allowProxySubmit": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": true,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -1503,8 +1510,8 @@
                   "field": "f7",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 2
@@ -1514,8 +1521,8 @@
                   "field": "f7",
                   "op": "in",
                   "value": [
-                    10540,
-                    10562
+                    10818,
+                    10840
                   ]
                 },
                 "targetSeq": 4
@@ -1836,8 +1843,8 @@
               "field": "f7",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -1849,8 +1856,8 @@
               "field": "f7",
               "op": "in",
               "value": [
-                10540,
-                10562
+                10818,
+                10840
               ]
             },
             "priority": 1
@@ -2064,7 +2071,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -2564,7 +2573,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10531,10533,10540,10530",
+            "approverValue": "10809,10811,10818,10808",
             "approverName": "抄送：模拟员工04、模拟员工06、模拟员工13、模拟员工03",
             "chainLevels": null,
             "branches": [],
@@ -2864,7 +2873,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -3244,7 +3255,10 @@
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -3318,8 +3332,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10540,
-                    10562
+                    10818,
+                    10840
                   ]
                 },
                 "targetSeq": 4
@@ -3329,8 +3343,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 6
@@ -3470,8 +3484,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10540,
-                10562
+                10818,
+                10840
               ]
             },
             "priority": 1
@@ -3483,8 +3497,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -3701,8 +3715,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
+          "commentRequired": false,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -3992,7 +4009,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -4429,7 +4450,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -4470,11 +4495,11 @@
                   "field": "f2",
                   "op": "in",
                   "value": [
-                    10533,
-                    10540,
-                    10551,
-                    10559,
-                    10566
+                    10811,
+                    10818,
+                    10829,
+                    10837,
+                    10844
                   ]
                 },
                 "targetSeq": 3
@@ -4484,8 +4509,8 @@
                   "field": "f2",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 5
@@ -4777,11 +4802,11 @@
               "field": "f2",
               "op": "in",
               "value": [
-                10533,
-                10540,
-                10551,
-                10559,
-                10566
+                10811,
+                10818,
+                10829,
+                10837,
+                10844
               ]
             },
             "priority": 1
@@ -4793,8 +4818,8 @@
               "field": "f2",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -5037,7 +5062,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -5055,8 +5084,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 2
@@ -5066,8 +5095,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10540,
-                    10562
+                    10818,
+                    10840
                   ]
                 },
                 "targetSeq": 7
@@ -5574,8 +5603,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -5587,8 +5616,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10540,
-                10562
+                10818,
+                10840
               ]
             },
             "priority": 1
@@ -5866,7 +5895,10 @@
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -6308,7 +6340,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -6822,7 +6858,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -7121,9 +7161,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -7141,8 +7186,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 2
@@ -7152,8 +7197,8 @@
                   "field": "org.applicantId",
                   "op": "in",
                   "value": [
-                    10540,
-                    10562
+                    10818,
+                    10840
                   ]
                 },
                 "targetSeq": 7
@@ -7891,8 +7936,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -7904,8 +7949,8 @@
               "field": "org.applicantId",
               "op": "in",
               "value": [
-                10540,
-                10562
+                10818,
+                10840
               ]
             },
             "priority": 1
@@ -8209,7 +8254,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -8836,7 +8883,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -9006,7 +9055,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -9246,9 +9299,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -9463,7 +9521,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -9627,7 +9689,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10530,10559",
+            "approverValue": "10808,10837",
             "approverName": "抄送：模拟员工03、模拟员工32",
             "chainLevels": null,
             "branches": [],
@@ -9786,9 +9848,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -9940,9 +10007,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -10103,7 +10175,11 @@
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -10168,7 +10244,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10559,10561",
+            "approverValue": "10837,10839",
             "approverName": "抄送：模拟员工32、模拟员工34",
             "chainLevels": null,
             "branches": [],
@@ -10214,7 +10290,7 @@
             "nodeType": "approval",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10531",
+            "approverValue": "10809",
             "approverName": "审批人（指定成员）",
             "chainLevels": null,
             "branches": [],
@@ -10231,7 +10307,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10559,10561",
+            "approverValue": "10837,10839",
             "approverName": "抄送：模拟员工32、模拟员工34",
             "chainLevels": null,
             "branches": [],
@@ -10397,8 +10473,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -10518,7 +10600,9 @@
           "allowAddSign": true,
           "commentRequired": true,
           "executorCommentRequired": true,
-          "executorCanModify": true
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -10689,8 +10773,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -10870,9 +10960,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
-          "detailTablePermission": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": true
         },
         "nodes": [
           {
@@ -11149,10 +11244,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -11396,7 +11495,10 @@
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -11632,10 +11734,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -11798,8 +11904,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -11928,8 +12040,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12045,8 +12163,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12138,8 +12262,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12323,8 +12453,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12454,10 +12590,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
           "commentSignRequired": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12710,10 +12850,12 @@
           "allowModifyCc": true,
           "allowWithdrawAfterApproved": true,
           "commentSignRequired": true,
-          "allowProxySubmit": true,
           "allowAddSign": true,
           "commentRequired": true,
-          "executorCanModify": true
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": true,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -12731,8 +12873,8 @@
                   "field": "f6",
                   "op": "in",
                   "value": [
-                    10528,
-                    10531
+                    10806,
+                    10809
                   ]
                 },
                 "targetSeq": 2
@@ -12742,8 +12884,8 @@
                   "field": "f6",
                   "op": "in",
                   "value": [
-                    10540,
-                    10562
+                    10818,
+                    10840
                   ]
                 },
                 "targetSeq": 4
@@ -13035,7 +13177,7 @@
             "nodeType": "cc",
             "signMode": "or",
             "approverType": "USER",
-            "approverValue": "10540,10542",
+            "approverValue": "10818,10820",
             "approverName": "抄送：模拟员工13、模拟员工15",
             "chainLevels": null,
             "branches": [],
@@ -13064,8 +13206,8 @@
               "field": "f6",
               "op": "in",
               "value": [
-                10528,
-                10531
+                10806,
+                10809
               ]
             },
             "priority": 1
@@ -13077,8 +13219,8 @@
               "field": "f6",
               "op": "in",
               "value": [
-                10540,
-                10562
+                10818,
+                10840
               ]
             },
             "priority": 1
@@ -13225,8 +13367,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": false
         },
         "nodes": [
           {
@@ -13349,9 +13497,14 @@
         "options": {
           "allowModifyFlow": true,
           "allowModifyCc": true,
-          "detailTablePermission": true,
+          "allowWithdrawAfterApproved": false,
+          "commentSignRequired": false,
           "allowAddSign": true,
-          "executorCanModify": true
+          "commentRequired": false,
+          "executorCommentRequired": false,
+          "executorCanModify": true,
+          "allowProxySubmit": false,
+          "detailTablePermission": true
         },
         "nodes": [
           {

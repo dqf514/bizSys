@@ -574,14 +574,18 @@ def _spawn_next_sequential(db: Session, task: ApprovalTask) -> bool:
     return True
 
 
-def approve(db: Session, task_id: int, user: User, comment: str = "") -> ApprovalInstance:
+def approve(db: Session, task_id: int, user: User, comment: str = "", signature: str = "") -> ApprovalInstance:
     task = _get_open_task(db, task_id, user)
     instance, nodes = _load_running(db, task)
     options = _options_of(db, instance)
     node = _node_config(nodes, task.seq)
-    # 流程通用选项：意见必填 / 办理意见必填（未配置开关时维持"意见可空"）
+    # 流程通用选项：意见必填 / 意见需签名 / 办理意见必填（未配置开关时维持"意见可空"）
     if options.get("commentRequired") and not (comment or "").strip():
         raise BizException(R.APPROVAL_COMMENT_REQUIRED)
+    # 意见需签名只作用于**审批**节点（办理节点走「办理意见必填」口径）
+    is_executor = bool(node and node.node_type == "executor")
+    if not is_executor and options.get("commentSignRequired") and not (signature or "").strip():
+        raise BizException(R.APPROVAL_COMMENT_REQUIRED, "审批意见需签名")
     if (
         node
         and node.node_type == "executor"
@@ -593,7 +597,16 @@ def approve(db: Session, task_id: int, user: User, comment: str = "") -> Approva
     task.comment = comment or ""
     task.acted_at = datetime.now()
     task.acted_by_id = user.id
-    _record(db, instance, "agree", user, comment, node_name=task.node_name, seq=task.seq)
+    _record(
+        db,
+        instance,
+        "agree",
+        user,
+        comment,
+        node_name=task.node_name,
+        seq=task.seq,
+        payload={"signature": signature} if signature else None,
+    )
 
     sign_mode = node.sign_mode if node else "or"
     if node and node.node_type == "executor":
@@ -615,16 +628,30 @@ def approve(db: Session, task_id: int, user: User, comment: str = "") -> Approva
     return instance
 
 
-def reject(db: Session, task_id: int, user: User, comment: str) -> ApprovalInstance:
+def reject(db: Session, task_id: int, user: User, comment: str, signature: str = "") -> ApprovalInstance:
     if not (comment or "").strip():
         raise BizException(R.APPROVAL_COMMENT_REQUIRED)
     task = _get_open_task(db, task_id, user)
-    instance, _ = _load_running(db, task)
+    instance, nodes = _load_running(db, task)
+    options = _options_of(db, instance)
+    node = _node_config(nodes, task.seq)
+    if not (node and node.node_type == "executor") and options.get("commentSignRequired"):
+        if not (signature or "").strip():
+            raise BizException(R.APPROVAL_COMMENT_REQUIRED, "审批意见需签名")
     task.status = "rejected"
     task.comment = comment
     task.acted_at = datetime.now()
     task.acted_by_id = user.id
-    _record(db, instance, "reject", user, comment, node_name=task.node_name, seq=task.seq)
+    _record(
+        db,
+        instance,
+        "reject",
+        user,
+        comment,
+        node_name=task.node_name,
+        seq=task.seq,
+        payload={"signature": signature} if signature else None,
+    )
     _cancel_pending(db, instance.id)
     instance.status = "rejected"
     instance.current_node_ids = "[]"

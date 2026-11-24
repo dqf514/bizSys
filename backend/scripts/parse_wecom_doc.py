@@ -78,7 +78,7 @@ def parse_org(doc: str) -> dict:
                         {
                             "name": name_path[0] if name_path else "",
                             "path": " / ".join(name_path),
-                            "wecom_id": row[1].strip(),
+                            # 企微部门 ID 不落盘（真实企业标识，规避隐私风险）
                             "parent_name": (row[2].split("\n")[0] if row[2] else ""),
                             "level": _int(row[3]),
                             "direct_count": _int(row[4]),

@@ -1501,6 +1501,158 @@ draft ──submit──▶ approving ──approve──▶ approved ──effe
   —— **用固定 USER 节点**（ROLE 节点在无人拥有该角色时会被引擎跳过）。
 - 编号规则：`hr_employment` → 前缀 `EM`（如 `EM202611230001`）。
 
+## E1 企业微信审批 + 组织数据移植（39 模板 / 11 部门 / 23 标签 / 40 人）
+
+> 本章记录「把企业微信在用的 39 个审批模板与组织架构完整移植到 bizSys」的落地口径。
+> 数据落位：**不新建组织表** —— 部门进 `sys_dept`、标签进 `sys_role`（只做审批人来源）、人员进 `sys_user` + `sys_user_dept` + `hr_employee`。
+> **隐私约束**：组织与人员**全模拟**（用户名 `mockNNN`、姓名 `模拟员工NN`），证件号 / 手机 / 邮箱 / 企微 vid **一律为空**，源 HTML 不入库。
+
+### 1. 表单控件映射
+
+| 企业微信控件 | 目标 `type` | 说明 |
+| --- | --- | --- |
+| Text / Textarea / Number / Money / Date / DateRange | `text` `textarea` `number` `money` `date` `daterange` | 一一对应 |
+| Selector | `select` | 选项由「单选：A / B / C」解析，用**选项标签**作值（条件值同源） |
+| File | `file` | 复用现有 URL 列表控件 |
+| Contact（成员） | `user` | `contact.type=multi` → `multiple=true`（多选，值为人员 id 数组）；`contact.mode=department` → `resource` + `resource=dept` |
+| Tips | `text_block` | 说明块，渲染 `description || label` |
+| RelatedApproval | `resource` + `resource=oa_instance` + `relatedFormKeys` | 关联本系统已发起的其他审批单 |
+| Table | `table` | 子列由「明细字段：…」解析，类型按列名推断（金额→money / 数量→number / 余→text） |
+| Formula | `formula` | 表达式支持 `+ - * /`、字段引用、`SUM(表key.列key)`、`HOURS(字段key)` |
+| PhoneNumber | `phone` | 手机号（`inputmode=tel`） |
+| Location | `location` | 打卡地点文本（不接地图 SDK） |
+| Attendance / Vacation / PunchCorrection | `attendance` | 假勤原子控件（`refType` = attendance / vacation / punch），值 `{kind, detail, hours}` |
+| Onboarding / Regularization / Transfer / Resignation | `hr_ref` | 人事原子控件（`refType` = onboard / regular / transfer / resign） |
+
+> **`daterange` 不可作为流程变量**（`EXPOSABLE_TYPES` 不含它）。企微对「时长」按小时做数值比较，导入器为此合成 `HOURS(<fieldkey>)` 公式字段（`hours_<fieldkey>`）暴露给引擎，原始 daterange 保持不暴露。
+
+### 2. 条件判断
+
+- 条件规则支持**规则组** `{logic: "and"|"or", rules: [...]}`（可嵌套），单条规则的操作符：
+  `eq` `ne` `gt` `gte` `lt` `lte` `in` `contains` `between` `empty` `not_empty`。
+- `between` 的值为区间 `[lo, hi]`（或 `{min,max}` / `{lo,hi}`）。
+- 企微 op 编码 → 引擎 op（**文档未给出 op 语义**，按 21 条条件的显示文案交叉推定）：
+
+| 企微 op | 引擎 op | 佐证 |
+| --- | --- | --- |
+| op1 | `eq` | — |
+| op2 | `gt` | 差旅「大于 3 天」= op2 / 72（小时） |
+| op3 | `lt` | 「十万以下」= op3 / 100000 |
+| op4 | `gte` | 「百万以上」= op4 / 1000000 |
+| op5 | `lte` | 请假 op5 / 72 |
+| op6 | `between` | 「1000-10000」「10w-100w」 |
+
+> **待人工复核（导入报告首屏列出）**：
+> - op2 / op4 的 `gt` / `gte` 归属仅在「恰好等于阈值」时有差异；
+> - 2 处 `op6 / undefined` 区间阈值缺失 → 按条件标题重建（`reconstructed=true`）；
+> - 1 处 `op2 / undefined`（通用审批单「预算金额」）阈值不可知 → 落 `gt 0`（`needs_review=true`）；
+> - 3 处字段权限键未能对应到明细列 → 已忽略。
+
+### 3. 节点类型与审批人来源
+
+| 企微 | 目标 `nodeType` / `approverType` |
+| --- | --- |
+| 审批节点 | `approval`（签署方式 `or` / `and` / `sequential`） |
+| 条件分支 | `condition`（`branches[{expr,targetSeq}]` + `defaultSeq`） |
+| 抄送节点 | `cc`（不阻塞） |
+| 办理节点 | `executor`（新增：单人处理；`options.executorCommentRequired` 时办理意见必填） |
+| 指定成员 / 指定联系人 | `USER` |
+| 直属上级 / 部门负责人 | `DEPT_LEADER` / `PARENT_DEPT_LEADER` / `SUPERVISOR_CHAIN`（按发起人组织解析） |
+| 角色 | `ROLE` |
+| **标签** | `ROLE`（`wc_tag_<slug>` —— 标签 → 角色的**唯一通道**，不额外绑定菜单权限） |
+| 申请人自选 | `FORM_USER`（`approverValue` 存**流程变量名**，由 `variables_schema` 声明） |
+
+图结构**线性化**：企微是「树 + 一个多父抄送节点」的 DAG，引擎按 seq 线性推进 → 导入器做 DFS 前序遍历产出节点序列，共享节点按路径复制（与企微「每条路径各发一次抄送」语义一致），分支 `targetSeq` 在 seq 分配后回填，环路用 visited 集合防呆。
+
+### 4. 流程通用选项（`approval_definition.options`）
+
+JSON，10 个键；**未配置时全部保持既有行为**（向后兼容）：
+
+| 键 | 含义 | 生效点 |
+| --- | --- | --- |
+| `commentRequired` | 审批意见必填 | `engine.approve`（**通过**也必须填）→ `70003` |
+| `commentSignRequired` | 审批意见需签名 | `engine.approve` / `engine.reject` 缺签名 → `70003`；签名写入 `approval_record.payload.signature` |
+| `executorCommentRequired` | 办理意见必填 | `engine.approve`（办理节点）→ `70003` |
+| `allowAddSign` | 允许加签 | `engine.add_sign`（显式 `false` 才禁止） |
+| `allowWithdrawAfterApproved` | 通过后申请人可撤销 | `engine.withdraw` |
+| `allowModifyFlow` / `allowModifyCc` | 审批人可改流程 / 可改抄送 | 预留 |
+| `executorCanModify` | 办理人可修改表单 | 预留 |
+| `allowProxySubmit` | 允许他人代提交 | 预留 |
+| `detailTablePermission` | 明细表权限控制 | 预留 |
+
+> **签名只作用于审批节点**（办理节点走「办理意见必填」口径）。前端在待办上按 `ApprovalTask.commentSignRequired` 展示 `SignaturePad`，签名以 PNG dataURL 随 `commentSignature` 提交。
+> 待办出参新增 `commentRequired` / `commentSignRequired` / `executorCommentRequired` / `allowAddSign` 四个标记。
+
+### 5. 节点字段权限（`approval_node.field_permissions`）
+
+JSON：`{字段key: "editable" | "viewonly" | "hidden"}`。
+生效于 `GET /oa/instances/{id}`：按**当前调用者所在待办节点**取掩码 —— `hidden` 字段从 schema 与 data 中剔除，`viewonly` 字段下发 `readOnly: true`（前端渲染为只读）。企微 1487 条「仅可见」记录全部迁为 `viewonly`。
+
+### 6. 表单可见范围（`oa_form.scope_json`）
+
+JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见**。`GET /oa/catalog` 按当前用户的部门 / 角色 / 账号过滤。
+
+### 7. 流程包 JSON 化（`bizsys.flowpackage/v1`）
+
+一套 schema 承载「OA 表单 + 审批定义」，用于批量导入导出：
+
+```jsonc
+{
+  "schema": "bizsys.flowpackage/v1",
+  "exportedAt": "2026-11-24T10:00:00",
+  "packages": [{
+    "code": "wc_payment_apply_approve",   // 流程定义 code
+    "name": "付款申请",
+    "bizType": "oa",
+    "enabled": true,
+    "remark": "",
+    "flowVersion": 1,
+    "source": "wecom",                     // wecom / bizsys
+    "form": { "key": "wc_payment_apply", "name": "…", "category": "…", "icon": "", "sort": 0,
+              "description": "", "scope": { "depts": [], "roles": [], "users": [] },
+              "fields": [ /* OaField[] */ ] },
+    "flow": { "variablesSchema": {}, "options": {}, "nodes": [ /* 节点 */ ], "edges": [ ] }
+  }]
+}
+```
+
+**幂等**：导入按 `code` upsert 流程定义、按 `form.key` upsert 表单，重复导入不产生重复行。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/approval/packages/export-all` | `admin:flow:export` | 导出全部流程包（JSON 文件，可按 `?biz_type=` 过滤） |
+| GET | `/approval/definitions/{code}/package` | `admin:flow:export` | 导出单个流程包 |
+| POST | `/approval/packages/import` | `admin:flow:import` | 导入流程包（`?dry_run=true` 只校验不落库） |
+| GET | `/oa/admin/forms/{id}/package` | `admin:flow:export` | 导出单个 OA 表单包（含绑定流程） |
+
+导入返回：`{total, created, updated, formCreated, formUpdated, errors[], dryRun}`；**非法包不中断整体**，逐条记入 `errors`。
+
+### 8. 模拟组织种子
+
+| 企微概念 | 落位 | 键 |
+| --- | --- | --- |
+| 11 个部门（3 层） | `sys_dept` | `code = WC01…WC11` |
+| 23 个标签 | `sys_role` | `code = wc_tag_<slug>`，`remark = "企业微信标签：<名>"` |
+| 40 名人员 | `sys_user` + `sys_user_dept` + `hr_employee` | `username = mock001…mock040`、`name = 模拟员工NN`、密码 `Mock@123456`；首条任职 `is_primary=1` |
+| 标签 → 成员 | `sys_user_role` | 每人按标签挂 `wc_tag_*` 角色 |
+| 岗位职务（30） | `hr_position` | 按 title 去重生成 `WCP001…` |
+
+> `sys_dept` 仍是全站唯一部门表，写入口仍只有 `POST/PUT /admin/depts` —— 本批次**只读种子**，不新增第二个写入口。
+> 企微标签映射成的 `sys_role` **只做审批人来源**，不生成菜单权限。
+
+### 9. 新增迁移与错误码
+
+- 迁移（**手写**，`alembic/env.py` 未 import oa/hr 等模型）：
+  - `nc2b3c4d5e6_wecom_flow_upgrade.py` —— `approval_definition.options` + `approval_node.field_permissions`；
+  - `nd2b3c4d5e6_oa_form_scope.py` —— `oa_form.scope_json`。
+- 错误码：**复用既有 `70003`（审批意见必填）**，签名缺失同样以 `70003` + 「审批意见需签名」返回；无新增错误码段。
+
+### 10. 种子与菜单
+
+- 菜单：`menu.sysData` 下新增 `menu.flowPackages` → `/admin/flowpackages`，componentKey `admin/FlowPackageList`，权限 `admin:flow:export`；按钮子菜单 `flow-package-import` 承载 `admin:flow:import`（**一码一菜单**）。
+- 种子：`app/seeds/init_data.py::main()` 幂等调用 `wecom_org.import_org(db)` 与 `wecom_templates.import_templates(db)`。
+- 产物：`backend/app/seeds/data/wecom_flow_packages.json`（39 个流程包，同 schema）——既是迁移产物，也是「批量导入导出」的现成样例。
+
 ## 变更日志（Keep a Changelog + 语义化版本）
 
 **单一数据源 = 仓库根目录 `CHANGELOG.md`**（代码拥有、随版本走；镜像内由 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供）。后端只解析不改写。

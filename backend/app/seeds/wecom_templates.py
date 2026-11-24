@@ -1509,9 +1509,14 @@ def _import_one(
 
 
 def _general_options(tpl: dict) -> dict:
-    """企微通用选项 → 引擎通用选项。"""
-    out: dict[str, Any] = {}
-    for name, value in (tpl.get("general_options") or {}).items():
+    """企微通用选项 → 引擎通用选项。
+
+    企微只列出**已开启**的选项，未列出的即"关"；此处把全部 10 个键显式写出来
+    （缺失 → False），让引擎侧的 `options.get(k) is False` 判定与企微一致。
+    """
+    raw = tpl.get("general_options") or {}
+    out: dict[str, Any] = {key: False for key in GENERAL_OPTION_MAP.values()}
+    for name, value in raw.items():
         key = GENERAL_OPTION_MAP.get(name)
         if not key:
             continue

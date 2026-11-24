@@ -46,19 +46,19 @@ export function getInstance(instanceId: number) {
   })
 }
 
-export function approveTask(taskId: number, comment: string) {
+export function approveTask(taskId: number, comment: string, commentSignature = '') {
   return request<void>({
     url: `/approval/tasks/${taskId}/approve`,
     method: 'post',
-    data: { comment },
+    data: { comment, commentSignature },
   })
 }
 
-export function rejectTask(taskId: number, comment: string) {
+export function rejectTask(taskId: number, comment: string, commentSignature = '') {
   return request<void>({
     url: `/approval/tasks/${taskId}/reject`,
     method: 'post',
-    data: { comment },
+    data: { comment, commentSignature },
   })
 }
 

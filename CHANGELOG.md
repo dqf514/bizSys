@@ -8,6 +8,41 @@
 
 ---
 
+## [0.8.0] - 2026-11-24
+
+### Added
+
+- **企业微信在用的 39 个审批模板完整复刻**到本系统（源文档 `企业微信审批与组织数据技术文档.html`，**含真实人员数据 → 源文件不入库**，入库的只有脱敏后的 `backend/app/seeds/data/*.json`）。随种子自动落地：跑一次 `uv run python -m app.seeds.init_data` 即有 **39 张 OA 表单 + 39 条审批定义**（347 字段 / 350 节点 / 122 条件节点 / 106 分支 / 1487 条节点字段权限 / 64 个暴露变量字段），**0 结构性问题**。
+- **流程引擎能力升级**（承接企微在用模板，原系统接不住的部分）：
+  - 条件判断支持**规则组**（`{logic: "and"|"or", rules: […]}`，可嵌套）与**区间** `between`，并补齐 `in` / `empty` / `not_empty` 操作符（`approval/condition.py`、`oa/schemas.py::CONDITION_OPS`、前端 `ConditionEditor.vue`）；
+  - 新增**办理节点** `executor`（单人处理，可配「办理意见必填」「办理人可修改」）；
+  - 新增**流程通用选项** `approval_definition.options`（10 个开关：审批意见必填 / 意见需签名 / 允许加签 / 通过后可撤销 / 审批人可改流程 / 可改抄送 / 办理人可修改 / 允许代提交 / 明细表权限控制）—— **未配置时全部保持既有行为**；
+  - 新增**节点字段权限** `approval_node.field_permissions`（`editable` / `viewonly` / `hidden`）：按当前待办节点掩码，`hidden` 字段从 schema 与数据中剔除、`viewonly` 下发只读标记；
+  - 新增**审批意见手写签名**：「审批意见需签名」落地，待办按需展示签名板，签名随意见提交并写入审批时间线留痕（**只作用于审批节点**，办理节点走「办理意见必填」口径）。
+- **表单控件升级**：新增 6 类控件 —— **明细表**（可增删行的子表）、**公式**（支持 `SUM(表.列)` 求和与 `HOURS(字段)` 时长，提交时服务端重算）、**手机号**、**位置**、**假勤原子**（出勤 / 请假 / 补卡）、**人事原子**（入职 / 转正 / 调岗 / 离职）；「成员」控件支持**多选**。
+- **表单可见范围** `oa_form.scope_json`（部门 / 角色 / 人员），OA 目录按当前用户裁剪 —— 企微「可见范围」落地。
+- **审批流程 JSON 化**（用户诉求「所有审批流程可以 json 化，为后期批量导入导出创造便利」）：定义流程包 schema `bizsys.flowpackage/v1`，一套 JSON 同时承载「OA 表单 + 审批定义」，新增 4 个端点 —— 导出全部 / 导出单个 / 导入（幂等，`?dry_run=true` 可试导入）/ OA 表单导出；新增系统管理页「**审批模板包**」（`/admin/flowpackages`）。产物 `backend/app/seeds/data/wecom_flow_packages.json`（39 个流程包）既是迁移留档，也是现成的批量导入样例。
+- **模拟组织与人员种子**（全模拟，规避隐私风险）：11 个部门 → `sys_dept`（`WC01…WC11`）、23 个企微标签 → `sys_role`（`wc_tag_*`，**只做审批人来源，不绑定菜单权限**）、40 名员工 → `sys_user` + 任职 + 标签关系（用户名 `mockNNN`、姓名 `模拟员工NN`）、30 个岗位 → `hr_position`。**证件号 / 手机 / 邮箱 / 企微 vid 一律留空**。
+- 新增权限码 `admin:flow:export` / `admin:flow:import` 与菜单 `menu.flowPackages`；新增手写迁移 `nc2b3c4d5e6_wecom_flow_upgrade.py`、`nd2b3c4d5e6_oa_form_scope.py`。
+- 新增测试：`tests/test_wecom_org_seed.py`、`tests/test_wecom_templates_import.py`（15）、`tests/test_flow_packages.py`（9）、`tests/test_approval_executor_options.py`（12）、前端 `src/modules/oa/formLogic.test.ts`（23）。
+
+### Changed
+
+- 前端表单运行时支持**多选成员**、**公式聚合求值**（与后端同语义）、**节点只读掩码**；表单设计器新增「允许多选」开关与公式语法提示（`SUM(表.列)` / `HOURS(字段)`）。
+- 审批操作条按流程通用选项决定「通过」是否必须填意见、是否必须签名、是否展示「加签」按钮；待办出参新增 `commentRequired` / `commentSignRequired` / `executorCommentRequired` / `allowAddSign` 四个标记。
+- 条件分支的 op 编码推定口径固化：op1=eq / op2=gt / op3=lt / op4=gte / op5=lte / op6=between（文档未给 op 语义，按条件文案交叉推定；阈值恰好相等时可能有差，已列入导入报告的「待人工复核」项）。
+
+### Fixed
+
+- 修复 OA 表单校验把 `SUM(表.列)` 的**聚合参数误判为「引用的控件不存在」**（`_extract_aggregates` 返回值解包时丢掉了 kind，导致所有带明细表求和的公式字段都校验失败）。
+- 修复企微「时长」类条件无法落到流程变量的问题：`daterange` 不可暴露，现合成 `HOURS(<字段>)` 公式字段供引擎比较。
+
+### Security
+
+- 移植材料全程脱敏：源技术文档 `企业微信审批与组织数据技术文档.html`（含真实人员数据）**不入库**（已在 `.gitignore`），入库的只有脱敏后的 `backend/app/seeds/data/*.json`；真实姓名一律替换为 `模拟员工NN`、账号替换为 `mockNNN`，**手机号 / 邮箱 / 证件号 / 企微 vid 全部丢弃不落盘**（本次追加清除残留的部门企微 ID）。
+
+---
+
 ## [0.7.3] - 2026-11-24
 
 ### Fixed

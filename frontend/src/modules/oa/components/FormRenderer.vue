@@ -57,6 +57,8 @@ function requiredOf(f: OaField): boolean {
 
 function readonlyOf(f: OaField): boolean {
   if (props.design) return false
+  // 服务端按节点字段权限掩码：viewonly 字段带 readOnly 标记
+  if (f.readOnly) return true
   return isFieldReadonly(f, props.modelValue)
 }
 
@@ -191,12 +193,13 @@ function refOptions(f: OaField): string[] {
     : ['attendance', 'vacation', 'punch']
 }
 
-function atomicValue(f: OaField): { kind?: string; detail?: string } {
+/** 原子控件值：kind（原子类型）/ detail（说明）/ hours（时长，小时） */
+function atomicValue(f: OaField): { kind?: string; detail?: string; hours?: number } {
   const v = val(f.key)
-  return v && typeof v === 'object' ? (v as { kind?: string; detail?: string }) : {}
+  return v && typeof v === 'object' ? (v as { kind?: string; detail?: string; hours?: number }) : {}
 }
 
-function setAtomic(f: OaField, patch: { kind?: string; detail?: string }) {
+function setAtomic(f: OaField, patch: { kind?: string; detail?: string; hours?: number }) {
   setVal(f.key, { ...atomicValue(f), ...patch })
 }
 
@@ -301,7 +304,7 @@ defineExpose({ validate })
 
       <!-- 布局控件：不占数据位 -->
       <el-divider v-if="f.type === 'divider'" content-position="left" class="fr-divider">{{ f.label }}</el-divider>
-      <div v-else-if="f.type === 'text_block'" class="fr-text-block">{{ f.label }}</div>
+      <div v-else-if="f.type === 'text_block'" class="fr-text-block">{{ f.description || f.label }}</div>
 
       <el-form-item v-else :label="f.label" :prop="f.key">
         <el-input
@@ -404,6 +407,22 @@ defineExpose({ validate })
             {{ t('oa.form.addFileUrl') }}
           </el-button>
         </div>
+        <!-- E1：人员控件可多选（企微「成员」多选） -->
+        <el-select
+          v-else-if="f.type === 'user' && f.multiple && !userLoadFailed"
+          :model-value="(val(f.key) as number[]) ?? []"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          filterable
+          clearable
+          :placeholder="f.placeholder || t('common.form.placeholderSelect')"
+          :disabled="readonlyOf(f)"
+          style="width: 100%"
+          @update:model-value="setVal(f.key, $event)"
+        >
+          <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" />
+        </el-select>
         <el-select
           v-else-if="f.type === 'user' && !userLoadFailed"
           :model-value="(val(f.key) as number) ?? null"
@@ -489,6 +508,16 @@ defineExpose({ validate })
             :disabled="readonlyOf(f)"
             style="flex: 1; min-width: 0"
             @update:model-value="setAtomic(f, { detail: String($event ?? '') })"
+          />
+          <!-- E1：时长（小时）——供 HOURS() 公式引用 -->
+          <el-input-number
+            :model-value="atomicValue(f).hours ?? undefined"
+            :min="0"
+            :precision="2"
+            :placeholder="t('oa.form.atomicHours')"
+            :disabled="readonlyOf(f)"
+            style="width: 160px"
+            @update:model-value="setAtomic(f, { hours: $event === undefined ? undefined : Number($event) })"
           />
         </div>
         <div v-if="f.description" class="fr-desc">{{ f.description }}</div>

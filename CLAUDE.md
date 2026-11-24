@@ -194,6 +194,39 @@ current: User = Depends(get_current_user)              # 仅登录
 前端四页：`src/modules/hr/pages/OrgStructureList.vue`（组织架构）/ `PositionList.vue`（岗位）/ `StaffList.vue`（员工档案）/ `PersonnelAffairsList.vue`（人事事务 + 代理人抽屉）。
 人事事务页页脚**三按钮**：取消 / 保存草稿 / 提交审批（`v-permission="'hr:employment:submit'"`）+ 行内「生效」（`hr:employment:effect`）。
 
+### 企业微信审批移植（E1）
+
+**源文档** `企业微信审批与组织数据技术文档.html`（仓库根，**含真实人员数据 → 不入库，已 gitignore**）。入库的只有脱敏后的 `backend/app/seeds/data/*.json`。
+
+**数据落位（不新建组织表）**：
+
+| 企微概念 | 落位 | 键 |
+| --- | --- | --- |
+| 11 部门 | `sys_dept` | `code = WC01…WC11`（**写入口仍只有 `POST/PUT /admin/depts`**，本批次只读种子） |
+| 23 标签 | `sys_role` | `code = wc_tag_<slug>` —— **标签 → 角色的唯一通道，只做审批人来源，不绑菜单权限** |
+| 40 人 | `sys_user` + `sys_user_dept` + `hr_employee` | `username = mock001…mock040`、`name = 模拟员工NN`、密码 `Mock@123456` |
+| 39 模板（表单） | `oa_form` | `key = wc_<slug>`、`status=published`、`schema_json={"fields":[…]}`、`scope_json` |
+| 39 模板（流程） | `approval_definition` + `approval_node` | `code = wc_<slug>_approve`、`biz_type = "oa"` |
+
+**导入器** `app/seeds/wecom_templates.py::import_templates(db)`（由 `init_data.main()` 幂等调用）；报告脚本 `backend/scripts/wecom_import_report.py`。产物 `app/seeds/data/wecom_flow_packages.json`（39 个流程包）。
+
+**控件映射**：企微 22 类 → `text/textarea/number/money/date/daterange/select/radio/checkbox/file/user/text_block/resource/table/formula/phone/location/attendance/hr_ref`。Contact 控件 `type=multi` → `user` + `multiple=true`；`mode=department` → `resource` + `resource=dept`。
+
+**新增/变更的引擎能力**：
+
+- 条件规则组 `{logic, rules[]}`（可嵌套）+ `between` 区间 + `in`/`empty`/`not_empty`（`approval/condition.py`、`oa/schemas.py::CONDITION_OPS`、前端 `ConditionEditor.vue`）。
+- 节点类型新增 `executor`（办理节点，单人处理）。
+- `approval_definition.options`（Text JSON，10 个流程通用选项）—— **未配置时保持既有行为**；`commentRequired` 让**通过**也必须填意见（`70003`）；`commentSignRequired` 要求**签名**（只作用于审批节点，办理节点走「办理意见必填」），签名随 `commentSignature` 提交并写入 `approval_record.payload.signature`。
+- `approval_node.field_permissions`（Text JSON，`editable`/`viewonly`/`hidden`）—— `oa/service.py::instance_detail()` 按**当前待办节点**掩码：`hidden` 从 schema+data 剔除，`viewonly` 下发 `readOnly: true`。
+- `oa_form.scope_json`（Text JSON，`depts`/`roles`/`users`）—— `GET /oa/catalog` 按当前用户过滤，空 = 全员可见。
+- 公式支持 `SUM(表key.列key)` / `HOURS(字段key)`（后端 `oa/service.py::_extract_aggregates`；前端 `frontend/src/modules/oa/formLogic.ts` 的 `evalFormula`/`sumOfColumn`/`hoursOf` —— **两端语义必须一致**）。
+
+**流程包（JSON 化）** schema `bizsys.flowpackage/v1`，实现 `app/modules/approval/packages.py`；4 个端点（`GET /approval/packages/export-all`、`GET /approval/definitions/{code}/package`、`POST /approval/packages/import`、`GET /oa/admin/forms/{id}/package`），权限 `admin:flow:export` / `admin:flow:import`；**导入幂等**（按 `code` / `form.key` upsert）。前端页 `src/modules/admin/pages/FlowPackageList.vue`（菜单 `menu.flowPackages`）。
+
+**企微 op 编码推定**（文档未给语义，按 21 条条件文案交叉推定）：op1=eq / op2=gt / op3=lt / op4=gte / op5=lte / op6=between。**op2/op4 的 gt/gte 归属仅在恰好等于阈值时有差异**；2 处 op6 阈值缺失按条件标题重建（`reconstructed=true`）；1 处 op2 阈值不可知落 `gt 0`（`needs_review=true`）—— 详见 `docs/api-contract.md` E1 章节与导入报告。
+
+**新增迁移（手写）**：`nc2b3c4d5e6_wecom_flow_upgrade.py`（`options` + `field_permissions`）、`nd2b3c4d5e6_oa_form_scope.py`（`scope_json`）—— `alembic/env.py` 未 import oa 域 models，**必须手写**。
+
 ### AI 能力
 
 三层结构：
@@ -224,7 +257,7 @@ current: User = Depends(get_current_user)              # 仅登录
 ### 已知坑
 
 - `alembic/env.py` 只 import 了 admin/approval/asset/auth/contract/crm/finance/production/project/report/settings/task/visitor 的 models；`oa`/`hr`/`procurement`/`sales`/`aicenter`/`portal` 的表不在 metadata 里，**autogenerate 会试图删表**。这些表的变更手写迁移。
-- 迁移链单线无分支，当前 head = `nb2b3c4d5e6_hr_employment_account.py`。新迁移用可读递增 id（如 `nc2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
+- 迁移链单线无分支，当前 head = `nd2b3c4d5e6_oa_form_scope.py`。新迁移用可读递增 id（如 `ne2b3c4d5e6_xxx.py`），`down_revision` 指向当前 head。
 - `SessionLocal(autoflush=False)`：同一事务里新插入的行需要显式 `db.flush()` 才能被后续 SELECT 看到。
 - `db.py::_ensure_utf8mb4` 会强制补 `charset=utf8mb4`（历史上 pymysql 默认 latin1 导致中文乱码）。
 - 事务边界在 router 的 `db.commit()`，service 不 commit（`auth`/`portal` 例外）。
@@ -254,6 +287,11 @@ current: User = Depends(get_current_user)              # 仅登录
 - **`hr_employment` / `hr_delegate` 的 `scope` 校验很严**：`scope="position"` 必须同时给 `positionId`（否则 63018），`scope="auth"` 必须给 `authId`。
 - **B10-1 新表都在 `hr` 域，而 `alembic/env.py` 没 import hr models** —— 新增 hr 表的迁移**必须手写**（`na2b3c4d5e6_hr_l1_org_employee.py` / `nb2b3c4d5e6_hr_employment_account.py`），autogenerate 会删表。
 - **变更日志的单一数据源是仓库根 `CHANGELOG.md`**：不要另建表、也不要前端本地副本 —— 后端 `admin/changelog.py` 按 mtime 缓存解析结果，改文件即时生效；**镜像里靠 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供文件，漏改会让容器内读到空变更日志**（页面显示空态，不报错）。
+- **`options`（流程通用选项）缺省 = 保持既有行为**（E1）：`engine._options_of()` 查不到定义或列就返回 `{}`，于是「意见必填 / 需签名 / 允许加签 / 通过后可撤销」全部**不生效**。企微模板的 options 由导入器**显式写全 10 个键**（缺失即 False），而 bizSys 存量定义没有 options —— **别把 `bool(opts.get(k))` 当成「未配置=关闭」**：加签的判定是 `opts.get("allowAddSign") is False`。
+- **`commentSignRequired` 只作用于审批节点**（E1）：办理节点（`executor`）走「办理意见必填」口径，前端 `ApprovalActionbar` 同样按 `nodeType !== 'executor'` 决定是否弹签名板 —— **前后端两边都要排除 executor**，否则办理节点永远签不了。
+- **`daterange` 不能作为流程变量**（E1）：`EXPOSABLE_TYPES` 不含它。企微「时长」按小时比较，导入器为此合成 `HOURS(<fieldkey>)` 公式字段暴露给引擎，**原始 daterange 保持不暴露**。
+- **公式求值前后端必须同语义**（E1）：后端 `oa/service.py::_eval_formula` / `_sum_of_column` / `_hours_of`，前端 `frontend/src/modules/oa/formLogic.ts` 的 `evalFormula` / `sumOfColumn` / `hoursOf`。**改了任一侧就要同步另一侧**，否则表单预览与服务端重算的金额对不上。`_formula_refs` 要把 `SUM(...)` / `HOURS(...)` 整段剥掉，否则聚合参数会被当成控件引用。
+- **企微模拟数据不得升级成真实数据**（E1）：源 HTML `企业微信审批与组织数据技术文档.html` 含真实人员数据，**不入库**（已 gitignore）；入库的只有脱敏后的 `backend/app/seeds/data/*.json`。模拟人员一律 `mockNNN` / `模拟员工NN`，`hr_employee.id_no` / `mobile` / `email` 与 `sys_user.mobile/email/wecom_userid` **留空**。**企微 vid（人员与部门 ID）解析阶段即丢弃、不落盘** —— `backend/scripts/parse_wecom_doc.py` 不再输出 `wecom_id`，改写种子 JSON 时别把它加回去。
 
 ## 合规基线（B9）
 

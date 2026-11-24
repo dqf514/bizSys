@@ -772,6 +772,14 @@ export interface ApprovalTask {
   instanceStatus?: string
   createTime: string
   actedAt: string | null
+  /** E1：流程通用选项 —— 审批意见必填 */
+  commentRequired?: boolean
+  /** E1：流程通用选项 —— 审批意见需签名 */
+  commentSignRequired?: boolean
+  /** E1：流程通用选项 —— 办理意见必填 */
+  executorCommentRequired?: boolean
+  /** E1：流程通用选项 —— 允许加签 */
+  allowAddSign?: boolean
 }
 
 export interface TimelineRecord {
@@ -1130,6 +1138,8 @@ export interface OaField {
   refType?: OaRefType
   /** type=resource 时允许关联的表单 key 列表（企微「关联审批单」） */
   relatedFormKeys?: string[]
+  /** E1：人员控件可多选（企微「成员」多选） */
+  multiple?: boolean
   /** E1：节点字段权限判定为只读（服务端掩码后下发） */
   readOnly?: boolean
 }

@@ -22,6 +22,7 @@
     "withdraw": "Withdraw",
     "commentPlaceholder": "Enter comment",
     "commentRequired": "Comment is required",
+    "commentSignRequired": "Signature is required",
     "rejectConfirm": "Reject this approval?",
     "agreeConfirm": "Approve this item?",
     "withdrawConfirm": "Withdraw this approval?",

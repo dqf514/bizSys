@@ -134,11 +134,15 @@ export function fieldOptions(field: OaField, data: OaFormData, dictOptions?: str
 /** 企业微信公式写法形如「Money-a + Money-b」：控件类型前缀 + 控件标识 */
 const FORMULA_PREFIX_RE = /\b(?:Money|Number|money|number)-/g
 const FORMULA_IDENT_RE = /[A-Za-z_][A-Za-z0-9_]*/g
+/** 聚合调用：SUM(表key.列key) / HOURS(字段key) —— 与后端口径一致 */
+const FORMULA_SUM_RE = /\bSUM\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\s*\)/g
+const FORMULA_HOURS_RE = /\bHOURS\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)/g
 
-/** 公式引用的控件标识（去重，保持出现顺序） */
+/** 公式引用的控件标识（去重，保持出现顺序）；聚合调用内部标识不计入 */
 export function formulaRefs(expr: string | undefined): string[] {
   if (!expr) return []
-  const src = expr.replace(FORMULA_PREFIX_RE, '')
+  let src = expr.replace(FORMULA_PREFIX_RE, '')
+  src = src.replace(FORMULA_SUM_RE, ' ').replace(FORMULA_HOURS_RE, ' ')
   const refs: string[] = []
   for (const m of src.matchAll(FORMULA_IDENT_RE)) {
     const name = m[0]
@@ -147,7 +151,71 @@ export function formulaRefs(expr: string | undefined): string[] {
   return refs
 }
 
-type Token = { kind: 'num'; value: number } | { kind: 'ident'; value: string } | { kind: 'op'; value: string }
+/** 明细表某列求和（与后端 _sum_of_column 一致）：无表/无列 → null */
+export function sumOfColumn(data: OaFormData, tableKey: string, colKey: string): number | null {
+  const rows = data[tableKey]
+  if (!Array.isArray(rows)) return null
+  let total = 0
+  let found = false
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const cell = (row as Record<string, unknown>)[colKey]
+    if (cell === null || cell === undefined || cell === '' || typeof cell === 'boolean') continue
+    const n = Number(cell)
+    if (!Number.isFinite(n)) return null
+    total += n
+    found = true
+  }
+  return found ? total : 0
+}
+
+/** 时间解析（与后端 _parse_datetime 一致）：支持 `YYYY-MM-DD`、`YYYY-MM-DD HH:mm`、`YYYY-MM-DD HH:mm:ss` */
+function parseDateTime(v: unknown): number | null {
+  if (typeof v !== 'string') return null
+  const raw = v.trim().replace(/\//g, '-')
+  if (!raw) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(raw)
+  if (!m) return null
+  const ts = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4] ?? 0),
+    Number(m[5] ?? 0),
+    Number(m[6] ?? 0),
+  )
+  return Number.isFinite(ts) ? ts : null
+}
+
+/** 假勤时长（小时）归一：数值 / {hours:n} / {start,end} / [start,end]（与后端 _hours_of 一致） */
+export function hoursOf(value: unknown): number | null {
+  if (value === null || value === undefined || typeof value === 'boolean') return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'object') {
+    if (Array.isArray(value)) {
+      if (value.length !== 2) return null
+      const s = parseDateTime(value[0])
+      const e = parseDateTime(value[1])
+      if (s === null || e === null || e < s) return null
+      return (e - s) / 3600000
+    }
+    const obj = value as Record<string, unknown>
+    if ('hours' in obj) {
+      const n = Number(obj.hours)
+      return Number.isFinite(n) ? n : null
+    }
+    const s = parseDateTime(obj.start)
+    const e = parseDateTime(obj.end)
+    if (s === null || e === null || e < s) return null
+    return (e - s) / 3600000
+  }
+  return null
+}
+
+type Token =
+  | { kind: 'num'; value: number }
+  | { kind: 'ident'; value: string }
+  | { kind: 'op'; value: string }
 
 function tokenize(src: string): Token[] | null {
   const tokens: Token[] = []
@@ -172,7 +240,7 @@ function tokenize(src: string): Token[] | null {
       i += m[0].length
       continue
     }
-    if ('+-*/()'.includes(ch)) {
+    if ('+-*/().'.includes(ch)) {
       tokens.push({ kind: 'op', value: ch })
       i += 1
       continue
@@ -183,13 +251,17 @@ function tokenize(src: string): Token[] | null {
 }
 
 /**
- * 公式求值：只允许 + - * /、括号、数字与本表字段引用。
+ * 公式求值：只允许 + - * /、括号、数字与本表字段引用，外加聚合 SUM()/HOURS()。
  * 语义与后端 app/modules/oa/service.py::_eval_formula 一致：
  * 引用字段不存在 → 整体不可求值（null）；字段值非数字 → 按 0 计。
  */
 export function evalFormula(expr: string | undefined, data: OaFormData): number | null {
   if (!expr || !expr.trim()) return null
-  const src = expr.replace(FORMULA_PREFIX_RE, '').replace(/[×÷]/g, (c) => (c === '×' ? '*' : '/'))
+  const src = expr
+    .replace(FORMULA_PREFIX_RE, '')
+    .replace(/[×÷]/g, (c) => (c === '×' ? '*' : '/'))
+    .replace(/－/g, '-')
+    .replace(/＋/g, '+')
   const tokens = tokenize(src)
   if (!tokens || !tokens.length) return null
   let pos = 0
@@ -202,6 +274,14 @@ export function evalFormula(expr: string | undefined, data: OaFormData): number 
       return true
     }
     return false
+  }
+  const eatIdent = (): string | null => {
+    const tk = tokens[pos]
+    if (tk && tk.kind === 'ident') {
+      pos += 1
+      return tk.value
+    }
+    return null
   }
 
   function parseExpr(): number | null {
@@ -256,6 +336,24 @@ export function evalFormula(expr: string | undefined, data: OaFormData): number 
       return tk.value
     }
     if (tk.kind === 'ident') {
+      // 聚合：SUM(表key.列key) / HOURS(字段key)
+      if (tk.value === 'SUM' || tk.value === 'HOURS') {
+        pos += 1
+        if (!eat('(')) return null
+        const first = eatIdent()
+        if (first === null) return null
+        let second: string | null = null
+        if (eat('.')) {
+          second = eatIdent()
+          if (second === null) return null
+        }
+        if (!eat(')')) return null
+        if (tk.value === 'SUM') {
+          if (second === null) return null
+          return sumOfColumn(data, first, second)
+        }
+        return hoursOf(data[first])
+      }
       pos += 1
       if (!(tk.value in data)) return null
       const raw = data[tk.value]

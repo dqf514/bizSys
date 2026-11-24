@@ -9,6 +9,8 @@ from app.core.schemas import CamelModel
 
 class CommentIn(CamelModel):
     comment: str = Field("", max_length=500)
+    #: E1：审批意见签名（企微「审批意见需签名」）—— data:image/png;base64 画布快照
+    comment_signature: str = Field("", max_length=400000)
 
 
 class TransferIn(CamelModel):

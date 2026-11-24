@@ -185,9 +185,10 @@ def approve(
     db: Session = Depends(get_db),
 ):
     comment = body.comment if body else ""
-    inst = service.approve(db, task_id, user, comment)
+    signature = body.comment_signature if body else ""
+    inst = service.approve(db, task_id, user, comment, signature)
     record(db, user_id=user.id, module="approval", action="approve", biz_type=inst.biz_type, biz_id=inst.biz_id,
-           detail={"taskId": task_id, "comment": comment})
+           detail={"taskId": task_id, "comment": comment, "signed": bool(signature)})
     db.commit()
     return {"instanceId": inst.id, "status": inst.status}
 
@@ -199,9 +200,9 @@ def reject(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    inst = service.reject(db, task_id, user, body.comment)
+    inst = service.reject(db, task_id, user, body.comment, body.comment_signature)
     record(db, user_id=user.id, module="approval", action="reject", biz_type=inst.biz_type, biz_id=inst.biz_id,
-           detail={"taskId": task_id, "comment": body.comment})
+           detail={"taskId": task_id, "comment": body.comment, "signed": bool(body.comment_signature)})
     db.commit()
     return {"instanceId": inst.id, "status": inst.status}
 

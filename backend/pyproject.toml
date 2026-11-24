@@ -1,6 +1,6 @@
 [project]
 name = "bizsys-backend"
-version = "0.7.3"
+version = "0.8.0"
 description = "bizSys 业务系统后端（FastAPI + SQLAlchemy 2 + MySQL + Redis）"
 requires-python = ">=3.13"
 dependencies = [

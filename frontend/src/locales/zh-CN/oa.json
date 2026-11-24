@@ -58,7 +58,8 @@
     "tableNoColumns": "该明细表尚未配置子列",
     "tableAddRow": "添加明细行",
     "atomicType": "原子类型",
-    "atomicDetail": "摘要说明"
+    "atomicDetail": "摘要说明",
+    "atomicHours": "时长（小时）"
   },
   "my": {
     "title": "我的申请",
@@ -174,6 +175,8 @@
     "placeholder": "占位提示",
     "maxlength": "最大长度",
     "exposeVariable": "作为流程变量",
+    "multiple": "允许多选",
+    "multipleTip": "人员控件可选多人（企微「成员」多选），值为人员 id 数组。",
     "exposeTip": "提交时注入流程变量，供条件分支使用",
     "span": "栅格宽度",
     "spanHalf": "半行",
@@ -260,6 +263,7 @@
     "tableColumns": "明细子列",
     "formulaExpr": "计算公式",
     "formulaExprTip": "支持 + - * / 与本表字段引用，例：Money-qty * Money-price；提交时由服务端重算。",
+    "formulaSyntaxTip": "聚合：SUM(明细表key.子列key) 求和、HOURS(字段key) 取时长（小时）；字段 key 见控件属性。",
     "refType": "原子类型",
     "refTypeTip": "假勤 / 人事原子控件的记录类型。",
     "columnKey": "列标识",

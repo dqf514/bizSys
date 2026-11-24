@@ -147,6 +147,97 @@ def test_options_allow_add_sign(db):
     db.rollback()
 
 
+def test_options_comment_sign_required(db):
+    """通用选项 commentSignRequired：审批意见必须带签名，签名随时间线留痕。"""
+    admin, m1, l1 = _users(db)
+    code, _ = _make_definition(db, admin, m1, l1, options={"commentSignRequired": True})
+    biz = _biz_id()
+    service.start(db, biz_type=BIZ, biz_id=biz, definition_code=code, title="意见需签名", initiator=admin)
+    db.flush()
+    t = _todo(db, m1, biz)
+    # 无签名 → 拒绝
+    try:
+        service.approve(db, t[0]["id"], m1, "同意")
+        raise AssertionError("expected 70003")
+    except BizException as e:
+        assert e.code == 70003
+        assert "签名" in str(e.message or "")
+    # 带签名 → 通过，签名写入时间线 payload
+    inst = service.approve(db, t[0]["id"], m1, "同意", "data:image/png;base64,AAAA")
+    db.flush()
+    tl = service.instance_timeline(db, inst.id)
+    agree = next(r for r in tl["records"] if r["action"] == "agree")
+    assert agree["payload"]["signature"] == "data:image/png;base64,AAAA"
+    db.rollback()
+
+
+def test_options_reject_sign_required(db):
+    """commentSignRequired：驳回同样需要签名。"""
+    admin, m1, l1 = _users(db)
+    code, _ = _make_definition(db, admin, m1, l1, options={"commentSignRequired": True})
+    biz = _biz_id()
+    service.start(db, biz_type=BIZ, biz_id=biz, definition_code=code, title="驳回需签名", initiator=admin)
+    db.flush()
+    t = _todo(db, m1, biz)
+    try:
+        service.reject(db, t[0]["id"], m1, "不同意")
+        raise AssertionError("expected 70003")
+    except BizException as e:
+        assert e.code == 70003
+    db.rollback()
+
+
+def test_executor_node_signature_not_required(db):
+    """办理节点不强制签名（走「办理意见必填」口径）。"""
+    admin, m1, l1 = _users(db)
+    code, _ = _make_definition(db, admin, m1, l1, options={"commentSignRequired": True})
+    biz = _biz_id()
+    service.start(db, biz_type=BIZ, biz_id=biz, definition_code=code, title="办理免签", initiator=admin)
+    db.flush()
+    t = _todo(db, m1, biz)
+    # 审批节点需要签名
+    service.approve(db, t[0]["id"], m1, "同意", "data:image/png;base64,AAAA")
+    db.flush()
+    t2 = _todo(db, l1, biz)
+    assert t2[0]["nodeType"] == "executor"
+    inst = service.approve(db, t2[0]["id"], l1, "已办理")
+    db.flush()
+    assert inst.status == "running" and inst.current_seq == 3
+    db.rollback()
+
+
+def test_task_list_exposes_option_flags(db):
+    """待办出参带流程通用选项标记（前端据此决定意见必填 / 签名 / 加签）。"""
+    admin, m1, l1 = _users(db)
+    code, _ = _make_definition(
+        db,
+        admin,
+        m1,
+        l1,
+        options={"commentRequired": True, "commentSignRequired": True, "allowAddSign": False},
+    )
+    biz = _biz_id()
+    service.start(db, biz_type=BIZ, biz_id=biz, definition_code=code, title="选项标记", initiator=admin)
+    db.flush()
+    t = _todo(db, m1, biz)
+    assert t[0]["commentRequired"] is True
+    assert t[0]["commentSignRequired"] is True
+    assert t[0]["allowAddSign"] is False
+    db.rollback()
+
+
+def test_task_list_allow_add_sign_default_true(db):
+    """未配置 allowAddSign → 保持既有行为（允许加签）。"""
+    admin, m1, l1 = _users(db)
+    code, _ = _make_definition(db, admin, m1, l1)
+    biz = _biz_id()
+    service.start(db, biz_type=BIZ, biz_id=biz, definition_code=code, title="默认加签", initiator=admin)
+    db.flush()
+    t = _todo(db, m1, biz)
+    assert t[0]["allowAddSign"] is True
+    db.rollback()
+
+
 def test_options_withdraw_after_approved(db):
     """通用选项 allowWithdrawAfterApproved：已通过后发起人仍可撤销。"""
     admin, m1, l1 = _users(db)

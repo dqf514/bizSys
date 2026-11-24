@@ -384,6 +384,11 @@ function onResourceTypeChange(f: OaField) {
             <el-switch v-model="selectedField.exposeVariable" />
             <div class="prop-tip">{{ t('oa.design.exposeTip') }}</div>
           </el-form-item>
+          <!-- E1：人员控件可多选（企微「成员」多选） -->
+          <el-form-item v-if="selectedField.type === 'user'" :label="t('oa.design.multiple')">
+            <el-switch v-model="selectedField.multiple" />
+            <div class="prop-tip">{{ t('oa.design.multipleTip') }}</div>
+          </el-form-item>
 
           <!-- 选项：手工 / 字典数据源 -->
           <template v-if="isOptionType">
@@ -574,6 +579,7 @@ function onResourceTypeChange(f: OaField) {
                 @update:model-value="selectedField!.formula = String($event ?? '')"
               />
               <div class="prop-tip">{{ t('oa.design.formulaExprTip') }}</div>
+              <div class="prop-tip">{{ t('oa.design.formulaSyntaxTip') }}</div>
             </el-form-item>
           </template>
 

@@ -22,6 +22,7 @@
     "withdraw": "撤回",
     "commentPlaceholder": "请输入审批意见",
     "commentRequired": "审批意见必填",
+    "commentSignRequired": "审批意见需签名",
     "rejectConfirm": "确认驳回该审批？",
     "agreeConfirm": "确认同意该审批？",
     "withdrawConfirm": "确认撤回该审批？",

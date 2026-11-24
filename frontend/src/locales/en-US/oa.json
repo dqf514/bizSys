@@ -58,7 +58,8 @@
     "tableNoColumns": "This detail table has no columns yet",
     "tableAddRow": "Add Row",
     "atomicType": "Atomic Type",
-    "atomicDetail": "Summary"
+    "atomicDetail": "Summary",
+    "atomicHours": "Duration (hours)"
   },
   "my": {
     "title": "My Applications",
@@ -174,6 +175,8 @@
     "placeholder": "Placeholder",
     "maxlength": "Max Length",
     "exposeVariable": "Expose as flow variable",
+    "multiple": "Allow multiple",
+    "multipleTip": "The member control accepts several people (WeCom multi-member); the value is an array of user ids.",
     "exposeTip": "Injected into instance variables on submit, for condition branches",
     "span": "Grid width",
     "spanHalf": "Half row",
@@ -260,6 +263,7 @@
     "tableColumns": "Detail Columns",
     "formulaExpr": "Formula",
     "formulaExprTip": "Supports + - * / and field references of this form, e.g. Money-qty * Money-price; recalculated server-side on submit.",
+    "formulaSyntaxTip": "Aggregates: SUM(detailTableKey.columnKey) sums a column, HOURS(fieldKey) reads duration in hours; see field keys in the properties panel.",
     "refType": "Atomic Type",
     "refTypeTip": "Record type of the attendance / HR atomic control.",
     "columnKey": "Column Key",

@@ -20,6 +20,7 @@
 | **F6** | 对外门户专业化 + 访客预约闭环 + 全站移动优先（横切批次，非 CSV 条目） | — | B2 账号体系、B3 访客域、F5 流程引擎 | **已交付** |
 | **B9** | 检测机构合规基线落地 + 人员能力授权纵切（CSV 1、26） | 1、26 | 需求方两份 docx（已入库） | **已交付** |
 | **B10** | HR L1–L5 + 质量体系域（CSV 26 剩余层） | 26 | B9 授权台账 | **进行中**（B10-1 已交付） |
+| **E1** | 企业微信审批 + 组织数据完整移植（横切批次，非 CSV 条目） | — | F5 流程引擎、OA 表单设计器 | **已交付**（39/39 模板复刻 + 流程包 JSON 化） |
 
 外部依赖项：**第 1 项**「运营平台合规开发原则」与**第 2 项**「SSO / 统一权限中心（UPMS）」原为"文件未入库"的历史遗留 —— 两份 docx 已由需求方提供并入库（仓库根目录），第 1 项已在 **B9** 逐条核查并落地为可执行约束（见 [`docs/compliance-baseline.md`](compliance-baseline.md)）；第 2 项仍涉及外部身份系统对接（企微 SSO 已在 B6/F5 落地，UPMS 统一权限中心对接需单独立项，不排入当前批次）。
 
@@ -436,6 +437,52 @@ B10-4 只需补**背景调查与保密等级**两侧。
 **遗留（转 B10-2 及以后）**：`hr_employee` 尚未接**一人一档证书**（L2）；`job_level`（职级）仍是 admin 域维护的死字段；
 `sys_user` 与 `hr_employee` 的**双向同步只做单向**（HR → 认证），认证侧改 HR 档案会以 HR 为准；
 门禁/工牌物理权限**无对接**（已写待确认审计）。
+
+---
+
+## E1 — 企业微信审批 + 组织数据完整移植（已交付，2026-11-24）
+
+> 用户定调：**"企业微信审批与组织数据技术文档.html……我需要完整移植到我们开发的这套系统……把这些企业微信中在用的审批在当前系统直接完美复刻……另外我希望所有审批流程可以 json 化，为后期批量导入导出创造便利。"**
+> 源文档：`企业微信审批与组织数据技术文档.html`（仓库根，**含真实人员数据 → 不入库，已加 .gitignore**）；入库的只有脱敏后的 `backend/app/seeds/data/*.json`。
+
+**建模决策**（用户确认）
+
+| 问题 | 决策 |
+| --- | --- |
+| 39 个模板怎么落地 | **随种子自动落地** —— `init_data.main()` 幂等调用导入器，任何环境跑一次种子即有 39 表单 + 39 流程定义 |
+| 企微的 23 个标签怎么映射 | **只做审批人来源** —— `sys_role(wc_tag_*)` 仅用于解析审批人，**不**额外绑定菜单权限（权限体系仍只有「角色 → 菜单」一条线） |
+| 组织与人员数据 | **全模拟** —— 用户名 `mockNNN`、姓名 `模拟员工NN`；证件号 / 手机 / 邮箱 / 企微 vid **一律为空**；源 HTML 不入库 |
+
+**已交付**
+
+| 项 | 内容 |
+| --- | --- |
+| **引擎升级（条件）** | 条件规则组（`{logic, rules[]}` 可嵌套）+ `between` 区间 + `in` / `empty` / `not_empty`（`approval/condition.py` / `oa/schemas.py::CONDITION_OPS` / 前端 `ConditionEditor.vue`） |
+| **引擎升级（节点）** | 新增 **办理节点** `executor`（单人处理，可配「办理意见必填」/「办理人可修改」） |
+| **引擎升级（选项）** | `approval_definition.options`（10 个流程通用选项：意见必填 / 意见需签名 / 允许加签 / 通过后可撤销 / 审批人可改流程 / 可改抄送 / 办理人可修改 / 允许代提交 / 明细表权限控制）；**未配置时保持既有行为** |
+| **引擎升级（签名）** | 「审批意见需签名」落地：待办按 `commentSignRequired` 展示 `SignaturePad`，签名以 PNG dataURL 随 `commentSignature` 提交，写入 `approval_record.payload.signature`；**只作用于审批节点** |
+| **引擎升级（字段权限）** | `approval_node.field_permissions`（`editable` / `viewonly` / `hidden`）：按当前待办节点掩码，`hidden` 从 schema+data 剔除、`viewonly` 下发 `readOnly` |
+| **表单控件升级** | 新增 6 类：`table`（明细表）· `formula`（公式，支持 `SUM(表.列)` / `HOURS(字段)`）· `phone` · `location` · `attendance`（假勤原子）· `hr_ref`（人事原子）；`user` 支持 `multiple`（企微多选成员） |
+| **可见范围** | `oa_form.scope_json`（部门 / 角色 / 人员），`GET /oa/catalog` 按当前用户过滤 |
+| **模板移植** | **39 个在用企微审批模板全部复刻**：347 字段 / 350 节点 / 122 条件节点 / 106 分支 / 1487 条节点字段权限 / 64 个暴露变量字段；**0 结构性问题** |
+| **组织移植** | 11 部门（`sys_dept`，`WC01…WC11`）· 23 标签（`sys_role`，`wc_tag_*`）· 40 人（`mock001…mock040` + 任职 + 标签关系）· 30 岗位（`hr_position`） |
+| **JSON 化** | 流程包 schema `bizsys.flowpackage/v1`；4 个端点（导出全部 / 导出单个 / 导入 / OA 表单导出）；产物 `backend/app/seeds/data/wecom_flow_packages.json`（39 包）；**导入幂等**（重复导入 created=0） |
+| **前端** | `admin/FlowPackageList.vue`（审批模板包管理页）· 表单设计器加「允许多选」开关与公式语法提示 · 运行时支持多选成员 / 公式聚合 / 节点只读掩码 · 审批操作条支持「意见必填 + 手写签名」 |
+| **迁移** | `nc2b3c4d5e6_wecom_flow_upgrade.py`（`options` + `field_permissions`）· `nd2b3c4d5e6_oa_form_scope.py`（`scope_json`）—— **全手写**（`alembic/env.py` 未 import oa 域 models） |
+| **测试** | `tests/test_wecom_org_seed.py` · `tests/test_wecom_templates_import.py`（15）· `tests/test_flow_packages.py`（9）· `tests/test_approval_executor_options.py`（12）· 前端 `src/modules/oa/formLogic.test.ts`（23） |
+
+**验证**
+
+| 范围 | 结果 |
+| --- | --- |
+| 后端 | `uv run ruff check app tests` 通过；`uv run pytest -q` 全绿 |
+| 前端 | `pnpm lint` / `typecheck` / `i18n:check` / `scan:literal:strict` / `test:unit` / `build` 全绿 |
+| 导入报告 | `uv run python scripts/wecom_import_report.py` —— 39 模板 / 0 结构性问题 / 6 条待人工复核项 |
+
+**遗留（转后续批次）**：企微**接口级**双向同步（本批次是一次性完整复刻）；
+`allowModifyFlow` / `allowModifyCc` / `executorCanModify` / `allowProxySubmit` / `detailTablePermission` 五个选项**已建模未接引擎**；
+企微「部门选择 + 多选」的 Contact 控件在系统里落为单选 `resource=dept`；
+假勤控件不接真实考勤系统（原子控件 + 摘要卡承接）。
 
 ---
 
