@@ -994,13 +994,37 @@ export type OaFieldType =
   | 'resource'
   | 'divider'
   | 'text_block'
+  // E1（企业微信移植）：明细表 / 公式 / 手机号 / 位置 / 假勤原子 / 人事原子
+  | 'table'
+  | 'formula'
+  | 'phone'
+  | 'location'
+  | 'attendance'
+  | 'hr_ref'
 
-export type OaConditionOp = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'empty' | 'not_empty'
+export type OaConditionOp =
+  | 'eq'
+  | 'ne'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'contains'
+  | 'between'
+  | 'empty'
+  | 'not_empty'
 
 export interface OaConditionRule {
-  field: string
+  /** 引用控件 key；rules 非空时本条是条件组，field 可空 */
+  field?: string
   op: OaConditionOp
-  value: string
+  /** 标量或数组（between 用 [下限, 上限]，in 用候选集合） */
+  value?: unknown
+  /** 条件组的组合逻辑（仅 rules 非空时生效） */
+  logic?: 'and' | 'or'
+  /** 子条件（嵌套条件组） */
+  rules?: OaConditionRule[]
 }
 
 export interface OaConditionGroup {
@@ -1055,7 +1079,33 @@ export interface OaField {
   resource?: OaResourceType | ''
   /** 资源选中后的带出字段映射 */
   mappings?: OaFieldMapping[]
+  /** type=table 时的明细子列 */
+  columns?: OaColumn[]
+  /** type=formula 时的计算表达式（引用本表字段 key） */
+  formula?: string
+  /** type=attendance / hr_ref 时的原子控件类型 */
+  refType?: OaRefType
+  /** type=resource 时允许关联的表单 key 列表（企微「关联审批单」） */
+  relatedFormKeys?: string[]
 }
+
+/** 明细表子列 */
+export interface OaColumn {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'number' | 'money' | 'date' | 'select'
+  options?: string[]
+}
+
+/** 原子控件类型：假勤（考勤/请假/补卡）与人事（入职/转正/调岗/离职） */
+export type OaRefType =
+  | 'attendance'
+  | 'vacation'
+  | 'punch'
+  | 'onboard'
+  | 'regular'
+  | 'transfer'
+  | 'resign'
 
 export interface OaResourceMeta {
   type: OaResourceType

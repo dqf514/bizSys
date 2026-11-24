@@ -20,7 +20,13 @@
     "user": "User",
     "resource": "Data Picker",
     "divider": "Divider",
-    "text_block": "Text Block"
+    "text_block": "Text Block",
+    "table": "Detail Table",
+    "formula": "Formula",
+    "phone": "Phone",
+    "location": "Location",
+    "attendance": "Attendance Record",
+    "hr_ref": "HR Record"
   },
   "catalog": {
     "title": "New Application",
@@ -196,7 +202,9 @@
       "lte": "less or equal",
       "contains": "contains",
       "empty": "is empty",
-      "not_empty": "not empty"
+      "not_empty": "not empty",
+      "in": "in",
+      "between": "between"
     },
     "resourceType": "Resource type",
     "resourceTypeTip": "Pick a site-wide data source; applicants search in a dialog and the record no. and name are filled back",
@@ -223,7 +231,8 @@
       "input": "Basic",
       "choice": "Choice",
       "advanced": "Advanced",
-      "layout": "Layout"
+      "layout": "Layout",
+      "atomic": "Atomic"
     },
     "canvasEmpty": "Click or drag fields from the left palette",
     "props": "Field properties",
@@ -235,7 +244,12 @@
     "flowStale": "Latest v{version}",
     "bindLatest": "Bind latest",
     "bindLatestConfirm": "Rebind this form to the latest enabled flow version v{version}? New submissions will follow the new version.",
-    "bindLatestDone": "Bound to latest version v{version}"
+    "bindLatestDone": "Bound to latest version v{version}",
+    "condToGroup": "To group",
+    "condToLeaf": "To single rule",
+    "condRange": "Lower bound",
+    "condRangeTo": "Upper bound",
+    "condMultiValues": "Comma-separated values"
   },
   "formStatus": {
     "draft": "Draft",

@@ -20,7 +20,13 @@
     "user": "人员",
     "resource": "数据选择",
     "divider": "分割线",
-    "text_block": "说明文字"
+    "text_block": "说明文字",
+    "table": "明细表",
+    "formula": "公式",
+    "phone": "手机号",
+    "location": "位置",
+    "attendance": "假勤记录",
+    "hr_ref": "人事记录"
   },
   "catalog": {
     "title": "新申请",
@@ -196,7 +202,9 @@
       "lte": "小于等于",
       "contains": "包含",
       "empty": "为空",
-      "not_empty": "非空"
+      "not_empty": "非空",
+      "in": "属于",
+      "between": "介于"
     },
     "resourceType": "资源类型",
     "resourceTypeTip": "选择全站数据来源，填写人弹窗检索后回填编号与名称",
@@ -223,7 +231,8 @@
       "input": "基础控件",
       "choice": "选择控件",
       "advanced": "高级控件",
-      "layout": "布局控件"
+      "layout": "布局控件",
+      "atomic": "原子控件"
     },
     "canvasEmpty": "从左侧字段面板点击或拖入字段",
     "props": "字段属性",
@@ -235,7 +244,12 @@
     "flowStale": "最新 v{version}",
     "bindLatest": "绑定最新版",
     "bindLatestConfirm": "将该表单绑定的流程切换到最新启用版本 v{version}？新发起的申请将按新版本流转。",
-    "bindLatestDone": "已绑定到最新版本 v{version}"
+    "bindLatestDone": "已绑定到最新版本 v{version}",
+    "condToGroup": "转为条件组",
+    "condToLeaf": "转为单条",
+    "condRange": "下限",
+    "condRangeTo": "上限",
+    "condMultiValues": "多个值用逗号分隔"
   },
   "formStatus": {
     "draft": "草稿",

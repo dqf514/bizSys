@@ -1,9 +1,12 @@
 <script setup lang="ts">
-/** 条件组编辑器：{logic: and/or, rules: [{field, op, value}]}，用于 showWhen/requiredWhen/readonlyWhen。 */
+/**
+ * 条件组编辑器：{logic: and/or, rules: [{field, op, value}]}，用于 showWhen/requiredWhen/readonlyWhen。
+ * 规则可嵌套条件组（ConditionRuleNode 递归渲染），与后端 ConditionRule AST 对齐。
+ */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Delete, Plus } from '@element-plus/icons-vue'
-import type { OaConditionGroup, OaConditionOp, OaField } from '@/api/types'
+import { Plus } from '@element-plus/icons-vue'
+import type { OaConditionGroup, OaConditionRule, OaField } from '@/api/types'
 
 const props = defineProps<{
   modelValue: OaConditionGroup | null | undefined
@@ -14,9 +17,6 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'update:modelValue', v: OaConditionGroup | null): void }>()
 
 const { t } = useI18n()
-
-const OPS: OaConditionOp[] = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'empty', 'not_empty']
-const NO_VALUE_OPS: OaConditionOp[] = ['empty', 'not_empty']
 
 const enabled = computed({
   get: () => Boolean(props.modelValue?.rules?.length),
@@ -43,9 +43,9 @@ function removeRule(idx: number) {
   emit('update:modelValue', rules.length ? { ...group.value, rules } : null)
 }
 
-function patchRule(idx: number, patch: Partial<OaConditionGroup['rules'][number]>) {
+function patchRule(idx: number, next: OaConditionRule) {
   if (!group.value) return
-  const rules = group.value.rules.map((r, i) => (i === idx ? { ...r, ...patch } : r))
+  const rules = group.value.rules.map((r, i) => (i === idx ? next : r))
   update({ rules })
 }
 </script>
@@ -65,38 +65,14 @@ function patchRule(idx: number, patch: Partial<OaConditionGroup['rules'][number]
         <el-radio-button value="and">{{ t('oa.design.condAnd') }}</el-radio-button>
         <el-radio-button value="or">{{ t('oa.design.condOr') }}</el-radio-button>
       </el-radio-group>
-      <div v-for="(r, ri) in group.rules" :key="ri" class="cond-rule">
-        <el-select
-          :model-value="r.field"
-          :placeholder="t('oa.design.condField')"
-          filterable
-          @update:model-value="patchRule(ri, { field: String($event ?? '') })"
-        >
-          <el-option v-for="f in fields" :key="f.key" :value="f.key" :label="f.label || f.key" />
-        </el-select>
-        <el-select
-          :model-value="r.op"
-          class="cond-op"
-          @update:model-value="patchRule(ri, { op: $event as OaConditionOp })"
-        >
-          <el-option v-for="op in OPS" :key="op" :value="op" :label="t(`oa.design.condOp.${op}`)" />
-        </el-select>
-        <el-input
-          v-if="!NO_VALUE_OPS.includes(r.op)"
-          :model-value="r.value"
-          :placeholder="t('oa.design.condValue')"
-          @update:model-value="patchRule(ri, { value: String($event ?? '') })"
-        />
-        <el-button
-          size="small"
-          circle
-          type="danger"
-          plain
-          :icon="Delete"
-          :aria-label="t('common.action.delete')"
-          @click="removeRule(ri)"
-        />
-      </div>
+      <ConditionRuleNode
+        v-for="(r, ri) in group.rules"
+        :key="ri"
+        :rule="r"
+        :fields="fields"
+        @update:rule="(v: OaConditionRule) => patchRule(ri, v)"
+        @remove="removeRule(ri)"
+      />
       <el-button size="small" plain :icon="Plus" @click="addRule">{{ t('oa.design.condAdd') }}</el-button>
     </template>
   </div>
@@ -122,21 +98,5 @@ function patchRule(idx: number, patch: Partial<OaConditionGroup['rules'][number]
 .cond-title {
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
-}
-
-.cond-rule {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.cond-rule .el-select,
-.cond-rule .el-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.cond-rule .cond-op {
-  flex: 0 0 76px;
 }
 </style>

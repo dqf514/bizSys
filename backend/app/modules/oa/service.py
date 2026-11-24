@@ -13,6 +13,7 @@ from app.core.exceptions import BizException
 from app.modules.admin.models import Dept
 from app.modules.approval import engine
 from app.modules.approval import service as approval_svc
+from app.modules.approval.condition import eval_rule_value
 from app.modules.approval.graph import parse_json
 from app.modules.approval.models import ApprovalCc, ApprovalDefinition, ApprovalInstance, ApprovalRecord, ApprovalTask
 from app.modules.auth.models import User
@@ -79,54 +80,32 @@ def _parse_date(v: str) -> date | None:
 # ---------------- 条件逻辑求值（与前端 formLogic 语义一致） ----------------
 
 
-def _num(v) -> float | None:
-    if isinstance(v, bool):
-        return None
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
-
-
 def _eval_rule(rule, data: dict) -> bool:
+    """单条条件求值。
+
+    - 多选控件（实际值为数组）按「包含任一」判定 eq/ne/contains；
+    - 区间（between）/ 集合（in）/ 空值（empty, not_empty）走审批引擎共用语义
+      （``app.modules.approval.condition.eval_rule_value``），保证流程分支与表单条件口径一致。
+    - ``rules`` 非空时本条是**条件组**，按 logic（and/or）递归求值。
+    """
+    if rule.rules:
+        return _eval_rule_list(rule.rules, rule.logic, data)
     actual = data.get(rule.field)
-    if rule.op == "empty":
-        return _is_empty(actual)
-    if rule.op == "not_empty":
-        return not _is_empty(actual)
-    if _is_empty(actual):
-        return False
-    if rule.op in ("gt", "gte", "lt", "lte"):
-        a, b = _num(actual), _num(rule.value)
-        if a is None or b is None:
-            return False
-        return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b}[rule.op]
-    if isinstance(actual, (list, tuple)):
-        # checkbox 多选：eq=包含任一值，ne=不含该值
-        values = [str(x) for x in actual]
-        if rule.op == "eq":
-            return rule.value in values
-        if rule.op == "ne":
-            return rule.value not in values
-        if rule.op == "contains":
-            return rule.value in values
-        return False
-    s = str(actual)
-    if rule.op == "eq":
-        return s == rule.value
-    if rule.op == "ne":
-        return s != rule.value
-    if rule.op == "contains":
-        return rule.value in s
-    return False
+    return eval_rule_value(rule.op, actual, rule.value, list_eq_contains=True)
+
+
+def _eval_rule_list(rules, logic: str, data: dict) -> bool:
+    if not rules:
+        return True
+    results = [_eval_rule(r, data) for r in rules]
+    return all(results) if logic != "or" else any(results)
 
 
 def eval_condition(group: ConditionGroup | None, data: dict) -> bool:
     """条件组求值：无规则视为恒真（未配置条件）。"""
     if not group or not group.rules:
         return True
-    results = [_eval_rule(r, data) for r in group.rules]
-    return all(results) if group.logic == "and" else any(results)
+    return _eval_rule_list(group.rules, group.logic, data)
 
 
 def _visible(f: FormFieldIn, data: dict) -> bool:

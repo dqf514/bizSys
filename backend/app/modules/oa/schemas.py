@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.schemas import CamelModel
 
@@ -31,15 +31,34 @@ LAYOUT_TYPES = ("divider", "text_block")
 # 全站资源控件可选资源类型
 RESOURCE_TYPES = ("customer", "contract", "task", "report", "dept", "user", "oa_instance")
 
-CONDITION_OPS = ("eq", "ne", "gt", "gte", "lt", "lte", "contains", "empty", "not_empty")
+# 条件比较符（E1 扩展：in / between / empty / not_empty 与审批引擎保持同一套语义）
+CONDITION_OPS = (
+    "eq",
+    "ne",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+    "in",
+    "contains",
+    "between",
+    "empty",
+    "not_empty",
+)
 
 
 class ConditionRule(CamelModel):
-    """单条条件：{field: 控件key, op: 比较符, value: 比较值（empty/not_empty 忽略）}。"""
+    """单条条件：{field: 控件key, op: 比较符, value: 比较值（empty/not_empty 忽略）}。
 
-    field: str = Field(min_length=1, max_length=64)
+    ``rules`` 非空时本条本身视为**条件组**（可嵌套）：logic ∈ and/or。
+    value 支持标量与数组（between 用 ``[下限, 上限]``，in 用候选集合）。
+    """
+
+    field: str = Field(default="", max_length=64)
     op: str = "eq"
-    value: str = Field(default="", max_length=255)
+    value: Any = ""
+    logic: str = "and"
+    rules: list["ConditionRule"] = []
 
     @field_validator("op")
     @classmethod
@@ -48,9 +67,22 @@ class ConditionRule(CamelModel):
             raise ValueError(f"未知比较符：{v}")
         return v
 
+    @field_validator("logic")
+    @classmethod
+    def _logic_known(cls, v: str) -> str:
+        if v not in ("and", "or"):
+            raise ValueError(f"未知组合逻辑：{v}")
+        return v
+
+    @model_validator(mode="after")
+    def _either_field_or_rules(self) -> "ConditionRule":
+        if not self.rules and not self.field:
+            raise ValueError("条件规则必须指定字段或子条件组")
+        return self
+
 
 class ConditionGroup(CamelModel):
-    """条件组：rules 按 logic（and/or）组合。"""
+    """条件组：rules 按 logic（and/or）组合；rules 内可再嵌套条件组。"""
 
     logic: str = "and"
     rules: list[ConditionRule] = []
@@ -61,6 +93,9 @@ class ConditionGroup(CamelModel):
         if v not in ("and", "or"):
             raise ValueError(f"未知组合逻辑：{v}")
         return v
+
+
+ConditionRule.model_rebuild()
 
 
 class FieldMapping(CamelModel):

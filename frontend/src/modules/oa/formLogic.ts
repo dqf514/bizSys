@@ -16,14 +16,46 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+function evalBetween(actual: unknown, expected: unknown): boolean {
+  let lo: unknown
+  let hi: unknown
+  if (Array.isArray(expected) && expected.length === 2) {
+    ;[lo, hi] = expected
+  } else if (expected && typeof expected === 'object') {
+    const e = expected as Record<string, unknown>
+    lo = e.min ?? e.lo
+    hi = e.max ?? e.hi
+  } else {
+    return false
+  }
+  const a = toNum(actual)
+  if (a === null) return false
+  if (lo !== undefined && lo !== null) {
+    const b = toNum(lo)
+    if (b === null || a < b) return false
+  }
+  if (hi !== undefined && hi !== null) {
+    const b = toNum(hi)
+    if (b === null || a > b) return false
+  }
+  return true
+}
+
+/**
+ * 单条条件求值：与后端 app/modules/oa/service.py::_eval_rule 同语义。
+ * 多选控件（实际值为数组）按「包含任一」判定 eq/ne/contains。
+ */
 function evalRule(rule: OaConditionRule, data: OaFormData): boolean {
-  const actual = data[rule.field]
+  if (rule.rules?.length) return evalRuleList(rule.rules, rule.logic ?? 'and', data)
+  const actual = data[rule.field ?? '']
+  const expected = rule.value
   if (rule.op === 'empty') return isEmptyValue(actual)
   if (rule.op === 'not_empty') return !isEmptyValue(actual)
+  if (rule.op === 'between') return evalBetween(actual, expected)
   if (isEmptyValue(actual)) return false
   if (rule.op === 'gt' || rule.op === 'gte' || rule.op === 'lt' || rule.op === 'lte') {
     const a = toNum(actual)
-    const b = toNum(rule.value)
+    const b = toNum(expected)
     if (a === null || b === null) return false
     if (rule.op === 'gt') return a > b
     if (rule.op === 'gte') return a >= b
@@ -33,21 +65,34 @@ function evalRule(rule: OaConditionRule, data: OaFormData): boolean {
   if (Array.isArray(actual)) {
     // checkbox 多选：eq/contains=包含任一值，ne=不含该值
     const values = actual.map(String)
-    if (rule.op === 'ne') return !values.includes(rule.value)
-    return values.includes(rule.value)
+    if (rule.op === 'ne') return !values.includes(String(expected))
+    if (rule.op === 'in') {
+      const options = Array.isArray(expected) ? expected.map(String) : [String(expected)]
+      return values.some((v) => options.includes(v))
+    }
+    return values.includes(String(expected))
+  }
+  if (rule.op === 'in') {
+    const options = Array.isArray(expected) ? expected.map(String) : [String(expected)]
+    return options.includes(String(actual))
   }
   const s = String(actual)
-  if (rule.op === 'eq') return s === rule.value
-  if (rule.op === 'ne') return s !== rule.value
-  if (rule.op === 'contains') return s.includes(rule.value)
+  if (rule.op === 'eq') return s === String(expected)
+  if (rule.op === 'ne') return s !== String(expected)
+  if (rule.op === 'contains') return s.includes(String(expected))
   return false
+}
+
+function evalRuleList(rules: OaConditionRule[], logic: 'and' | 'or', data: OaFormData): boolean {
+  if (!rules.length) return true
+  const results = rules.map((r) => evalRule(r, data))
+  return logic === 'or' ? results.some(Boolean) : results.every(Boolean)
 }
 
 /** 条件组求值：无规则视为恒真（未配置条件）。 */
 export function evalConditionGroup(group: OaConditionGroup | null | undefined, data: OaFormData): boolean {
   if (!group || !group.rules?.length) return true
-  const results = group.rules.map((r) => evalRule(r, data))
-  return group.logic === 'or' ? results.some(Boolean) : results.every(Boolean)
+  return evalRuleList(group.rules, group.logic ?? 'and', data)
 }
 
 /** showWhen 不满足 → 隐藏（提交时忽略该字段）。 */
