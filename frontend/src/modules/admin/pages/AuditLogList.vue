@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import ListPage from '@/components/list/ListPage.vue'
@@ -7,25 +7,46 @@ import SearchBar, { type SearchField } from '@/components/list/SearchBar.vue'
 import ListTable, { type ListColumn } from '@/components/list/ListTable.vue'
 import ActionBar from '@/components/list/ActionBar.vue'
 import ExportButton from '@/components/list/ExportButton.vue'
+import IpCell from '@/components/common/IpCell.vue'
 import { useListPage } from '@/composables/useListPage'
 import {
   createAuditAnchor,
   exportAuditLogs,
   getAuditEvidence,
   listAuditLogs,
+  listLoginLogs,
   verifyAuditChain,
 } from '@/api/admin'
-import type { AuditChainVerifyResult, AuditEvidenceDetail, AuditLog } from '@/api/types'
+import type { AuditChainVerifyResult, AuditEvidenceDetail, AuditLog, LoginLog } from '@/api/types'
 
 defineOptions({ name: 'AuditLogList' })
 
 const { t } = useI18n()
+
+/** 视图切换：审计日志 / 登录日志（同一页签内切换，共用 admin:audit:list 权限） */
+const view = ref<'audit' | 'login'>('audit')
 
 const searchModel = ref<Record<string, any>>({ q: '' })
 const searchFields: SearchField[] = [
   { key: 'q', labelKey: 'admin.audit.username', width: 180 },
   { key: 'module', labelKey: 'admin.audit.module', width: 140 },
 ]
+
+const loginSearchModel = ref<Record<string, any>>({ q: '', success: '' })
+/** 选项文案走 computed —— 运行时切换语言时词条要跟着变 */
+const loginSearchFields = computed<SearchField[]>(() => [
+  { key: 'q', labelKey: 'admin.audit.username', width: 180 },
+  {
+    key: 'success',
+    labelKey: 'admin.audit.loginResult',
+    type: 'select',
+    width: 140,
+    options: [
+      { label: t('admin.audit.loginSuccess'), value: '1' },
+      { label: t('admin.audit.loginFailed'), value: '0' },
+    ],
+  },
+])
 
 const list = useListPage<AuditLog>({
   fetch: async (params) => {
@@ -38,6 +59,29 @@ const list = useListPage<AuditLog>({
   },
 })
 
+const loginList = useListPage<LoginLog>({
+  fetch: async (params) => {
+    const data = await listLoginLogs({
+      ...params,
+      q: loginSearchModel.value.q || undefined,
+      filters: { success: loginSearchModel.value.success || undefined },
+    })
+    return { items: data.items ?? [], total: data.total ?? 0 }
+  },
+})
+
+function switchView(next: 'audit' | 'login') {
+  view.value = next
+  if (next === 'login') loginList.refresh()
+  else list.refresh()
+}
+
+/** 刷新当前视图的数据（审计 / 登录两套列表各自维护分页与检索） */
+function refreshCurrent() {
+  if (view.value === 'login') loginList.refresh()
+  else list.refresh()
+}
+
 const columns: ListColumn[] = [
   { prop: 'chainSeq', labelKey: 'admin.audit.chainSeq', width: 90 },
   { prop: 'username', labelKey: 'admin.audit.username', width: 110 },
@@ -49,7 +93,16 @@ const columns: ListColumn[] = [
   { prop: 'oldValue', labelKey: 'admin.audit.oldValue', minWidth: 140 },
   { prop: 'newValue', labelKey: 'admin.audit.newValue', minWidth: 140 },
   { prop: 'reason', labelKey: 'admin.audit.reason', minWidth: 140 },
-  { prop: 'ip', labelKey: 'admin.audit.ip', width: 120 },
+  { prop: 'ip', labelKey: 'admin.audit.ip', width: 130 },
+  { prop: 'createTime', labelKey: 'admin.audit.createTime', width: 160, sortable: 'create_time' },
+]
+
+const loginColumns: ListColumn[] = [
+  { prop: 'username', labelKey: 'admin.audit.username', width: 140 },
+  { prop: 'success', labelKey: 'admin.audit.loginResult', width: 100 },
+  { prop: 'reason', labelKey: 'admin.audit.reason', minWidth: 160 },
+  { prop: 'ip', labelKey: 'admin.audit.ip', width: 130 },
+  { prop: 'userAgent', labelKey: 'admin.audit.userAgent', minWidth: 200 },
   { prop: 'createTime', labelKey: 'admin.audit.createTime', width: 160, sortable: 'create_time' },
 ]
 
@@ -128,25 +181,42 @@ function brokenReasonLabel(reason: string) {
         {{ t('admin.audit.chainPanel') }}
       </el-button>
       <ExportButton
+        v-if="view === 'audit'"
         v-permission="'admin:audit:list'"
         :export-fn="() =>
           exportAuditLogs({ q: searchModel.q || undefined, filters: { module: searchModel.module || undefined } })
         "
       />
-      <el-button @click="list.refresh()">{{ t('common.action.refresh') }}</el-button>
+      <el-button @click="refreshCurrent()">{{ t('common.action.refresh') }}</el-button>
+    </template>
+
+    <template #toolbar>
+      <el-radio-group :model-value="view" size="small" @update:model-value="switchView($event as 'audit' | 'login')">
+        <el-radio-button value="audit">{{ t('admin.audit.viewAudit') }}</el-radio-button>
+        <el-radio-button value="login">{{ t('admin.audit.viewLogin') }}</el-radio-button>
+      </el-radio-group>
     </template>
 
     <template #searchBar>
       <SearchBar
+        v-if="view === 'audit'"
         v-model="searchModel"
         :fields="searchFields"
         @search="list.search()"
         @reset="searchModel = { q: '', module: '' }; list.reset()"
       />
+      <SearchBar
+        v-else
+        v-model="loginSearchModel"
+        :fields="loginSearchFields"
+        @search="loginList.search()"
+        @reset="loginSearchModel = { q: '', success: '' }; loginList.reset()"
+      />
     </template>
 
     <template #table>
       <ListTable
+        v-if="view === 'audit'"
         :columns="columns"
         :data="list.items.value as unknown as Record<string, unknown>[]"
         :loading="list.loading.value"
@@ -167,12 +237,37 @@ function brokenReasonLabel(reason: string) {
         <template #newValue="{ row }">
           <span class="value-new">{{ row.newValue || '-' }}</span>
         </template>
+        <template #ip="{ row }">
+          <IpCell :ip="row.ip as string" :region="row.ipRegion as string" />
+        </template>
         <template #extraColumns>
           <el-table-column :label="t('common.action.operate')" width="90" fixed="right" align="center" header-align="center">
             <template #default="{ row }">
               <ActionBar :actions="[{ key: 'view', tip: 'admin.audit.viewDetail' }]" @select="viewDetail(row as unknown as AuditLog)" />
             </template>
           </el-table-column>
+        </template>
+      </ListTable>
+
+      <ListTable
+        v-else
+        :columns="loginColumns"
+        :data="loginList.items.value as unknown as Record<string, unknown>[]"
+        :loading="loginList.loading.value"
+        :total="loginList.total.value"
+        :page="Number(loginList.query.page)"
+        :size="Number(loginList.query.size)"
+        @update:page="loginList.setPage"
+        @update:size="loginList.setSize"
+        @sort-change="loginList.onSortChange"
+      >
+        <template #success="{ row }">
+          <el-tag :type="row.success ? 'success' : 'danger'" size="small" effect="light" round>
+            {{ row.success ? t('admin.audit.loginSuccess') : t('admin.audit.loginFailed') }}
+          </el-tag>
+        </template>
+        <template #ip="{ row }">
+          <IpCell :ip="row.ip as string" :region="row.ipRegion as string" />
         </template>
       </ListTable>
     </template>
@@ -205,6 +300,9 @@ function brokenReasonLabel(reason: string) {
         </el-descriptions-item>
         <el-descriptions-item :label="t('admin.audit.traceId')">{{ detailRow.traceId || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="t('admin.audit.ip')">{{ detailRow.ip }}</el-descriptions-item>
+        <el-descriptions-item :label="t('admin.audit.ipRegion')">
+          {{ detailRow.ipRegion || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item :label="t('admin.audit.detail')">
           <pre class="detail-pre">{{ detailRow.detail }}</pre>
         </el-descriptions-item>

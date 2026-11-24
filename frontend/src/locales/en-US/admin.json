@@ -181,7 +181,13 @@
     "recalculatedHash": "Recalculated Hash",
     "hashValid": "Hash Check",
     "hashValidYes": "Match",
-    "hashValidNo": "Mismatch"
+    "hashValidNo": "Mismatch",
+    "ipRegion": "Region",
+    "viewAudit": "Audit Log",
+    "viewLogin": "Login Log",
+    "loginResult": "Result",
+    "loginSuccess": "Success",
+    "loginFailed": "Failed"
   },
   "dept": {
     "title": "Departments",

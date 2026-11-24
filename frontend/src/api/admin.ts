@@ -14,6 +14,7 @@ import type {
   FlowDefSaveResult,
   FlowPackageImportResult,
   ListQuery,
+  LoginLog,
   MenuNode,
   NumberRule,
   PageResult,
@@ -199,6 +200,15 @@ export function exportAuditLogs(params: ListQuery) {
     { url: '/admin/audit-logs/export', method: 'get', params: toQuery(params as Record<string, unknown>) },
     'audit_logs.xlsx',
   )
+}
+
+/** 登录日志（含 IP 属地） */
+export function listLoginLogs(params: ListQuery) {
+  return request<PageResult<LoginLog>>({
+    url: '/admin/login-logs',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
 }
 
 /* ---- 审计证据链（B9） ---- */

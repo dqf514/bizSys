@@ -82,6 +82,12 @@
   `PUT /admin/automation`（admin:automation:edit）`{flows:[{bizType,enabled}],events:[{key,enabled}]}` → 同结构。
   详见「流程驱动 / 事件驱动（F5）」章节
 - `GET /admin/audit-logs`（分页）· `GET /admin/audit-logs/export`（同检索参数 xlsx，沿用 admin:audit:list）
+  · `GET /admin/audit-logs/{id}/evidence`（单条证据：链上位置 + 重算哈希比对）
+  列表 / 证据 / 导出均含 **`ip`** 与 **`ipRegion`**（IP 属地，后端离线 ip2region 库解析，
+  如「安徽省 宣城市」；回环→「本机」，内网/保留地址→「内网」，查不到→空串）
+- `GET /admin/login-logs`（分页，沿用 admin:audit:list）
+  → `{items:[{id,username,success,reason,ip,ipRegion,userAgent,createTime}],total,page,size}`
+  （`q` 匹配用户名；`filters[success]=1/0` 只看成功 / 失败；默认按 id 倒序）
 - `PUT /admin/prefs` `{prefs:{theme,locale,density,navCollapsed,...}}`
 - `GET /admin/depts` → `[{id,parentId,name,code,sort}]` · `POST/PUT /admin/depts`
   `GET /admin/depts/export`（含停用部门，沿用 admin:dept:list）
@@ -948,7 +954,11 @@
   样件管理 Prototypes → 样件借出 PrototypeLoans）· 资产财务 AssetFinance（固定资产 FixedAssets →
   处置报废 Disposals → 工具领用 ToolLoans）。
 - 销售中心（SalesSystem）：报价管理 Quotations / 报价模板 QuoteTemplates / 营收分析 SalesRevenue。
-- 经营与协同（Collaboration）：客户自助 PortalHome / 在线委托 PortalOrders / 知识库 KnowledgeBase。
+- 经营与协同（Collaboration）：知识库 KnowledgeBase / 在线任务委托 EntrustList / 客户自助账号 CustomerAccounts /
+  客户方人员备案 PartnerStaff。
+  **「客户自助 PortalHome / 在线委托 PortalOrders」是外部门户入口，已在内网导航隐藏**
+  （`HIDDEN_MENUS` 强制 visible=0，权限点仍由菜单承载）—— 门户是独立认证的第二套外壳，
+  内网人员点进去只会跳到门户登录页；门户用户仍可直接访问 `/portal`。
 - 行政人事（HrSystem）：工时填报 TimesheetFill / 工时统计 TimesheetStats / 人员档案 Staff。
 - 流程与办公（OaSystem）：新申请 OaApply / 我的申请 OaMy / 相关申请 OaRelated / 申请统计 OaStats /
   作业申请 WorkApply / 流程中心 ApprovalCenter / 消息中心 Messages。

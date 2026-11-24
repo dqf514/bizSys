@@ -10,6 +10,7 @@ from app.common.audit import evidence_detail, list_anchors, verify_chain, write_
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
+from app.core import ipgeo
 from app.core import response as R
 from app.core.config import settings
 from app.core.db import get_db
@@ -26,6 +27,7 @@ from app.modules.admin.models import (
     Dept,
     DictItem,
     DictType,
+    LoginLog,
     Menu,
     Notify,
     NumberRule,
@@ -744,9 +746,57 @@ def list_audit_logs(
                 "userAgent": r.user_agent,
                 "traceId": r.trace_id,
                 "ip": r.ip,
+                "ipRegion": ipgeo.resolve_region(r.ip),
                 "chainSeq": r.chain_seq,
                 "rowHash": r.row_hash,
                 "hashAlg": r.hash_alg,
+                "createTime": _t(r.create_time),
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
+
+
+# ---------------- 登录日志 ----------------
+@router.get("/login-logs")
+def list_login_logs(
+    request: Request,
+    page: int = Query(1, ge=1, le=PAGE_MAX),
+    size: int = Query(20, ge=1, le=200),
+    current: User = Depends(require_perm("admin:audit:list")),
+    db: Session = Depends(get_db),
+):
+    """登录日志（含客户端 IP 属地）。沿用审计查看权限 admin:audit:list，不另设权限码。"""
+    pp = PageParams(page=page, size=size)
+    extra: list = []
+    success_raw = (request.query_params.get("filters[success]") or "").strip()
+    if success_raw in ("0", "1"):
+        extra.append(LoginLog.success == int(success_raw))
+    stmt, total = apply_list_filters(
+        select(LoginLog),
+        LoginLog,
+        request.query_params,
+        db,
+        pp,
+        search_cols=["username"],
+        sort_cols={"id", "create_time", "username"},
+        default_sort=("id", "desc"),
+        extra_where=extra,
+    )
+    rows = db.scalars(stmt).all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "username": r.username,
+                "success": r.success,
+                "reason": r.reason,
+                "ip": r.ip,
+                "ipRegion": ipgeo.resolve_region(r.ip),
+                "userAgent": r.ua,
                 "createTime": _t(r.create_time),
             }
             for r in rows
@@ -831,6 +881,7 @@ AUDIT_EXPORT_COLS = [
     {"key": "rowHash", "label": "链哈希", "width": 24},
     {"key": "traceId", "label": "追踪ID", "width": 24},
     {"key": "ip", "label": "IP", "width": 14},
+    {"key": "ipRegion", "label": "属地", "width": 16},
     {"key": "userAgent", "label": "终端", "width": 28},
     {"key": "createTime", "label": "时间", "width": 19},
 ]
@@ -876,6 +927,7 @@ def export_audit_logs(
             "rowHash": r.row_hash or "",
             "traceId": r.trace_id or "",
             "ip": r.ip or "",
+            "ipRegion": ipgeo.resolve_region(r.ip),
             "userAgent": r.user_agent or "",
             "createTime": _t(r.create_time),
         }

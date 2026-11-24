@@ -31,7 +31,10 @@ from app.services.numbering import next_no
 # children 中 permission 为空串表示纯目录
 # 入口并入他页、仅作权限载体的隐藏菜单（种子里强制 visible=0）
 # PartnerAccounts：并入往来单位（CRM）
-HIDDEN_MENUS = {"PartnerAccounts"}
+# PortalHome / PortalOrders：**外部门户**入口 —— 门户是与内网隔离的第二套外壳
+#   （独立认证 partner_user / typ=portal_access），内网人员点进去只会跳到门户登录页，
+#   体验很差。内网导航不再展示这两个入口，门户用户仍可凭链接直接访问 /portal。
+HIDDEN_MENUS = {"PartnerAccounts", "PortalHome", "PortalOrders"}
 
 MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
     # 业务中心：往来单位/合同/任务/报告/项目/财务（财务分组按业务顺序：结算→开票→到账）

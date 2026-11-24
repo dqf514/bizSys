@@ -27,7 +27,7 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.core import reqctx
+from app.core import ipgeo, reqctx
 from app.core import response as R
 from app.core.config import settings
 from app.core.crypto import derive_key
@@ -456,6 +456,7 @@ def evidence_detail(db: Session, row_id: int) -> dict:
         "detail": row.detail,
         "traceId": row.trace_id,
         "ip": row.ip,
+        "ipRegion": ipgeo.resolve_region(row.ip),
         "userAgent": row.user_agent,
     }
 

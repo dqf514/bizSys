@@ -237,6 +237,21 @@ export interface AuditLog {
   hashAlg: string
   traceId: string
   ip: string
+  /** IP 属地（离线 ip2region 库解析，如「安徽省 宣城市」；内网 / 本机另有文案） */
+  ipRegion?: string
+  createTime: string
+}
+
+/** 登录日志（sys_login_log） */
+export interface LoginLog {
+  id: number
+  username: string
+  success: number
+  reason: string
+  ip: string
+  /** IP 属地（离线 ip2region 库解析） */
+  ipRegion?: string
+  userAgent: string
   createTime: string
 }
 

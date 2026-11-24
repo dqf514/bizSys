@@ -181,7 +181,13 @@
     "recalculatedHash": "重算哈希",
     "hashValid": "哈希校验",
     "hashValidYes": "一致",
-    "hashValidNo": "不一致"
+    "hashValidNo": "不一致",
+    "ipRegion": "属地",
+    "viewAudit": "审计日志",
+    "viewLogin": "登录日志",
+    "loginResult": "结果",
+    "loginSuccess": "成功",
+    "loginFailed": "失败"
   },
   "dept": {
     "title": "部门管理",

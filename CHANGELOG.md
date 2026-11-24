@@ -8,6 +8,20 @@
 
 ---
 
+## [0.10.0] - 2026-11-24
+
+### Added
+
+- **审计日志 / 登录日志的 IP 属地**：IP 下方以更小的字号展示属地（省 / 市，如「安徽省 宣城市」），内网 / 回环分别标注「内网」/「本机」。数据源为**离线 ip2region v4 库**（`backend/app/core/data/ip2region_v4.xdb`，随仓库入库）+ vendored 纯 Python 绑定（`backend/app/core/ip2region/`，Apache-2.0 / MIT 双许可）—— **不引入 pip 依赖、不访问外网**。属地在**读取时**计算：审计表是只追加的（不可 UPDATE），落库属地需要回填历史行，因此不出列、不加迁移，顺带让历史记录立即就有属地。
+- **新增登录日志查询端点** `GET /admin/login-logs`（沿用 `admin:audit:list` 权限）：此前 `sys_login_log` 只写不查，没有任何读取入口。审计日志页新增「审计日志 / 登录日志」视图切换，登录日志支持按用户名检索、按成功 / 失败过滤。
+- 新增测试 `backend/tests/test_audit_ip_region.py`（属地分类、公网解析、审计 / 登录日志出参、门户入口不在内网导航）。
+
+### Changed
+
+- **内网导航移除「客户自助 / 在线委托」两个外部门户入口**（`PortalHome` / `PortalOrders` 改为隐藏菜单）：门户是与内网隔离的第二套外壳（独立认证 `partner_user` / `typ=portal_access`），内网人员点进去只会跳到门户登录页，体验很差。菜单行保留（权限点仍由其承载），门户用户仍可直接访问 `/portal`。
+
+---
+
 ## [0.9.0] - 2026-11-24
 
 ### Added
