@@ -8,6 +8,21 @@
 
 ---
 
+## [0.9.0] - 2026-11-24
+
+### Added
+
+- **登录页新增「记住登录状态」勾选**：勾选 = **30 天内免登录**（refresh token 30 天 + 令牌存 localStorage，跨浏览器重启保留）；不勾选 = **仅本次浏览器会话**（refresh token 12 小时 + 令牌存 sessionStorage，关闭浏览器即退出）。会话口径写进 refresh token 的 `rem` claim，**刷新轮换时必须继承**，否则「不记住」会被悄悄延长成 30 天。
+- **改密后吊销该用户其余登录会话**：会话最长 30 天，不吊销等于旧密码在别处仍可用；带 `refresh_token` 调用则保留当前设备会话（改密后不强制自己下线）。Redis 侧新增「用户全部会话」索引 `refresh:user:{uid}`，支持按用户批量吊销。
+- 新增环境变量 `REFRESH_TOKEN_EXPIRE_DAYS`（默认 30）/ `REFRESH_TOKEN_EXPIRE_HOURS`（默认 12），`deploy/docker-compose.yml` 已透传。
+
+### Fixed
+
+- **修复登录状态实际只能维持 15~30 分钟、随后被踢回登录页**：后端刷新会**轮换** refresh token（吊销旧的），但前端只存了新的 access token、**没存新的 refresh token** —— 下一轮续期拿的是已吊销的旧 token，直接 401。现在前端会把轮换后的 refresh token 存回（并保持原有的「记住 / 会话」存储口径）。
+- 修复登出时用的是 store 里可能已过期的 refresh token（旧会话残留）——改为实时从存储读取。
+
+---
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

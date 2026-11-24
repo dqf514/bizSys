@@ -17,11 +17,22 @@ export function getCaptcha() {
   return request<CaptchaResult>({ url: '/auth/captcha', method: 'get' })
 }
 
-export function login(username: string, password: string, captcha: { captchaId: string; captchaText: string }) {
+export function login(
+  username: string,
+  password: string,
+  captcha: { captchaId: string; captchaText: string },
+  remember = true,
+) {
   return request<LoginOutcome>({
     url: '/auth/login',
     method: 'post',
-    data: { username, password, captchaId: captcha.captchaId, captchaText: captcha.captchaText },
+    data: {
+      username,
+      password,
+      captchaId: captcha.captchaId,
+      captchaText: captcha.captchaText,
+      remember,
+    },
   })
 }
 
@@ -62,11 +73,12 @@ export function me() {
   return request<UserProfile>({ url: '/auth/me', method: 'get' })
 }
 
-export function changePassword(oldPassword: string, newPassword: string) {
+export function changePassword(oldPassword: string, newPassword: string, refreshToken?: string) {
   return request<void>({
     url: '/auth/password',
     method: 'post',
-    data: { old_password: oldPassword, new_password: newPassword },
+    // 带上当前 refresh token：改密后保留本设备会话，其余会话由服务端吊销
+    data: { old_password: oldPassword, new_password: newPassword, refresh_token: refreshToken || '' },
   })
 }
 

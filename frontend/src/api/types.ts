@@ -102,6 +102,8 @@ export interface LoginResult {
   access_token: string
   refresh_token: string
   token_type: string
+  /** 是否为「记住登录状态」的长期会话 */
+  remember?: boolean
   user: UserProfile
 }
 
@@ -136,6 +138,9 @@ export interface MfaSendResult {
 
 export interface RefreshResult {
   access_token: string
+  /** 轮换后的新 refresh token —— 必须存回，否则下次刷新会拿已吊销的旧 token */
+  refresh_token?: string
+  remember?: boolean
   user: UserProfile
 }
 

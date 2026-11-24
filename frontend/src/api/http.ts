@@ -5,19 +5,41 @@ import i18n from '@/i18n'
 const ACCESS_KEY = 'bs.access_token'
 const REFRESH_KEY = 'bs.refresh_token'
 
+/**
+ * 登录状态存储分两档（登录页「记住登录状态」）：
+ * - 记住（remember=true）→ localStorage：跨浏览器重启保留，refresh token 30 天
+ * - 不记住（remember=false）→ sessionStorage：仅本次浏览器会话，关掉浏览器即失效
+ *
+ * 两档**互斥**：写入一档时清掉另一档，避免两套令牌并存导致口径错乱。
+ */
+function activeStore(): Storage {
+  // sessionStorage 有令牌 = 当前是「本次会话」登录；否则用 localStorage（含旧版本遗留会话）
+  return sessionStorage.getItem(ACCESS_KEY) ? sessionStorage : localStorage
+}
+
 export function getAccessToken() {
-  return localStorage.getItem(ACCESS_KEY) || ''
+  return activeStore().getItem(ACCESS_KEY) || ''
 }
 export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_KEY) || ''
+  return activeStore().getItem(REFRESH_KEY) || ''
 }
-export function setTokens(access: string, refresh?: string) {
-  localStorage.setItem(ACCESS_KEY, access)
-  if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+/** 当前会话是否为「记住登录状态」的长期会话（令牌落在 localStorage） */
+export function isRemembered(): boolean {
+  return activeStore() === localStorage && !!localStorage.getItem(ACCESS_KEY)
+}
+export function setTokens(access: string, refresh?: string, remember = true) {
+  const local = remember ? localStorage : sessionStorage
+  const other = remember ? sessionStorage : localStorage
+  other.removeItem(ACCESS_KEY)
+  other.removeItem(REFRESH_KEY)
+  local.setItem(ACCESS_KEY, access)
+  if (refresh) local.setItem(REFRESH_KEY, refresh)
 }
 export function clearTokens() {
-  localStorage.removeItem(ACCESS_KEY)
-  localStorage.removeItem(REFRESH_KEY)
+  for (const s of [localStorage, sessionStorage]) {
+    s.removeItem(ACCESS_KEY)
+    s.removeItem(REFRESH_KEY)
+  }
 }
 
 const CODE_AUTH_EXPIRED = 20001
@@ -54,13 +76,16 @@ let refreshPromise: Promise<string | null> | null = null
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken()
   if (!refreshToken) return null
+  // 刷新会轮换 refresh token（后端吊销旧的），**必须把新的存回去**，
+  // 否则 15 分钟后下一次刷新会拿已失效的旧 token → 被踢回登录页
+  const remember = isRemembered()
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
         const resp = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken })
         const payload = resp.data
         if (payload?.code === 0 && payload.data?.access_token) {
-          setTokens(payload.data.access_token)
+          setTokens(payload.data.access_token, payload.data.refresh_token, remember)
           return payload.data.access_token as string
         }
         return null

@@ -26,6 +26,8 @@ const wecomLoading = ref(false)
 const form = reactive({ username: '', password: '', captchaText: '' })
 const partnerForm = reactive({ username: '', password: '' })
 const partnerLoading = ref(false)
+/** 「记住登录状态」：勾选 = 30 天内免登录（跨浏览器重启）；不勾选 = 仅本次浏览器会话 */
+const remember = ref(true)
 
 async function doPartnerLogin() {
   if (!partnerForm.username.trim() || !partnerForm.password) {
@@ -112,10 +114,15 @@ async function doLogin() {
   }
   loading.value = true
   try {
-    const data = await auth.doLogin(form.username.trim(), form.password, {
-      captchaId: captchaId.value,
-      captchaText: form.captchaText.trim(),
-    })
+    const data = await auth.doLogin(
+      form.username.trim(),
+      form.password,
+      {
+        captchaId: captchaId.value,
+        captchaText: form.captchaText.trim(),
+      },
+      remember.value,
+    )
     if ('mfaRequired' in data && data.mfaRequired) {
       mfa.active = true
       mfa.token = data.mfaToken
@@ -157,7 +164,7 @@ async function verifyMfa() {
   }
   loading.value = true
   try {
-    await auth.doMfaVerify(mfa.token, mfa.code)
+    await auth.doMfaVerify(mfa.token, mfa.code, remember.value)
     await afterLogin()
   } catch {
     /* http notifies；停留在二步验证 */
@@ -367,6 +374,12 @@ function switchLang() {
                       />
                     </button>
                   </div>
+                </el-form-item>
+                <el-form-item>
+                  <el-checkbox v-model="remember" class="remember-box">
+                    {{ t('auth.login.remember') }}
+                  </el-checkbox>
+                  <div class="remember-tip">{{ t('auth.login.rememberTip') }}</div>
                 </el-form-item>
                 <el-button type="primary" size="large" class="login-btn" :loading="loading" @click="doLogin">
                   {{ loading ? t('auth.login.loggingIn') : t('auth.login.submit') }}
@@ -719,6 +732,17 @@ function switchLang() {
   margin: 0;
   color: var(--bs-color-fg-muted);
   font-size: var(--bs-typography-font-size-sm);
+}
+
+.remember-box {
+  height: auto;
+}
+
+.remember-tip {
+  margin: var(--bs-space-1) 0 0;
+  color: var(--bs-color-fg-muted);
+  font-size: var(--bs-typography-font-size-sm);
+  line-height: 1.5;
 }
 
 .mfa-channels {

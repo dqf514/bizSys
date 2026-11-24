@@ -17,18 +17,26 @@
 ## 鉴权 /auth
 - `GET /auth/captcha`（免登录）→ `{captchaId,svg}`：4 位随机字符 SVG（排除 0/O/1/I/L），Redis 存 5 分钟、
   验证一次性销毁；同一 captchaId 连续错 3 次作废；非生产环境（ENV≠prod）额外回显 `debugText` 便于自动化测试
-- `POST /auth/login` `{username,password,captchaId,captchaText}` → `{access_token,refresh_token,token_type,user}`
+- `POST /auth/login` `{username,password,captchaId,captchaText,remember?}` → `{access_token,refresh_token,token_type,remember,user}`
   （user 含 `mfaEnabled`）；验证码错误或过期 20009（不计入密码失败锁定）；
+  **`remember`（默认 false）= 登录页「记住登录状态」**：true → refresh token **30 天**（claim `rem=true`，
+  前端存 localStorage，跨浏览器重启免登录）；false → **12 小时**（claim `rem=false`，前端存 sessionStorage，
+  关浏览器即失效）；access token 固定 15 分钟，由前端在 20001 时静默续期。
   若用户已开启 MFA 则不发 token，改回 `{mfaRequired:true,mfaToken,channels:[{channel:"sms"|"email",target(掩码)}]}`
 - MFA 二步验证（mfaToken 为 5 分钟 typ=mfa_pending JWT + Redis 一次性凭证）：
   - `POST /auth/mfa/send` `{mfaToken,channel}` → `{sent,cooldown:60,mode}`：6 位数字码存 Redis 5 分钟，
     每通道 60 秒冷却（429/20013）；通道未配置时非生产走调试通道并回显 `debugCode`（生产绝不回显，未配置报 90001）
-  - `POST /auth/mfa/verify` `{mfaToken,code}` → 与 login 相同结构；错码 20011，连续错 5 次作废本次登录（20010）
+  - `POST /auth/mfa/verify` `{mfaToken,code}` → 与 login 相同结构；错码 20011，连续错 5 次作废本次登录（20010）；
+    **会话口径沿用登录时的 `remember`**（mfa_pending claim `rem`）
   - `POST /auth/mfa/toggle`（登录）`{enabled}` + `X-Step-Up-Token` 头 → `{mfaEnabled}`；
     开启前须已登记手机或邮箱（否则 20014）
-- `POST /auth/refresh` `{refresh_token}` → `{access_token,refresh_token,token_type,user}`（旋转：旧 refresh_token 立即吊销）
+- `POST /auth/refresh` `{refresh_token}` → `{access_token,refresh_token,token_type,remember,user}`
+  （旋转：旧 refresh_token 立即吊销；**新 token 的会话口径继承原 token 的 `rem`**，不按默认值重签；
+  前端**必须把返回的新 refresh_token 存回**，否则下一次续期会拿到已吊销的旧 token）
 - `POST /auth/logout`（可带 `{refresh_token}` 吊销）
-- `POST /auth/password` `{old_password,new_password}`（新密码至少 8 位；原密码错误 20004）
+- `POST /auth/password` `{old_password,new_password,refresh_token?}`（新密码至少 8 位；原密码错误 20004）
+  —— **改密后吊销该用户其余全部登录会话**（会话最长 30 天，不吊销等于旧密码仍可用）；
+  带上 `refresh_token` 时保留该设备会话（当前设备改密后不强制下线）
 - `GET /auth/me` → `{id,username,name,deptId,deptName,email,mobile,roles[],perms[],prefs{},menus[],allMenuPaths[]}`
   - menus 节点：`{id,parentId,name,titleKey,path,componentKey,icon,permission,menuType:"dir"|"menu",sort,visible,children[]}`
   - titleKey 为 vue-i18n 键（如 `menu.customer`）；componentKey 为前端组件键（如 `crm/CustomerList`）

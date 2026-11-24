@@ -10,6 +10,8 @@ class LoginIn(CamelModel):
     password: str = Field(min_length=1, max_length=128)
     captcha_id: str = Field(min_length=1, max_length=64)
     captcha_text: str = Field(min_length=1, max_length=8)
+    #: 登录页「记住登录状态」：True = 30 天长期会话；False = 会话级（12 小时，关浏览器即失效）
+    remember: bool = False
 
 
 class MfaSendIn(CamelModel):
@@ -33,6 +35,8 @@ class RefreshIn(CamelModel):
 class PasswordIn(CamelModel):
     old_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
+    #: 当前设备的 refresh token —— 改密后保留该会话，其余会话全部吊销
+    refresh_token: str = Field("", max_length=2048)
 
 
 class UserOut(BaseModel):

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     debug: bool = False
     # 应用版本号（语义化版本）：必须与 CHANGELOG.md 顶部版本、frontend/package.json、
     # backend/pyproject.toml 三处一致（tests/test_changelog.py 校验）
-    app_version: str = "0.8.0"
+    app_version: str = "0.9.0"
 
     db_url: str = "mysql+pymysql://root:bizsys123@127.0.0.1:3307/bizsys?charset=utf8mb4"
     redis_url: str = "redis://127.0.0.1:6379/0"
@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-me-0123456789abcdef"  # 仅开发默认值，生产必须经 JWT_SECRET 环境变量更换
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 7
+    # 登录页「记住登录状态」两档口径：
+    #   remember=true  → refresh token 30 天（跨浏览器重启免登录）
+    #   remember=false → refresh token 12 小时（仅本次浏览器会话，前端存 sessionStorage）
+    refresh_token_expire_days: int = 30
+    refresh_token_expire_hours: int = 12
 
     upload_dir: str = "./uploads"
     upload_max_mb: int = 50

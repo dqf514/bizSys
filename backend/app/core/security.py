@@ -34,15 +34,33 @@ def create_access_token(user_id: int, roles: list[str], perms: list[str]) -> str
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(user_id: int) -> tuple[str, str]:
-    """返回 (token, jti)；jti 存 Redis 以便吊销。"""
+def refresh_ttl_seconds(remember: bool) -> int:
+    """refresh token 有效期（秒）：记住登录状态 = N 天；不记住 = N 小时（仅本次会话）。"""
+    if remember:
+        return settings.refresh_token_expire_days * 86400
+    return settings.refresh_token_expire_hours * 3600
+
+
+def create_refresh_token(user_id: int, remember: bool = True) -> tuple[str, str]:
+    """返回 (token, jti)；jti 存 Redis 以便吊销。
+
+    `remember` 决定会话口径：True = 长期（默认 30 天，登录页勾选「记住登录状态」），
+    False = 会话级（默认 12 小时）。**claim `rem` 必须随轮换继承** ——
+    刷新时若按默认值重签，用户的「不记住」会被悄悄延长成 30 天。
+    """
     now = datetime.now(UTC)
     jti = uuid.uuid4().hex
+    delta = (
+        timedelta(days=settings.refresh_token_expire_days)
+        if remember
+        else timedelta(hours=settings.refresh_token_expire_hours)
+    )
     payload = {
         "sub": str(user_id),
         "typ": "refresh",
+        "rem": bool(remember),
         "iat": now,
-        "exp": now + timedelta(days=settings.refresh_token_expire_days),
+        "exp": now + delta,
         "jti": jti,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), jti
@@ -61,16 +79,18 @@ def create_step_up_token(user_id: int, minutes: int = 5) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_mfa_pending_token(user_id: int, minutes: int = 5) -> tuple[str, str]:
+def create_mfa_pending_token(user_id: int, minutes: int = 5, remember: bool = False) -> tuple[str, str]:
     """MFA 待验证 token（typ=mfa_pending，仅证明"密码已通过、等待二次验证码"）。
 
     返回 (token, jti)；jti 存 Redis（mfa:{jti}=user_id），一次性使用、可随验证成功/失败作废。
+    claim `rem` 带上登录时的「记住登录状态」口径 —— 二步验证通过后据此签发正式会话。
     """
     now = datetime.now(UTC)
     jti = uuid.uuid4().hex
     payload = {
         "sub": str(user_id),
         "typ": "mfa_pending",
+        "rem": bool(remember),
         "iat": now,
         "exp": now + timedelta(minutes=minutes),
         "jti": jti,

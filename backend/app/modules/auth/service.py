@@ -21,6 +21,7 @@ from app.core.security import (
     create_refresh_token,
     create_step_up_token,
     decode_token,
+    refresh_ttl_seconds,
     verify_password,
 )
 from app.modules.admin.models import Dept, LoginLog, UserDept, UserPref
@@ -161,28 +162,77 @@ def _mfa_channels(user: User) -> list[dict]:
     return channels
 
 
-def _issue_tokens(db: Session, user: User, username: str, ip: str, ua: str) -> dict:
-    """登录最终放行：签发 access/refresh + 审计 + 登录日志。"""
+def _remember_session(user_id: int, jti: str, remember: bool) -> None:
+    """登记 refresh token：Redis 单键 + 「该用户全部会话」索引（改密时按用户批量吊销）。"""
+    r = get_redis()
+    ttl = refresh_ttl_seconds(remember)
+    r.setex(f"refresh:{jti}", ttl, str(user_id))
+    index = f"refresh:user:{user_id}"
+    r.sadd(index, jti)
+    # 索引 TTL 取「现有与新会话 TTL 的较大值」—— 短会话不能把长会话的索引提前吃掉，
+    # 否则长会话会变成「吊销不到」的漏网之鱼
+    cur = r.ttl(index)
+    if cur == -2 or (cur != -1 and cur < ttl):
+        r.expire(index, ttl)
+
+
+def _forget_session(user_id: int | None, jti: str) -> None:
+    """移除单个 refresh token（登出 / 轮换），同时从用户索引摘除。"""
+    r = get_redis()
+    r.delete(f"refresh:{jti}")
+    if user_id is not None:
+        r.srem(f"refresh:user:{user_id}", jti)
+
+
+def revoke_user_sessions(user_id: int, keep_jti: str = "") -> int:
+    """吊销某用户的全部登录会话（改密 / 离职等安全事件）。
+
+    keep_jti 非空时保留该会话（当前设备改密后不强制下线）。返回被吊销的会话数。
+    """
+    r = get_redis()
+    index = f"refresh:user:{user_id}"
+    jtis = list(r.smembers(index) or [])
+    revoked = 0
+    for jti in jtis:
+        if jti == keep_jti:
+            continue
+        if r.delete(f"refresh:{jti}"):
+            revoked += 1
+    if not keep_jti:
+        r.delete(index)
+    # keep_jti 非空时**保留它在索引里** —— 下次改密/离职仍能吊销这个会话，
+    # 否则「当前设备」会变成永远吊销不到的例外
+    return revoked
+
+
+def _issue_tokens(db: Session, user: User, username: str, ip: str, ua: str, remember: bool = True) -> dict:
+    """登录最终放行：签发 access/refresh + 审计 + 登录日志。
+
+    remember=True → 长期会话（refresh token 30 天，登录页勾选「记住登录状态」）；
+    remember=False → 会话级（refresh token 12 小时，前端存 sessionStorage，关浏览器即失效）。
+    """
     user.last_login_at = datetime.now()
     perms = user.perm_codes
     roles = user.role_codes
     access = create_access_token(user.id, roles, perms)
-    refresh, jti = create_refresh_token(user.id)
-    get_redis().setex(f"refresh:{jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
-    audit(db, user_id=user.id, module="auth", action="login", detail={"username": username}, ip=ip)
+    refresh, jti = create_refresh_token(user.id, remember)
+    _remember_session(user.id, jti, remember)
+    audit(db, user_id=user.id, module="auth", action="login",
+          detail={"username": username, "remember": remember}, ip=ip)
     _login_log(db, username, 1, ip=ip, ua=ua)
     db.commit()
     return {
         "access_token": access,
         "refresh_token": refresh,
         "token_type": "Bearer",
+        "remember": remember,
         "user": _user_out(db, user),
     }
 
 
-def _mfa_challenge(db: Session, user: User, username: str, ip: str) -> dict:
+def _mfa_challenge(db: Session, user: User, username: str, ip: str, remember: bool = False) -> dict:
     """密码已通过且用户开启 MFA：不发正式 token，转入二步验证。"""
-    token, jti = create_mfa_pending_token(user.id, minutes=MFA_PENDING_TTL_SEC // 60)
+    token, jti = create_mfa_pending_token(user.id, minutes=MFA_PENDING_TTL_SEC // 60, remember=remember)
     get_redis().setex(f"mfa:{jti}", MFA_PENDING_TTL_SEC, str(user.id))
     audit(db, user_id=user.id, module="auth", action="login_mfa_challenge", detail={"username": username}, ip=ip)
     db.commit()
@@ -190,7 +240,7 @@ def _mfa_challenge(db: Session, user: User, username: str, ip: str) -> dict:
 
 
 def login(db: Session, username: str, password: str, captcha_id: str, captcha_text: str,
-          ip: str = "", ua: str = "") -> dict:
+          ip: str = "", ua: str = "", remember: bool = False) -> dict:
     _check_captcha(captcha_id, captcha_text)
     _fail_guard(username)
     user: User | None = db.query(User).filter(User.username == username, User.deleted == 0).first()
@@ -198,8 +248,8 @@ def login(db: Session, username: str, password: str, captcha_id: str, captcha_te
     if ok and user.status == "enabled":
         _clear_fail(username)
         if user.mfa_enabled:
-            return _mfa_challenge(db, user, username, ip)
-        return _issue_tokens(db, user, username, ip, ua)
+            return _mfa_challenge(db, user, username, ip, remember)
+        return _issue_tokens(db, user, username, ip, ua, remember)
 
     if user and user.status in ("disabled", "locked"):
         audit(
@@ -228,8 +278,11 @@ def login(db: Session, username: str, password: str, captcha_id: str, captcha_te
     raise BizException(R.AUTH_UNAUTHORIZED, "用户名或密码错误", http_status=401)
 
 
-def _mfa_pending_user(db: Session, mfa_token: str) -> tuple[User, str]:
-    """校验 mfa_pending token + Redis 一次性凭证；任何失败一律 20010。"""
+def _mfa_pending_user(db: Session, mfa_token: str) -> tuple[User, str, bool]:
+    """校验 mfa_pending token + Redis 一次性凭证；任何失败一律 20010。
+
+    返回 (user, jti, remember) —— remember 沿用登录时勾选的「记住登录状态」口径。
+    """
     try:
         payload = decode_token(mfa_token, "mfa_pending")
     except Exception:
@@ -241,14 +294,14 @@ def _mfa_pending_user(db: Session, mfa_token: str) -> tuple[User, str]:
     user = db.get(User, int(payload["sub"]))
     if not user or user.deleted or user.status != "enabled":
         raise BizException(R.AUTH_MFA_TOKEN_INVALID, http_status=401)
-    return user, jti
+    return user, jti, bool(payload.get("rem"))
 
 
 def mfa_send(db: Session, mfa_token: str, channel: str, ip: str = "") -> dict:
     """发送二步验证码：60s 冷却；通道未配置时走调试通道（仅非生产回显 debugCode）。"""
     from app.modules.settings import notify
 
-    user, jti = _mfa_pending_user(db, mfa_token)
+    user, jti, _remember = _mfa_pending_user(db, mfa_token)
     if channel == "sms" and not user.mobile:
         raise BizException(R.AUTH_MFA_CHANNEL_UNAVAILABLE)
     if channel == "email" and not user.email:
@@ -289,7 +342,7 @@ def _clear_mfa_keys(r, jti: str) -> None:
 
 def mfa_verify(db: Session, mfa_token: str, code: str, ip: str = "", ua: str = "") -> dict:
     """校验二步验证码：成功即发正式 token；连续错 5 次作废本次登录。"""
-    user, jti = _mfa_pending_user(db, mfa_token)
+    user, jti, remember = _mfa_pending_user(db, mfa_token)
     r = get_redis()
     stored = r.get(f"mfa_code:{jti}")
     if not stored:
@@ -305,7 +358,7 @@ def mfa_verify(db: Session, mfa_token: str, code: str, ip: str = "", ua: str = "
             raise BizException(R.AUTH_MFA_CODE_INVALID, "错误次数过多，请重新登录", http_status=400)
         raise BizException(R.AUTH_MFA_CODE_INVALID, http_status=400)
     _clear_mfa_keys(r, jti)
-    return _issue_tokens(db, user, user.username, ip, ua)
+    return _issue_tokens(db, user, user.username, ip, ua, remember)
 
 
 def mfa_toggle(db: Session, user: User, enabled: bool, step_up_token: str, ip: str = "") -> dict:
@@ -333,13 +386,16 @@ def refresh(db: Session, refresh_token: str) -> dict:
         raise BizException(R.AUTH_UNAUTHORIZED, http_status=401) from None
     access = create_access_token(user.id, user.role_codes, user.perm_codes)
     # 旋转：吊销旧 refresh，签发新 refresh（旧 token 立即失效）
-    new_refresh, new_jti = create_refresh_token(user.id)
-    r.delete(f"refresh:{jti}")
-    r.setex(f"refresh:{new_jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
+    # **会话口径继承原 token 的 rem** —— 不按默认值重签，否则「不记住」会被悄悄延长成 30 天
+    remember = bool(payload.get("rem"))
+    new_refresh, new_jti = create_refresh_token(user.id, remember)
+    _forget_session(user.id, jti)
+    _remember_session(user.id, new_jti, remember)
     return {
         "access_token": access,
         "refresh_token": new_refresh,
         "token_type": "Bearer",
+        "remember": remember,
         "user": _user_out(db, user),
     }
 
@@ -348,7 +404,7 @@ def logout(db: Session, refresh_token: str | None, user: User) -> None:
     if refresh_token:
         try:
             payload = decode_token(refresh_token, "refresh")
-            get_redis().delete(f"refresh:{payload['jti']}")
+            _forget_session(user.id, payload["jti"])
         except Exception:
             pass
     audit(db, user_id=user.id, module="auth", action="logout")
@@ -386,7 +442,11 @@ def me(db: Session, user: User) -> dict:
     return data
 
 
-def change_password(db: Session, user: User, old: str, new: str) -> None:
+def change_password(db: Session, user: User, old: str, new: str, keep_refresh_token: str = "") -> None:
+    """改密。改密后**吊销本用户其余登录会话**（会话最长 30 天，不吊销等于旧密码仍可用）。
+
+    keep_refresh_token 非空时保留当前设备这一会话（改密后不强制自己下线）。
+    """
     if not verify_password(old, user.password_hash):
         raise BizException(R.AUTH_OLD_PASSWORD_WRONG)
     from app.core.security import hash_password
@@ -394,7 +454,14 @@ def change_password(db: Session, user: User, old: str, new: str) -> None:
     if len(new) < 8:
         raise BizException(R.GENERIC_PARAM, "新密码至少 8 位")
     user.password_hash = hash_password(new)
-    audit(db, user_id=user.id, module="auth", action="change_password")
+    keep_jti = ""
+    if keep_refresh_token:
+        try:
+            keep_jti = decode_token(keep_refresh_token, "refresh").get("jti", "")
+        except Exception:
+            keep_jti = ""
+    revoked = revoke_user_sessions(user.id, keep_jti)
+    audit(db, user_id=user.id, module="auth", action="change_password", detail={"revokedSessions": revoked})
     db.commit()
 
 

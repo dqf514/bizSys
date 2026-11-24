@@ -53,6 +53,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-prod}
       ENV: prod
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      # 登录会话时长：access 15 分钟（前端静默续期）；refresh 记住登录状态 30 天 / 不记住 12 小时
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      REFRESH_TOKEN_EXPIRE_HOURS: ${REFRESH_TOKEN_EXPIRE_HOURS:-12}
       # 反向代理链（真实客户端 IP）：上层网关 + 容器 nginx 共 2 跳
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-2}
       TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}

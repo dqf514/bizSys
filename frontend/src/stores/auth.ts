@@ -41,10 +41,11 @@ export const useAuthStore = defineStore('auth', () => {
     refresh_token?: string
     user: UserProfile
     menus?: MenuNode[]
+    remember?: boolean
   }) {
     token.value = data.access_token
     if (data.refresh_token) refreshToken.value = data.refresh_token
-    setTokens(data.access_token, data.refresh_token)
+    setTokens(data.access_token, data.refresh_token, data.remember !== false)
     user.value = normalizeUser(data.user)
     perms.value = user.value.perms ?? []
     menus.value = data.menus ?? user.value.menus ?? []
@@ -57,26 +58,29 @@ export const useAuthStore = defineStore('auth', () => {
     username: string,
     password: string,
     captcha: { captchaId: string; captchaText: string },
+    remember = true,
   ): Promise<LoginOutcome> {
-    const data = await authApi.login(username, password, captcha)
+    const data = await authApi.login(username, password, captcha, remember)
     if ('mfaRequired' in data) return data
     applySession({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       user: data.user,
+      remember,
     })
     // menus come from /auth/me
     await fetchMe()
     return data
   }
 
-  /** MFA 第二步：验证码通过后才算真正登录 */
-  async function doMfaVerify(mfaToken: string, code: string) {
+  /** MFA 第二步：验证码通过后才算真正登录（remember 沿用登录页勾选） */
+  async function doMfaVerify(mfaToken: string, code: string, remember = true) {
     const data = await authApi.mfaVerify(mfaToken, code)
     applySession({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       user: data.user,
+      remember,
     })
     await fetchMe()
   }
@@ -87,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       user: data.user,
+      remember: true,
     })
     await fetchMe()
   }
@@ -126,7 +131,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function doLogout() {
     try {
-      await authApi.logout(refreshToken.value || undefined)
+      // 从存储取当前 refresh token（刷新会轮换，store 里的可能是旧的）
+      await authApi.logout(getRefreshToken() || undefined)
     } catch {
       /* ignore */
     }

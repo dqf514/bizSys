@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBrandingStore } from '@/stores/branding'
 import { useThemeStore, ACCENTS, type Density, type ThemeMode } from '@/stores/theme'
 import { changePassword as changePasswordApi } from '@/api/auth'
+import { getRefreshToken } from '@/api/http'
 import { useShortcuts } from '@/composables/useShortcuts'
 import type { Locale } from '@/i18n'
 import NotifyBell from './NotifyBell.vue'
@@ -149,7 +150,8 @@ async function submitPassword() {
   if (!ok) return
   pwdSaving.value = true
   try {
-    await changePasswordApi(pwdForm.oldPassword, pwdForm.newPassword)
+    // 带上当前 refresh token：改密后保留本设备会话，其余设备的会话由服务端吊销
+    await changePasswordApi(pwdForm.oldPassword, pwdForm.newPassword, getRefreshToken())
     pwdVisible.value = false
     ElMessage.success(t('auth.user.changeSuccess'))
     try {

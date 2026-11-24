@@ -36,7 +36,8 @@ def captcha():
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     ip = client_ip(request)
     ua = request.headers.get("user-agent", "")
-    return service.login(db, body.username, body.password, body.captcha_id, body.captcha_text, ip, ua)
+    return service.login(db, body.username, body.password, body.captcha_id, body.captcha_text, ip, ua,
+                         body.remember)
 
 
 @router.post("/mfa/send")
@@ -92,7 +93,8 @@ def change_password(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    service.change_password(db, user, body.old_password, body.new_password)
+    """改密：保留当前设备会话，其余登录会话全部吊销。"""
+    service.change_password(db, user, body.old_password, body.new_password, body.refresh_token)
     return None
 
 

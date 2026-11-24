@@ -106,6 +106,7 @@ current: User = Depends(get_current_user)              # 仅登录
 - 权限码由 `sys_menu.permission` 定义、种子在 `app/seeds/init_data.py::MENU_TREE`；**新端点的权限码必须在那里登记**，否则无法被角色授权。
 - `user.perm_codes` 是**实时从数据库**推导（用户 → 启用角色 → 角色菜单 → 菜单权限），JWT 里的 `perms` claim 仅供展示，不要据此判断。
 - JWT 用 `typ` claim 区分令牌族：`access` / `refresh` / `step_up`（敏感操作二次验证）/ `mfa_pending` / `portal_access`（带 `aud=portal`，与内部令牌互不通用）。门户另有独立依赖 `app/modules/portal/deps.py`。
+- **登录会话口径（记住登录状态）**：access token 固定 15 分钟（前端 20001 时静默续期）；refresh token 分两档 —— `remember=true`（登录页勾选）**30 天**、存 `localStorage`；`remember=false` **12 小时**、存 `sessionStorage`（关浏览器即失效）。口径写进 refresh token 的 `rem` claim 并**在轮换时继承**。改密会吊销该用户其余会话（Redis 索引 `refresh:user:{uid}`）。
 - 审计：`app/common/audit.py::record(...)` 写 `sys_audit_log`，尽力而为、失败不阻断业务；登录/增删改/导出都要记。
 
 ### 列表检索
@@ -292,6 +293,8 @@ current: User = Depends(get_current_user)              # 仅登录
 - **`daterange` 不能作为流程变量**（E1）：`EXPOSABLE_TYPES` 不含它。企微「时长」按小时比较，导入器为此合成 `HOURS(<fieldkey>)` 公式字段暴露给引擎，**原始 daterange 保持不暴露**。
 - **公式求值前后端必须同语义**（E1）：后端 `oa/service.py::_eval_formula` / `_sum_of_column` / `_hours_of`，前端 `frontend/src/modules/oa/formLogic.ts` 的 `evalFormula` / `sumOfColumn` / `hoursOf`。**改了任一侧就要同步另一侧**，否则表单预览与服务端重算的金额对不上。`_formula_refs` 要把 `SUM(...)` / `HOURS(...)` 整段剥掉，否则聚合参数会被当成控件引用。
 - **企微模拟数据不得升级成真实数据**（E1）：源 HTML `企业微信审批与组织数据技术文档.html` 含真实人员数据，**不入库**（已 gitignore）；入库的只有脱敏后的 `backend/app/seeds/data/*.json`。模拟人员一律 `mockNNN` / `模拟员工NN`，`hr_employee.id_no` / `mobile` / `email` 与 `sys_user.mobile/email/wecom_userid` **留空**。**企微 vid（人员与部门 ID）解析阶段即丢弃、不落盘** —— `backend/scripts/parse_wecom_doc.py` 不再输出 `wecom_id`，改写种子 JSON 时别把它加回去。
+- **刷新会轮换 refresh token，前端必须把新的存回**（0.9.0）：后端 `auth/service.py::refresh()` 吊销旧 jti 并签发新 jti；前端 `api/http.ts::refreshAccessToken()` 若只存 access token，**下一轮续期就会拿已吊销的旧 token → 401 → 被踢回登录页**（曾因此让「登录状态只能维持 15~30 分钟」）。
+- **`remember`（记住登录状态）口径必须随轮换继承**：refresh token 的 `rem` claim 决定有效期（30 天 / 12 小时）；`refresh()` 重签时按 `payload["rem"]` 取值，**别按默认值重签**，否则「不记住」会被悄悄延长成 30 天。前端存储档位（localStorage / sessionStorage）也要跟着 `rem` 走。
 
 ## 合规基线（B9）
 

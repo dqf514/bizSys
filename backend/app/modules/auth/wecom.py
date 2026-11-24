@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 from app.common.audit import record as audit
 from app.core import response as R
 from app.core.client_ip import client_ip
-from app.core.config import settings
 from app.core.db import get_db
 from app.core.exceptions import BizException
 from app.core.redis import get_redis
@@ -85,11 +84,11 @@ def callback(body: WecomCallbackIn, request: Request, db: Session = Depends(get_
         db.commit()
         raise BizException(R.AUTH_FORBIDDEN, http_status=401)
 
-    # 与 /auth/login 返回结构一致
+    # 与 /auth/login 返回结构一致（企微扫码登录按「记住登录状态」处理：长期会话）
     user.last_login_at = datetime.now()
     access = create_access_token(user.id, user.role_codes, user.perm_codes)
-    refresh, jti = create_refresh_token(user.id)
-    r.setex(f"refresh:{jti}", 60 * 60 * 24 * settings.refresh_token_expire_days, str(user.id))
+    refresh, jti = create_refresh_token(user.id, remember=True)
+    auth_svc._remember_session(user.id, jti, remember=True)
     audit(db, user_id=user.id, module="auth", action="wecom_login", detail={"wecom_userid": userid}, ip=ip)
     auth_svc._login_log(db, user.username, 1, ip=ip, ua=ua)
     db.commit()
@@ -97,5 +96,6 @@ def callback(body: WecomCallbackIn, request: Request, db: Session = Depends(get_
         "access_token": access,
         "refresh_token": refresh,
         "token_type": "Bearer",
+        "remember": True,
         "user": auth_svc._user_out(db, user),
     }
