@@ -1118,6 +1118,8 @@ export interface OaField {
   refType?: OaRefType
   /** type=resource 时允许关联的表单 key 列表（企微「关联审批单」） */
   relatedFormKeys?: string[]
+  /** E1：节点字段权限判定为只读（服务端掩码后下发） */
+  readOnly?: boolean
 }
 
 /** 明细表子列 */
@@ -1126,6 +1128,8 @@ export interface OaColumn {
   label: string
   type: 'text' | 'textarea' | 'number' | 'money' | 'date' | 'select'
   options?: string[]
+  /** 该列是否必填 */
+  required?: boolean
 }
 
 /** 原子控件类型：假勤（考勤/请假/补卡）与人事（入职/转正/调岗/离职） */
@@ -1163,6 +1167,8 @@ export interface OaForm {
   icon: string
   sort: number
   description: string
+  /** E1：模板可见范围（空 = 全员可见） */
+  scope?: OaFormScope | null
   flowDefinitionId: number | null
   /** 绑定流程名（列表接口给出） */
   flowName?: string | null
@@ -1178,6 +1184,13 @@ export interface OaForm {
 export interface OaCatalogGroup {
   category: string
   forms: OaForm[]
+}
+
+/** E1：OA 表单可见范围（部门 id 或名称 / 角色 code / 账号；任一命中即可见） */
+export interface OaFormScope {
+  depts?: string[]
+  roles?: string[]
+  users?: string[]
 }
 
 export interface OaInstanceItem {
@@ -1201,6 +1214,8 @@ export interface OaInstanceItem {
 export interface OaInstanceDetail extends OaInstanceItem {
   schema: { fields?: OaField[] }
   formData: Record<string, unknown>
+  /** E1：当前节点字段权限掩码（hidden 字段服务端已剔除） */
+  fieldPermissions?: Record<string, 'editable' | 'viewonly' | 'hidden'>
   timeline: TimelineRecord[]
 }
 

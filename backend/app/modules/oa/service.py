@@ -1,6 +1,8 @@
 """OA 服务：表单校验 / 发起（接 F1 审批引擎，未绑定直通）/ 统计 / 异常干预 / 流程事件回写。"""
 
+import ast
 import json
+import re
 from datetime import date, datetime
 
 from sqlalchemy import func, select
@@ -10,20 +12,119 @@ from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithd
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
-from app.modules.admin.models import Dept
+from app.modules.admin.models import Dept, UserDept
 from app.modules.approval import engine
 from app.modules.approval import service as approval_svc
 from app.modules.approval.condition import eval_rule_value
 from app.modules.approval.graph import parse_json
-from app.modules.approval.models import ApprovalCc, ApprovalDefinition, ApprovalInstance, ApprovalRecord, ApprovalTask
+from app.modules.approval.models import (
+    ApprovalCc,
+    ApprovalDefinition,
+    ApprovalInstance,
+    ApprovalNode,
+    ApprovalRecord,
+    ApprovalTask,
+)
 from app.modules.auth.models import User
 from app.modules.contract.models import Contract
 from app.modules.crm.models import Customer
 from app.modules.oa.models import OaForm, OaInstance
-from app.modules.oa.schemas import EXPOSABLE_TYPES, LAYOUT_TYPES, OPTION_TYPES, ConditionGroup, FormFieldIn
+from app.modules.oa.schemas import (
+    ATTENDANCE_REF_TYPES,
+    EXPOSABLE_TYPES,
+    HR_REF_TYPES,
+    LAYOUT_TYPES,
+    OPTION_TYPES,
+    ConditionGroup,
+    FormFieldIn,
+)
 from app.modules.report.models import Report
 from app.modules.task.models import Task
 from app.services.numbering import next_no
+
+# ---------------- 公式表达式（E1：企业微信 Formula 控件） ----------------
+
+# 企业微信公式写法形如「Money-a + Money-b」：控件类型前缀 + 控件标识
+_FORMULA_PREFIX_RE = re.compile(r"\b(?:Money|Number|money|number)-")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_PHONE_RE = re.compile(r"^1[3-9]\d{9}$")
+
+
+def _formula_refs(expr: str) -> list[str]:
+    """提取公式引用的控件标识（去重，保持出现顺序）。"""
+    src = _FORMULA_PREFIX_RE.sub("", expr or "")
+    refs: list[str] = []
+    for m in _IDENT_RE.finditer(src):
+        name = m.group(0)
+        if name not in refs:
+            refs.append(name)
+    return refs
+
+
+def _eval_formula(expr: str, data: dict) -> float | None:
+    """受限公式求值：只允许 ``+ - * /``、数字与字段引用；不可求值返回 None。"""
+    src = _FORMULA_PREFIX_RE.sub("", expr or "").strip()
+    if not src:
+        return None
+    src = src.replace("×", "*").replace("÷", "/").replace("－", "-").replace("＋", "+")
+
+    def _repl(m: re.Match) -> str:
+        name = m.group(0)
+        return f"_v({name!r})" if name in data else name
+
+    src = _IDENT_RE.sub(_repl, src)
+    try:
+        tree = ast.parse(src, mode="eval")
+    except SyntaxError:
+        return None
+    allowed = (
+        ast.Expression,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.Constant,
+        ast.Name,
+        ast.Load,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.USub,
+        ast.UAdd,
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            if not (isinstance(node.func, ast.Name) and node.func.id == "_v"):
+                return None
+            if node.keywords or len(node.args) != 1:
+                return None
+            continue
+        if not isinstance(node, allowed):
+            return None
+
+    def _v(key: str) -> float:
+        val = data.get(key)
+        if isinstance(val, bool):
+            return 0.0
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return 0.0
+
+    try:
+        return float(eval(compile(tree, "<formula>", "eval"), {"_v": _v, "__builtins__": {}}))
+    except Exception:
+        return None
+
+
+def _compute_formulas(fields: list[FormFieldIn], data: dict) -> None:
+    """提交前用服务端计算结果覆盖公式字段（前端算的值不作数）。"""
+    for f in fields:
+        if f.type != "formula" or not f.key or not f.formula.strip():
+            continue
+        value = _eval_formula(f.formula, data)
+        if value is not None:
+            data[f.key] = value
+
 
 # ---------------- 表单 schema / 数据校验 ----------------
 
@@ -56,6 +157,31 @@ def validate_fields(fields: list[FormFieldIn]) -> None:
             for m in f.mappings:
                 if m.to not in known_keys or m.to == f.key:
                     errors.append(f"字段「{label}」带出目标控件不存在：{m.to}")
+        # ---- E1 新控件校验 ----
+        if f.type == "table":
+            if not f.columns:
+                errors.append(f"字段「{label}」明细表未配置子列")
+            col_keys: set[str] = set()
+            for c in f.columns:
+                if not c.key:
+                    errors.append(f"字段「{label}」明细列「{c.label}」缺少标识")
+                elif c.key in col_keys:
+                    errors.append(f"字段「{label}」明细列标识重复：{c.key}")
+                else:
+                    col_keys.add(c.key)
+                if c.type == "select" and not c.options:
+                    errors.append(f"字段「{label}」明细列「{c.label}」下拉未配置选项")
+        if f.type == "formula":
+            if not f.formula.strip():
+                errors.append(f"字段「{label}」未配置计算公式")
+            else:
+                for ref in _formula_refs(f.formula):
+                    if ref not in known_keys:
+                        errors.append(f"字段「{label}」公式引用的控件不存在：{ref}")
+        if f.type == "attendance" and f.ref_type not in ATTENDANCE_REF_TYPES:
+            errors.append(f"字段「{label}」假勤原子类型非法（可选 {', '.join(ATTENDANCE_REF_TYPES)}）")
+        if f.type == "hr_ref" and f.ref_type not in HR_REF_TYPES:
+            errors.append(f"字段「{label}」人事原子类型非法（可选 {', '.join(HR_REF_TYPES)}）")
         for group, gname in ((f.show_when, "显示"), (f.required_when, "必填"), (f.readonly_when, "只读")):
             for r in (group.rules if group else []):
                 if r.field not in known_keys:
@@ -184,6 +310,52 @@ def _validate_value(f: FormFieldIn, v, errors: list[str], data: dict) -> None:
             or not isinstance(v.get("name"), str)
         ):
             errors.append(f"{label} 应为资源对象（id + name）")
+    elif f.type == "table":
+        if not isinstance(v, list):
+            errors.append(f"{label} 应为明细表行列表")
+        else:
+            col_keys = {c.key for c in f.columns if c.key}
+            for idx, row in enumerate(v):
+                if not isinstance(row, dict):
+                    errors.append(f"{label} 第 {idx + 1} 行不是对象")
+                    continue
+                for c in f.columns:
+                    if not c.key:
+                        continue
+                    cell = row.get(c.key)
+                    if c.required and _is_empty(cell):
+                        errors.append(f"{label} 第 {idx + 1} 行「{c.label}」为必填项")
+                        continue
+                    if _is_empty(cell):
+                        continue
+                    if c.type in ("number", "money") and (
+                        isinstance(cell, bool) or not isinstance(cell, (int, float))
+                    ):
+                        errors.append(f"{label} 第 {idx + 1} 行「{c.label}」必须是数字")
+                    elif c.type == "date" and _parse_date(cell) is None:
+                        errors.append(f"{label} 第 {idx + 1} 行「{c.label}」日期格式应为 YYYY-MM-DD")
+                extra = set(row.keys()) - col_keys
+                if extra:
+                    errors.append(f"{label} 第 {idx + 1} 行含未定义列：{'、'.join(sorted(extra))}")
+    elif f.type == "formula":
+        # 公式由服务端计算，提交值只做类型兜底（不信任前端算出的数）
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            errors.append(f"{label} 必须是数字")
+    elif f.type == "phone":
+        if not isinstance(v, str) or not _PHONE_RE.match(v.strip()):
+            errors.append(f"{label} 手机号格式不正确")
+    elif f.type == "location":
+        if not isinstance(v, str):
+            errors.append(f"{label} 应为位置文本")
+        elif f.maxlength and len(v) > f.maxlength:
+            errors.append(f"{label} 超长（最大 {f.maxlength} 字）")
+    elif f.type in ("attendance", "hr_ref"):
+        kind = v.get("kind") if isinstance(v, dict) else None
+        allowed = ATTENDANCE_REF_TYPES if f.type == "attendance" else HR_REF_TYPES
+        if not isinstance(v, dict) or kind not in allowed:
+            errors.append(f"{label} 原子类型非法（可选 {'、'.join(allowed)}）")
+        elif f.ref_type and kind != f.ref_type:
+            errors.append(f"{label} 原子类型应为 {f.ref_type}")
 
 
 def validate_data(fields: list[FormFieldIn], data: dict) -> None:
@@ -237,6 +409,7 @@ def _form_payload(form: OaForm, with_schema: bool = True) -> dict:
         "description": form.description,
         "flowDefinitionId": form.flow_definition_id,
         "fields": normalized_fields(form) if with_schema else None,
+        "scope": _scope_of(form),
         "publishedAt": form.published_at.strftime("%Y-%m-%d %H:%M:%S") if form.published_at else "",
         "createTime": form.create_time.strftime("%Y-%m-%d %H:%M:%S") if form.create_time else "",
     }
@@ -247,7 +420,13 @@ def apply(db: Session, form_id: int, user: User, data: dict) -> OaInstance:
     form = db.get(OaForm, form_id)
     if not form or form.deleted or form.status != "published":
         raise BizException(R.OA_FORM_NOT_PUBLISHED)
+    # E1：可见范围外的人不允许发起（目录已裁剪，这里防直调接口）
+    if not _scope_allows(db, _scope_of(form), user):
+        raise BizException(R.AUTH_FORBIDDEN, http_status=403)
     fields = fields_of(form)
+    data = dict(data or {})
+    # E1：公式字段由服务端重算（前端算的值不作数）
+    _compute_formulas(fields, data)
     validate_data(fields, data)
 
     inst = OaInstance(
@@ -341,8 +520,90 @@ def register_flow_handlers() -> None:
 # ---------------- 用户侧查询 ----------------
 
 
-def catalog(db: Session) -> list[dict]:
-    """模板目录：published 表单按 category 分组（category 展示名由前端字典渲染）。"""
+def _scope_of(form: OaForm) -> dict:
+    """模板可见范围：{depts:[],roles:[],users:[]}；空字典 = 全员可见。"""
+    return parse_json(form.scope_json, {}) or {}
+
+
+def _scope_json(scope: dict | None) -> str | None:
+    """可见范围入库前归一：只保留 depts/roles/users 三个列表；全空 → None（= 全员可见）。"""
+    if not isinstance(scope, dict):
+        return None
+    out: dict[str, list[str]] = {}
+    for key in ("depts", "roles", "users"):
+        vals = scope.get(key) or []
+        if isinstance(vals, str):
+            vals = [vals]
+        out[key] = [str(v) for v in vals if v not in (None, "")]
+    if not any(out.values()):
+        return None
+    return json.dumps(out, ensure_ascii=False)
+
+
+def _dept_ids_of_user(db: Session, user: User) -> set[int]:
+    """用户所属部门（含任职表全部任职 + user.dept_id 旧字段兼容）。"""
+    ids: set[int] = set()
+    for did in db.scalars(
+        select(UserDept.dept_id).where(UserDept.user_id == user.id, UserDept.deleted == 0)
+    ).all():
+        if did:
+            ids.add(int(did))
+    if user.dept_id:
+        ids.add(int(user.dept_id))
+    return ids
+
+
+def _dept_with_descendants(db: Session, dept_ids: set[int]) -> set[int]:
+    """部门集合 → 自身 + 全部下级部门 id。"""
+    if not dept_ids:
+        return set()
+    rows = db.execute(select(Dept.id, Dept.parent_id).where(Dept.deleted == 0)).all()
+    children: dict[int, list[int]] = {}
+    for did, pid in rows:
+        children.setdefault(int(pid or 0), []).append(int(did))
+    out: set[int] = set()
+    stack = list(dept_ids)
+    while stack:
+        cur = stack.pop()
+        if cur in out:
+            continue
+        out.add(cur)
+        stack.extend(children.get(cur, []))
+    return out
+
+
+def _scope_allows(db: Session, scope: dict, user: User) -> bool:
+    """模板可见范围判定：部门 / 角色 / 账号任一维度命中即放行；全空 = 全员可见。"""
+    if not scope:
+        return True
+    depts = [str(x) for x in (scope.get("depts") or [])]
+    roles = [str(x) for x in (scope.get("roles") or [])]
+    users = [str(x) for x in (scope.get("users") or [])]
+    if not depts and not roles and not users:
+        return True
+    if users and (user.username in users or str(user.id) in users):
+        return True
+    if roles and set(roles) & set(user.role_codes or []):
+        return True
+    if depts:
+        rows = db.execute(select(Dept.id, Dept.name).where(Dept.deleted == 0)).all()
+        id_by_name = {str(name): int(did) for did, name in rows}
+        target_ids: set[int] = set()
+        for d in depts:
+            if d.isdigit():
+                target_ids.add(int(d))
+            elif d in id_by_name:
+                target_ids.add(id_by_name[d])
+        if target_ids & _dept_with_descendants(db, _dept_ids_of_user(db, user)):
+            return True
+    return False
+
+
+def catalog(db: Session, user: User | None = None) -> list[dict]:
+    """模板目录：published 表单按 category 分组（category 展示名由前端字典渲染）。
+
+    E1：按模板可见范围（scope_json）裁剪 —— 部门 / 角色 / 账号任一命中即对当前用户可见。
+    """
     rows = db.scalars(
         select(OaForm)
         .where(OaForm.status == "published", OaForm.deleted == 0)
@@ -350,7 +611,12 @@ def catalog(db: Session) -> list[dict]:
     ).all()
     groups: dict[str, list[dict]] = {}
     for f in rows:
-        groups.setdefault(f.category or "", []).append(_form_payload(f))
+        scope = _scope_of(f)
+        if user is not None and not _scope_allows(db, scope, user):
+            continue
+        payload = _form_payload(f)
+        payload["scope"] = scope
+        groups.setdefault(f.category or "", []).append(payload)
     return [{"category": k, "forms": v} for k, v in groups.items()]
 
 
@@ -476,12 +742,62 @@ def _can_view(db: Session, inst: OaInstance, user: User) -> bool:
     )
 
 
+def _field_permission_mask(db: Session, inst: OaInstance, user: User) -> dict[str, str]:
+    """当前用户所在待办节点的字段权限掩码 {字段key: editable|viewonly|hidden}。
+
+    非待办人 / 无流程实例 → 空掩码（不限制）。E1 节点字段权限只约束**当前处理人**视图。
+    """
+    if not inst.flow_instance_id:
+        return {}
+    task = db.scalar(
+        select(ApprovalTask)
+        .where(
+            ApprovalTask.instance_id == inst.flow_instance_id,
+            ApprovalTask.assignee_id == user.id,
+            ApprovalTask.status == "pending",
+            ApprovalTask.deleted == 0,
+        )
+        .limit(1)
+    )
+    if not task:
+        return {}
+    flow = db.get(ApprovalInstance, inst.flow_instance_id)
+    if not flow or not flow.definition_id:
+        return {}
+    node = db.scalar(
+        select(ApprovalNode).where(
+            ApprovalNode.definition_id == flow.definition_id,
+            ApprovalNode.seq == task.seq,
+            ApprovalNode.deleted == 0,
+        )
+    )
+    if not node:
+        return {}
+    perms = parse_json(node.field_permissions, {}) or {}
+    if not isinstance(perms, dict):
+        return {}
+    return {str(k): str(v) for k, v in perms.items() if v in ("editable", "viewonly", "hidden")}
+
+
 def instance_detail(db: Session, inst: OaInstance, user: User) -> dict:
     if not _can_view(db, inst, user):
         raise BizException(R.AUTH_FORBIDDEN, http_status=403)
     data = instance_item(db, inst)
-    data["schema"] = {"fields": normalized_fields(inst)}
-    data["formData"] = parse_json(inst.form_data, {})
+    fields = normalized_fields(inst)
+    form_data = parse_json(inst.form_data, {})
+    # E1：按节点字段权限掩码 —— hidden 字段既不出现在 schema，也不出现在数据里
+    mask = _field_permission_mask(db, inst, user)
+    if mask:
+        hidden = {k for k, v in mask.items() if v == "hidden"}
+        if hidden:
+            fields = [f for f in fields if f.get("key") not in hidden]
+            form_data = {k: v for k, v in (form_data or {}).items() if k not in hidden}
+        fields = [
+            {**f, "readOnly": True} if mask.get(f.get("key") or "") == "viewonly" else f for f in fields
+        ]
+    data["schema"] = {"fields": fields}
+    data["formData"] = form_data
+    data["fieldPermissions"] = mask
     data["timeline"] = (
         approval_svc.instance_timeline(db, inst.flow_instance_id)["records"] if inst.flow_instance_id else []
     )
@@ -898,6 +1214,7 @@ def create_form(db: Session, body, user: User) -> dict:
         sort=body.sort,
         description=body.description,
         schema_json=json.dumps({"fields": [f.model_dump(by_alias=True) for f in body.fields]}, ensure_ascii=False),
+        scope_json=_scope_json(body.scope),
         flow_definition_id=body.flow_definition_id,
         status="draft",
         create_by=user.id,
@@ -924,6 +1241,7 @@ def update_form(db: Session, form_id: int, body, user: User) -> dict:
     form.sort = body.sort
     form.description = body.description
     form.schema_json = json.dumps({"fields": [f.model_dump(by_alias=True) for f in body.fields]}, ensure_ascii=False)
+    form.scope_json = _scope_json(body.scope)
     form.flow_definition_id = body.flow_definition_id
     form.update_by = user.id
     db.flush()
@@ -947,6 +1265,7 @@ def new_version(db: Session, form_id: int, user: User) -> dict:
         sort=src.sort,
         description=src.description,
         schema_json=src.schema_json,
+        scope_json=src.scope_json,
         flow_definition_id=src.flow_definition_id,
         status="draft",
         create_by=user.id,

@@ -128,3 +128,153 @@ export function fieldOptions(field: OaField, data: OaFormData, dictOptions?: str
   }
   return base
 }
+
+/* ---------- 公式表达式（type=formula） ---------- */
+
+/** 企业微信公式写法形如「Money-a + Money-b」：控件类型前缀 + 控件标识 */
+const FORMULA_PREFIX_RE = /\b(?:Money|Number|money|number)-/g
+const FORMULA_IDENT_RE = /[A-Za-z_][A-Za-z0-9_]*/g
+
+/** 公式引用的控件标识（去重，保持出现顺序） */
+export function formulaRefs(expr: string | undefined): string[] {
+  if (!expr) return []
+  const src = expr.replace(FORMULA_PREFIX_RE, '')
+  const refs: string[] = []
+  for (const m of src.matchAll(FORMULA_IDENT_RE)) {
+    const name = m[0]
+    if (!refs.includes(name)) refs.push(name)
+  }
+  return refs
+}
+
+type Token = { kind: 'num'; value: number } | { kind: 'ident'; value: string } | { kind: 'op'; value: string }
+
+function tokenize(src: string): Token[] | null {
+  const tokens: Token[] = []
+  let i = 0
+  while (i < src.length) {
+    const ch = src[i]!
+    if (/\s/.test(ch)) {
+      i += 1
+      continue
+    }
+    if (/[0-9]/.test(ch)) {
+      const m = /^[0-9]*\.?[0-9]+/.exec(src.slice(i))
+      if (!m) return null
+      tokens.push({ kind: 'num', value: Number(m[0]) })
+      i += m[0].length
+      continue
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i))
+      if (!m) return null
+      tokens.push({ kind: 'ident', value: m[0] })
+      i += m[0].length
+      continue
+    }
+    if ('+-*/()'.includes(ch)) {
+      tokens.push({ kind: 'op', value: ch })
+      i += 1
+      continue
+    }
+    return null
+  }
+  return tokens
+}
+
+/**
+ * 公式求值：只允许 + - * /、括号、数字与本表字段引用。
+ * 语义与后端 app/modules/oa/service.py::_eval_formula 一致：
+ * 引用字段不存在 → 整体不可求值（null）；字段值非数字 → 按 0 计。
+ */
+export function evalFormula(expr: string | undefined, data: OaFormData): number | null {
+  if (!expr || !expr.trim()) return null
+  const src = expr.replace(FORMULA_PREFIX_RE, '').replace(/[×÷]/g, (c) => (c === '×' ? '*' : '/'))
+  const tokens = tokenize(src)
+  if (!tokens || !tokens.length) return null
+  let pos = 0
+
+  const peek = () => tokens[pos]
+  const eat = (value: string) => {
+    const tk = tokens[pos]
+    if (tk && tk.kind === 'op' && tk.value === value) {
+      pos += 1
+      return true
+    }
+    return false
+  }
+
+  function parseExpr(): number | null {
+    let left = parseTerm()
+    if (left === null) return null
+    for (;;) {
+      if (eat('+')) {
+        const right = parseTerm()
+        if (right === null) return null
+        left += right
+      } else if (eat('-')) {
+        const right = parseTerm()
+        if (right === null) return null
+        left -= right
+      } else break
+    }
+    return left
+  }
+
+  function parseTerm(): number | null {
+    let left = parseFactor()
+    if (left === null) return null
+    for (;;) {
+      if (eat('*')) {
+        const right = parseFactor()
+        if (right === null) return null
+        left *= right
+      } else if (eat('/')) {
+        const right = parseFactor()
+        if (right === null) return null
+        if (right === 0) return null
+        left /= right
+      } else break
+    }
+    return left
+  }
+
+  function parseFactor(): number | null {
+    if (eat('-')) {
+      const v = parseFactor()
+      return v === null ? null : -v
+    }
+    if (eat('+')) return parseFactor()
+    return parsePrimary()
+  }
+
+  function parsePrimary(): number | null {
+    const tk = peek()
+    if (!tk) return null
+    if (tk.kind === 'num') {
+      pos += 1
+      return tk.value
+    }
+    if (tk.kind === 'ident') {
+      pos += 1
+      if (!(tk.value in data)) return null
+      const raw = data[tk.value]
+      if (typeof raw === 'boolean') return 0
+      const n = Number(raw)
+      return Number.isFinite(n) ? n : 0
+    }
+    if (tk.kind === 'op' && tk.value === '(') {
+      pos += 1
+      const v = parseExpr()
+      if (v === null) return null
+      if (!eat(')')) return null
+      return v
+    }
+    return null
+  }
+
+  const result = parseExpr()
+  if (result === null) return null
+  if (pos !== tokens.length) return null
+  return Number.isFinite(result) ? result : null
+}

@@ -56,7 +56,7 @@ def _user_or_404(db: Session, user_id: int) -> User:
 
 @router.get("/catalog")
 def catalog(current: User = Depends(require_perm("oa:apply")), db: Session = Depends(get_db)):
-    return svc.catalog(db)
+    return svc.catalog(db, current)
 
 
 @router.get("/resources/meta")

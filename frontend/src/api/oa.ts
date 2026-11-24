@@ -5,6 +5,7 @@ import type {
   OaField,
   OaFlowDefOption,
   OaForm,
+  OaFormScope,
   OaInstanceDetail,
   OaInstanceItem,
   OaResourceItem,
@@ -95,6 +96,8 @@ export interface OaFormPayload {
   description: string
   fields: Partial<OaField>[]
   flowDefinitionId: number | null
+  /** E1：模板可见范围（空 = 全员可见） */
+  scope?: OaFormScope | null
 }
 
 export function listOaForms() {

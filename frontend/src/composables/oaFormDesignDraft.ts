@@ -2,7 +2,7 @@
  * OA 表单设计器本地草稿：设计过程中防抖自动保存到 localStorage，防意外关闭/刷新丢失。
  * 仅编辑器防意外，不改变后端草稿/发布语义。键按 userId + formKey 隔离（新建用 "new"）。
  */
-import type { OaField } from '@/api/types'
+import type { OaField, OaFormScope } from '@/api/types'
 
 export interface OaFormDesignDraftMeta {
   key: string
@@ -12,6 +12,8 @@ export interface OaFormDesignDraftMeta {
   sort: number
   description: string
   flowDefinitionId: number | null
+  /** E1：模板可见范围 */
+  scope?: OaFormScope | null
 }
 
 export interface OaFormDesignDraft {

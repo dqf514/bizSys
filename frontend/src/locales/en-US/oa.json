@@ -54,7 +54,11 @@
     "draftSaved": "Draft saved — you can continue later",
     "draftRestored": "Restored your last unsubmitted draft",
     "clearDraft": "Clear & refill",
-    "clearConfirm": "Clear all entered content and start over? The local draft will also be removed"
+    "clearConfirm": "Clear all entered content and start over? The local draft will also be removed",
+    "tableNoColumns": "This detail table has no columns yet",
+    "tableAddRow": "Add Row",
+    "atomicType": "Atomic Type",
+    "atomicDetail": "Summary"
   },
   "my": {
     "title": "My Applications",
@@ -232,7 +236,8 @@
       "choice": "Choice",
       "advanced": "Advanced",
       "layout": "Layout",
-      "atomic": "Atomic"
+      "atomic": "Atomic",
+      "e1": "WeCom Extensions"
     },
     "canvasEmpty": "Click or drag fields from the left palette",
     "props": "Field properties",
@@ -249,11 +254,45 @@
     "condToLeaf": "To single rule",
     "condRange": "Lower bound",
     "condRangeTo": "Upper bound",
-    "condMultiValues": "Comma-separated values"
+    "condMultiValues": "Comma-separated values",
+    "relatedForms": "Related Forms",
+    "relatedFormsTip": "A related-approval control can only reference forms already built in this system.",
+    "tableColumns": "Detail Columns",
+    "formulaExpr": "Formula",
+    "formulaExprTip": "Supports + - * / and field references of this form, e.g. Money-qty * Money-price; recalculated server-side on submit.",
+    "refType": "Atomic Type",
+    "refTypeTip": "Record type of the attendance / HR atomic control.",
+    "columnKey": "Column Key",
+    "columnLabel": "Column {n}",
+    "columnOptions": "Options (comma separated)",
+    "columnAdd": "Add Column",
+    "scope": "Visible Scope",
+    "scopeDepts": "Departments",
+    "scopeRoles": "Roles",
+    "scopeUsers": "Accounts",
+    "scopeTip": "Empty = visible to everyone; a hit on department, role or account is enough to apply (WeCom visible scope).",
+    "columnRequired": "Required"
   },
   "formStatus": {
     "draft": "Draft",
     "published": "Published",
     "disabled": "Disabled"
+  },
+  "columnType": {
+    "text": "Single Line Text",
+    "textarea": "Multi Line Text",
+    "number": "Number",
+    "money": "Amount",
+    "date": "Date",
+    "select": "Select"
+  },
+  "refType": {
+    "attendance": "Attendance",
+    "vacation": "Vacation",
+    "punch": "Punch Correction",
+    "onboard": "Onboarding",
+    "regular": "Regularization",
+    "transfer": "Transfer",
+    "resign": "Resignation"
   }
 }

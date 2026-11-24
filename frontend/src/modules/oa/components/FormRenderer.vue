@@ -13,8 +13,9 @@ import { Bottom, CopyDocument, Delete, Rank, Top } from '@element-plus/icons-vue
 import type { OaField, OaResourceItem, OaResourceValue } from '@/api/types'
 import { userOptions as fetchUserOptions } from '@/api/admin'
 import { useDict } from '@/composables/useDict'
-import { isEmptyValue, isFieldReadonly, isFieldRequired, isFieldVisible } from '../formLogic'
+import { evalFormula, isEmptyValue, isFieldReadonly, isFieldRequired, isFieldVisible } from '../formLogic'
 import ResourcePicker from './ResourcePicker.vue'
+import TableEditor from './TableEditor.vue'
 
 const props = defineProps<{
   fields: OaField[]
@@ -173,6 +174,30 @@ function addFileRow(key: string) {
 
 function removeFileRow(key: string, idx: number) {
   setVal(key, fileList(key).filter((_, i) => i !== idx))
+}
+
+/* ---------- E1 新控件：公式 / 原子 / 明细表 ---------- */
+
+/** 公式字段只读展示（服务端提交时会重算，这里是实时预览） */
+function formulaValue(f: OaField): number | null {
+  return evalFormula(f.formula, props.modelValue)
+}
+
+/** 原子控件（假勤 / 人事）可选的原子类型：配置了 refType 就只允许该种，否则该族全可选 */
+function refOptions(f: OaField): string[] {
+  if (f.refType) return [f.refType]
+  return f.type === 'hr_ref'
+    ? ['onboard', 'regular', 'transfer', 'resign']
+    : ['attendance', 'vacation', 'punch']
+}
+
+function atomicValue(f: OaField): { kind?: string; detail?: string } {
+  const v = val(f.key)
+  return v && typeof v === 'object' ? (v as { kind?: string; detail?: string }) : {}
+}
+
+function setAtomic(f: OaField, patch: { kind?: string; detail?: string }) {
+  setVal(f.key, { ...atomicValue(f), ...patch })
 }
 
 /* ---------- 设计模式：拖放 ---------- */
@@ -409,6 +434,63 @@ defineExpose({ validate })
           @update:model-value="setVal(f.key, $event)"
           @pick="onResourcePick(f, $event)"
         />
+        <!-- E1：明细表 -->
+        <TableEditor
+          v-else-if="f.type === 'table'"
+          mode="rows"
+          :columns="f.columns ?? []"
+          :model-value="(val(f.key) as Record<string, unknown>[]) ?? []"
+          :disabled="props.disabled || readonlyOf(f)"
+          @update:model-value="setVal(f.key, $event)"
+        />
+        <!-- E1：公式（只读，服务端提交时重算） -->
+        <div v-else-if="f.type === 'formula'" class="formula-box">
+          <span class="formula-value">
+            {{ formulaValue(f) === null ? '-' : formulaValue(f) }}
+          </span>
+          <span v-if="f.formula" class="formula-expr">{{ f.formula }}</span>
+        </div>
+        <!-- E1：手机号 -->
+        <el-input
+          v-else-if="f.type === 'phone'"
+          :model-value="(val(f.key) as string) ?? ''"
+          inputmode="tel"
+          maxlength="11"
+          :placeholder="f.placeholder"
+          :disabled="readonlyOf(f)"
+          style="width: 100%"
+          @update:model-value="setVal(f.key, $event)"
+        />
+        <!-- E1：位置（文本 + 距离说明，不接地图 SDK） -->
+        <el-input
+          v-else-if="f.type === 'location'"
+          :model-value="(val(f.key) as string) ?? ''"
+          :placeholder="f.placeholder"
+          :maxlength="f.maxlength ?? undefined"
+          :disabled="readonlyOf(f)"
+          style="width: 100%"
+          @update:model-value="setVal(f.key, $event)"
+        />
+        <!-- E1：原子控件（假勤 / 人事） -->
+        <div v-else-if="f.type === 'attendance' || f.type === 'hr_ref'" class="atomic-box">
+          <el-select
+            :model-value="atomicValue(f).kind ?? ''"
+            :placeholder="t('oa.form.atomicType')"
+            :disabled="readonlyOf(f)"
+            clearable
+            style="width: 160px"
+            @update:model-value="setAtomic(f, { kind: String($event ?? '') })"
+          >
+            <el-option v-for="k in refOptions(f)" :key="k" :value="k" :label="t(`oa.refType.${k}`)" />
+          </el-select>
+          <el-input
+            :model-value="atomicValue(f).detail ?? ''"
+            :placeholder="t('oa.form.atomicDetail')"
+            :disabled="readonlyOf(f)"
+            style="flex: 1; min-width: 0"
+            @update:model-value="setAtomic(f, { detail: String($event ?? '') })"
+          />
+        </div>
         <div v-if="f.description" class="fr-desc">{{ f.description }}</div>
       </el-form-item>
     </div>
@@ -474,6 +556,31 @@ defineExpose({ validate })
 }
 
 .file-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-2);
+}
+
+/* E1：公式 / 原子控件 */
+.formula-box {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--bs-space-2);
+}
+
+.formula-value {
+  font-weight: 600;
+  color: var(--bs-color-fg-default);
+}
+
+.formula-expr {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+}
+
+.atomic-box {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);

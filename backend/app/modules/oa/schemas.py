@@ -22,6 +22,13 @@ FIELD_TYPES = (
     "resource",
     "divider",
     "text_block",
+    # E1 扩展（企业微信移植）：明细表 / 公式 / 手机号 / 位置 / 假勤原子 / 人事原子
+    "table",
+    "formula",
+    "phone",
+    "location",
+    "attendance",
+    "hr_ref",
 )
 # 可作为流程变量注入 instance.variables 的标量类型（条件分支用）
 EXPOSABLE_TYPES = ("text", "number", "money", "date", "select", "radio", "user")
@@ -30,6 +37,16 @@ OPTION_TYPES = ("select", "radio", "checkbox")
 LAYOUT_TYPES = ("divider", "text_block")
 # 全站资源控件可选资源类型
 RESOURCE_TYPES = ("customer", "contract", "task", "report", "dept", "user", "oa_instance")
+# E1：假勤原子控件可取的原子类型（考勤 / 假期 / 补卡）
+ATTENDANCE_REF_TYPES = ("attendance", "vacation", "punch")
+# E1：人事原子控件可取的原子类型（入职 / 转正 / 调岗 / 离职）
+HR_REF_TYPES = ("onboard", "regular", "transfer", "resign")
+# 原子控件（假勤 / 人事）：值形如 {"kind": <原子类型>, "detail": "<摘要说明>"}
+ATOMIC_TYPES = ("attendance", "hr_ref")
+# 明细表子列可取类型
+COLUMN_TYPES = ("text", "textarea", "number", "money", "date", "select")
+# 公式表达式允许的运算符
+FORMULA_OPS = ("+", "-", "*", "/")
 
 # 条件比较符（E1 扩展：in / between / empty / not_empty 与审批引擎保持同一套语义）
 CONDITION_OPS = (
@@ -105,6 +122,23 @@ class FieldMapping(CamelModel):
     to: str = Field(min_length=1, max_length=64)
 
 
+class FormColumnIn(CamelModel):
+    """明细表（type=table）子列定义。"""
+
+    key: str = Field(default="", max_length=64, pattern=r"^([a-zA-Z_][a-zA-Z0-9_]*)?$")
+    label: str = Field(min_length=1, max_length=64)
+    type: str = "text"
+    options: list[str] = []
+    required: bool = False
+
+    @field_validator("type")
+    @classmethod
+    def _type_known(cls, v: str) -> str:
+        if v not in COLUMN_TYPES:
+            raise ValueError(f"未知明细列类型：{v}")
+        return v
+
+
 class FormFieldIn(CamelModel):
     key: str = Field(default="", max_length=64, pattern=r"^([a-zA-Z_][a-zA-Z0-9_]*)?$")
     label: str = Field(min_length=1, max_length=64)
@@ -126,12 +160,24 @@ class FormFieldIn(CamelModel):
     cascade: dict | None = None  # 级联过滤：{parent: 父控件key, map: {父值: [可选选项]}}
     resource: str = Field(default="", max_length=32)  # type=resource 时的资源类型
     mappings: list[FieldMapping] = []  # 资源选中后的带出字段映射
+    # ---- E1 扩展（企业微信移植）：明细表 / 公式 / 手机号 / 位置 / 假勤 / 人事原子 ----
+    columns: list[FormColumnIn] = []  # type=table 的子列定义
+    formula: str = Field(default="", max_length=255)  # type=formula 的表达式（Money-a + Money-b）
+    ref_type: str = Field(default="", max_length=32)  # type=attendance/hr_ref 的原子类型
+    related_form_keys: list[str] = []  # type=resource(oa_instance) 时可关联的表单 key 集合
 
     @field_validator("type")
     @classmethod
     def _type_known(cls, v: str) -> str:
         if v not in FIELD_TYPES:
             raise ValueError(f"未知字段类型：{v}")
+        return v
+
+    @field_validator("ref_type")
+    @classmethod
+    def _ref_type_known(cls, v: str) -> str:
+        if v and v not in ATTENDANCE_REF_TYPES + HR_REF_TYPES:
+            raise ValueError(f"未知原子类型：{v}")
         return v
 
     @field_validator("options_source")
@@ -158,6 +204,8 @@ class FormIn(CamelModel):
     description: str = Field(default="", max_length=512)
     fields: list[FormFieldIn] = []
     flow_definition_id: int | None = None
+    # E1：模板可见范围 {depts:[部门id或名称], roles:[角色code], users:[账号]}；空 = 全员可见
+    scope: dict | None = None
 
 
 class ApplyIn(CamelModel):

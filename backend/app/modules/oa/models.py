@@ -33,6 +33,9 @@ class OaForm(BaseModel):
     )
     description: Mapped[str] = mapped_column(String(512), default="")
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    scope_json: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="模板可见范围 JSON：{depts:[],roles:[],users:[]}（空=全员可见）"
+    )
 
 
 class OaInstance(BaseModel):

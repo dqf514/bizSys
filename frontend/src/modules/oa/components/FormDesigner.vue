@@ -13,11 +13,13 @@ import type {
   OaField,
   OaFieldMapping,
   OaFieldType,
+  OaRefType,
   OaResourceMeta,
   OaResourceType,
 } from '@/api/types'
-import { listOaResourceMeta } from '@/api/oa'
+import { listOaForms, listOaResourceMeta } from '@/api/oa'
 import { dictTypes } from '@/api/admin'
+import TableEditor from './TableEditor.vue'
 import {
   duplicateField,
   insertFieldAt,
@@ -41,8 +43,14 @@ const PALETTE: { groupKey: string; types: OaFieldType[] }[] = [
   { groupKey: 'input', types: ['text', 'textarea', 'number', 'money', 'date', 'daterange'] },
   { groupKey: 'choice', types: ['select', 'radio', 'checkbox'] },
   { groupKey: 'advanced', types: ['file', 'user', 'resource'] },
+  { groupKey: 'e1', types: ['table', 'formula', 'phone', 'location'] },
+  { groupKey: 'atomic', types: ['attendance', 'hr_ref'] },
   { groupKey: 'layout', types: ['divider', 'text_block'] },
 ]
+
+/** 原子控件可取的原子类型（假勤 / 人事） */
+const ATTENDANCE_REF_TYPES = ['attendance', 'vacation', 'punch']
+const HR_REF_TYPES = ['onboard', 'regular', 'transfer', 'resign']
 
 // 选中字段按对象引用跟踪：编辑 key 不会丢失选中态
 const selectedField = ref<OaField | null>(null)
@@ -53,6 +61,19 @@ const isOptionType = computed(
   () => selectedField.value != null && OPTION_TYPES.includes(selectedField.value.type),
 )
 const isResource = computed(() => selectedField.value?.type === 'resource')
+const isTable = computed(() => selectedField.value?.type === 'table')
+const isFormula = computed(() => selectedField.value?.type === 'formula')
+const isAtomic = computed(
+  () => selectedField.value?.type === 'attendance' || selectedField.value?.type === 'hr_ref',
+)
+const isRelatedResource = computed(
+  () => selectedField.value?.type === 'resource' && selectedField.value?.resource === 'oa_instance',
+)
+
+/** 原子控件可选的原子类型（假勤 / 人事） */
+const refTypeOptions = computed(() =>
+  selectedField.value?.type === 'hr_ref' ? HR_REF_TYPES : ATTENDANCE_REF_TYPES,
+)
 
 /** 可被条件/级联/映射引用的数据控件（排除布局与自身） */
 const candidateFields = computed(() =>
@@ -73,6 +94,8 @@ const cascadeParentField = computed(() =>
 /* ---------- 资源元数据 / 字典类型（设计器配置数据源） ---------- */
 const resourceMeta = ref<OaResourceMeta[]>([])
 const dictTypeOptions = ref<{ code: string; name: string }[]>([])
+/** 可关联的其它表单（「关联审批单」控件用） */
+const relatedForms = ref<{ key: string; name: string }[]>([])
 
 onMounted(async () => {
   try {
@@ -84,6 +107,11 @@ onMounted(async () => {
     dictTypeOptions.value = (await dictTypes()).map((d) => ({ code: d.code, name: d.name }))
   } catch {
     dictTypeOptions.value = [] // no dict permission: fall back to free input (allow-create)
+  }
+  try {
+    relatedForms.value = (await listOaForms()).map((f) => ({ key: f.key, name: f.name }))
+  } catch {
+    relatedForms.value = []
   }
 })
 
@@ -109,6 +137,10 @@ function addField(type: OaFieldType, index?: number) {
   }
   if (OPTION_TYPES.includes(type)) field.options = ['A', 'B']
   if (type === 'resource') field.mappings = []
+  if (type === 'table') field.columns = []
+  if (type === 'formula') field.formula = ''
+  if (type === 'attendance') field.refType = 'attendance'
+  if (type === 'hr_ref') field.refType = 'onboard'
   selectedField.value = field
   emitFields(insertFieldAt(props.fields, field, index))
 }
@@ -506,6 +538,62 @@ function onResourceTypeChange(f: OaField) {
                   {{ t('oa.design.mappingAdd') }}
                 </el-button>
               </div>
+            </el-form-item>
+            <el-form-item v-if="isRelatedResource" :label="t('oa.design.relatedForms')">
+              <el-select
+                :model-value="selectedField.relatedFormKeys ?? []"
+                multiple
+                filterable
+                style="width: 100%"
+                :placeholder="t('oa.design.relatedFormsTip')"
+                @update:model-value="selectedField!.relatedFormKeys = ($event as string[]) ?? []"
+              >
+                <el-option v-for="f in relatedForms" :key="f.key" :value="f.key" :label="f.name" />
+              </el-select>
+              <div class="prop-tip">{{ t('oa.design.relatedFormsTip') }}</div>
+            </el-form-item>
+          </template>
+
+          <!-- E1：明细表子列 -->
+          <template v-if="isTable">
+            <el-form-item :label="t('oa.design.tableColumns')">
+              <TableEditor
+                mode="columns"
+                :columns="selectedField.columns ?? []"
+                @update:columns="selectedField!.columns = $event"
+              />
+            </el-form-item>
+          </template>
+
+          <!-- E1：公式 -->
+          <template v-if="isFormula">
+            <el-form-item :label="t('oa.design.formulaExpr')">
+              <el-input
+                :model-value="selectedField.formula ?? ''"
+                :placeholder="t('oa.design.formulaExprTip')"
+                @update:model-value="selectedField!.formula = String($event ?? '')"
+              />
+              <div class="prop-tip">{{ t('oa.design.formulaExprTip') }}</div>
+            </el-form-item>
+          </template>
+
+          <!-- E1：原子控件类型 -->
+          <template v-if="isAtomic">
+            <el-form-item :label="t('oa.design.refType')">
+              <el-select
+                :model-value="selectedField.refType ?? ''"
+                style="width: 100%"
+                clearable
+                @update:model-value="selectedField!.refType = String($event ?? '') as OaRefType"
+              >
+                <el-option
+                  v-for="r in refTypeOptions"
+                  :key="r"
+                  :value="r"
+                  :label="t(`oa.refType.${r}`)"
+                />
+              </el-select>
+              <div class="prop-tip">{{ t('oa.design.refTypeTip') }}</div>
             </el-form-item>
           </template>
 

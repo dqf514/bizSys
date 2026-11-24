@@ -33,7 +33,8 @@ import {
   updateOaForm,
   type OaFormPayload,
 } from '@/api/oa'
-import type { OaField, OaFieldType, OaFlowDefOption, OaForm } from '@/api/types'
+import { listDepts, listRoles, userOptions } from '@/api/admin'
+import type { OaField, OaFieldType, OaFlowDefOption, OaForm, OaFormScope } from '@/api/types'
 
 defineOptions({ name: 'OaFormPanel' })
 
@@ -72,6 +73,7 @@ async function load() {
 
 onMounted(async () => {
   void load()
+  void loadScopeOptions()
   try {
     categoryOptions.value = await dictOptions('oa_category')
   } catch {
@@ -114,7 +116,37 @@ const form = reactive({
   description: '',
   flowDefinitionId: null as number | null,
   fields: [] as OaField[],
+  scope: { depts: [], roles: [], users: [] } as OaFormScope,
 })
+
+/* ---------- 可见范围候选项（部门 / 角色 / 账号） ---------- */
+const scopeDeptOptions = ref<{ id: number; name: string }[]>([])
+const scopeRoleOptions = ref<{ code: string; name: string }[]>([])
+const scopeUserOptions = ref<{ id: number; label: string }[]>([])
+
+async function loadScopeOptions() {
+  try {
+    const raw = await listDepts()
+    const rows = Array.isArray(raw) ? raw : ((raw as { items?: unknown[] }).items ?? [])
+    scopeDeptOptions.value = (rows as { id: number; name: string }[]).map((d) => ({
+      id: d.id,
+      name: d.name,
+    }))
+  } catch {
+    scopeDeptOptions.value = []
+  }
+  try {
+    const page = await listRoles({ page: 1, size: 200 })
+    scopeRoleOptions.value = (page.items ?? []).map((r) => ({ code: r.code, name: r.name }))
+  } catch {
+    scopeRoleOptions.value = []
+  }
+  try {
+    scopeUserOptions.value = (await userOptions()) ?? []
+  } catch {
+    scopeUserOptions.value = []
+  }
+}
 
 /* ---------- 设计器本地草稿（防抖自动保存） ---------- */
 const DRAFT_DEBOUNCE_MS = 1800
@@ -140,6 +172,7 @@ function snapshotMeta(): OaFormDesignDraftMeta {
     sort: form.sort,
     description: form.description,
     flowDefinitionId: form.flowDefinitionId,
+    scope: { ...form.scope },
   }
 }
 
@@ -189,7 +222,12 @@ async function promptDraftIfAny(key: string): Promise<'restored' | 'fresh'> {
         distinguishCancelAndClose: true,
       },
     )
-    Object.assign(form, draft.meta, { fields: draft.fields })
+    Object.assign(form, draft.meta, {
+      fields: draft.fields,
+      scope: draft.meta.scope
+        ? { depts: [...(draft.meta.scope.depts ?? [])], roles: [...(draft.meta.scope.roles ?? [])], users: [...(draft.meta.scope.users ?? [])] }
+        : { depts: [], roles: [], users: [] },
+    })
     savedAt.value = hhmmss(new Date(draft.savedAt))
     return 'restored'
   } catch (action) {
@@ -203,7 +241,7 @@ async function openCreate() {
   savedAt.value = ''
   Object.assign(form, {
     key: '', name: '', category: 'other', icon: 'Document', sort: 0, description: '',
-    flowDefinitionId: null, fields: [],
+    flowDefinitionId: null, fields: [], scope: { depts: [], roles: [], users: [] },
   })
   await promptDraftIfAny(oaFormDesignDraftKey(auth.user?.id, 'new'))
   dialogVisible.value = true
@@ -221,6 +259,11 @@ async function openEdit(row: OaForm) {
     description: row.description,
     flowDefinitionId: row.flowDefinitionId,
     fields: (row.fields ?? []).map((f) => ({ ...f, options: f.options ? [...f.options] : undefined })),
+    scope: {
+      depts: [...(row.scope?.depts ?? [])],
+      roles: [...(row.scope?.roles ?? [])],
+      users: [...(row.scope?.users ?? [])],
+    },
   })
   await promptDraftIfAny(oaFormDesignDraftKey(auth.user?.id, row.key))
   dialogVisible.value = true
@@ -279,6 +322,10 @@ function validateForm(): string | null {
       return `${t('oa.design.dictType')}: ${f.key}`
     }
     if (f.type === 'resource' && !f.resource) return `${t('oa.design.resourceType')}: ${f.key}`
+    if (f.type === 'table' && !f.columns?.length) return `${t('oa.design.tableColumns')}: ${f.key}`
+    if (f.type === 'formula' && !f.formula?.trim()) return `${t('oa.design.formulaExpr')}: ${f.key}`
+    if ((f.type === 'attendance' || f.type === 'hr_ref') && !f.refType)
+      return `${t('oa.design.refType')}: ${f.key}`
   }
   return null
 }
@@ -317,7 +364,18 @@ async function save() {
       cascade: f.cascade ?? undefined,
       resource: f.type === 'resource' ? f.resource || undefined : undefined,
       mappings: f.type === 'resource' && f.mappings?.length ? f.mappings : undefined,
+      columns: f.type === 'table' && f.columns?.length ? f.columns : undefined,
+      formula: f.type === 'formula' ? f.formula || undefined : undefined,
+      refType:
+        f.type === 'attendance' || f.type === 'hr_ref' ? (f.refType || undefined) : undefined,
+      relatedFormKeys:
+        f.type === 'resource' && f.relatedFormKeys?.length ? f.relatedFormKeys : undefined,
     })),
+    scope: {
+      depts: form.scope.depts ?? [],
+      roles: form.scope.roles ?? [],
+      users: form.scope.users ?? [],
+    },
   }
   saving.value = true
   try {
@@ -532,6 +590,60 @@ function gotoDesign() {
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-row :gutter="12">
+              <el-col :span="24">
+                <el-form-item :label="t('oa.design.scope')">
+                  <div class="scope-editor">
+                    <el-select
+                      v-model="form.scope.depts"
+                      multiple
+                      filterable
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :placeholder="t('oa.design.scopeDepts')"
+                    >
+                      <el-option
+                        v-for="d in scopeDeptOptions"
+                        :key="d.id"
+                        :value="d.name"
+                        :label="d.name"
+                      />
+                    </el-select>
+                    <el-select
+                      v-model="form.scope.roles"
+                      multiple
+                      filterable
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :placeholder="t('oa.design.scopeRoles')"
+                    >
+                      <el-option
+                        v-for="r in scopeRoleOptions"
+                        :key="r.code"
+                        :value="r.code"
+                        :label="r.name"
+                      />
+                    </el-select>
+                    <el-select
+                      v-model="form.scope.users"
+                      multiple
+                      filterable
+                      collapse-tags
+                      collapse-tags-tooltip
+                      :placeholder="t('oa.design.scopeUsers')"
+                    >
+                      <el-option
+                        v-for="u in scopeUserOptions"
+                        :key="u.id"
+                        :value="String(u.id)"
+                        :label="u.label"
+                      />
+                    </el-select>
+                  </div>
+                  <div class="scope-tip">{{ t('oa.design.scopeTip') }}</div>
+                </el-form-item>
+              </el-col>
+            </el-row>
           </el-form>
           <div class="topbar-side">
             <span v-if="savedAt" class="saved-at">{{ t('oa.form.autoSaved', { time: savedAt }) }}</span>
@@ -565,6 +677,23 @@ function gotoDesign() {
 
 .local-filter {
   width: 220px;
+}
+
+.scope-editor {
+  width: 100%;
+  display: flex;
+  gap: var(--bs-space-2);
+}
+
+.scope-editor .el-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.scope-tip {
+  font-size: var(--bs-typography-font-size-xs);
+  color: var(--bs-color-fg-muted);
+  line-height: 1.4;
 }
 
 .designer-shell {
