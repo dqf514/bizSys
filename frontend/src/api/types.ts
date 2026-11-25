@@ -3900,3 +3900,233 @@ export interface ChangelogPayload {
   latestDate: string
   releases: ChangelogRelease[]
 }
+
+/* ---------------- B11 知识与文档中心 + 全站回收站 ---------------- */
+
+/** B11 新增错误码（镜像 backend/app/core/response.py） */
+export const KNOWLEDGE_ERR = {
+  /** 文档 / 分类 / 空间等不存在 */
+  KNOWLEDGE_NOT_FOUND: 94001,
+  /** 无权访问该文档 */
+  KNOWLEDGE_PERMISSION_DENIED: 94002,
+  /** 不允许上传的文件格式 */
+  KNOWLEDGE_FILE_TYPE_UNSUPPORTED: 94003,
+  /** 文件超出大小上限 */
+  KNOWLEDGE_FILE_TOO_LARGE: 94004,
+  /** 状态不允许该操作 */
+  KNOWLEDGE_INVALID_STATE: 94005,
+  /** 分享链接已失效 */
+  KNOWLEDGE_LINK_EXPIRED: 94006,
+  /** 需要先验证手机号 */
+  KNOWLEDGE_LINK_VERIFY_REQUIRED: 94007,
+  /** 分类层级非法 */
+  KNOWLEDGE_CATEGORY_INVALID: 94008,
+  /** 验证码错误或已过期 */
+  KNOWLEDGE_LINK_CODE_INVALID: 94009,
+  /** 记录处于保留期内，暂不能彻底删除 */
+  RECYCLE_RETENTION_ACTIVE: 30006,
+  /** 回收站记录不存在 */
+  RECYCLE_ENTRY_NOT_FOUND: 30007,
+  /** 恢复失败 */
+  RECYCLE_RESTORE_FAILED: 30008,
+  /** 记录不在回收站中 */
+  RECYCLE_NOT_RECYLED: 30009,
+} as const
+
+/** 文档分类节点（多级树，管理员可自定义层级） */
+export interface KnowledgeCategory {
+  id: number
+  name: string
+  code: string
+  parentId: number | null
+  level: number
+  path: string
+  sort: number
+  description: string
+  status: string
+  /** 该分类下文档数（含子树） */
+  docCount: number
+  children: KnowledgeCategory[]
+}
+
+/** 知识空间：personal 个人空间 / shared 共享空间 */
+export interface KnowledgeSpace {
+  id: number
+  name: string
+  type: string
+  ownerId: number | null
+  ownerName: string
+  deptId: number | null
+  description: string
+  status: string
+  createTime: string
+}
+
+/** 文件夹（归属空间，可单独对外分享） */
+export interface KnowledgeFolder {
+  id: number
+  name: string
+  spaceId: number
+  categoryId: number | null
+  parentId: number | null
+  path: string
+  level: number
+  description: string
+  status: string
+  createTime: string
+  children?: KnowledgeFolder[]
+}
+
+/** 文档主表 */
+export interface KnowledgeDocument {
+  id: number
+  code: string
+  title: string
+  spaceId: number
+  folderId: number | null
+  categoryId: number | null
+  ownerId: number | null
+  ownerName: string
+  editorIds: number[]
+  currentVersion: number
+  fileId: number | null
+  ext: string
+  size: number
+  tags: string
+  docType: string
+  status: string
+  summary: string
+  source: string
+  publishedAt: string
+  expiredAt: string
+  /** 当前用户的权限档位：read / edit / manage */
+  perm: string
+  permLevel: number
+  createBy: number | null
+  createTime: string
+  updateTime: string
+}
+
+/** 文档版本历史条目 */
+export interface KnowledgeVersion {
+  id: number
+  documentId: number
+  versionNo: number
+  fileId: number | null
+  fileName: string
+  ext: string
+  size: number
+  comment: string
+  operatorId: number | null
+  operatorName: string
+  createTime: string
+}
+
+/** 授权条目 */
+export interface KnowledgePermission {
+  id: number
+  resourceType: string
+  resourceId: number
+  subjectType: string
+  subjectId: number | null
+  subjectName: string
+  perm: string
+  permLevel: number
+  isExternal: number
+  expireAt: string
+  createTime: string
+}
+
+/** 外部分享链接 */
+export interface KnowledgeShareLink {
+  id: number
+  token: string
+  title: string
+  resourceType: string
+  resourceId: number
+  perm: string
+  requirePhone: boolean
+  expireAt: string
+  maxUpload: number
+  uploadCount: number
+  downloadCount: number
+  status: string
+  creatorName: string
+  remark: string
+  createTime: string
+}
+
+/** 新建分享链接的返回值 */
+export interface KnowledgeShareLinkCreated {
+  id: number
+  token: string
+  title: string
+  perm: string
+  requirePhone: boolean
+  expireAt: string
+  status: string
+  url: string
+}
+
+/** 在线预览结果 */
+export interface KnowledgePreview {
+  kind: string
+  ext?: string
+  text?: string
+  url?: string
+  pages?: number
+  message?: string
+}
+
+/** 知识中心设置（格式 / 大小上限） */
+export interface KnowledgeSettings {
+  allowedExt: string[]
+  maxMb: number
+  previewMaxChars: number
+  defaultAllowedExt: string[]
+}
+
+/** 回收站条目 */
+export interface RecycleEntry {
+  id: number
+  module: string
+  resource: string
+  resourceId: number
+  title: string
+  deletedBy: number | null
+  deletedByName: string
+  deletedAt: string
+  purgeAfter: string
+  status: string
+  /** 当前保留期天数（天） */
+  retentionDays: number
+  purgedAt: string
+}
+
+/** 批量上传结果（逐文件成败） */
+export interface KnowledgeBatchResult {
+  items: { name: string; ok: boolean; documentId?: number; title?: string; message?: string }[]
+  total: number
+  success: number
+}
+
+/** 外部分享：链接信息（公开） */
+export interface PublicShareInfo {
+  title: string
+  perm: string
+  requirePhone: boolean
+  status: string
+  remark: string
+  expireAt: string
+}
+
+/** 外部分享：文档摘要（公开，不含内部人员信息） */
+export interface PublicShareDocument {
+  id: number
+  title: string
+  ext: string
+  size: number
+  docType: string
+  version: number
+  updateTime: string
+}

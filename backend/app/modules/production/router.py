@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -266,6 +267,10 @@ def delete_plan(
     for row in rows:
         row.deleted = 1
     plan.deleted = 1
+    recycle.track(
+        db, ProdPlan, plan, user=current, module="production", resource="ProdPlan",
+        cascade=[(ProdSchedule, [r.id for r in rows])],
+    )
     audit(
         db, user_id=current.id, module="production", action="plan_delete",
         biz_type="prod_plan", biz_id=plan.id, detail={"planNo": plan.plan_no},
@@ -550,7 +555,7 @@ def delete_schedule(
     row = _load_schedule(db, sid)
     if row.status == "confirmed":
         raise BizException(R.PRODUCTION_INVALID_STATE, "已确认的排程行不可删除")
-    row.deleted = 1
+    recycle.soft_delete(db, ProdSchedule, row, user=current, module="production", resource="ProdSchedule")
     audit(
         db, user_id=current.id, module="production", action="schedule_delete",
         biz_type="prod_schedule", biz_id=row.id, detail={"scheduleNo": row.schedule_no},

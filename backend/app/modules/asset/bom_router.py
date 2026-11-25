@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -467,7 +468,7 @@ def delete_bom(
 ):
     bom = _load_bom(db, bid)
     svc.check_editable(bom.status, ("draft",), "只有草稿状态的 BOM 可以删除")
-    bom.deleted = 1
+    recycle.soft_delete(db, Bom, bom, user=current, module="asset", resource="Bom")
     bom.update_by = current.id
     bom.update_time = datetime.now()
     bom.lines.clear()  # delete-orphan 级联删除子件行

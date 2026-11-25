@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -334,7 +335,7 @@ def delete_asset(
     )
     if open_disposal:
         raise BizException(R.ASSET_INVALID_STATE, "该资产存在未完结的处置单，不能删除")
-    a.deleted = 1
+    recycle.soft_delete(db, FixedAsset, a, user=current, module="asset", resource="FixedAsset")
     a.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="asset_delete",
@@ -596,7 +597,7 @@ def delete_depreciation(
         a.version += 1
         a.update_by = current.id
         a.update_time = datetime.now()
-    row.deleted = 1
+    recycle.soft_delete(db, Depreciation, row, user=current, module="asset", resource="Depreciation")
     row.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="depreciation_delete",
@@ -775,7 +776,7 @@ def delete_disposal(
     if not d or d.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(d.status, ("draft", "rejected"), "已批准的处置单不能删除")
-    d.deleted = 1
+    recycle.soft_delete(db, Disposal, d, user=current, module="asset", resource="Disposal")
     d.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="disposal_delete",
@@ -1082,7 +1083,7 @@ def delete_tool(
         raise BizException(R.GENERIC_NOT_FOUND)
     if svc.open_tool_loan(db, tid):
         raise BizException(R.ASSET_INVALID_STATE, "该工具尚有未归还的领用记录")
-    t.deleted = 1
+    recycle.soft_delete(db, Tool, t, user=current, module="asset", resource="Tool")
     t.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="tool_delete",
@@ -1283,7 +1284,7 @@ def delete_tool_loan(
     if t and t.status == "loaned" and not svc.open_tool_loan(db, loan.tool_id):
         t.status = "in_stock"
         t.update_time = datetime.now()
-    loan.deleted = 1
+    recycle.soft_delete(db, ToolLoan, loan, user=current, module="asset", resource="ToolLoan")
     loan.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="tool_loan_delete",

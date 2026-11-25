@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -287,7 +288,7 @@ def delete_zone(
     ).all()
     if any(str(z.id) in (v.zone_ids or "").split(",") for v in active):
         raise BizException(R.VISITOR_INVALID_STATE, "该区域仍有在办访客单，不能删除")
-    z.deleted = 1
+    recycle.soft_delete(db, VisitorZone, z, user=current, module="visitor", resource="VisitorZone")
     audit(
         db, user_id=current.id, module="visitor", action="zone_delete",
         biz_type="visitor_zone", biz_id=z.id, detail={"code": z.code},

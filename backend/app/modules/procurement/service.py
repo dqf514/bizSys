@@ -6,6 +6,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.core import response as R
@@ -302,7 +303,7 @@ def cancel_sample_stock(db: Session, order: "StockOrder", user) -> None:
     """取消未确认的样品出入库登记（逻辑删）；样品 in_stock 未动，无需回写。"""
     if order.status != "registered":
         raise BizException(R.PROCUREMENT_INVALID_STATE, "仅已登记单据可取消")
-    order.deleted = 1
+    recycle.soft_delete(db, StockOrder, order, user=user, module="procurement", resource="StockOrder")
     order.update_time = datetime.now()
     audit(
         db,

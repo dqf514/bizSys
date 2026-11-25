@@ -8,6 +8,7 @@ from datetime import date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
@@ -1466,7 +1467,7 @@ def disable_form(db: Session, form_id: int, user: User) -> dict:
     return _form_payload(form)
 
 
-def delete_form(db: Session, form_id: int) -> None:
+def delete_form(db: Session, form_id: int, user: User | None = None) -> None:
     form = db.get(OaForm, form_id)
     if not form or form.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
@@ -1476,6 +1477,7 @@ def delete_form(db: Session, form_id: int) -> None:
     if used:
         raise BizException(R.OA_INVALID_STATE, "已有申请单据，不能删除")
     form.deleted = form.id  # deleted 入唯一键：写 id 保证多条同 key+version 软删行互不冲突
+    recycle.track(db, OaForm, form, user=user, module="oa", resource="OaForm")
     form.update_time = datetime.now()
 
 

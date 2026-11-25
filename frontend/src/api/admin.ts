@@ -18,6 +18,7 @@ import type {
   MenuNode,
   NumberRule,
   PageResult,
+  RecycleEntry,
   Role,
 } from './types'
 
@@ -326,4 +327,40 @@ export function exportOaFormPackage(formId: number) {
 // ---- 变更日志（Keep a Changelog）----
 export function getChangelog() {
   return request<ChangelogPayload>({ url: '/admin/changelog', method: 'get' })
+}
+
+// ---- 全站回收站（B11）----
+export function listRecycleBin(params: ListQuery) {
+  return request<PageResult<RecycleEntry>>({
+    url: '/admin/recycle',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function recycleModules() {
+  return request<{ items: { module: string; count: number }[] }>({
+    url: '/admin/recycle/modules',
+    method: 'get',
+  })
+}
+
+export function getRecycleSettings() {
+  return request<{ retentionDays: number }>({ url: '/admin/recycle/settings', method: 'get' })
+}
+
+export function updateRecycleSettings(retentionDays: number) {
+  return request<{ retentionDays: number }>({
+    url: '/admin/recycle/settings',
+    method: 'put',
+    data: { retentionDays },
+  })
+}
+
+export function restoreRecycleEntry(id: number) {
+  return request<{ id: number }>({ url: `/admin/recycle/${id}/restore`, method: 'post' })
+}
+
+export function purgeRecycleEntry(id: number) {
+  return request<{ id: number }>({ url: `/admin/recycle/${id}/purge`, method: 'post' })
 }

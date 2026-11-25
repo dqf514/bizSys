@@ -6,6 +6,8 @@ import { getPortalToken, setPortalUnauthorizedHandler } from '@/api/portalHttp'
 import { registerMenuRoutes, isRoutesRegistered } from './index'
 
 const PUBLIC_PATHS = ['/login']
+// 公开前缀路径（外部分享链接：凭令牌 + 手机验证码，无需登录）
+const PUBLIC_PREFIX_PATHS = ['/knowledge/share']
 // 门户「我的」类页面需要门户 token；公告浏览与门户首页对外公开
 const PORTAL_AUTH_REQUIRED = [
   '/portal/my',
@@ -86,6 +88,11 @@ export function setupGuards(router: Router) {
         return true
       }
       // 员工壳内的 /portal/* 页面：继续往下走员工登录 + 动态路由注册
+    }
+
+    // 外部分享页：公开访问（不需要登录态），也不注册到标签页
+    if (PUBLIC_PREFIX_PATHS.some((p) => to.path === p || to.path.startsWith(`${p}/`))) {
+      return true
     }
 
     if (PUBLIC_PATHS.includes(to.path)) {

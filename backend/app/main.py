@@ -119,6 +119,7 @@ from app.modules.hr.org_router import router as hr_org_router  # noqa: E402  组
 from app.modules.hr.router import router as hr_router  # noqa: E402
 from app.modules.integration import notifier as _todo_notifier  # noqa: E402,F401 通知通道（F5 订阅见 wiring）
 from app.modules.integration.router import router as integration_router  # noqa: E402
+from app.modules.knowledge.router import router as knowledge_router  # noqa: E402  知识与文档中心（B11）
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
 from app.modules.oa.router import router as oa_router  # noqa: E402  OA 审批流程（F5 订阅由 wiring.install 装配）
 from app.modules.portal.experience_router import router as portal_exp_router  # noqa: E402  门户对外能力（F6）
@@ -128,6 +129,7 @@ from app.modules.procurement.router import router as procurement_router  # noqa:
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
 from app.modules.production.router import router as production_router  # noqa: E402  生产排程（B5）
 from app.modules.project.router import router as project_router  # noqa: E402  项目与甘特（B5）
+from app.modules.recycle.router import router as recycle_router  # noqa: E402  全站回收站（B11）
 from app.modules.report.router import router as report_router  # noqa: E402
 from app.modules.sales.router import router as sales_router  # noqa: E402  报价审批（F5 订阅由 wiring.install 装配）
 from app.modules.settings.router import public_router  # noqa: E402
@@ -173,6 +175,8 @@ app.include_router(production_router, prefix="/api/v1")
 app.include_router(project_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 app.include_router(maintenance_router, prefix="/api/v1")
+app.include_router(recycle_router, prefix="/api/v1")
+app.include_router(knowledge_router, prefix="/api/v1")
 
 # F5：流程与事件订阅的**显式装配**。
 # 以前各域在 service.py 模块级 subscribe()，靠上面那些 noqa import 才会生效 ——

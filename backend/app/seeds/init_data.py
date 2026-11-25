@@ -691,6 +691,66 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "ai:knowledge:view",
                 [],
             ),
+            (
+                "menu.knowledgeDocs",
+                "KnowledgeDocs",
+                "",
+                "",
+                "Notebook",
+                "",
+                [
+                    (
+                        "menu.knowledgeDocuments",
+                        "KnowledgeDocuments",
+                        "/knowledge/documents",
+                        "knowledge/DocumentCenter",
+                        "Collection",
+                        "knowledge:document:list",
+                        [
+                            (None, "knowledge-doc-create", "", "", "", "knowledge:document:create", []),
+                            (None, "knowledge-doc-edit", "", "", "", "knowledge:document:edit", []),
+                            (None, "knowledge-doc-delete", "", "", "", "knowledge:document:delete", []),
+                            (None, "knowledge-doc-share", "", "", "", "knowledge:document:share", []),
+                            (None, "knowledge-doc-download", "", "", "", "knowledge:download", []),
+                            (None, "knowledge-doc-preview", "", "", "", "knowledge:preview", []),
+                        ],
+                    ),
+                    (
+                        "menu.knowledgeCategories",
+                        "KnowledgeCategories",
+                        "/knowledge/categories",
+                        "knowledge/CategoryList",
+                        "Notebook",
+                        "knowledge:category:list",
+                        [
+                            (None, "knowledge-category-edit", "", "", "", "knowledge:category:edit", []),
+                        ],
+                    ),
+                    (
+                        "menu.knowledgeSpaces",
+                        "KnowledgeSpaces",
+                        "/knowledge/spaces",
+                        "knowledge/SpaceList",
+                        "Box",
+                        "knowledge:space:list",
+                        [
+                            (None, "knowledge-space-edit", "", "", "", "knowledge:space:edit", []),
+                        ],
+                    ),
+                    (
+                        "menu.knowledgeLinks",
+                        "KnowledgeLinks",
+                        "/knowledge/links",
+                        "knowledge/ShareLinkList",
+                        "Link",
+                        "knowledge:link:list",
+                        [
+                            (None, "knowledge-link-create", "", "", "", "knowledge:link:create", []),
+                            (None, "knowledge-link-delete", "", "", "", "knowledge:link:delete", []),
+                        ],
+                    ),
+                ],
+            ),
         ],
     ),
     (
@@ -1147,6 +1207,32 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                         "Tickets",
                         "admin:changelog:list",
                         [],
+                    ),
+                    # 全站回收站（B11）：所有删除动作的回收入口，保留期内禁止彻底删除
+                    (
+                        "menu.recycle",
+                        "RecycleBin",
+                        "/admin/recycle",
+                        "admin/RecycleBinList",
+                        "Delete",
+                        "admin:recycle:list",
+                        [
+                            (None, "recycle-restore", "", "", "", "admin:recycle:restore", []),
+                            (None, "recycle-purge", "", "", "", "admin:recycle:purge", []),
+                            (None, "recycle-setting", "", "", "", "admin:recycle:setting", []),
+                        ],
+                    ),
+                    # 知识中心设置（B11）：上传格式 / 大小上限（在系统管理区单独设置）
+                    (
+                        "menu.knowledgeSettings",
+                        "KnowledgeSettings",
+                        "/knowledge/settings",
+                        "admin/KnowledgeSettings",
+                        "Setting",
+                        "knowledge:setting:list",
+                        [
+                            (None, "knowledge-setting-edit", "", "", "", "knowledge:setting:edit", []),
+                        ],
                     ),
                 ],
             ),
@@ -1764,6 +1850,18 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "crm:staff:review",
         "crm:staff:edit",
         "crm:staff:export",
+        # —— 知识与文档中心（B11）——
+        "knowledge:document:list",
+        "knowledge:document:create",
+        "knowledge:document:edit",
+        "knowledge:document:delete",
+        "knowledge:document:share",
+        "knowledge:download",
+        "knowledge:preview",
+        "knowledge:category:list",
+        "knowledge:space:list",
+        "knowledge:space:edit",
+        "knowledge:link:list",
         # 访客与安全域（安防/合规）不挂业务角色，见下方 security_officer 角色
     ]
     for p in biz_perms:

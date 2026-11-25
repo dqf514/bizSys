@@ -11,6 +11,7 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.filters import apply_list_filters
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
@@ -198,6 +199,7 @@ def remove(db: Session, current: User, tid: int) -> HrTimesheet:
         raise BizException(R.HR_TIMESHEET_INVALID_STATE, "已提交的工时不可删除，请先退回草稿")
     # 软删写行 id：不与历史软删行撞 (user,date,task,deleted) 唯一键
     t.deleted = t.id
+    recycle.track(db, HrTimesheet, t, user=current, module="hr", resource="HrTimesheet")
     t.update_by = current.id
     db.flush()
     return t

@@ -67,7 +67,12 @@ def test_purge_clears_test_data(client, admin_headers, tmp_path):
     assert counts.get("sys_user", 0) >= 1  # 删掉了非 admin 用户
     assert r["data"]["backup"]["name"].endswith(".sql.gz")  # 清空前自动备份
     # 合规证据表不参与清空（《合规开发原则》4.4 审计日志不可清空）
-    assert set(r["data"]["retainedAuditTables"]) == {"sys_audit_log", "vis_access_log", "vis_nda"}
+    assert set(r["data"]["retainedAuditTables"]) == {
+        "sys_audit_log",
+        "vis_access_log",
+        "vis_nda",
+        "kb_link_log",
+    }
 
     db = SessionLocal()
     try:

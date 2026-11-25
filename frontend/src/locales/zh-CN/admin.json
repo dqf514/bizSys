@@ -128,6 +128,15 @@
     "bizSettlement": "结算",
     "bizPayment": "到账"
   },
+  "recycle": {
+    "title": "系统回收站",
+    "retentionDays": "保留天数",
+    "retentionTip": "保留期内不允许彻底删除（默认 180 天），超过保留期可彻底清除",
+    "restoreDone": "已恢复",
+    "purgeDone": "已彻底删除",
+    "restoreFailed": "恢复失败",
+    "purgeBlocked": "仍在保留期内，无法彻底删除"
+  },
   "audit": {
     "title": "审计日志",
     "username": "操作人",

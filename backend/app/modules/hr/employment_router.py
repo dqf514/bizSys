@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams, page_result
@@ -614,7 +615,10 @@ def delete_delegate(
     d = db.get(HrDelegate, did)
     if not d or d.deleted:
         raise BizException(R.GENERIC_NOT_FOUND, "代理记录不存在")
-    d.deleted = 1
+    recycle.soft_delete(
+        db, HrDelegate, d, user=current, module="hr", resource="HrDelegate",
+        restore_fields={"status": d.status},
+    )
     d.status = "revoked"
     d.update_by = current.id
     d.update_time = datetime.now()

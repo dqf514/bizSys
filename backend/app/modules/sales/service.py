@@ -14,6 +14,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.events import ApprovalCompleted, ApprovalRejected, ApprovalWithdrawn, subscribe
 from app.common.filters import apply_list_filters
 from app.common.pagination import PageParams, page_result
@@ -186,7 +187,7 @@ def disable_template(db: Session, tid: int, user: User) -> dict:
     return _tpl_out(t)
 
 
-def delete_template(db: Session, tid: int) -> None:
+def delete_template(db: Session, tid: int, user: User | None = None) -> None:
     t = db.get(SalesQuoteTemplate, tid)
     if not t or t.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
@@ -198,6 +199,7 @@ def delete_template(db: Session, tid: int) -> None:
     if used:
         raise BizException(R.SALES_QUOTE_INVALID_STATE, "已有报价单引用该模板，不能删除")
     t.deleted = t.id  # deleted 入唯一键：写 id 保证同 key+version 软删行互不冲突
+    recycle.track(db, SalesQuoteTemplate, t, user=user, module="sales", resource="SalesQuoteTemplate")
     t.update_time = datetime.now()
 
 
@@ -361,7 +363,7 @@ def delete_quotation(db: Session, current: User, qid: int) -> None:
     q = _load(db, qid)
     if q.status != "draft":
         raise BizException(R.SALES_QUOTE_INVALID_STATE, "仅草稿报价单可删除")
-    q.deleted = 1
+    recycle.soft_delete(db, SalesQuotation, q, user=current, module="sales", resource="SalesQuotation")
     q.update_by = current.id
     q.update_time = datetime.now()
     db.flush()

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFi
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -254,7 +255,7 @@ def delete_customer(
     )
     if used:
         raise BizException(R.GENERIC_PARAM, "该客户已关联合同，不能删除")
-    c.deleted = 1
+    recycle.soft_delete(db, Customer, c, user=current, module="crm", resource="Customer")
     c.update_time = datetime.now()
     audit(db, user_id=current.id, module="crm", action="customer_delete", biz_type="customer", biz_id=cid)
     db.commit()
@@ -539,7 +540,7 @@ def delete_contact(
     row = db.get(PartnerContact, ctid)
     if not row or row.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    row.deleted = 1
+    recycle.soft_delete(db, PartnerContact, row, user=current, module="crm", resource="PartnerContact")
     row.update_time = datetime.now()
     audit(db, user_id=current.id, module="crm", action="partner_contact_delete", biz_type="customer",
           biz_id=row.customer_id, detail={"contactId": ctid, "name": row.name})
@@ -673,7 +674,7 @@ def delete_partner_attachment(
     a = db.get(PartnerAttachment, aid)
     if not a or a.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    a.deleted = 1
+    recycle.soft_delete(db, PartnerAttachment, a, user=current, module="crm", resource="PartnerAttachment")
     a.update_time = datetime.now()
     audit(db, user_id=current.id, module="crm", action="partner_attachment_delete", biz_type="customer",
           biz_id=a.customer_id, detail={"fileId": aid, "file": a.file_name})

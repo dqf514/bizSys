@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -570,7 +571,7 @@ def delete_item(
     t = _load(db, row.task_id)
     if t.status != "draft":
         raise BizException(R.TASK_INVALID_STATE, "仅草稿任务可删除条目")
-    row.deleted = 1
+    recycle.soft_delete(db, TaskItem, row, user=current, module="task", resource="TaskItem")
     db.commit()
     return None
 
@@ -809,7 +810,7 @@ def delete_sample(
         raise BizException(R.GENERIC_NOT_FOUND)
     if _pending_map(db, [sid]):
         raise BizException(R.TASK_INVALID_STATE, "样品存在待确认的出入库单，请先确认或取消")
-    row.deleted = 1
+    recycle.soft_delete(db, TaskSample, row, user=current, module="task", resource="TaskSample")
     db.commit()
     return None
 

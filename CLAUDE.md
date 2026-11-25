@@ -228,6 +228,41 @@ current: User = Depends(get_current_user)              # 仅登录
 
 **新增迁移（手写）**：`nc2b3c4d5e6_wecom_flow_upgrade.py`（`options` + `field_permissions`）、`nd2b3c4d5e6_oa_form_scope.py`（`scope_json`）—— `alembic/env.py` 未 import oa 域 models，**必须手写**。
 
+### 知识与文档中心（B11）
+
+> 覆盖「标准与方法库 / 体系文件 / 公司制度 / 设备操作说明 / 上墙看板 / 标志标识标牌」等企业文档共享场景。
+
+**新域** `app/modules/knowledge/`（`kb_*` 前缀表）：
+
+| 表 | 说明 |
+| --- | --- |
+| `kb_category` | **多级可定义**分类树（物化路径 `path=/1/3/`、`level`；改上级整棵子树重算；挂到自己的子孙下 → 94008） |
+| `kb_space` / `kb_folder` | 个人空间 / 共享空间 + 文件夹树（文件夹可单独对外共享） |
+| `kb_document` / `kb_version` / `kb_file` | 文档主表（作者 `owner_id` / 编辑者 `editor_ids`）+ 版本历史 + 物理文件登记 |
+| `kb_permission` | 授权（`user`/`role`/`dept` × `read`/`edit`/`manage`，`is_external` 标外部人员） |
+| `kb_share_link` / `kb_link_log` | 外部分享链接 + 访问上传留痕（`kb_link_log` 是 `AppendOnlyModel`，**只追加**） |
+
+**核心口径**：
+
+- **在线预览在服务端抽文本**（`openpyxl` / `python-docx` / `pypdf`，前端**不引入新 npm 依赖**），按 `previewMaxChars` 截断。
+- **上传格式与大小上限在系统管理区单独设置**：`GET/PUT /knowledge/settings` → `sys_config` 的 `knowledge.allowed_ext` / `knowledge.max_mb` / `knowledge.preview_max_chars`。`allowedExt` 传**空数组 = 清空配置 → 回落默认格式**（不传该键 = 保持不变）。
+- **批量上传不整体回滚**：返回 `{total, success, items:[{ok,name,error}]}`。
+- **版本回滚 = 以历史版本内容生成新版本**，历史不丢。
+- **外部分享链接**：手机号 → 短信验证码 → `access` 令牌（Redis，**2 小时**）→ 浏览 / 上传；`access` 走**查询参数**（公开端点无 Authorization 头）。前端公开页 `/knowledge/share/:token` 是**免登录公开路由**（`guards.ts::PUBLIC_PREFIX_PATHS`）。
+- **multipart 表单字段用 snake_case**（`space_id` / `folder_id` / `category_id`），**查询参数才用 camelCase**（`spaceId` / `categoryId`）—— 本仓惯例，别混。
+- 错误码 `94001`–`94009`（`KNOWLEDGE_*`），已在 `app/core/response.py` 与 `frontend/src/api/types.ts` **双侧登记**。
+- 前端页：`src/modules/knowledge/pages/` 下 `DocumentCenter` / `CategoryList` / `SpaceList` / `ShareLinkList` / `ShareAccess`；设置页 `src/modules/admin/pages/KnowledgeSettings.vue`。菜单组 `menu.knowledgeDocs` 挂在**经营与协同**分区下。
+
+### 全站统一回收站（B11）
+
+**所有删除动作都有回收体系**。核心设计：**业务表仍用 `deleted` 标记逻辑删除，不新增列**（116 张 `BaseModel` 表 + `AppendOnlyModel` 表根本没有 `deleted`）；删除人 / 删除时间 / 保留期到期时间统一记在**登记表 `sys_recycle_bin`**（一张表管全站）。
+
+- 实现：`app/common/recycle.py`（`track` / `soft_delete` / `restore_entry` / `purge_entry`）+ `app/modules/recycle/`（router + models）。
+- **保留期**走 `sys_config` 的 `recycle.retention_days`（默认 **180 天**，`GET/PUT /admin/recycle/settings` 可改）；保留期内 `POST /admin/recycle/{id}/purge` 一律拒绝 → **30006**。
+- 端点：`GET /admin/recycle`（列表）/ `GET /admin/recycle/modules`（按模块统计）/ `GET|PUT /admin/recycle/settings` / `POST /admin/recycle/{id}/restore` / `POST /admin/recycle/{id}/purge`。权限 `admin:recycle:list` / `:restore` / `:purge` / `:setting`。前端页 `src/modules/admin/pages/RecycleBinList.vue`（系统管理 → 回收站）。
+- **新增删除动作时**：把 `obj.deleted = 1` 换成 `recycle.soft_delete(db, Model, obj, user=current, module="...", resource="...", restore_fields={...})`（**改名让位**的表要传 `restore_fields`，如用户名改成 `#del{id}`）。
+- 错误码 `30006`–`30009`（`RECYCLE_*`），双侧登记。
+
 ### AI 能力
 
 三层结构：
@@ -304,6 +339,15 @@ current: User = Depends(get_current_user)              # 仅登录
 - **企微模拟数据不得升级成真实数据**（E1）：源 HTML `企业微信审批与组织数据技术文档.html` 含真实人员数据，**不入库**（已 gitignore）；入库的只有脱敏后的 `backend/app/seeds/data/*.json`。模拟人员一律 `mockNNN` / `模拟员工NN`，`hr_employee.id_no` / `mobile` / `email` 与 `sys_user.mobile/email/wecom_userid` **留空**。**企微 vid（人员与部门 ID）解析阶段即丢弃、不落盘** —— `backend/scripts/parse_wecom_doc.py` 不再输出 `wecom_id`，改写种子 JSON 时别把它加回去。
 - **刷新会轮换 refresh token，前端必须把新的存回**（0.9.0）：后端 `auth/service.py::refresh()` 吊销旧 jti 并签发新 jti；前端 `api/http.ts::refreshAccessToken()` 若只存 access token，**下一轮续期就会拿已吊销的旧 token → 401 → 被踢回登录页**（曾因此让「登录状态只能维持 15~30 分钟」）。
 - **`remember`（记住登录状态）口径必须随轮换继承**：refresh token 的 `rem` claim 决定有效期（30 天 / 12 小时）；`refresh()` 重签时按 `payload["rem"]` 取值，**别按默认值重签**，否则「不记住」会被悄悄延长成 30 天。前端存储档位（localStorage / sessionStorage）也要跟着 `rem` 走。
+- **软删判定一律用 `deleted != 0`，绝不是 `deleted == 1`**（B11）：全仓有 **3 处**历史写法把 `deleted` 赋成**自身 id**（`hr/service.py` 工时填报、`oa/service.py` 表单、`sales/service.py` 报价模板）—— 那些表的唯一键含 `deleted`，写 1 会撞键。按 `== 1` 判断会漏判这些记录。
+- **删除动作一律走 `app/common/recycle.py::soft_delete`**（B11）：业务表**不新增列**，删除人/删除时间/保留期到期时间记在登记表 `sys_recycle_bin`。**改名让位**的表（用户 / 角色 / 字典项把唯一键改成 `#del{id}`）必须传 `restore_fields`，否则恢复后原名回不来。
+- **保留期内禁止彻底删除是服务端强制的**（B11）：`POST /admin/recycle/{id}/purge` 在 `purge_after` 之前一律 30006，保留期存 `sys_config` 的 `recycle.retention_days`（默认 180）。前端「清空回收站」按钮**不能**绕过这个闸门。
+- **知识库的磁盘文件不随软删删盘**（B11）：`kb_file` 登记文件实体，文档软删时**不 unlink**（由回收站到期清理）—— 与合同附件 / 头像「软删即删盘」的历史写法**相反**，别照抄。
+- **MySQL 的 TEXT 列不能带 DEFAULT**（B11）：`kb_*` / `sys_recycle_bin` 的 JSON 字段用 `Text` 且**必须给 `default=""` 在应用层兜底**（或 `nullable=True`）—— 手写迁移里写 `server_default` 到 TEXT 会直接报 `BLOB/TEXT column can't have a default value`。
+- **`kb_share_link.token` 唯一索引要显式去重**（B11）：种子 / 迁移建索引前先清重，否则重复 token 会让外部分享链接串号。
+- **multipart 表单字段用 snake_case**（B11）：知识库上传是 `space_id` / `folder_id` / `category_id`（**不是** camelCase）—— 与 contract / crm / portal / report 的上传一致；**只有查询参数走 camelCase 别名**。
+- **外部分享链接的 `access` 令牌走查询参数**（B11）：公开端点没有 Authorization 头，令牌由 `POST /knowledge/public/links/{token}/verify` 换取（Redis，2 小时），后续公开请求用 `?access=` 带上。前端公开页 `/knowledge/share/:token` 是**免登录公开路由**（`guards.ts::PUBLIC_PREFIX_PATHS`），不要给它加登录守卫。
+- **B11 新表（`kb_*` / `sys_recycle_bin`）不在 `alembic/env.py` 的 metadata 里** —— 迁移**必须手写**（`ne2b3c4d5e6_knowledge_recycle.py`），autogenerate 会误删表。`sys_recycle_bin` 要登记进 `maintenance/service.py::_PURGE_TABLES`；`kb_link_log` 是只追加的合规留痕，登记进 `RETAINED_AUDIT_TABLES`（**不清空**）。
 
 ## 合规基线（B9）
 

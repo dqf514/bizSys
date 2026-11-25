@@ -14,6 +14,8 @@ from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.contract import models as contract_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401
 from app.modules.finance import models as finance_models  # noqa: F401
+from app.modules.knowledge import models as knowledge_models  # noqa: F401
+from app.modules.recycle import models as recycle_models  # noqa: F401
 from app.modules.production import models as production_models  # noqa: F401
 from app.modules.project import models as project_models  # noqa: F401
 from app.modules.report import models as report_models  # noqa: F401

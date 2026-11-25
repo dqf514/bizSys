@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import evidence_detail, list_anchors, verify_chain, write_anchor
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
@@ -200,7 +201,10 @@ def delete_user(
     u = db.get(User, uid)
     if not u or u.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    u.deleted = 1
+    recycle.soft_delete(
+        db, User, u, user=current, module="admin", resource="User",
+        restore_fields={"username": u.username},
+    )
     # username 有物理唯一索引，逻辑删后释放登录名，避免同名重建触发 500
     u.username = f"{u.username[:50]}#del{u.id}"
     audit(db, user_id=current.id, module="admin", action="user_delete", biz_type="user", biz_id=uid)
@@ -352,7 +356,10 @@ def delete_role(
         raise BizException(R.GENERIC_NOT_FOUND)
     if r.code == SUPER_ROLE:
         raise BizException(R.GENERIC_PARAM, "内置超管角色不可删")
-    r.deleted = 1
+    recycle.soft_delete(
+        db, Role, r, user=current, module="admin", resource="Role",
+        restore_fields={"code": r.code},
+    )
     # code 有物理唯一索引，逻辑删后释放编码，避免同名重建触发 500
     r.code = f"{r.code[:50]}#del{r.id}"
     db.commit()
@@ -426,7 +433,7 @@ def delete_menu(
         raise BizException(R.GENERIC_NOT_FOUND)
     if db.scalar(select(Menu).where(Menu.parent_id == mid, Menu.deleted == 0)):
         raise BizException(R.GENERIC_PARAM, "存在子菜单，不能删除")
-    m.deleted = 1
+    recycle.soft_delete(db, Menu, m, user=current, module="admin", resource="Menu")
     db.commit()
     return None
 
@@ -588,7 +595,10 @@ def delete_dict_item(
 ):
     item = db.get(DictItem, did)
     if item:
-        item.deleted = 1
+        recycle.soft_delete(
+            db, DictItem, item, user=current, module="admin", resource="DictItem",
+            restore_fields={"value": item.value},
+        )
         # (dict_type_code, value) 有物理唯一约束，逻辑删后释放字典值，避免重建触发 500
         item.value = f"{item.value[:50]}#del{item.id}"
         db.commit()

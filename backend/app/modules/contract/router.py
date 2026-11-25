@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -349,7 +350,7 @@ def delete_contract(
         raise BizException(R.GENERIC_NOT_FOUND)
     if c.status != "draft":
         raise BizException(R.CONTRACT_INVALID_STATE, "仅草稿合同可删除")
-    c.deleted = 1
+    recycle.soft_delete(db, Contract, c, user=current, module="contract", resource="Contract")
     c.update_time = datetime.now()
     audit(db, user_id=current.id, module="contract", action="contract_delete", biz_type="contract", biz_id=cid)
     db.commit()
@@ -508,7 +509,7 @@ def delete_attachment(
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(c)  # 仅 draft/rejected 合同可删附件
-    a.deleted = 1
+    recycle.soft_delete(db, ContractAttachment, a, user=current, module="contract", resource="ContractAttachment")
     c.update_time = datetime.now()
     audit(db, user_id=current.id, module="contract", action="attachment_delete", biz_type="contract",
           biz_id=c.id, detail={"fileId": file_id, "file": a.file_name})

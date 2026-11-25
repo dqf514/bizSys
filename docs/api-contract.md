@@ -1671,6 +1671,194 @@ JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见
 - 种子：`app/seeds/init_data.py::main()` 幂等调用 `wecom_org.import_org(db)` 与 `wecom_templates.import_templates(db)`。
 - 产物：`backend/app/seeds/data/wecom_flow_packages.json`（39 个流程包，同 schema）——既是迁移产物，也是「批量导入导出」的现成样例。
 
+## B11 知识与文档中心 + 全站回收站
+
+> 覆盖「标准与方法库 / 体系文件 / 公司制度 / 设备操作说明 / 上墙看板 / 标志标识标牌」等企业文档共享场景；
+> 同时给**全站所有删除动作**加一层统一回收体系（软删 → 回收站 → 保留期内禁止彻底删除）。
+
+### 1. 数据模型（`app/modules/knowledge/models.py`，`kb_*` 前缀）
+
+| 表 | 基类 | 说明 |
+| --- | --- | --- |
+| `kb_category` | `BaseModel` | **多级可定义**文档分类树（物化路径 `path = /1/3/7/`，`level` 层级） |
+| `kb_space` | `BaseModel` | 空间：`personal` 个人空间 / `shared` 共享空间 |
+| `kb_folder` | `BaseModel` | 空间下的文件夹（可挂分类，可单独对外共享） |
+| `kb_document` | `BaseModel` | 文档主表（作者 `owner_id` / 编辑者 `editor_ids` / 当前版本 `current_version`） |
+| `kb_version` | `BaseModel` | 版本历史（回滚 = 以历史版本内容生成新版本，历史不丢） |
+| `kb_file` | `BaseModel` | 物理文件登记（`sha256` 去重校验） |
+| `kb_permission` | `BaseModel` | 授权条目（`user`/`role`/`dept` × `read`/`edit`/`manage`，`is_external` 标外部人员） |
+| `kb_share_link` | `BaseModel` | 外部分享链接（`token` / `perm=read|upload|edit` / `require_phone` / `expire_at`） |
+| `kb_link_log` | `AppendOnlyModel` | 外部链接访问与上传留痕（**只追加**，不可删改） |
+| `sys_recycle_bin` | `BaseModel` | **全站统一回收站登记表**（一张表管所有模块） |
+
+### 2. 文档分类（多级可定义，树形浏览）
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/categories` | `knowledge:category:list` | 返回**分类树**（顶层节点 + `children`） |
+| POST | `/knowledge/categories` | `knowledge:category:edit` | 新增分类（`parentId` 可空 = 顶级） |
+| PUT | `/knowledge/categories/{cid}` | `knowledge:category:edit` | 改分类（含**改上级 → 重算 `level`/`path`**） |
+| DELETE | `/knowledge/categories/{cid}` | `knowledge:category:edit` | 删除分类（**有子分类或被引用时拒绝** → 94008） |
+
+- `level` 由父链推导（顶级 = 1），`path` 形如 `/12/34/`；改上级时**整棵子树的 `level`/`path` 一起重算**。
+- **环路保护**：把分类挂到自己的子孙下 → 94008。
+- 分类树同时作为「文档类型」的落地：`doc_type` = `document`（通用文档）/ `system`（体系文件）/ `board`（上墙看板）/ `sign`（标志标识标牌）/ `manual`（设备操作说明）/ `rule`（公司制度）/ `standard`（标准与方法库）。
+
+### 3. 空间与文件夹
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/spaces` | `knowledge:space:list` | 空间列表（可按 `type` 过滤 `personal`/`shared`） |
+| POST | `/knowledge/spaces` | `knowledge:space:edit` | 新建空间 |
+| PUT | `/knowledge/spaces/{sid}` | `knowledge:space:edit` | 改空间 |
+| DELETE | `/knowledge/spaces/{sid}` | `knowledge:space:edit` | 删空间（进回收站） |
+| GET | `/knowledge/folders` | `knowledge:document:list` | 文件夹列表（按 `spaceId`） |
+| GET | `/knowledge/folders/tree` | `knowledge:document:list` | 文件夹**树** |
+| POST | `/knowledge/folders` | `knowledge:document:create` | 新建文件夹（`spaceId` / `parentId` / `categoryId`） |
+| PUT | `/knowledge/folders/{fid}` | `knowledge:document:edit` | 改文件夹 |
+| DELETE | `/knowledge/folders/{fid}` | `knowledge:document:edit` | 删文件夹（进回收站） |
+
+### 4. 文档：上传 / 批量上传 / 预览 / 下载 / 版本
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/documents` | `knowledge:document:list` | 列表（`q`/`spaceId`/`folderId`/`categoryId`/`docType`/`sort`） |
+| GET | `/knowledge/documents/{did}` | `knowledge:document:list` | 详情（含当前用户的 `perm` 档位） |
+| POST | `/knowledge/documents` | `knowledge:document:create` | **单个上传**（multipart） |
+| POST | `/knowledge/documents/batch` | `knowledge:document:create` | **批量上传**（multipart 多文件） |
+| PUT | `/knowledge/documents/{did}` | `knowledge:document:edit` | 改元信息 / 状态（`draft`/`published`/`archived`） |
+| DELETE | `/knowledge/documents/{did}` | `knowledge:document:delete` | 删除（**进回收站**，文件不立即删盘） |
+| GET | `/knowledge/documents/{did}/versions` | `knowledge:document:list` | 版本历史（倒序） |
+| POST | `/knowledge/documents/{did}/versions` | `knowledge:document:edit` | 上传新版本 |
+| POST | `/knowledge/documents/{did}/rollback/{vid}` | `knowledge:document:edit` | **回滚**到某历史版本（生成新版本号，历史保留） |
+| GET | `/knowledge/documents/{did}/preview` | `knowledge:preview` | **在线预览**（服务端抽文本） |
+| GET | `/knowledge/documents/{did}/raw` | `knowledge:preview` | 内联原文件（浏览器内嵌预览） |
+| GET | `/knowledge/documents/{did}/download` | `knowledge:download` | 附件下载 |
+
+> **表单字段用 snake_case**（本仓惯例，multipart 不用 camelCase）：
+> `title` / `space_id` / `folder_id` / `category_id` / `doc_type` / `comment`；
+> 查询参数仍走 camelCase 别名（`spaceId` / `folderId` / `categoryId` / `docType`）。
+
+**格式与大小限制（在系统管理区单独设置）**：
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/settings` | `knowledge:setting:list` | 读当前生效配置（`allowedExt` / `maxMb` / `previewMaxChars`） |
+| PUT | `/knowledge/settings` | `knowledge:setting:edit` | 改配置（写 `sys_config`：`knowledge.allowed_ext` / `knowledge.max_mb` / `knowledge.preview_max_chars`） |
+
+- `allowedExt` 传**空数组 = 清空配置 → 回落系统默认格式**（不传该键 = 保持不变）。
+- 违反格式 → **94003**；超出大小 → **94004**。
+- 批量上传**不因单个失败而整体回滚**：返回 `{total, success, items:[{ok, name, error}]}`，失败项带原因。
+- 默认允许格式：办公文档族（`pdf doc docx xls xlsx ppt pptx txt csv md zip` 等），可用 `PUT /knowledge/settings` 收窄或放宽。
+
+**在线预览实现**：服务端按扩展名抽文本 —— `txt/md/csv` 直接读文本；`docx` 用 `python-docx`；`xlsx` 用 `openpyxl`；`pdf` 用 `pypdf`。抽出的文本按 `previewMaxChars` 截断（默认 20000）。**前端不引入新的 npm 依赖**。
+
+### 5. 文档权限（作者 / 编辑者 / 内部外部 / 只读可编辑）
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/documents/{did}/permissions` | `knowledge:document:share` | 授权列表 |
+| PUT | `/knowledge/documents/{did}/permissions` | `knowledge:document:share` | **整体覆盖**授权列表 |
+| DELETE | `/knowledge/permissions/{pid}` | `knowledge:document:share` | 撤销一条授权 |
+
+授权条目：`{subjectType: user|role|dept, subjectId, subjectName, perm: read|edit|manage, isExternal: 0|1, expireAt?}`。
+
+- 档位数值：`read(1) < edit(2) < manage(3)`。
+- 作者与空间拥有者天然 `manage`；`editor_ids` 里的编辑者天然 `edit`。
+- **无任何授权的普通用户看不到该文档**（列表过滤 + 详情 94002）；超级管理员 `role_code="super"` 旁路。
+- 授权可带 `expireAt`（到期自动失效）。
+
+### 6. 外部分享链接（内部/外部 × 只读/可编辑 × 手机验证码）
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/links` | `knowledge:link:list` | 分享链接列表（含 `token` / `status` / 计数） |
+| POST | `/knowledge/links` | `knowledge:link:create` | 生成链接（`resourceType=folder|document` / `perm=read|upload|edit` / `requirePhone` / `expireDays` / `maxUpload`） |
+| DELETE | `/knowledge/links/{lid}` | `knowledge:link:delete` | **关闭**链接（`status=closed`，链接立即失效） |
+
+**公开端点（无需登录）**：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/knowledge/public/links/{token}` | 链接信息（`status`/`perm`/`requirePhone`/标题） |
+| POST | `/knowledge/public/links/{token}/code` | 发短信验证码（`{phone}`） |
+| POST | `/knowledge/public/links/{token}/verify` | 校验验证码 → 返回**访问令牌** `access` |
+| GET | `/knowledge/public/links/{token}/documents?access=` | 浏览该链接下的文件清单 |
+| GET | `/knowledge/public/links/{token}/raw/{did}?access=` | 下载 / 预览文件 |
+| POST | `/knowledge/public/links/{token}/upload?access=` | **外部人员上传**文件到该文件夹 |
+
+- 验证流程：手机号 → 短信验证码 → `access` 令牌（Redis，**2 小时**过期）。
+- `access` 令牌通过**查询参数**传递（公开端点无 Authorization 头）。
+- 未验证即访问 → **94007**；验证码错误/失效 → **94009**；链接过期或已关闭 → **94006**。
+- 只读链接调用上传 → **94002**。
+- 每次外部访问 / 上传都写 `kb_link_log`（只追加留痕）。
+- 前端公开页：`/knowledge/share/:token`（**免登录公开路由**，`guards.ts::PUBLIC_PREFIX_PATHS`），页内完成验证 → 浏览 / 上传。
+
+### 7. 全站统一回收站
+
+**核心设计**：业务表**仍用 `deleted` 标记逻辑删除**，**不新增列**（116 张 `BaseModel` 表 + `AppendOnlyModel` 表没有 `deleted`）；删除人 / 删除时间 / 保留期到期时间统一记在登记表 `sys_recycle_bin`。
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/admin/recycle` | `admin:recycle:list` | 回收站列表（按 `module` / `q` / `status` 过滤） |
+| GET | `/admin/recycle/modules` | `admin:recycle:list` | 按模块统计（`module` / `count`） |
+| GET | `/admin/recycle/settings` | `admin:recycle:list` | 读保留期（默认 **180 天**） |
+| PUT | `/admin/recycle/settings` | `admin:recycle:setting` | 改保留期（`{"retentionDays": 180}`） |
+| POST | `/admin/recycle/{rid}/restore` | `admin:recycle:restore` | **恢复**（含级联子行、含改名让位还原） |
+| POST | `/admin/recycle/{rid}/purge` | `admin:recycle:purge` | **彻底删除**（保留期内一律拒绝 → 30006） |
+
+- 保留期存 `sys_config` 的 `recycle.retention_days`（默认 180），到期日 = 删除时间 + 保留期。
+- **判定软删一律用 `deleted != 0`** —— 全仓有 **3 处**历史写法把 `deleted` 赋成自身 id（工时填报 / OA 表单 / 报价模板），因为那些表唯一键含 `deleted`，写 1 会撞键。
+- **恢复是通用的**：按登记表里的表名 + 主键把 `deleted` 置回 0，并回填 `restore_fields`（用于「改名让位」的场景，如用户/角色/字典项改名成 `#del{id}`）。
+- **级联软删的子行**（排程方案 → 排程行、项目 → 项目任务）一并登记、恢复时一起回滚。
+- 保留期内 `purge` → **30006**（响应文案带剩余天数与到期日）；条目不存在 → **30007**；恢复失败 → **30008**；条目不在回收站 → **30009**。
+
+**已知边界（诚实标注，不假装闭环）**：
+
+1. 「整体替换」语义下的子行是物理删除（`db.delete` / `delete-orphan`），恢复父记录时这些子行**不会**回来（任务条目 / 样品、BOM 子件行、流程定义节点）。
+2. 磁盘文件（合同附件、合作方附件、头像等）在软删时会被立即 `unlink`，恢复后拿不回文件；**知识库域的文件不做即时 unlink**（由 `kb_file` 登记，到期清理）。
+3. `kb_link_log` 是只追加的合规留痕表 → 登记进 `RETAINED_AUDIT_TABLES`（**不进「一键清空」清单**）。
+
+### 8. 权限码与菜单
+
+| 权限码 | 菜单 | 路径 / componentKey |
+| --- | --- | --- |
+| `knowledge:document:list` / `:create` / `:edit` / `:delete` / `:share` / `:preview` / `:download` | `menu.knowledgeDocuments` | `/knowledge/documents` → `knowledge/DocumentCenter` |
+| `knowledge:category:list` / `:edit` | `menu.knowledgeCategories` | `/knowledge/categories` → `knowledge/CategoryList` |
+| `knowledge:space:list` / `:edit` | `menu.knowledgeSpaces` | `/knowledge/spaces` → `knowledge/SpaceList` |
+| `knowledge:link:list` / `:create` / `:delete` | `menu.knowledgeLinks` | `/knowledge/links` → `knowledge/ShareLinkList` |
+| `knowledge:setting:list` / `:edit` | `menu.knowledgeSettings` | `/knowledge/settings` → `admin/KnowledgeSettings`（系统管理区） |
+| `admin:recycle:list` / `:restore` / `:purge` / `:setting` | `menu.recycle` | `/admin/recycle` → `admin/RecycleBinList`（系统管理区） |
+
+- 「知识与文档」目录组（`menu.knowledgeDocs`）挂在**经营与协同**分区下（与客户自助 / 在线委托同区），保持导航仍为 10 个顶层分区。
+- 「知识中心设置」与「回收站」挂在**系统管理**分区（分别属「系统与审计」/「系统与审计」分组）。
+
+### 9. 新增错误码
+
+| 错误码 | 常量 | 含义 |
+| --- | --- | --- |
+| 94001 | `KNOWLEDGE_NOT_FOUND` | 文档 / 目录不存在 |
+| 94002 | `KNOWLEDGE_PERMISSION_DENIED` | 没有该文档的操作权限 |
+| 94003 | `KNOWLEDGE_FILE_TYPE_UNSUPPORTED` | 不支持该文件格式 |
+| 94004 | `KNOWLEDGE_FILE_TOO_LARGE` | 文件超过允许的大小上限 |
+| 94005 | `KNOWLEDGE_INVALID_STATE` | 当前文档状态不允许该操作 |
+| 94006 | `KNOWLEDGE_LINK_EXPIRED` | 分享链接已过期或已被关闭 |
+| 94007 | `KNOWLEDGE_LINK_VERIFY_REQUIRED` | 请先完成手机号验证 |
+| 94008 | `KNOWLEDGE_CATEGORY_INVALID` | 文档分类非法（存在子分类或被引用） |
+| 94009 | `KNOWLEDGE_LINK_CODE_INVALID` | 验证码错误或已失效 |
+| 30006 | `RECYCLE_RETENTION_ACTIVE` | 该记录处于保留期内，暂不能彻底删除 |
+| 30007 | `RECYCLE_ENTRY_NOT_FOUND` | 回收站记录不存在 |
+| 30008 | `RECYCLE_RESTORE_FAILED` | 恢复失败，记录已被物理删除或数据表已变更 |
+| 30009 | `RECYCLE_NOT_RECYLED` | 该记录不在回收站中 |
+
+（后端 `app/core/response.py` 与前端 `src/api/types.ts` **双侧登记**。）
+
+### 10. 新增迁移
+
+- `ne2b3c4d5e6_knowledge_recycle.py`（**手写**，`alembic/env.py` 未 import knowledge / recycle 模型，autogenerate 会误删表）：
+  建 `kb_category` / `kb_space` / `kb_folder` / `kb_file` / `kb_document` / `kb_version` / `kb_permission` / `kb_share_link` / `kb_link_log` / `sys_recycle_bin`。
+- `sys_recycle_bin` **已登记进 `maintenance/service.py::_PURGE_TABLES`**（清空时连同编号序列一起清）；`kb_link_log` 登记进 `RETAINED_AUDIT_TABLES`（保留，不清）。
+
 ## 变更日志（Keep a Changelog + 语义化版本）
 
 **单一数据源 = 仓库根目录 `CHANGELOG.md`**（代码拥有、随版本走；镜像内由 `deploy/backend.Dockerfile` 的 `COPY CHANGELOG.md` 提供）。后端只解析不改写。
@@ -1742,11 +1930,14 @@ approval/TodoList
 admin/UserList  admin/RoleList  admin/MenuList  admin/DictList
 admin/NumberRuleList  admin/AuditLogList  admin/DeptList  admin/FlowDefList
 admin/AiUsage  admin/AiSettings  admin/AutomationSettings  admin/ChangelogList
+admin/RecycleBinList  admin/KnowledgeSettings
 asset/PurchaseOrderList  asset/ReceiptList  asset/WarehouseList  asset/InventoryItemList
 asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/PrototypeLoanList
 asset/FixedAssetList  asset/DisposalList  asset/ToolList
 asset/MaterialList  asset/BomList
 project/ProjectList  production/ScheduleBoard
+knowledge/DocumentCenter  knowledge/CategoryList  knowledge/SpaceList  knowledge/ShareLinkList
+knowledge/ShareAccess
 ```
 
 ## 字典（sys_dict）

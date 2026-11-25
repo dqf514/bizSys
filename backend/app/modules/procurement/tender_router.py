@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -296,7 +297,7 @@ def delete_tender(
     t = _get_tender(db, tid)
     if t.status != "draft":
         raise BizException(R.TENDER_INVALID_STATE, "仅草稿可删除")
-    t.deleted = 1
+    recycle.soft_delete(db, TenderProject, t, user=current, module="procurement", resource="Tender")
     t.update_time = datetime.now()
     audit(db, user_id=current.id, module="procurement", action="tender_delete", biz_type="tender", biz_id=tid)
     db.commit()
@@ -842,7 +843,10 @@ def delete_partner(
     )
     if has_reg or has_bid:
         raise BizException(R.PORTAL_ACCOUNT_HAS_RECORDS)
-    p.deleted = 1
+    recycle.soft_delete(
+        db, PartnerUser, p, user=current, module="procurement", resource="PartnerUser",
+        restore_fields={"username": p.username},
+    )
     p.username = f"{p.username[:50]}#del{p.id}"
     audit(db, user_id=current.id, module="procurement", action="partner_delete",
           biz_type="partner_user", biz_id=pid, detail={"username": p.username})

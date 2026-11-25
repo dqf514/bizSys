@@ -221,6 +221,13 @@ const router = createRouter({
       component: () => import('@/modules/sales/pages/QuotationPrint.vue'),
       meta: { tabless: true, titleKey: 'sales.quotation.print', title: 'Print Quotation' },
     },
+    // 知识库外部分享：公开页（凭链接令牌 + 手机验证码），无需登录，无壳干净页
+    {
+      path: '/knowledge/share/:token',
+      name: 'KnowledgeShareAccess',
+      component: () => import('@/modules/knowledge/pages/ShareAccess.vue'),
+      meta: { tabless: true, public: true, titleKey: 'knowledge.share.title', title: 'Share' },
+    },
     // 合作方门户：独立认证体系（bs.portal_token），守卫见 guards.ts 的 /portal 早分支
     // 旧独立登录页废弃：重定向到主登录页合作方 tab（保留 redirect 参数）
     {

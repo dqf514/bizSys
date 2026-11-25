@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.pagination import PageParams, page_result
 from app.core import response as R
 from app.core.exceptions import BizException
@@ -684,7 +685,7 @@ def update_definition(db: Session, def_id: int, body: DefinitionIn) -> dict:
     return {**out, "newVersion": False, "version": d.flow_version, "runningCount": 0}
 
 
-def delete_definition(db: Session, def_id: int) -> bool:
+def delete_definition(db: Session, def_id: int, user: User | None = None) -> bool:
     """删除定义；有进行中实例时改为停用（返回 True），保证存量实例可流转完。"""
     d = db.scalar(select(ApprovalDefinition).where(ApprovalDefinition.id == def_id, ApprovalDefinition.deleted == 0))
     if not d:
@@ -693,7 +694,9 @@ def delete_definition(db: Session, def_id: int) -> bool:
         d.enabled = 0
         d.update_time = datetime.now()
         return True
-    d.deleted = 1
+    recycle.soft_delete(
+        db, ApprovalDefinition, d, user=user, module="approval", resource="ApprovalDefinition"
+    )
     d.update_time = datetime.now()
     return False
 

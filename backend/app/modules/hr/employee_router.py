@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams, page_result
@@ -539,7 +540,7 @@ def delete_employee(
 
     before = _employee_out(db, e)
     emp_svc.link_user(db, e, None)
-    e.deleted = 1
+    recycle.soft_delete(db, HrEmployee, e, user=current, module="hr", resource="HrEmployee")
     e.update_by = current.id
     e.update_time = datetime.now()
     db.flush()

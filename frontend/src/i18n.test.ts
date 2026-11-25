@@ -25,6 +25,10 @@ describe('i18n messages wired by namespace', () => {
       'contract.contract.detail',
       'task.task.outConfirm',
       'finance.settlement.title',
+      'knowledge.doc.title',
+      'knowledge.link.title',
+      'knowledge.share.title',
+      'admin.recycle.retentionDays',
     ]
     for (const key of samples) {
       expect(resolved(key), `${key} => ${resolved(key)}`).not.toBe(key)

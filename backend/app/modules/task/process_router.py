@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.core import response as R
 from app.core.db import get_db
@@ -204,7 +205,7 @@ def delete_process(
     ext.assert_task_visible(db, task, current)
     if row.status == "running":
         raise BizException(R.TASK_PROCESS_INVALID_STATE, "进行中的工序不可删除")
-    row.deleted = 1
+    recycle.soft_delete(db, TaskProcess, row, user=current, module="task", resource="TaskProcess")
     ext.sync_current_process(db, task)
     audit(
         db, user_id=current.id, module="task", action="process_delete",
@@ -338,7 +339,7 @@ def delete_assignment(
     row = _load_assignment(db, aid)
     task = _load_task(db, row.task_id)
     ext.assert_task_visible(db, task, current)
-    row.deleted = 1
+    recycle.soft_delete(db, TaskAssignment, row, user=current, module="task", resource="TaskAssignment")
     audit(
         db, user_id=current.id, module="task", action="assignment_delete",
         biz_type="task_assignment", biz_id=row.id, detail={"taskNo": task.task_no},
@@ -394,7 +395,7 @@ def delete_trace(
     row = _load_trace(db, tid)
     task = _load_task(db, row.task_id)
     ext.assert_task_visible(db, task, current)
-    row.deleted = 1
+    recycle.soft_delete(db, TaskTrace, row, user=current, module="task", resource="TaskTrace")
     audit(
         db, user_id=current.id, module="task", action="trace_delete",
         biz_type="task_trace", biz_id=row.id, detail={"taskNo": task.task_no},

@@ -151,7 +151,7 @@ def delete_template(
     current: User = Depends(require_perm("sales:template:edit")),
     db: Session = Depends(get_db),
 ):
-    svc.delete_template(db, tid)
+    svc.delete_template(db, tid, user=current)
     record(db, user_id=current.id, module="sales", action="sales_template_delete",
            biz_type="sales_quote_template", biz_id=tid)
     db.commit()

@@ -339,7 +339,7 @@ def delete_definition(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    disabled = service.delete_definition(db, def_id)
+    disabled = service.delete_definition(db, def_id, user=user)
     record(db, user_id=user.id, module="approval",
            action="disable_definition" if disabled else "delete_definition", biz_id=def_id)
     db.commit()

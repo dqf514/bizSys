@@ -280,7 +280,7 @@ def admin_disable_form(
 def admin_delete_form(
     form_id: int, current: User = Depends(require_perm("oa:admin:design")), db: Session = Depends(get_db)
 ):
-    svc.delete_form(db, form_id)
+    svc.delete_form(db, form_id, user=current)
     record(db, user_id=current.id, module="oa", action="oa_form_delete", biz_type="oa_form", biz_id=form_id)
     db.commit()
     return None

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record
 from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
@@ -243,7 +244,7 @@ def knowledge_delete(
     e = db.get(KnowledgeEntry, kid)
     if not e or e.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
-    e.deleted = 1
+    recycle.soft_delete(db, KnowledgeEntry, e, user=current, module="aicenter", resource="KnowledgeEntry")
     record(db, user_id=current.id, module="admin", action="ai_knowledge_delete",
            biz_type="ai_knowledge", biz_id=e.id, detail={"title": e.title})
     db.commit()

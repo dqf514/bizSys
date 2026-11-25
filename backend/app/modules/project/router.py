@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -391,6 +392,10 @@ def delete_project(
     for row in rows:
         row.deleted = 1
     p.deleted = 1
+    recycle.track(
+        db, Project, p, user=current, module="project", resource="Project",
+        cascade=[(ProjectTask, [r.id for r in rows])],
+    )
     audit(
         db, user_id=current.id, module="project", action="project_delete",
         biz_type="prj_project", biz_id=p.id, detail={"projectNo": p.project_no},
@@ -508,7 +513,7 @@ def delete_project_task(
 ):
     row = _load_task(db, tid)
     p = _load(db, row.project_id)
-    row.deleted = 1
+    recycle.soft_delete(db, ProjectTask, row, user=current, module="project", resource="ProjectTask")
     db.flush()
     svc.recompute_progress(db, p)
     audit(

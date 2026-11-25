@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -473,7 +474,7 @@ def delete_warehouse(
     ) or 0
     if loc_count:
         raise BizException(R.ASSET_INVALID_STATE, "仓库下仍有库位，请先删除库位")
-    w.deleted = 1
+    recycle.soft_delete(db, Warehouse, w, user=current, module="asset", resource="Warehouse")
     w.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="warehouse_delete",
@@ -650,7 +651,7 @@ def delete_location(
         raise BizException(R.GENERIC_NOT_FOUND)
     if float(loc.qty_on_hand or 0) != 0:
         raise BizException(R.ASSET_INVALID_STATE, "库位仍有在库数量，不能删除")
-    loc.deleted = 1
+    recycle.soft_delete(db, Location, loc, user=current, module="asset", resource="Location")
     loc.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="location_delete",
@@ -919,7 +920,7 @@ def delete_item(
     stock = svc.item_stock(db, iid)
     if stock != 0:
         raise BizException(R.ASSET_INVALID_STATE, "该存货仍有库存，不能删除")
-    item.deleted = 1
+    recycle.soft_delete(db, Item, item, user=current, module="asset", resource="Item")
     item.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="item_delete",
@@ -1168,7 +1169,7 @@ def delete_purchase_order(
     if not po or po.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(po.status, ("draft",), "仅草稿订单可删除")
-    po.deleted = 1
+    recycle.soft_delete(db, PurchaseOrder, po, user=current, module="asset", resource="PurchaseOrder")
     po.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="purchase_order_delete",
@@ -1468,7 +1469,7 @@ def delete_receipt(
     if not r or r.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(r.status, ("draft",), "已验收单据不能删除")
-    r.deleted = 1
+    recycle.soft_delete(db, Receipt, r, user=current, module="asset", resource="Receipt")
     r.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="receipt_delete",
@@ -1770,7 +1771,7 @@ def delete_ledger(
     svc.apply_location_stock(
         db, row.location_id, -(float(row.quantity or 0) if row.direction == "in" else -float(row.quantity or 0))
     )
-    row.deleted = 1
+    recycle.soft_delete(db, StockLedger, row, user=current, module="asset", resource="StockLedger")
     row.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="ledger_delete",
@@ -2010,7 +2011,7 @@ def delete_count(
     if not c or c.deleted:
         raise BizException(R.GENERIC_NOT_FOUND)
     svc.check_editable(c.status, ("draft", "counting"), "已盘点单据不能删除")
-    c.deleted = 1
+    recycle.soft_delete(db, StockCount, c, user=current, module="asset", resource="StockCount")
     c.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="count_delete",
@@ -2292,7 +2293,7 @@ def delete_prototype(
     open_loan = svc.open_prototype_loan(db, pid)
     if open_loan:
         raise BizException(R.ASSET_INVALID_STATE, "样件尚有未归还的借出记录")
-    p.deleted = 1
+    recycle.soft_delete(db, Prototype, p, user=current, module="asset", resource="Prototype")
     p.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="prototype_delete",
@@ -2504,7 +2505,7 @@ def delete_prototype_loan(
     if p and p.status == "loaned" and not svc.open_prototype_loan(db, loan.prototype_id):
         p.status = "in_stock"
         p.update_time = datetime.now()
-    loan.deleted = 1
+    recycle.soft_delete(db, PrototypeLoan, loan, user=current, module="asset", resource="PrototypeLoan")
     loan.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="asset", action="prototype_loan_delete",

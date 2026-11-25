@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.core import response as R
 from app.core.config import settings
@@ -669,7 +670,9 @@ def update_contact(db: Session, user: User, cid: int, name: str, relation: str, 
 
 def delete_contact(db: Session, user: User, cid: int) -> None:
     c = _own_contact(db, user, cid)
-    c.deleted = 1
+    recycle.soft_delete(
+        db, UserEmergencyContact, c, user=user, module="auth", resource="UserEmergencyContact"
+    )
     c.update_by = user.id
     audit(db, user_id=user.id, module="auth", action="contact_delete", biz_type="user_contact", biz_id=c.id)
     db.commit()
@@ -735,7 +738,7 @@ def update_bank_account(db: Session, user: User, bid: int, bank_name: str, card_
 
 def delete_bank_account(db: Session, user: User, bid: int) -> None:
     b = _own_bank(db, user, bid)
-    b.deleted = 1
+    recycle.soft_delete(db, UserBankAccount, b, user=user, module="auth", resource="UserBankAccount")
     b.update_by = user.id
     audit(db, user_id=user.id, module="auth", action="bank_delete", biz_type="user_bank", biz_id=b.id,
           detail={"cardLast4": b.card_no[-4:]})

@@ -139,6 +139,14 @@ def test_zone_structure_and_dirty_repair(client, admin_headers, dirty_state):
         "CustomerAccounts",
         "PartnerStaff",
         "KnowledgeBase",
+        "KnowledgeDocs",
+    ]
+    # B11 知识与文档中心：文档 / 分类 / 空间 / 分享链接
+    assert _children(_find(tree, "KnowledgeDocs")) == [
+        "KnowledgeDocuments",
+        "KnowledgeCategories",
+        "KnowledgeSpaces",
+        "KnowledgeLinks",
     ]
     # B9-C3：新增「人员授权」台账菜单；B10-1：新增组织架构 / 岗位 / 人事事务
     assert _children(_find(tree, "HrSystem")) == [

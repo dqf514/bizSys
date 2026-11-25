@@ -128,6 +128,15 @@
     "bizSettlement": "Settlement",
     "bizPayment": "Payment"
   },
+  "recycle": {
+    "title": "System Recycle Bin",
+    "retentionDays": "Retention (days)",
+    "retentionTip": "Permanent deletion is blocked during the retention window (180 days by default); items can be purged after it expires",
+    "restoreDone": "Restored",
+    "purgeDone": "Permanently deleted",
+    "restoreFailed": "Restore failed",
+    "purgeBlocked": "Still within the retention window; permanent deletion is blocked"
+  },
   "audit": {
     "title": "Audit Logs",
     "username": "Operator",

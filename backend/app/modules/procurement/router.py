@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.common import recycle
 from app.common.audit import record as audit
 from app.common.filters import apply_list_filters
 from app.common.pagination import PAGE_MAX, PageParams
@@ -294,7 +295,7 @@ def delete_request(
         raise BizException(R.GENERIC_NOT_FOUND)
     if r.status != "draft":
         raise BizException(R.PROCUREMENT_INVALID_STATE, "仅草稿申请可删除")
-    r.deleted = 1
+    recycle.soft_delete(db, PurchaseRequest, r, user=current, module="procurement", resource="PurchaseRequest")
     r.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="procurement", action="purchase_request_delete",
@@ -637,7 +638,7 @@ def delete_contract(
         raise BizException(R.GENERIC_NOT_FOUND)
     if c.status != "draft":
         raise BizException(R.PROCUREMENT_INVALID_STATE, "仅草稿合同可删除")
-    c.deleted = 1
+    recycle.soft_delete(db, PurchaseContract, c, user=current, module="procurement", resource="PurchaseContract")
     c.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="procurement", action="purchase_contract_delete",
@@ -999,7 +1000,7 @@ def delete_stock_order(
         raise BizException(R.GENERIC_NOT_FOUND)
     if o.status != "registered":
         raise BizException(R.PROCUREMENT_INVALID_STATE, "仅已登记单据可删除")
-    o.deleted = 1
+    recycle.soft_delete(db, StockOrder, o, user=current, module="procurement", resource="StockOrder")
     o.update_time = datetime.now()
     audit(
         db, user_id=current.id, module="procurement", action="stock_order_delete",

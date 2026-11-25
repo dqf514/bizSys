@@ -72,6 +72,33 @@ from app.modules.hr.models import (
     HrPosition,
     HrTimesheet,
 )
+from app.modules.knowledge.models import (
+    Category as KnowledgeCategory,
+)
+from app.modules.knowledge.models import (
+    Document as KnowledgeDocument,
+)
+from app.modules.knowledge.models import (
+    File as KnowledgeFile,
+)
+from app.modules.knowledge.models import (
+    Folder as KnowledgeFolder,
+)
+from app.modules.knowledge.models import (
+    LinkLog as KnowledgeLinkLog,
+)
+from app.modules.knowledge.models import (
+    Permission as KnowledgePermission,
+)
+from app.modules.knowledge.models import (
+    ShareLink as KnowledgeShareLink,
+)
+from app.modules.knowledge.models import (
+    Space as KnowledgeSpace,
+)
+from app.modules.knowledge.models import (
+    Version as KnowledgeVersion,
+)
 from app.modules.maintenance import backup as backup_svc
 from app.modules.oa.models import OaForm, OaInstance
 from app.modules.portal.models import PartnerUser
@@ -88,6 +115,7 @@ from app.modules.procurement.models import (
 )
 from app.modules.production.models import ProdPlan, ProdSchedule
 from app.modules.project.models import Project, ProjectTask
+from app.modules.recycle.models import RecycleBin
 from app.modules.report.models import Report, ReportFile
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
@@ -127,6 +155,17 @@ DEFAULT_RETENTION = 7
 
 # 清空表清单（子表在前，注意外键顺序）
 _PURGE_TABLES = [
+    # 知识与文档中心（B11，子表在前）；kb_link_log 是只追加的外部访问留痕 —— 见 RETAINED_AUDIT_TABLES
+    KnowledgeVersion,
+    KnowledgePermission,
+    KnowledgeShareLink,
+    KnowledgeDocument,
+    KnowledgeFile,
+    KnowledgeFolder,
+    KnowledgeCategory,
+    KnowledgeSpace,
+    # 全站回收站登记表
+    RecycleBin,
     # 生产排程 / 项目与甘特域（B5，子表在前）
     ProdSchedule,
     ProdPlan,
@@ -232,12 +271,13 @@ _PURGE_TABLES = [
 # 合规证据表：一键清空**不触碰**（《合规开发原则》4.4 审计日志只追加、不可清空）
 RETAINED_AUDIT_TABLES = (
     AuditLog,  # sys_audit_log —— 审计追踪 + 哈希链
+    KnowledgeLinkLog,  # kb_link_log —— 外部分享访问/上传留痕（只追加）
     VisitorAccessLog,  # vis_access_log —— 访客通行审计（只追加）
     VisitorNda,  # vis_nda —— 保密协议电子签证据
 )
 
 # uploads 下属于业务数据的子目录（branding 等品牌文件保留）
-_PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner", "task_progress")
+_PURGE_UPLOAD_DIRS = ("contract", "report", "portal", "partner", "task_progress", "knowledge")
 
 CONFIRM_WORD = "CLEAR"
 
