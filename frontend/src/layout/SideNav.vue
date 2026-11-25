@@ -6,7 +6,7 @@ import { ElIcon, ElMenu, ElPopover } from 'element-plus'
 import { ArrowRight, Expand, Fold, Setting } from '@element-plus/icons-vue'
 import SideNavItem from './SideNavItem.vue'
 import NavSortDialog from './NavSortDialog.vue'
-import { countZoneItems, useNavZones } from './useNavZones'
+import { countZoneItems, useNavZones, zoneHasPath } from './useNavZones'
 import { usePopoverA11y } from '@/composables/usePopoverA11y'
 import type { MenuNode } from '@/api/types'
 
@@ -136,6 +136,38 @@ function isActivePath(node: MenuNode) {
   if (!node.path) return false
   return route.path === node.path || route.path.startsWith(`${node.path}/`)
 }
+
+/* ---------- 系统管理弹层：分组手风琴（与主导航分区一致，一次只展开一个） ---------- */
+
+/** 系统管理下的可见分组（目录） */
+const systemGroups = computed(() =>
+  (systemZone.value?.children ?? []).filter((c) => c.visible !== 0 && c.menuType === 'dir'),
+)
+
+/** 展开中的分组 id（null = 全部收起） */
+const sysOpenGroupId = ref<number | null>(null)
+
+/** 点击分组头：展开该分组并收起先前展开的；再点已展开的则整体收起 */
+function toggleSystemGroup(id: number) {
+  sysOpenGroupId.value = sysOpenGroupId.value === id ? null : id
+}
+
+/** 分组下的可见叶子菜单 */
+function systemItems(group: MenuNode): MenuNode[] {
+  return (group.children ?? []).filter((c) => c.visible !== 0 && c.menuType === 'menu')
+}
+
+/** 分组是否包含当前路由（用于打开弹层时定位） */
+function systemGroupActive(group: MenuNode) {
+  return zoneHasPath(group, route.path)
+}
+
+// 打开弹层时自动展开当前路由所在分组（没有则保持上次状态）
+watch(sysVisible, (v) => {
+  if (!v) return
+  const hit = systemGroups.value.find((g) => systemGroupActive(g))
+  if (hit) sysOpenGroupId.value = hit.id
+})
 </script>
 
 <template>
@@ -249,19 +281,36 @@ function isActivePath(node: MenuNode) {
         </template>
 
         <div class="system-panel" role="menu" :aria-label="menuTitle(systemZone)">
-          <div v-for="group in systemZone.children" :key="group.id" class="system-group">
-            <div class="system-group-title">{{ menuTitle(group) }}</div>
+          <div
+            v-for="group in systemGroups"
+            :key="group.id"
+            class="system-group"
+            :class="{ open: sysOpenGroupId === group.id }"
+          >
             <button
-              v-for="item in group.children"
-              :key="item.id"
               type="button"
-              role="menuitem"
-              class="panel-item"
-              :class="{ active: isActivePath(item) }"
-              @click="gotoSystemItem(item)"
+              class="system-group-title"
+              :aria-expanded="sysOpenGroupId === group.id"
+              :aria-label="`${menuTitle(group)} - ${sysOpenGroupId === group.id ? t('common.nav.collapseZone') : t('common.nav.expandZone')}`"
+              @click="toggleSystemGroup(group.id)"
             >
-              <span>{{ menuTitle(item) }}</span>
+              <ElIcon class="system-group-caret"><ArrowRight /></ElIcon>
+              <span class="system-group-name">{{ menuTitle(group) }}</span>
+              <span class="system-group-count">{{ countZoneItems(group) }}</span>
             </button>
+            <div v-show="sysOpenGroupId === group.id" class="system-group-body">
+              <button
+                v-for="item in systemItems(group)"
+                :key="item.id"
+                type="button"
+                role="menuitem"
+                class="panel-item"
+                :class="{ active: isActivePath(item) }"
+                @click="gotoSystemItem(item)"
+              >
+                <span>{{ menuTitle(item) }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </ElPopover>
@@ -512,17 +561,55 @@ function isActivePath(node: MenuNode) {
 
 .system-group + .system-group {
   margin-top: var(--bs-space-1);
-  border-top: 1px solid var(--bs-color-border-subtle);
   padding-top: var(--bs-space-1);
+  border-top: 1px solid var(--bs-color-border-subtle);
 }
 
 .system-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--bs-space-1);
+  width: 100%;
   padding: var(--bs-space-1) var(--bs-space-2);
+  border: none;
+  border-radius: var(--bs-radius-sm);
+  background: transparent;
   font-size: var(--bs-typography-font-size-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--bs-color-fg-muted);
+  cursor: pointer;
+  text-align: left;
   user-select: none;
+}
+
+.system-group-title:hover {
+  background: var(--bs-color-fill-light);
+  color: var(--bs-color-fg-default);
+}
+
+.system-group-caret {
+  transition: transform var(--bs-motion-fast) var(--bs-motion-curve);
+}
+
+.system-group.open .system-group-caret {
+  transform: rotate(90deg);
+}
+
+.system-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-group-count {
+  flex: none;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--bs-color-fg-muted);
+  opacity: 0.8;
 }
 
 .panel-item {

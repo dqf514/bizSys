@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, h, resolveComponent } from 'vue'
+import { computed, h, ref, resolveComponent, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElDrawer, ElIcon } from 'element-plus'
 import { ArrowRight } from '@element-plus/icons-vue'
-import { countZoneItems, useNavZones } from './useNavZones'
+import { countZoneItems, useNavZones, zoneHasPath } from './useNavZones'
 import { useBrandingStore } from '@/stores/branding'
 import type { MenuNode } from '@/api/types'
 
@@ -41,6 +41,31 @@ function zoneToggleLabel(zone: MenuNode) {
   const action = isZoneOpen(zone) ? t('common.nav.collapseZone') : t('common.nav.expandZone')
   return `${menuTitle(zone)} - ${action}`
 }
+
+/* ---------- 系统管理：分组手风琴（与桌面弹层一致，一次只展开一个） ---------- */
+
+const systemGroups = computed(() =>
+  (systemZone.value?.children ?? []).filter((c) => c.visible !== 0 && c.menuType === 'dir'),
+)
+
+/** 展开中的分组 id（null = 全部收起） */
+const sysOpenGroupId = ref<number | null>(null)
+
+function toggleSystemGroup(id: number) {
+  sysOpenGroupId.value = sysOpenGroupId.value === id ? null : id
+}
+
+/** 分组下的可见叶子菜单 */
+function systemItems(group: MenuNode): MenuNode[] {
+  return (group.children ?? []).filter((c) => c.visible !== 0 && c.menuType === 'menu')
+}
+
+// 打开抽屉时自动展开当前路由所在分组
+watch(visible, (v) => {
+  if (!v) return
+  const hit = systemGroups.value.find((g) => zoneHasPath(g, route.path))
+  if (hit) sysOpenGroupId.value = hit.id
+})
 </script>
 
 <template>
@@ -114,20 +139,37 @@ function zoneToggleLabel(zone: MenuNode) {
 
       <div v-if="systemZone" class="nav-group system-group">
         <div class="nav-group-title">{{ menuTitle(systemZone) }}</div>
-        <template v-for="group in systemZone.children" :key="group.id">
-          <div v-if="group.children?.length" class="nav-sub-title">{{ menuTitle(group) }}</div>
+        <div
+          v-for="group in systemGroups"
+          :key="group.id"
+          class="nav-group system-sub-group"
+          :class="{ open: sysOpenGroupId === group.id }"
+        >
           <button
-            v-for="item in group.children"
-            :key="item.id"
             type="button"
-            class="nav-item nested"
-            :class="{ active: isActive(item) }"
-            @click="go(item)"
+            class="nav-group-title nav-group-toggle"
+            :aria-expanded="sysOpenGroupId === group.id"
+            :aria-label="`${menuTitle(group)} - ${sysOpenGroupId === group.id ? t('common.nav.collapseZone') : t('common.nav.expandZone')}`"
+            @click="toggleSystemGroup(group.id)"
           >
-            <ElIcon v-if="item.icon"><component :is="renderIcon(item.icon)" /></ElIcon>
-            <span class="nav-text">{{ menuTitle(item) }}</span>
+            <ElIcon class="nav-group-caret"><ArrowRight /></ElIcon>
+            <span class="nav-group-name">{{ menuTitle(group) }}</span>
+            <span class="nav-group-count">{{ countZoneItems(group) }}</span>
           </button>
-        </template>
+          <div v-show="sysOpenGroupId === group.id" class="nav-group-body">
+            <button
+              v-for="item in systemItems(group)"
+              :key="item.id"
+              type="button"
+              class="nav-item nested"
+              :class="{ active: isActive(item) }"
+              @click="go(item)"
+            >
+              <ElIcon v-if="item.icon"><component :is="renderIcon(item.icon)" /></ElIcon>
+              <span class="nav-text">{{ menuTitle(item) }}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </ElDrawer>
