@@ -66,6 +66,7 @@ class Space(BaseModel):
     dept_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True, comment="归属部门")
     description: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(16), default="enabled", index=True)
+    pinned: Mapped[int] = mapped_column(Integer, default=0, index=True, comment="是否置顶（微盘式左栏「置顶」）")
 
 
 class Folder(BaseModel):

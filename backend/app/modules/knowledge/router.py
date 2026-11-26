@@ -32,7 +32,7 @@ from app.common.pagination import PAGE_MAX, PageParams
 from app.core import response as R
 from app.core.client_ip import client_ip
 from app.core.db import get_db
-from app.core.deps import get_current_user, require_perm
+from app.core.deps import get_current_user, require_any_perm, require_perm
 from app.core.exceptions import BizException
 from app.core.route import EnvelopeRoute
 from app.modules.auth.models import User
@@ -65,10 +65,10 @@ router = APIRouter(prefix="/knowledge", tags=["知识与文档"], route_class=En
 
 @router.get("/categories")
 def list_categories(
-    current: User = Depends(require_perm("knowledge:category:list")),
+    current: User = Depends(require_any_perm("knowledge:document:list", "knowledge:category:list")),
     db: Session = Depends(get_db),
 ):
-    """文档分类树（多级可定义）。"""
+    """文档分类树（多级可定义）—— 文档中心左栏「分类」页签与管理抽屉共用。"""
     return {"items": svc.category_tree(db)}
 
 
@@ -121,11 +121,26 @@ def delete_category(
 
 @router.get("/spaces")
 def list_spaces(
-    current: User = Depends(require_perm("knowledge:space:list")),
+    current: User = Depends(require_any_perm("knowledge:document:list", "knowledge:space:list")),
     db: Session = Depends(get_db),
 ):
+    """可见空间（共享空间 + 自己拥有的空间，置顶优先）。"""
+    from app.modules.admin.models import Dept
+
     rows = svc.space_visible(db, current)
-    return {"items": [svc.out_space(r) for r in rows]}
+    dept_cache: dict[int, str] = {}
+    items = []
+    for r in rows:
+        data = svc.out_space(r)
+        if r.dept_id:
+            if r.dept_id not in dept_cache:
+                dept = db.get(Dept, r.dept_id)
+                dept_cache[r.dept_id] = dept.name if dept else ""
+            data["deptName"] = dept_cache[r.dept_id]
+        else:
+            data["deptName"] = ""
+        items.append(data)
+    return {"items": items}
 
 
 @router.post("/spaces")
@@ -154,7 +169,33 @@ def update_space(
     row.description = body.description
     row.status = body.status or row.status
     row.dept_id = body.dept_id if body.dept_id is not None else row.dept_id
+    row.pinned = 1 if body.pinned else 0
     audit(db, user_id=current.id, module="knowledge", action="space_update", biz_type="kb_space", biz_id=sid)
+    db.commit()
+    return svc.out_space(row)
+
+
+@router.post("/spaces/{sid}/pin")
+def pin_space(
+    sid: int,
+    body: dict,
+    current: User = Depends(require_perm("knowledge:space:edit")),
+    db: Session = Depends(get_db),
+):
+    """置顶 / 取消置顶空间（微盘左栏「置顶」分组）。"""
+    row = db.get(Space, sid)
+    if not row or row.deleted:
+        raise BizException(R.KNOWLEDGE_NOT_FOUND, "空间不存在")
+    row.pinned = 1 if body.get("pinned") else 0
+    audit(
+        db,
+        user_id=current.id,
+        module="knowledge",
+        action="space_pin",
+        biz_type="kb_space",
+        biz_id=sid,
+        detail={"pinned": row.pinned},
+    )
     db.commit()
     return svc.out_space(row)
 
@@ -173,6 +214,37 @@ def delete_space(
     audit(db, user_id=current.id, module="knowledge", action="space_delete", biz_type="kb_space", biz_id=sid)
     db.commit()
     return None
+
+
+# ---------------- 微盘式目录浏览 ----------------
+
+
+@router.get("/browse")
+def browse_directory(
+    space_id: int | None = Query(None, alias="spaceId"),
+    folder_id: int | None = Query(None, alias="folderId"),
+    category_id: int | None = Query(None, alias="categoryId"),
+    q: str = Query("", description="关键词"),
+    page: int = Query(1, ge=1, le=PAGE_MAX),
+    size: int = Query(50, ge=1, le=200),
+    sort: str = Query("updateTime", description="name / updateTime / size"),
+    order: str = Query("desc", description="asc / desc"),
+    current: User = Depends(require_perm("knowledge:document:list")),
+    db: Session = Depends(get_db),
+):
+    """微盘式目录浏览：一次返回「子文件夹 + 文档」。"""
+    return svc.browse(
+        db,
+        current,
+        space_id=space_id,
+        folder_id=folder_id,
+        category_id=category_id,
+        q=q,
+        page=page,
+        size=size,
+        sort=sort,
+        order=order,
+    )
 
 
 # ---------------- 文件夹 ----------------
@@ -249,13 +321,7 @@ def delete_folder(
 
 
 def _visible_where(db: Session, user: User):
-    scope = svc.visible_document_ids(db, user)
-    ors = [Document.space_id.in_(scope["spaceIds"]), Document.owner_id == scope["ownerId"]]
-    if scope["docIds"]:
-        ors.append(Document.id.in_(scope["docIds"]))
-    if scope["folderIds"]:
-        ors.append(Document.folder_id.in_(scope["folderIds"]))
-    return or_(*ors), scope
+    return svc.visible_document_where(db, user)
 
 
 @router.get("/documents")

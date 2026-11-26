@@ -36,6 +36,12 @@ from app.services.numbering import next_no
 #   体验很差。内网导航不再展示这两个入口，门户用户仍可凭链接直接访问 /portal。
 HIDDEN_MENUS = {"PartnerAccounts", "PortalHome", "PortalOrders"}
 
+# B12 文档中心改微盘式：分类管理 / 空间管理**不再作为独立导航入口**，
+# 相关能力并入「文档中心」页面（左栏「分类」页签 + 页面内管理抽屉）。
+# 种子只增不删，这里显式登记「已下线的菜单」：运行种子时把这些菜单逻辑删除，
+# 并把它们的角色授权**改挂**到承载同一权限码的新按钮上（避免角色丢权限）。
+REMOVED_MENUS = {"KnowledgeCategories", "KnowledgeSpaces"}
+
 MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashboard", "Odometer", "workbench:view", []),
     # 业务中心：往来单位/合同/任务/报告/项目/财务（财务分组按业务顺序：结算→开票→到账）
     (
@@ -713,28 +719,11 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                             (None, "knowledge-doc-share", "", "", "", "knowledge:document:share", []),
                             (None, "knowledge-doc-download", "", "", "", "knowledge:download", []),
                             (None, "knowledge-doc-preview", "", "", "", "knowledge:preview", []),
-                        ],
-                    ),
-                    (
-                        "menu.knowledgeCategories",
-                        "KnowledgeCategories",
-                        "/knowledge/categories",
-                        "knowledge/CategoryList",
-                        "Notebook",
-                        "knowledge:category:list",
-                        [
-                            (None, "knowledge-category-edit", "", "", "", "knowledge:category:edit", []),
-                        ],
-                    ),
-                    (
-                        "menu.knowledgeSpaces",
-                        "KnowledgeSpaces",
-                        "/knowledge/spaces",
-                        "knowledge/SpaceList",
-                        "Box",
-                        "knowledge:space:list",
-                        [
-                            (None, "knowledge-space-edit", "", "", "", "knowledge:space:edit", []),
+                            # B12：分类 / 空间管理并入文档中心页面，不再作为独立导航入口
+                            (None, "knowledge-doc-category-list", "", "", "", "knowledge:category:list", []),
+                            (None, "knowledge-doc-category-edit", "", "", "", "knowledge:category:edit", []),
+                            (None, "knowledge-doc-space-list", "", "", "", "knowledge:space:list", []),
+                            (None, "knowledge-doc-space-edit", "", "", "", "knowledge:space:edit", []),
                         ],
                     ),
                     (
@@ -1624,6 +1613,8 @@ def _seed_menus(db: Session) -> dict[str, int]:
       不回写 parent_id/sort（管理员在菜单管理里的结构调整与排序得以保留）。
     - 树外的菜单（界面自定义新增）：保留，不做逻辑删除。
     - HIDDEN_MENUS 中的菜单强制隐藏（visible=0）：入口并入其他页面，但权限点仍由菜单承载。
+    - REMOVED_MENUS 中的菜单**下线**：逻辑删除菜单及其按钮，并把角色的授权改挂到
+      承载同一权限码的新菜单上（权限码一菜单一归属，角色不丢权限）。
     """
     existing = {m.name: m for m in db.scalars(select(Menu).where(Menu.deleted == 0)).all()}
     perm_to_id: dict[str, int] = {}
@@ -1668,7 +1659,49 @@ def _seed_menus(db: Session) -> dict[str, int]:
             walk(children, m.id)
 
     walk(MENU_TREE, None)
+    _retire_menus(db, perm_to_id)
     return perm_to_id
+
+
+def _retire_menus(db: Session, perm_to_id: dict[str, int]) -> None:
+    """下线 REMOVED_MENUS 中的菜单，并把角色授权改挂到同权限码的新菜单。
+
+    种子只增不删，菜单从 MENU_TREE 摘掉后数据库里的旧行会残留：
+    - 菜单行：逻辑删除（deleted=1 / visible=0），菜单树不再展示；
+    - 角色授权（sys_role_menu）：**物理删除**并改挂到新菜单 —— 关系表没有按
+      deleted 过滤（见 auth/models.py::User.perm_codes），软删不会真正收回权限。
+    """
+    if not REMOVED_MENUS:
+        return
+    stale = db.scalars(select(Menu).where(Menu.name.in_(REMOVED_MENUS), Menu.deleted == 0)).all()
+    if not stale:
+        return
+    stale_ids = {m.id for m in stale}
+    # 连带这些菜单的按钮子项
+    for m in stale:
+        for child in db.scalars(select(Menu).where(Menu.parent_id == m.id, Menu.deleted == 0)).all():
+            stale_ids.add(child.id)
+    for mid in stale_ids:
+        row = db.get(Menu, mid)
+        if row is not None:
+            row.deleted = 1
+            row.visible = 0
+    # 角色授权改挂：旧菜单的权限码 → 新菜单 id
+    links = db.scalars(select(RoleMenu).where(RoleMenu.menu_id.in_(stale_ids))).all()
+    for link in links:
+        old = db.get(Menu, link.menu_id)
+        new_id = perm_to_id.get(old.permission) if old is not None else None
+        if new_id and new_id not in stale_ids:
+            has = db.scalar(
+                select(RoleMenu.id).where(
+                    RoleMenu.role_id == link.role_id, RoleMenu.menu_id == new_id
+                )
+            )
+            if not has:
+                db.add(RoleMenu(role_id=link.role_id, menu_id=new_id))
+        db.delete(link)
+    db.flush()
+    print(f"[seed] retired menus: {sorted(REMOVED_MENUS)}")
 
 
 # 访客与安全域（B3）权限点集合 —— 安保员角色整域授权

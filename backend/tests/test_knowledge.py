@@ -473,5 +473,120 @@ def test_delete_document_then_restore(client, admin_headers):
     assert any(i["id"] == doc["id"] for i in lst["items"])
 
 
+# ---------------- 微盘式目录浏览（B12） ----------------
+
+
+def test_browse_mixes_folders_and_documents(client, admin_headers):
+    """目录浏览：一次返回「子文件夹 + 文档」，面包屑 / 统计 / 标记齐备。"""
+    space_id = _make_space(client, admin_headers, f"微盘空间_{SUF}")
+    root = _make_folder(client, admin_headers, space_id, f"制度_{SUF}")
+    sub = _make_folder(client, admin_headers, space_id, f"子目录_{SUF}", root)
+
+    # 空间根目录下一个文档 + 根文件夹下一个文档
+    doc_root = client.post(
+        "/api/v1/knowledge/documents",
+        headers=admin_headers,
+        data={"title": f"根目录文档_{SUF}", "space_id": str(space_id)},
+        files={"file": _txt("root.txt", "根目录")},
+    ).json()["data"]
+    doc_in_folder = client.post(
+        "/api/v1/knowledge/documents",
+        headers=admin_headers,
+        data={"title": f"夹内文档_{SUF}", "space_id": str(space_id), "folder_id": str(root)},
+        files={"file": _txt("in.txt", "夹内")},
+    ).json()["data"]
+
+    # 空间根：子文件夹 + 根级文档
+    r = client.get(
+        "/api/v1/knowledge/browse", headers=admin_headers, params={"spaceId": space_id}
+    ).json()
+    assert r["code"] == 0, r
+    data = r["data"]
+    assert data["space"]["id"] == space_id
+    assert data["breadcrumb"] == []
+    assert [f["id"] for f in data["folders"]] == [root]
+    assert data["folders"][0]["docCount"] == 1
+    assert [d["id"] for d in data["documents"]["items"]] == [doc_root["id"]]
+    assert "updaterName" in data["documents"]["items"][0]
+    assert data["stats"]["myDocCount"] >= 2
+
+    # 进子目录：面包屑 = 根目录
+    r = client.get(
+        "/api/v1/knowledge/browse",
+        headers=admin_headers,
+        params={"spaceId": space_id, "folderId": root},
+    ).json()["data"]
+    assert [b["id"] for b in r["breadcrumb"]] == [root]
+    assert [f["id"] for f in r["folders"]] == [sub]
+    assert [d["id"] for d in r["documents"]["items"]] == [doc_in_folder["id"]]
+
+    # 关键词过滤
+    r = client.get(
+        "/api/v1/knowledge/browse",
+        headers=admin_headers,
+        params={"spaceId": space_id, "q": f"根目录文档_{SUF}"},
+    ).json()["data"]
+    assert [d["id"] for d in r["documents"]["items"]] == [doc_root["id"]]
+
+
+def test_browse_marks_external_access_and_restricted(client, admin_headers):
+    """外部可访问 / 限制成员权限标记。"""
+    space_id = _make_space(client, admin_headers, f"标记空间_{SUF}")
+    folder_id = _make_folder(client, admin_headers, space_id, f"标记夹_{SUF}")
+    doc = client.post(
+        "/api/v1/knowledge/documents",
+        headers=admin_headers,
+        data={"title": f"标记文档_{SUF}", "space_id": str(space_id), "folder_id": str(folder_id)},
+        files={"file": _txt("mark.txt", "mark")},
+    ).json()["data"]
+
+    r = client.get(
+        "/api/v1/knowledge/browse", headers=admin_headers, params={"spaceId": space_id}
+    ).json()["data"]
+    assert r["folders"][0]["externalAccess"] is False
+    assert r["folders"][0]["restricted"] is False
+
+    # 外部分享链接 → 文件夹「外部可访问」
+    client.post(
+        "/api/v1/knowledge/links",
+        headers=admin_headers,
+        json={"resourceType": "folder", "resourceId": folder_id, "perm": "read", "expireDays": 1},
+    )
+    # 文档授权 → 「限制成员权限」
+    me = client.get("/api/v1/auth/me", headers=admin_headers).json()["data"]["id"]
+    client.put(
+        f"/api/v1/knowledge/documents/{doc['id']}/permissions",
+        headers=admin_headers,
+        json=[{"subjectType": "user", "subjectId": me, "subjectName": "admin", "perm": "read"}],
+    )
+
+    r = client.get(
+        "/api/v1/knowledge/browse",
+        headers=admin_headers,
+        params={"spaceId": space_id, "folderId": folder_id},
+    ).json()["data"]
+    assert r["documents"]["items"][0]["externalAccess"] is False
+    assert r["documents"]["items"][0]["restricted"] is True
+
+
+def test_space_pin_toggle(client, admin_headers):
+    """空间置顶 / 取消置顶（微盘左栏「置顶」分组）。"""
+    space_id = _make_space(client, admin_headers, f"置顶空间_{SUF}")
+
+    r = client.post(
+        f"/api/v1/knowledge/spaces/{space_id}/pin", headers=admin_headers, json={"pinned": 1}
+    ).json()
+    assert r["code"] == 0, r
+    assert r["data"]["pinned"] == 1
+
+    spaces = client.get("/api/v1/knowledge/spaces", headers=admin_headers).json()["data"]["items"]
+    assert next(s for s in spaces if s["id"] == space_id)["pinned"] == 1
+
+    r = client.post(
+        f"/api/v1/knowledge/spaces/{space_id}/pin", headers=admin_headers, json={"pinned": 0}
+    ).json()
+    assert r["data"]["pinned"] == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

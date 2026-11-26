@@ -1695,7 +1695,7 @@ JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/knowledge/categories` | `knowledge:category:list` | 返回**分类树**（顶层节点 + `children`） |
+| GET | `/knowledge/categories` | `knowledge:category:list` **或** `knowledge:document:list` | 返回**分类树**（顶层节点 + `children`） |
 | POST | `/knowledge/categories` | `knowledge:category:edit` | 新增分类（`parentId` 可空 = 顶级） |
 | PUT | `/knowledge/categories/{cid}` | `knowledge:category:edit` | 改分类（含**改上级 → 重算 `level`/`path`**） |
 | DELETE | `/knowledge/categories/{cid}` | `knowledge:category:edit` | 删除分类（**有子分类或被引用时拒绝** → 94008） |
@@ -1708,15 +1708,55 @@ JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/knowledge/spaces` | `knowledge:space:list` | 空间列表（可按 `type` 过滤 `personal`/`shared`） |
-| POST | `/knowledge/spaces` | `knowledge:space:edit` | 新建空间 |
-| PUT | `/knowledge/spaces/{sid}` | `knowledge:space:edit` | 改空间 |
+| GET | `/knowledge/spaces` | `knowledge:space:list` **或** `knowledge:document:list` | 空间列表（**置顶优先**，附 `deptName` 供共享分组） |
+| POST | `/knowledge/spaces` | `knowledge:space:edit` | 新建空间（可带 `pinned`） |
+| PUT | `/knowledge/spaces/{sid}` | `knowledge:space:edit` | 改空间（含 `pinned`） |
+| POST | `/knowledge/spaces/{sid}/pin` | `knowledge:space:edit` | **置顶 / 取消置顶**（微盘左栏「置顶」分组，`{"pinned": 1}`） |
 | DELETE | `/knowledge/spaces/{sid}` | `knowledge:space:edit` | 删空间（进回收站） |
 | GET | `/knowledge/folders` | `knowledge:document:list` | 文件夹列表（按 `spaceId`） |
 | GET | `/knowledge/folders/tree` | `knowledge:document:list` | 文件夹**树** |
 | POST | `/knowledge/folders` | `knowledge:document:create` | 新建文件夹（`spaceId` / `parentId` / `categoryId`） |
 | PUT | `/knowledge/folders/{fid}` | `knowledge:document:edit` | 改文件夹 |
 | DELETE | `/knowledge/folders/{fid}` | `knowledge:document:edit` | 删文件夹（进回收站） |
+
+> 分类管理 / 空间管理 **B12 起不再作为独立导航入口**（能力并入文档中心页面），
+> 但权限码与端点保留 —— `knowledge:category:list` / `:edit` / `knowledge:space:list` / `:edit`
+> 改挂在「文档中心」菜单的**按钮子项**上（`knowledge-doc-category-*` / `knowledge-doc-space-*`）。
+
+### 3.1 微盘式目录浏览（B12）
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/knowledge/browse` | `knowledge:document:list` | **一次返回「子文件夹 + 文档」**（微盘式目录浏览） |
+
+查询参数：`spaceId` / `folderId` / `categoryId` / `q` / `page` / `size` / `sort`（`name`｜`updateTime`｜`size`）/ `order`（`asc`｜`desc`）。
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "space": { "id": 1, "name": "技术部共享空间", "pinned": 1, "deptName": "技术部" },
+    "breadcrumb": [{ "id": 7, "name": "公司制度", "spaceId": 1 }],
+    "stats": { "myDocCount": 12, "mySize": 1048576 },
+    "folders": [
+      {
+        "id": 7, "name": "公司制度", "spaceId": 1, "docCount": 3,
+        "externalAccess": true,     // 存在生效的外部分享链接
+        "restricted": false          // 设置了成员权限
+      }
+    ],
+    "documents": {
+      "items": [{ "id": 20, "title": "…", "updaterName": "张三", "externalAccess": false, "restricted": true }],
+      "total": 3, "page": 1, "size": 50
+    }
+  }
+}
+```
+
+- **可见口径与文档列表完全一致**（共用 `service.visible_document_where`），不会出现「列表看不到、目录里看到」。
+- 子文件夹**不分页**（目录层级浅），文档按页返回 —— 与微盘 / 网盘惯例一致。
+- 文件夹可见性：所属空间可见 / 自身或祖先链有授权 / 其下存在可见文档（祖先链自动展开）。
+- `externalAccess` / `restricted` 两个标记对应微盘的「外部可访问 / 限制成员权限」角标。
 
 ### 4. 文档：上传 / 批量上传 / 预览 / 下载 / 版本
 
@@ -1824,14 +1864,18 @@ JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见
 | 权限码 | 菜单 | 路径 / componentKey |
 | --- | --- | --- |
 | `knowledge:document:list` / `:create` / `:edit` / `:delete` / `:share` / `:preview` / `:download` | `menu.knowledgeDocuments` | `/knowledge/documents` → `knowledge/DocumentCenter` |
-| `knowledge:category:list` / `:edit` | `menu.knowledgeCategories` | `/knowledge/categories` → `knowledge/CategoryList` |
-| `knowledge:space:list` / `:edit` | `menu.knowledgeSpaces` | `/knowledge/spaces` → `knowledge/SpaceList` |
+| `knowledge:category:list` / `:edit` | `menu.knowledgeDocuments` 的**按钮子项** | B12 起并入文档中心页面，不再是独立菜单 |
+| `knowledge:space:list` / `:edit` | `menu.knowledgeDocuments` 的**按钮子项** | B12 起并入文档中心页面，不再是独立菜单 |
 | `knowledge:link:list` / `:create` / `:delete` | `menu.knowledgeLinks` | `/knowledge/links` → `knowledge/ShareLinkList` |
 | `knowledge:setting:list` / `:edit` | `menu.knowledgeSettings` | `/knowledge/settings` → `admin/KnowledgeSettings`（系统管理区） |
 | `admin:recycle:list` / `:restore` / `:purge` / `:setting` | `menu.recycle` | `/admin/recycle` → `admin/RecycleBinList`（系统管理区） |
 
 - 「知识与文档」目录组（`menu.knowledgeDocs`）挂在**经营与协同**分区下（与客户自助 / 在线委托同区），保持导航仍为 10 个顶层分区。
 - 「知识中心设置」与「回收站」挂在**系统管理**分区（分别属「系统与审计」/「系统与审计」分组）。
+- **B12 菜单下线**：分类管理 / 空间管理不再是独立导航入口。种子 `init_data.py::REMOVED_MENUS`
+  登记了这两个菜单，运行种子时把它们**逻辑删除**（`deleted=1` / `visible=0`），
+  并把角色授权**物理删除后改挂**到承载同一权限码的新按钮上 ——
+  `sys_role_menu` 不按 `deleted` 过滤（见 `auth/models.py::User.perm_codes`），软删不会真正收回权限。
 
 ### 9. 新增错误码
 
@@ -1858,6 +1902,7 @@ JSON：`{"depts": [...], "roles": [...], "users": [...]}`，**空 = 全员可见
 - `ne2b3c4d5e6_knowledge_recycle.py`（**手写**，`alembic/env.py` 未 import knowledge / recycle 模型，autogenerate 会误删表）：
   建 `kb_category` / `kb_space` / `kb_folder` / `kb_file` / `kb_document` / `kb_version` / `kb_permission` / `kb_share_link` / `kb_link_log` / `sys_recycle_bin`。
 - `sys_recycle_bin` **已登记进 `maintenance/service.py::_PURGE_TABLES`**（清空时连同编号序列一起清）；`kb_link_log` 登记进 `RETAINED_AUDIT_TABLES`（保留，不清）。
+- `nf2b3c4d5e6_kb_space_pin.py`（**手写**）：`kb_space` 加 `pinned` 列（微盘左栏「置顶」分组）+ 索引。
 
 ## 变更日志（Keep a Changelog + 语义化版本）
 
@@ -1936,7 +1981,7 @@ asset/StockLedgerList  asset/StockCountList  asset/PrototypeList  asset/Prototyp
 asset/FixedAssetList  asset/DisposalList  asset/ToolList
 asset/MaterialList  asset/BomList
 project/ProjectList  production/ScheduleBoard
-knowledge/DocumentCenter  knowledge/CategoryList  knowledge/SpaceList  knowledge/ShareLinkList
+knowledge/DocumentCenter  knowledge/ShareLinkList
 knowledge/ShareAccess
 ```
 

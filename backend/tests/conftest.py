@@ -299,6 +299,13 @@ _ensure_columns(
         "scope_json": "scope_json TEXT NULL COMMENT '模板可见范围 JSON'",
     },
 )
+# B12 补充：微盘式空间置顶（kb_space.pinned）
+_ensure_columns(
+    "kb_space",
+    {
+        "pinned": "pinned INT NULL DEFAULT 0 COMMENT '是否置顶'",
+    },
+)
 
 # B9-C3 补充：人员授权台账（hr_authorization 是新表，create_all 自动建）
 # 变更轨迹的生效时间改毫秒精度 —— 同一秒内的多次状态变更要能区分先后，

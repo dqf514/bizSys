@@ -3959,6 +3959,10 @@ export interface KnowledgeSpace {
   deptId: number | null
   description: string
   status: string
+  /** 是否置顶（微盘左栏「置顶」分组） */
+  pinned: number
+  /** 归属部门名称（共享空间分组用） */
+  deptName: string
   createTime: string
 }
 
@@ -4108,6 +4112,48 @@ export interface KnowledgeBatchResult {
   items: { name: string; ok: boolean; documentId?: number; title?: string; message?: string }[]
   total: number
   success: number
+}
+
+/** 微盘式浏览：目录下的子文件夹 */
+export interface KnowledgeBrowseFolder {
+  id: number
+  name: string
+  spaceId: number
+  categoryId: number | null
+  parentId: number | null
+  path: string
+  level: number
+  description: string
+  status: string
+  createTime: string
+  /** 该文件夹下可见文档数 */
+  docCount: number
+  /** 存在生效的外部分享链接 */
+  externalAccess: boolean
+  /** 设置了成员权限（限制成员） */
+  restricted: boolean
+}
+
+/** 微盘式浏览：目录下的文档（附加浏览标记） */
+export interface KnowledgeBrowseDocument extends KnowledgeDocument {
+  /** 最近一次更新的操作人 */
+  updaterName: string
+  /** 存在生效的外部分享链接 */
+  externalAccess: boolean
+  /** 设置了成员权限（限制成员） */
+  restricted: boolean
+}
+
+/** 微盘式浏览结果 */
+export interface KnowledgeBrowseResult {
+  /** 当前所在空间（未指定空间时为 null） */
+  space: KnowledgeSpace | null
+  /** 文件夹面包屑（根 → 当前） */
+  breadcrumb: { id: number; name: string; spaceId: number }[]
+  /** 我自己的文档统计（存储用量） */
+  stats: { myDocCount: number; mySize: number }
+  folders: KnowledgeBrowseFolder[]
+  documents: PageResult<KnowledgeBrowseDocument>
 }
 
 /** 外部分享：链接信息（公开） */

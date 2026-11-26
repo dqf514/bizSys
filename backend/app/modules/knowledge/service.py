@@ -123,6 +123,7 @@ def out_space(row: Space) -> dict:
         "deptId": row.dept_id,
         "description": row.description,
         "status": row.status,
+        "pinned": int(row.pinned or 0),
         "createTime": row.create_time.strftime("%Y-%m-%d %H:%M:%S") if row.create_time else "",
     }
 
@@ -343,10 +344,10 @@ def delete_category(db: Session, row: Category) -> None:
 
 
 def space_visible(db: Session, user: Any) -> list[Space]:
-    """可见空间：共享空间 + 自己拥有的空间。"""
+    """可见空间：共享空间 + 自己拥有的空间（置顶优先）。"""
     stmt = select(Space).where(Space.deleted == 0, Space.status == "enabled")
     stmt = stmt.where(or_(Space.type == "shared", Space.owner_id == getattr(user, "id", None)))
-    return list(db.scalars(stmt.order_by(Space.type, Space.id)).all())
+    return list(db.scalars(stmt.order_by(Space.pinned.desc(), Space.type, Space.id)).all())
 
 
 def create_space(db: Session, body: Any, user: Any) -> Space:
@@ -360,6 +361,7 @@ def create_space(db: Session, body: Any, user: Any) -> Space:
         dept_id=body.dept_id,
         description=body.description,
         status=body.status,
+        pinned=1 if getattr(body, "pinned", 0) else 0,
         create_by=getattr(user, "id", None),
     )
     db.add(row)
@@ -768,6 +770,225 @@ def document_preview(db: Session, doc: Document) -> dict:
         "ext": ext,
         "text": "",
         "message": "该格式暂不支持在线预览，请下载后查看",
+    }
+
+
+# ---------------- 微盘式目录浏览 ----------------
+
+# 目录浏览支持的排序列（微盘「名称 / 最近更新 / 大小」）
+BROWSE_SORTS = {"name": Document.title, "updateTime": Document.update_time, "size": Document.size}
+
+
+def visible_document_where(db: Session, user: Any):
+    """当前用户可见文档的 SQL 条件（文档列表与目录浏览共用同一口径）。"""
+    scope = visible_document_ids(db, user)
+    ors = [Document.space_id.in_(scope["spaceIds"]), Document.owner_id == scope["ownerId"]]
+    if scope["docIds"]:
+        ors.append(Document.id.in_(scope["docIds"]))
+    if scope["folderIds"]:
+        ors.append(Document.folder_id.in_(scope["folderIds"]))
+    return or_(*ors), scope
+
+
+def folder_breadcrumb(db: Session, folder_id: int | None) -> list[dict]:
+    """文件夹的祖先链（根 → 当前），用于面包屑导航。"""
+    chain: list[dict] = []
+    cur = db.get(Folder, folder_id) if folder_id else None
+    guard = 0
+    while cur is not None and guard < 20:
+        guard += 1
+        chain.append({"id": cur.id, "name": cur.name, "spaceId": cur.space_id})
+        cur = db.get(Folder, cur.parent_id) if cur and cur.parent_id else None
+    chain.reverse()
+    return chain
+
+
+def _folder_ancestors(db: Session, folder_ids: set[int]) -> set[int]:
+    """把文件夹 id 展开为「含全部祖先」的集合。"""
+    out = set(folder_ids)
+    for fid in list(folder_ids):
+        guard = 0
+        cur = db.get(Folder, fid)
+        while cur is not None and cur.parent_id and guard < 20:
+            guard += 1
+            if cur.parent_id in out:
+                break
+            out.add(cur.parent_id)
+            cur = db.get(Folder, cur.parent_id)
+    return out
+
+
+def _updater_names(db: Session, doc_ids: list[int]) -> dict[int, str]:
+    """文档最近一次更新的操作人（取版本号最大的那条）。"""
+    if not doc_ids:
+        return {}
+    rows = db.execute(
+        select(Version.document_id, Version.operator_name, Version.version_no)
+        .where(Version.deleted == 0, Version.document_id.in_(doc_ids))
+        .order_by(Version.document_id, Version.version_no.desc())
+    ).all()
+    out: dict[int, str] = {}
+    for doc_id, name, _no in rows:
+        out.setdefault(int(doc_id), name or "")
+    return out
+
+
+def _external_resource_ids(db: Session, resource_type: str, ids: list[int]) -> set[int]:
+    """存在生效外部分享链接的资源 id（微盘「外部可访问」标签）。"""
+    if not ids:
+        return set()
+    now = _now()
+    rows = db.scalars(
+        select(ShareLink.resource_id).where(
+            ShareLink.deleted == 0,
+            ShareLink.status == "active",
+            ShareLink.resource_type == resource_type,
+            ShareLink.resource_id.in_(ids),
+            or_(ShareLink.expire_at.is_(None), ShareLink.expire_at > now),
+        )
+    ).all()
+    return {int(r) for r in rows}
+
+
+def _restricted_resource_ids(db: Session, resource_type: str, ids: list[int]) -> set[int]:
+    """设置了成员权限的资源 id（微盘「限制成员权限」标签）。"""
+    if not ids:
+        return set()
+    rows = db.scalars(
+        select(Permission.resource_id).where(
+            Permission.deleted == 0,
+            Permission.resource_type == resource_type,
+            Permission.resource_id.in_(ids),
+        )
+    ).all()
+    return {int(r) for r in rows}
+
+
+def browse(
+    db: Session,
+    user: Any,
+    *,
+    space_id: int | None = None,
+    folder_id: int | None = None,
+    category_id: int | None = None,
+    q: str = "",
+    page: int = 1,
+    size: int = 50,
+    sort: str = "updateTime",
+    order: str = "desc",
+) -> dict:
+    """微盘式目录浏览：一次返回「子文件夹 + 文档」。
+
+    - 子文件夹不分页（目录层级浅），文档按页返回；
+    - 可见范围与文档列表完全一致（`visible_document_where`）；
+    - 每个条目附带 `externalAccess`（存在生效的外部分享链接）与 `restricted`
+      （设置了成员权限），对应微盘的「外部可访问 / 限制成员权限」标签。
+    """
+    doc_where, scope = visible_document_where(db, user)
+    visible_space_ids = {s.id for s in space_visible(db, user)} | set(scope["spaceIds"])
+
+    # ---- 子文件夹 ----
+    fstmt = select(Folder).where(Folder.deleted == 0)
+    if space_id:
+        fstmt = fstmt.where(Folder.space_id == space_id)
+    if folder_id:
+        fstmt = fstmt.where(Folder.parent_id == folder_id)
+    else:
+        fstmt = fstmt.where(Folder.parent_id.is_(None))
+    if category_id:
+        fstmt = fstmt.where(Folder.category_id == category_id)
+    if q:
+        fstmt = fstmt.where(Folder.name.like(f"%{q}%"))
+    folder_rows = list(db.scalars(fstmt.order_by(Folder.name, Folder.id)).all())
+
+    # 文件夹可见性：所属空间可见 / 自身或祖先链有授权 / 其下存在可见文档
+    doc_folder_ids = set(
+        db.scalars(
+            select(Document.folder_id).where(
+                Document.deleted == 0, doc_where, Document.folder_id.isnot(None)
+            ).distinct()
+        ).all()
+    )
+    visible_folder_ids = _folder_ancestors(db, set(scope["folderIds"]) | doc_folder_ids)
+    folder_rows = [
+        f for f in folder_rows if f.space_id in visible_space_ids or f.id in visible_folder_ids
+    ]
+
+    # ---- 文档 ----
+    dstmt = select(Document).where(Document.deleted == 0, doc_where)
+    if space_id:
+        dstmt = dstmt.where(Document.space_id == space_id)
+    if folder_id:
+        dstmt = dstmt.where(Document.folder_id == folder_id)
+    else:
+        dstmt = dstmt.where(Document.folder_id.is_(None))
+    if category_id:
+        dstmt = dstmt.where(Document.category_id.in_(category_descendants(db, category_id)))
+    if q:
+        like = f"%{q}%"
+        dstmt = dstmt.where(
+            or_(Document.title.like(like), Document.tags.like(like), Document.code.like(like))
+        )
+    total = db.scalar(select(func.count()).select_from(dstmt.subquery())) or 0
+    col = BROWSE_SORTS.get(sort, Document.update_time)
+    dstmt = dstmt.order_by(col.desc() if order == "desc" else col.asc(), Document.id.desc())
+    dstmt = dstmt.offset((page - 1) * size).limit(size)
+    doc_rows = list(db.scalars(dstmt).all())
+
+    # ---- 附加标记 ----
+    folder_ids = [f.id for f in folder_rows]
+    doc_ids = [d.id for d in doc_rows]
+    updaters = _updater_names(db, doc_ids)
+    ext_docs = _external_resource_ids(db, "document", doc_ids)
+    ext_folders = _external_resource_ids(db, "folder", folder_ids)
+    res_docs = _restricted_resource_ids(db, "document", doc_ids)
+    res_folders = _restricted_resource_ids(db, "folder", folder_ids)
+    counts: dict[int, int] = {}
+    if folder_ids:
+        for cid, c in db.execute(
+            select(Document.folder_id, func.count())
+            .where(
+                Document.deleted == 0,
+                doc_where,
+                Document.folder_id.in_(folder_ids),
+            )
+            .group_by(Document.folder_id)
+        ).all():
+            counts[int(cid)] = int(c)
+
+    space = db.get(Space, space_id) if space_id else None
+    my_count, my_size = db.execute(
+        select(func.count(), func.coalesce(func.sum(Document.size), 0)).where(
+            Document.deleted == 0, Document.owner_id == scope["ownerId"]
+        )
+    ).one()
+    return {
+        "space": out_space(space) if space is not None and space.deleted == 0 else None,
+        "breadcrumb": folder_breadcrumb(db, folder_id),
+        "stats": {"myDocCount": int(my_count or 0), "mySize": int(my_size or 0)},
+        "folders": [
+            {
+                **out_folder(f),
+                "docCount": counts.get(f.id, 0),
+                "externalAccess": f.id in ext_folders,
+                "restricted": f.id in res_folders,
+            }
+            for f in folder_rows
+        ],
+        "documents": {
+            "items": [
+                {
+                    **out_document(d, perm_of_document(db, user, d)),
+                    "updaterName": updaters.get(d.id, ""),
+                    "externalAccess": d.id in ext_docs,
+                    "restricted": d.id in res_docs,
+                }
+                for d in doc_rows
+            ],
+            "total": total,
+            "page": page,
+            "size": size,
+        },
     }
 
 

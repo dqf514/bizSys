@@ -251,7 +251,20 @@ current: User = Depends(get_current_user)              # 仅登录
 - **外部分享链接**：手机号 → 短信验证码 → `access` 令牌（Redis，**2 小时**）→ 浏览 / 上传；`access` 走**查询参数**（公开端点无 Authorization 头）。前端公开页 `/knowledge/share/:token` 是**免登录公开路由**（`guards.ts::PUBLIC_PREFIX_PATHS`）。
 - **multipart 表单字段用 snake_case**（`space_id` / `folder_id` / `category_id`），**查询参数才用 camelCase**（`spaceId` / `categoryId`）—— 本仓惯例，别混。
 - 错误码 `94001`–`94009`（`KNOWLEDGE_*`），已在 `app/core/response.py` 与 `frontend/src/api/types.ts` **双侧登记**。
-- 前端页：`src/modules/knowledge/pages/` 下 `DocumentCenter` / `CategoryList` / `SpaceList` / `ShareLinkList` / `ShareAccess`；设置页 `src/modules/admin/pages/KnowledgeSettings.vue`。菜单组 `menu.knowledgeDocs` 挂在**经营与协同**分区下。
+- 前端页：`src/modules/knowledge/pages/` 下 `DocumentCenter` / `ShareLinkList` / `ShareAccess`；设置页 `src/modules/admin/pages/KnowledgeSettings.vue`。菜单组 `menu.knowledgeDocs` 挂在**经营与协同**分区下。
+
+**微盘式文档中心（B12）**
+
+> 用户要求「文档管理的导航和形式参考微盘设计；**分类管理不用做单独导航**（可选项，后期在企业门户展示相关制度文档时可用，在文件/文档管理区域不做必需）」。
+
+- **左栏**（微盘式）：搜索框 / `文件`｜`分类` 两个页签 / 分组「最近查看·全部文件·我的空间·我分享的·置顶·共享（按部门分组）」/ 底部存储用量 + 「分类管理」「空间管理」入口。
+- **主区**：标题 + 后退/前进（导航历史栈）+ `上传`（单个 / 批量）+ `新建`（文件夹 / 空间 / 分类）+ 列表 / 网格视图切换；表格列 **名称 / 最近更新 / 更新者 / 大小**，**子文件夹与文档混排**（子文件夹在前），文件夹带「外部可访问 / 限制成员权限」角标。
+- **目录浏览端点** `GET /knowledge/browse`（`service.py::browse`）：一次返回 `{space, breadcrumb, stats, folders, documents}`；**可见口径与文档列表完全一致**（共用 `visible_document_where`）；子文件夹不分页、文档分页。
+- **排序白名单** `BROWSE_SORTS` = `name` / `updateTime` / `size`。
+- **空间置顶**：`kb_space.pinned`（迁移 `nf2b3c4d5e6_kb_space_pin.py`）+ `POST /knowledge/spaces/{sid}/pin`。
+- **分类 / 空间管理不再是独立导航入口**：能力并入文档中心页面的抽屉（`modules/knowledge/components/CategoryManager.vue` / `SpaceManager.vue`）；分类树仍是多级可定义的，**留作后续企业门户展示制度文档的可选项**。
+- **菜单下线机制**：种子 `init_data.py::REMOVED_MENUS` + `_retire_menus()` —— 逻辑删除菜单并**物理删除 `sys_role_menu`** 后把授权改挂到同权限码的新按钮上（`sys_role_menu` 不按 `deleted` 过滤，软删收不回权限）。
+- 权限码 `knowledge:category:list` / `:edit` / `knowledge:space:list` / `:edit` 改挂在 `menu.knowledgeDocuments` 的**按钮子项**（`knowledge-doc-category-*` / `knowledge-doc-space-*`）。
 
 ### 全站统一回收站（B11）
 

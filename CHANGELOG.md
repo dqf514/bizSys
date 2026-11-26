@@ -8,6 +8,30 @@
 
 ---
 
+## [0.13.0] - 2026-11-26
+
+### Added
+
+- **文档中心改微盘式导航与呈现**（B12）—— 文档管理的导航与形式参考微盘重做：
+  - **左栏固定导航**：搜索框、`文件`｜`分类` 两个页签、分组「最近查看 / 全部文件 / 我的空间 / 我分享的 / 置顶 / 共享（按归属部门分组、可折叠）」，底部展示存储用量并提供「分类管理」「空间管理」入口。
+  - **主区目录浏览**：标题 + 后退 / 前进（导航历史栈）、`上传`（单个 / 批量）与 `新建`（文件夹 / 空间 / 分类）下拉、列表 / 网格视图切换；表格列为 **名称 / 最近更新 / 更新者 / 大小**，**子文件夹与文档混排**（子文件夹在前，带文档数），文件夹带「外部可访问 / 限制成员权限」角标。
+  - **新端点 `GET /knowledge/browse`**：一次返回 `{space, breadcrumb, stats, folders, documents}`，可见口径与文档列表完全一致，子文件夹不分页、文档分页，排序白名单 `name` / `updateTime` / `size`。
+  - **空间置顶**：`kb_space` 新增 `pinned` 列（迁移 `nf2b3c4d5e6_kb_space_pin.py`）+ `POST /knowledge/spaces/{sid}/pin`，左栏「置顶」分组由此驱动。
+  - 新增测试 `backend/tests/test_knowledge.py` 3 例（目录浏览混排与面包屑 / 外部可访问与限制成员权限标记 / 空间置顶切换）。
+
+### Changed
+
+- **分类管理、空间管理不再作为独立导航入口** —— 按「分类是可选项，后期在企业门户展示相关制度文档时可用」的口径，管理能力并入文档中心页面的抽屉（`CategoryManager.vue` / `SpaceManager.vue`）；分类树仍是多级可定义的，结构与端点保持不变。
+- 导航结构收敛后，种子新增 `REMOVED_MENUS` + `_retire_menus()`：下线旧菜单时**逻辑删除菜单并物理删除 `sys_role_menu`**，再把角色授权改挂到承载同一权限码的新按钮上 —— 关系表不按 `deleted` 过滤，软删收不回权限。
+- 权限码 `knowledge:category:list` / `:edit` / `knowledge:space:list` / `:edit` 改挂在「文档中心」菜单的按钮子项上（`knowledge-doc-category-*` / `knowledge-doc-space-*`）。
+- `GET /knowledge/categories` 与 `GET /knowledge/spaces` 的读权限放宽为「分类 / 空间读权限 **或** 文档读权限」任一满足；`GET /knowledge/spaces` 追加返回归属部门名称 `deptName`（供共享分组）。
+
+### Removed
+
+- 删除独立页面 `knowledge/CategoryList` 与 `knowledge/SpaceList`（能力并入文档中心页面）。
+
+---
+
 ## [0.12.0] - 2026-11-25
 
 ### Added

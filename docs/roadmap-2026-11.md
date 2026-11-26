@@ -503,9 +503,9 @@ B10-4 只需补**背景调查与保密等级**两侧。
 | **版本控制** | `kb_version` 版本历史；回滚 = 以历史版本生成新版本，历史不丢 |
 | **权限** | `kb_permission`（`user`/`role`/`dept` × `read`/`edit`/`manage`，`is_external` 标外部）；作者 = manage，编辑者 = edit；无授权者列表不可见、详情 94002 |
 | **外部分享** | `kb_share_link`（内部/外部 × 只读/可编辑/可上传）；**手机号 + 短信验证码 → `access` 令牌（Redis，2 小时）→ 浏览/上传**；只读链接口传上传 → 94002；关闭后 94006；访问与上传写只追加的 `kb_link_log` |
-| **前端** | `knowledge/DocumentCenter`（文档中心）· `knowledge/CategoryList`（分类树）· `knowledge/SpaceList` · `knowledge/ShareLinkList` · `knowledge/ShareAccess`（**免登录公开页** `/knowledge/share/:token`）· `admin/KnowledgeSettings`（系统管理区设置） |
-| **菜单** | 知识与文档目录组 `menu.knowledgeDocs` 挂在**经营与协同**分区（保持导航仍为 10 个顶层分区）；设置页在系统管理区 |
-| **迁移** | `ne2b3c4d5e6_knowledge_recycle.py` —— **全手写**（`alembic/env.py` 未 import knowledge/recycle 模型） |
+| **前端** | `knowledge/DocumentCenter`（文档中心，**B12 改微盘式**：左栏搜索/文件·分类页签/我的空间·我分享的·置顶·共享分组 + 主区子文件夹与文档混排、面包屑前进后退、列表·网格视图）· `knowledge/ShareLinkList` · `knowledge/ShareAccess`（**免登录公开页** `/knowledge/share/:token`）· `admin/KnowledgeSettings`（系统管理区设置）；分类 / 空间管理并入文档中心页面的抽屉 |
+| **菜单** | 知识与文档目录组 `menu.knowledgeDocs` 挂在**经营与协同**分区（保持导航仍为 10 个顶层分区）；设置页在系统管理区；**B12 分类 / 空间不再是独立导航入口**（`REMOVED_MENUS` 下线并改挂授权） |
+| **迁移** | `ne2b3c4d5e6_knowledge_recycle.py` —— **全手写**（`alembic/env.py` 未 import knowledge/recycle 模型）；`nf2b3c4d5e6_kb_space_pin.py`（`kb_space.pinned` 置顶列） |
 
 **已交付 —— 全站统一回收站**
 
@@ -525,6 +525,22 @@ B10-4 只需补**背景调查与保密等级**两侧。
 | 前端 | `pnpm lint` / `typecheck` / `i18n:check` / `scan:literal:strict` / `test:unit` / `build` 全绿 |
 
 **遗留（诚实标注）**：①「整体替换」语义下的子行是物理删除，恢复父记录时**不会**回来（任务条目 / 样品、BOM 子件行、流程定义节点）；②磁盘文件（合同附件 / 头像等）软删即删盘，恢复后拿不回文件（知识库域**不**删盘）；③外部链接只做一次性令牌 + 验证码，**不做**企微式增量同步。
+
+---
+
+## B12 — 文档中心改微盘式（已交付，2026-11-26）
+
+> 用户要求：「文档管理的导航和形式参考**微盘**设计；**分类管理不用做单独导航**，这个是可选项，后期在企业门户展示相关制度文档的时候可用，在文件/文档管理区域不做必需。」
+
+| 项 | 内容 |
+| --- | --- |
+| **左栏** | 搜索框 · `文件`｜`分类` 两个页签 · 分组「最近查看（本地记录）/ 全部文件 / 我的空间 / 我分享的 / 置顶 / 共享（按归属部门分组，可折叠）」· 底部存储用量 + 「分类管理」「空间管理」入口 |
+| **主区** | 标题 + 后退 / 前进（导航历史栈）· `上传`（单个 / 批量）· `新建`（文件夹 / 空间 / 分类）· 列表 / 网格视图切换；表格列 **名称 / 最近更新 / 更新者 / 大小**，**子文件夹与文档混排**；文件夹带「外部可访问 / 限制成员权限」角标与文档数 |
+| **目录浏览端点** | `GET /knowledge/browse` → `{space, breadcrumb, stats, folders, documents}`；可见口径与文档列表完全一致；子文件夹不分页、文档分页；排序白名单 `name` / `updateTime` / `size` |
+| **空间置顶** | `kb_space.pinned` + `POST /knowledge/spaces/{sid}/pin`；迁移 `nf2b3c4d5e6_kb_space_pin.py`（手写） |
+| **导航收敛** | 分类管理 / 空间管理**不再是独立导航入口** —— 能力并入文档中心页面的抽屉（`CategoryManager.vue` / `SpaceManager.vue`）；分类树仍多级可定义，**留作后续企业门户展示制度文档的可选项** |
+| **菜单下线机制** | 种子 `init_data.py::REMOVED_MENUS` + `_retire_menus()`：逻辑删除菜单 + **物理删除 `sys_role_menu`** 并把授权改挂到同权限码的新按钮（软删收不回权限） |
+| **前端** | `knowledge/DocumentCenter` 重写（微盘式）；删除 `knowledge/CategoryList` / `knowledge/SpaceList` 两个独立页面 |
 
 ---
 

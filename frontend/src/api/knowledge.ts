@@ -1,6 +1,7 @@
 import { request, toQuery } from './http'
 import type {
   KnowledgeBatchResult,
+  KnowledgeBrowseResult,
   KnowledgeCategory,
   KnowledgeDocument,
   KnowledgeFolder,
@@ -59,6 +60,35 @@ export function updateKnowledgeSpace(id: number, data: Partial<KnowledgeSpace>) 
 
 export function deleteKnowledgeSpace(id: number) {
   return request<void>({ url: `/knowledge/spaces/${id}`, method: 'delete' })
+}
+
+/** 置顶 / 取消置顶空间 */
+export function pinKnowledgeSpace(id: number, pinned: boolean) {
+  return request<KnowledgeSpace>({
+    url: `/knowledge/spaces/${id}/pin`,
+    method: 'post',
+    data: { pinned: pinned ? 1 : 0 },
+  })
+}
+
+/* ---------------- 微盘式目录浏览 ---------------- */
+
+/** 一次取回「子文件夹 + 文档」 */
+export function browseKnowledge(params: {
+  spaceId?: number | null
+  folderId?: number | null
+  categoryId?: number | null
+  q?: string
+  page?: number
+  size?: number
+  sort?: string
+  order?: string
+}) {
+  return request<KnowledgeBrowseResult>({
+    url: '/knowledge/browse',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
 }
 
 /* ---------------- 文件夹 ---------------- */

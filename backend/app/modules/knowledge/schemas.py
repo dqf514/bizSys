@@ -29,6 +29,7 @@ class SpaceIn(CamelModel):
     dept_id: int | None = None
     description: str = Field(default="", max_length=500)
     status: str = "enabled"
+    pinned: int = 0
 
 
 class FolderIn(CamelModel):
