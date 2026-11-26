@@ -298,5 +298,42 @@
     "regular": "Regularization",
     "transfer": "Transfer",
     "resign": "Resignation"
+  },
+  "workApply": {
+    "title": "Work Permits",
+    "create": "New Work Permit",
+    "createTitle": "New Work Permit",
+    "catalogTitle": "Select Permit Type",
+    "catalogTip": "Choose the permit type for this job",
+    "noCatalog": "No work permit template available",
+    "types": {
+      "forklift": "Forklift Work Permit",
+      "lifting": "Lifting Work Permit",
+      "height": "Work at Height Permit",
+      "hot_work": "Hot Work Permit"
+    },
+    "columns": {
+      "displayNo": "Permit No.",
+      "formName": "Permit Type",
+      "applicantName": "Applicant",
+      "location": "Work Location",
+      "time": "Work Window",
+      "status": "Status",
+      "createTime": "Submitted At"
+    },
+    "searchQ": "Keyword",
+    "placeholderQ": "Search permit no. / applicant / type",
+    "formType": "Permit Type",
+    "detail": "Work Permit Detail",
+    "formData": "Application Content",
+    "viewDetail": "View Detail",
+    "cancel": "Cancel Permit",
+    "cancelConfirm": "Cancel this work permit? You will need to submit a new one.",
+    "cancelDone": "Work permit cancelled",
+    "submitSuccess": "Work permit submitted for approval",
+    "draftSaved": "Draft saved, you can continue later",
+    "fillRequired": "Please fill in all required fields",
+    "nextStep": "Next",
+    "prevStep": "Previous"
   }
 }

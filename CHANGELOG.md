@@ -8,6 +8,30 @@
 
 ---
 
+## [0.14.0] - 2026-11-26
+
+### Added
+
+- **B6 设备台账 / 能耗采集 / 设备预警**（`ast_equipment` / `ast_equipment_metric` / `ast_equipment_alert`）—— 设备台账（编号·类别·车间·供应商·状态·责任人·保养周期·累计工时）、按日 + 班次的能耗与运行数据采集、5 类设备预警（保养逾期 / 能耗异常 / 利用率偏低 / 故障 / 状态异常）与「待处理 → 处理中 → 已关闭」处理闭环；`POST /asset/equipment-alerts/scan` 按规则**幂等**扫描生成预警（跳过已报废设备）；设备看板含状态 / 类别分布、能耗趋势、Top5 能耗设备与保养逾期数。前端 `asset/pages/EquipmentList.vue`（设备 / 能耗 / 预警三页签）。
+- **B7 产能利用率看板**（`production/capacity_router.py`，不建表，实时汇总排程 + 设备台账）—— 占用工时 / 可用工时 / 利用率 / 超负荷设备数 / 冲突清单 / 分类（风洞·CFD·加工·试验·其他，含**台次**口径）/ 车间维度 / 趋势（≤31 天按日，否则按自然周）+ 单设备下钻（排程明细 + 每日利用率曲线）。利用率口径与降级策略见 `docs/api-contract.md`。
+- **B7 营收分析看板**（`sales/revenue_router.py`，不建表）—— **合同额 / 结算额 / 回款额三口径**（口径不可相加）、已签未结算 / 已结算未回款 / 结算率 / 回款率、按业务线（`biz_block`）与客户拆分、月度趋势与「按客户」导出；口径说明由服务端下发（中英各一份），前端不写死。
+- **B8 安全巡检管理**（新域 `app/modules/safety/`，`saf_inspection_plan` / `saf_inspection` / `saf_hazard`）—— 巡检计划（类型·区域·巡检项·周期·责任人）、巡检记录（结果·异常数·逐项结果）、**隐患整改闭环**（上报 → 整改 → 验证 → 关闭，不通过退回整改）、安全看板（等级 / 状态 / 区域分布、逾期 Top、完成率、隐患趋势）。巡检记录提交时按异常项**自动生成隐患**。
+- **B8 作业申请流程**（叉车 / 吊装 / 高处 / 动火）—— **复用 OA 域**：4 张作业许可模板（`work_apply_*`）+ 流程定义（`work_apply_*_approve`），审批链「安全员审核（ROLE=security_officer）→ 部门负责人审批（DEPT_LEADER）」；列表 / 状态计数 / 模板目录 / 详情（含表单结构与审批时间线）/ 发起 / 撤销（仅申请人本人、仅审批中）。
+- 新增错误码并**双侧登记**（`app/core/response.py` + `frontend/src/api/types.ts`）：`ASSET_EQUIPMENT_NOT_FOUND`(97010)、`ASSET_EQUIPMENT_ALERT_INVALID_STATE`(97011)、`PRODUCTION_CAPACITY_NOT_FOUND`(99006)、`SALES_REVENUE_INVALID_STATE`(64005)、`SAFETY_NOT_FOUND`(98020)、`SAFETY_INVALID_STATE`(98021)、`OA_WORK_APPLY_INVALID_STATE`(62006)、`OA_WORK_APPLY_NOT_FOUND`(62007)。
+- 新增权限码并登记进 `app/seeds/init_data.py::MENU_TREE`：`asset:equipment:*`（list/create/edit/delete/metric:create/alert:create/alert:handle）、`production:capacity:list`、`sales:revenue:view`、`safety:inspection:*` + `safety:hazard:*`（并授予角色 `security_officer`）、`oa:workapply:list` / `oa:workapply:create`。
+- 新增编号规则：`equipment_alert`(YJ)、`safety_plan`(JH)、`safety_inspection`(XJ)、`safety_hazard`(YH)。
+
+### Changed
+
+- **「需求登记」页的 5 个待开发项置为已交付**（`frontend/src/locales/{zh-CN,en-US}/planned.json`）：设备资产台账、产能利用率看板、营收分析看板、安全巡检管理、作业申请流程 —— 描述改写为实际交付内容。
+- **手写迁移**（`alembic/env.py` 未 import asset / safety 域的新模型文件，autogenerate 会误删表）：`ng2b3c4d5e6_equipment_ledger.py`（B6 三表）、`nh2b3c4d5e6_safety_inspection.py`（B8 三表，**当前 head**）。
+
+### Fixed
+
+- **`ListTable` 的单元格自定义插槽写法纠正** —— `ListTable` 内部把 `ResponsiveTable` 的 `cell` 槽翻译成**按列名派发**的具名槽（名字 = `col.slot || col.prop`），安全巡检页原先写的 `<template #cell="{ row, col }">` 会被**静默忽略**（不报错、不渲染，状态标签与单号链接全部丢失）。改为按列名插槽（`#planNo` / `#status` / `#level` / `#deadline` / `#result` / `#recordNo`），桌面表格与窄屏卡片流同源渲染。
+
+---
+
 ## [0.13.2] - 2026-11-26
 
 ### Removed

@@ -166,5 +166,67 @@
     "signature": "Supplier (seal):",
     "customerSign": "Customer (seal):",
     "draftWatermark": "DRAFT (not approved)"
+  },
+  "revenue": {
+    "title": "Revenue Analytics Board",
+    "subtitle": "Revenue analysis by business line / customer / contract / period",
+    "range": "Period",
+    "rangeStart": "Start date",
+    "rangeEnd": "End date",
+    "bizBlock": "Business Line",
+    "bizBlockAll": "All business lines",
+    "customer": "Customer",
+    "customerAll": "All customers",
+    "refresh": "Refresh",
+    "export": "Export customer detail",
+    "amountUnit": "CNY",
+    "rateUnit": "%",
+    "bizMulti": "Mixed",
+    "bizUnknown": "Unclassified",
+    "summary": {
+      "contractAmount": "Contract Amount",
+      "settledAmount": "Settled Amount",
+      "receivedAmount": "Received Amount",
+      "unsettledAmount": "Signed, Not Settled",
+      "unreceivedAmount": "Settled, Not Received",
+      "receivableRate": "Receivable Rate",
+      "contractCount": "Contracts",
+      "customerCount": "Customers",
+      "avgContractAmount": "Avg Contract"
+    },
+    "chart": {
+      "trend": "Monthly Trend (Three Calibers)",
+      "byBlock": "Revenue Mix by Business Line",
+      "rate": "Receivable Rate vs Collection Rate",
+      "empty": "No data in the selected period"
+    },
+    "series": {
+      "contractAmount": "Contract",
+      "settledAmount": "Settlement",
+      "receivedAmount": "Receipt",
+      "collectionRate": "Collection Rate",
+      "receivableRate": "Receivable Rate"
+    },
+    "table": {
+      "customerTitle": "Customer Ranking",
+      "contractTitle": "Contract Detail",
+      "customer": "Customer",
+      "contractName": "Contract",
+      "contractNo": "Contract No.",
+      "signDate": "Sign Date",
+      "contractCount": "Contracts",
+      "bizBlocks": "Business Lines",
+      "collectionRate": "Collection Rate",
+      "receivableRate": "Receivable Rate",
+      "empty": "No data in the selected period"
+    },
+    "caliber": {
+      "title": "Caliber Notes",
+      "contractAmount": "Contract Amount",
+      "settledAmount": "Settled Amount",
+      "receivedAmount": "Received Amount",
+      "tip": "Contract amount ≠ revenue recognition: this board reports three separate timing calibers (sign / settle / receive). The three figures must not be added together or netted into a single 'revenue'.",
+      "tipTitle": "Caliber note"
+    }
   }
 }

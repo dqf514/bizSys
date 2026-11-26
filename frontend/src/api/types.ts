@@ -4176,3 +4176,41 @@ export interface PublicShareDocument {
   version: number
   updateTime: string
 }
+
+/* ---------------- B6/B7/B8 新增错误码（镜像 backend/app/core/response.py） */
+
+/** 设备台账 / 预警（B6 CSV 67-69） */
+export const ASSET_EQUIPMENT_ERR = {
+  /** 设备台账不存在 */
+  ASSET_EQUIPMENT_NOT_FOUND: 97010,
+  /** 设备预警状态不允许该操作 */
+  ASSET_EQUIPMENT_ALERT_INVALID_STATE: 97011,
+} as const
+
+/** 安全巡检（B8 CSV 24） */
+export const SAFETY_ERR = {
+  /** 安全巡检单据不存在 */
+  SAFETY_NOT_FOUND: 98020,
+  /** 状态不允许该操作 */
+  SAFETY_INVALID_STATE: 98021,
+} as const
+
+/** 产能利用率看板（B7 CSV 4） */
+export const PRODUCTION_CAPACITY_ERR = {
+  /** 设备产能数据不存在 */
+  PRODUCTION_CAPACITY_NOT_FOUND: 99006,
+} as const
+
+/** 营收分析看板（B7 CSV 3） */
+export const SALES_REVENUE_ERR = {
+  /** 营收统计口径不允许该操作 */
+  SALES_REVENUE_INVALID_STATE: 64005,
+} as const
+
+/** 作业申请流程（B8 CSV 32） */
+export const OA_WORK_APPLY_ERR = {
+  /** 作业申请状态不允许该操作 */
+  OA_WORK_APPLY_INVALID_STATE: 62006,
+  /** 作业申请单不存在 */
+  OA_WORK_APPLY_NOT_FOUND: 62007,
+} as const

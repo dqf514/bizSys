@@ -22,9 +22,9 @@
     "equipmentList": {
       "no": "23 / 67-69",
       "name": "Equipment & Asset Ledger",
-      "desc": "Replace with unified asset / prototype vehicle / sample / material management; equipment ledger, alerts, energy consumption and digital twin (detailed logic to be supplied)",
+      "desc": "Delivered: equipment ledger (asset attributes / status / owner / maintenance), energy consumption capture & statistics, equipment alerts (threshold / inspection / fault) with handling closure; digital twin view awaits detailed logic from the requester",
       "batch": "B6",
-      "status": "planned"
+      "status": "done"
     },
     "materialList": {
       "no": "23",
@@ -43,16 +43,16 @@
     "capacityBoard": {
       "no": "4",
       "name": "Capacity Utilization Board",
-      "desc": "Wind-tunnel run utilization, wind-tunnel center equipment utilization, model center equipment utilization; must integrate with the asset management platform",
+      "desc": "Delivered: equipment / production-line capacity utilization board (occupied hours, available hours, utilization, overload alert, trend chart and per-equipment detail), integrated with the asset equipment ledger",
       "batch": "B7",
-      "status": "planned"
+      "status": "done"
     },
     "revenueBoard": {
       "no": "3",
       "name": "Revenue Analysis Board",
-      "desc": "The existing statistics board needs revenue dimension analysis and a split of revenue across wind tunnel / CFD / model processing",
+      "desc": "Delivered: revenue analysis board (contract / settlement / collection calibers, settlement & collection rates, split by business line and customer, trend and export)",
       "batch": "B7",
-      "status": "planned"
+      "status": "done"
     },
     "portalOrders": {
       "no": "5",
@@ -71,9 +71,9 @@
     "workApplyList": {
       "no": "32",
       "name": "Work Permit Flow",
-      "desc": "Add work application flows: forklift, lifting, working at height, hot work, etc.",
+      "desc": "Delivered: four work permit application types (forklift, lifting, working at height, hot work) driven by OA forms, routed through safety officer review then department head approval",
       "batch": "B8",
-      "status": "planned"
+      "status": "done"
     },
     "messageCenter": {
       "no": "30",
@@ -120,9 +120,9 @@
     "inspectionList": {
       "no": "24",
       "name": "Safety Inspection",
-      "desc": "Safety inspection management",
+      "desc": "Delivered: inspection plans (cycle / owner), inspection records (result and abnormal count), hazard rectification closure (rectify → verify → close) and a safety dashboard",
       "batch": "B8",
-      "status": "planned"
+      "status": "done"
     },
     "bomList": {
       "no": "23",

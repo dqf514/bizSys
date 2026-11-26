@@ -213,3 +213,106 @@ export function urgeOaInstance(id: number, comment = '') {
     data: { comment },
   })
 }
+
+/* ---------- B8 作业申请流程（叉车 / 吊装 / 高处 / 动火） ---------- */
+
+/** 作业申请单据状态（与 OA 单据状态口径一致） */
+export type WorkApplyStatus = 'running' | 'approved' | 'rejected' | 'withdrawn' | 'terminated'
+
+/** 作业申请列表项（data 为从 form_data 抽取的关键字段摘要） */
+export interface WorkApply {
+  id: number
+  displayNo: string
+  formKey: string
+  formName: string
+  applicantId: number
+  applicantName: string
+  status: WorkApplyStatus | string
+  statusText: string
+  flowInstanceId: number
+  createTime: string
+  finishedAt: string
+  data: {
+    work_location?: string
+    work_dept?: string
+    work_content?: string
+    risk_level?: string
+    work_time?: string
+  }
+}
+
+/** 作业申请模板（4 类作业许可） */
+export interface WorkApplyCatalogItem {
+  id: number
+  key: string
+  name: string
+  description: string
+  icon: string
+  fields: OaField[]
+}
+
+/** 作业申请审批时间线节点 */
+export interface WorkApplyTimelineNode {
+  action: string
+  operatorName: string
+  nodeName: string
+  seq?: number
+  comment: string
+  payload?: Record<string, unknown> | null
+  at: string
+}
+
+/** 作业申请详情（单据 + 表单结构 + 表单数据 + 时间线） */
+export interface WorkApplyDetail extends WorkApply {
+  schema: { fields?: OaField[] }
+  formData: Record<string, unknown>
+  timeline: WorkApplyTimelineNode[]
+}
+
+/** 作业申请状态页签计数 */
+export interface WorkApplyCounts {
+  all: number
+  running: number
+  approved: number
+  rejected: number
+  withdrawn: number
+  terminated: number
+}
+
+export function listWorkApplies(params: ListQuery) {
+  return request<PageResult<WorkApply>>({
+    url: '/oa/work-applies',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function workApplyCounts() {
+  return request<WorkApplyCounts>({ url: '/oa/work-applies/counts', method: 'get' })
+}
+
+export function getWorkApply(id: number) {
+  return request<WorkApplyDetail>({ url: `/oa/work-applies/${id}`, method: 'get' })
+}
+
+export function workApplyCatalog() {
+  return request<WorkApplyCatalogItem[]>({ url: '/oa/work-apply-catalog', method: 'get' })
+}
+
+export function createWorkApply(formKey: string, data: Record<string, unknown>) {
+  return request<{
+    id: number
+    displayNo: string
+    formKey: string
+    formName: string
+    status: string
+    flowInstanceId: number
+  }>({ url: '/oa/work-applies', method: 'post', data: { formKey, data } })
+}
+
+export function cancelWorkApply(id: number) {
+  return request<{ id: number; displayNo: string; status: string }>({
+    url: `/oa/work-applies/${id}/cancel`,
+    method: 'post',
+  })
+}

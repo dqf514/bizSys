@@ -298,5 +298,42 @@
     "regular": "转正",
     "transfer": "调岗",
     "resign": "离职"
+  },
+  "workApply": {
+    "title": "作业申请",
+    "create": "新建作业申请",
+    "createTitle": "新建作业申请",
+    "catalogTitle": "选择作业类型",
+    "catalogTip": "请选择本次作业许可的类型",
+    "noCatalog": "暂无可发起的作业申请模板",
+    "types": {
+      "forklift": "叉车作业申请",
+      "lifting": "吊装作业申请",
+      "height": "高处作业申请",
+      "hot_work": "动火作业申请"
+    },
+    "columns": {
+      "displayNo": "申请单号",
+      "formName": "作业类型",
+      "applicantName": "申请人",
+      "location": "作业地点",
+      "time": "作业时间",
+      "status": "状态",
+      "createTime": "提交时间"
+    },
+    "searchQ": "关键词",
+    "placeholderQ": "搜索单号/申请人/作业类型",
+    "formType": "作业类型",
+    "detail": "作业申请详情",
+    "formData": "申请内容",
+    "viewDetail": "查看详情",
+    "cancel": "撤销申请",
+    "cancelConfirm": "确认撤销该作业申请？撤销后需重新发起。",
+    "cancelDone": "作业申请已撤销",
+    "submitSuccess": "作业申请已提交审批",
+    "draftSaved": "草稿已保存，可稍后继续填写",
+    "fillRequired": "请完整填写必填项",
+    "nextStep": "下一步",
+    "prevStep": "上一步"
   }
 }

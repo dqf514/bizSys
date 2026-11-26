@@ -115,3 +115,157 @@ export function exportSchedules(params: ListQuery) {
     'production_schedules.xlsx',
   )
 }
+
+/* ---------- 产能利用率看板（B7） ---------- */
+
+/** 统计期间 */
+export interface CapacityRange {
+  from: string
+  to: string
+}
+
+/** 看板汇总指标 */
+export interface CapacitySummary {
+  /** 设备总数（台账口径） */
+  equipmentTotal: number
+  /** 期间有排程的设备数 */
+  scheduledEquipment: number
+  /** 整体平均利用率 % */
+  avgUtilization: number
+  /** 排程占用总工时 */
+  totalScheduleHours: number
+  /** 冲突排程行数 */
+  conflictCount: number
+  /** 期间零排程设备数 */
+  idleEquipment: number
+  /** 利用率 > 100% 的设备数 */
+  overloadEquipment: number
+  /** 统计天数 */
+  periodCount: number
+}
+
+/** 分类维度（风洞 / CFD / 加工 / 试验 / 其他） */
+export interface CapacityCategory {
+  category: string
+  categoryText: string
+  equipmentCount: number
+  scheduleHours: number
+  availableHours: number
+  utilization: number
+  /** 排程行数（风洞业务即「台次」） */
+  scheduleCount: number
+}
+
+/** 车间维度 */
+export interface CapacityWorkshop {
+  workshop: string
+  equipmentCount: number
+  scheduleHours: number
+  availableHours: number
+  utilization: number
+}
+
+/** 设备明细 */
+export interface CapacityEquipment {
+  equipmentId: number | null
+  equipmentNo: string
+  equipmentName: string
+  category: string
+  categoryText: string
+  workshop: string
+  status: string
+  statusText: string
+  scheduleHours: number
+  availableHours: number
+  utilization: number
+  scheduleCount: number
+  conflictCount: number
+  taskCount: number
+  runHours: number
+  lastScheduleEnd: string
+  overloaded: boolean
+}
+
+/** 趋势分桶（按日或按自然周） */
+export interface CapacityTrend {
+  bucket: string
+  scheduleHours: number
+  availableHours: number
+  utilization: number
+  scheduleCount: number
+  conflictCount: number
+}
+
+/** 冲突排程 */
+export interface CapacityConflict {
+  scheduleNo: string
+  equipmentId: number | null
+  equipmentNo: string
+  equipmentName: string
+  taskNo: string
+  taskName: string
+  planStart: string
+  planEnd: string
+  reason: string
+}
+
+/** 产能利用率看板总览 */
+export interface CapacityBoard {
+  range: CapacityRange
+  summary: CapacitySummary
+  byCategory: CapacityCategory[]
+  byWorkshop: CapacityWorkshop[]
+  equipment: CapacityEquipment[]
+  trend: CapacityTrend[]
+  conflicts: CapacityConflict[]
+}
+
+/** 设备下钻的排程行摘要 */
+export interface CapacityScheduleRow {
+  id: number
+  scheduleNo: string
+  planNo: string
+  taskId: number | null
+  taskNo: string
+  taskName: string
+  resourceCode: string
+  resourceName: string
+  planStart: string
+  planEnd: string
+  durationHours: number
+  status: string
+  statusText: string
+  conflictReason: string
+}
+
+/** 单设备下钻详情 */
+export interface CapacityEquipmentDetail {
+  equipment: CapacityEquipment
+  schedules: CapacityScheduleRow[]
+  metrics: CapacityTrend[]
+}
+
+export interface CapacityQuery {
+  from?: string
+  to?: string
+  workshop?: string
+  category?: string
+}
+
+/** 产能利用率看板：汇总 + 分类 / 车间 / 趋势 / 设备明细 / 冲突清单 */
+export function getCapacityBoard(params: CapacityQuery) {
+  return request<CapacityBoard>({
+    url: '/production/capacity/board',
+    method: 'get',
+    params,
+  })
+}
+
+/** 单设备近 30 天排程明细（下钻） */
+export function getCapacityEquipment(id: number, params?: { from?: string; to?: string }) {
+  return request<CapacityEquipmentDetail>({
+    url: `/production/capacity/equipment/${id}`,
+    method: 'get',
+    params,
+  })
+}

@@ -24,6 +24,7 @@ import zhVisitor from './locales/zh-CN/visitor.json'
 import zhProduction from './locales/zh-CN/production.json'
 import zhProject from './locales/zh-CN/project.json'
 import zhKnowledge from './locales/zh-CN/knowledge.json'
+import zhSafety from './locales/zh-CN/safety.json'
 import enUS from './locales/en-US/common.json'
 import enMenu from './locales/en-US/menu.json'
 import enAuth from './locales/en-US/auth.json'
@@ -49,6 +50,7 @@ import enVisitor from './locales/en-US/visitor.json'
 import enProduction from './locales/en-US/production.json'
 import enProject from './locales/en-US/project.json'
 import enKnowledge from './locales/en-US/knowledge.json'
+import enSafety from './locales/en-US/safety.json'
 
 export const LOCALES = ['zh-CN', 'en-US'] as const
 export type Locale = (typeof LOCALES)[number]
@@ -79,18 +81,19 @@ function pack(
   production: object,
   project: object,
   knowledge: object,
+  safety: object,
 ) {
   // 代码统一用 `common.xxx` / `menu.xxx` 等命名空间引用，common 必须挂在 common 下
   return {
     common, menu, auth, workbench, admin, approval, crm, contract, task, finance, report, settings,
     oa, procurement, portal, hr, sales, ai, message, planned, asset, visitor,
-    production, project, knowledge,
+    production, project, knowledge, safety,
   }
 }
 
 const messages = {
-  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr, zhSales, zhAi, zhMessage, zhPlanned, zhAsset, zhVisitor, zhProduction, zhProject, zhKnowledge),
-  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr, enSales, enAi, enMessage, enPlanned, enAsset, enVisitor, enProduction, enProject, enKnowledge),
+  'zh-CN': pack(zhCN, zhMenu, zhAuth, zhWorkbench, zhAdmin, zhApproval, zhCrm, zhContract, zhTask, zhFinance, zhReport, zhSettings, zhOa, zhProcurement, zhPortal, zhHr, zhSales, zhAi, zhMessage, zhPlanned, zhAsset, zhVisitor, zhProduction, zhProject, zhKnowledge, zhSafety),
+  'en-US': pack(enUS, enMenu, enAuth, enWorkbench, enAdmin, enApproval, enCrm, enContract, enTask, enFinance, enReport, enSettings, enOa, enProcurement, enPortal, enHr, enSales, enAi, enMessage, enPlanned, enAsset, enVisitor, enProduction, enProject, enKnowledge, enSafety),
 }
 
 export function detectLocale(): Locale {

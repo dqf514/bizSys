@@ -1995,3 +1995,378 @@ knowledge/ShareAccess
 | admin | Admin@123456 | 超级管理员 |
 | manager1 | Test@123456 | 部门负责人（审批人演示） |
 | leader1 | Test@123456 | 分管领导（审批人演示） |
+
+
+## B8 安全巡检管理（巡检计划 → 巡检记录 → 隐患整改闭环）
+
+后端 `app/modules/safety/`（`models.py` / `schemas.py` / `service.py` / `router.py`），路由前缀 `/api/v1/safety`，
+表前缀 `saf_`；前端 `src/modules/safety/pages/InspectionList.vue`（componentKey `safety/InspectionList`）。
+
+### 1. 数据模型
+
+| 表 | 说明 |
+|---|---|
+| `saf_inspection_plan` | 巡检计划：编号 / 名称 / 类型（daily·weekly·monthly·special）/ 区域 / 巡检项清单（JSON 文本）/ 周期天数 / 下次巡检日期 / 负责人 / 部门 / 状态（active·paused·finished） |
+| `saf_inspection` | 巡检记录：记录编号 / 关联计划 / 区域 / 巡检日期 / 巡检人 / 结果（normal·abnormal）/ 异常项数 / 逐项结果（JSON 文本）/ 状态（draft·submitted·closed） / 小结 |
+| `saf_hazard` | 隐患：隐患编号 / 来源巡检 / 来源（inspection·manual）/ 描述 / 等级（low·medium·high·critical）/ 状态（open·rectifying·verified·closed）/ 责任人 / 整改期限 / 发现时间 / 整改措施 / 整改人 / 验证结论 / 验证人 |
+
+三张表都继承 `BaseModel`（带 `deleted` 逻辑删除），删除动作走 `app/common/recycle.py::soft_delete`（全站回收站）。
+
+### 2. 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/safety/plans` | `safety:inspection:list` | 列表：`q`（编号·名称·区域）、`filters[plan_type]`、`filters[status]`、`range[next_date]`、`sort` |
+| GET | `/safety/plans/counts` | `safety:inspection:list` | 计数：`all` / `active` / `paused` / `finished` |
+| GET | `/safety/plans/{id}` | `safety:inspection:list` | 详情 |
+| POST | `/safety/plans` | `safety:inspection:create` | 新建（编号留空自动生成） |
+| PUT | `/safety/plans/{id}` | `safety:inspection:edit` | 修改 |
+| DELETE | `/safety/plans/{id}` | `safety:inspection:delete` | 软删（进回收站） |
+| GET | `/safety/inspections` | `safety:inspection:list` | 列表：`q`（编号·区域·巡检人）、`filters[result]`、`filters[plan_id]`、`filters[status]`、`range[inspect_date]` |
+| GET | `/safety/inspections/counts` | `safety:inspection:list` | 计数：`all` / `draft` / `submitted` / `closed` |
+| GET | `/safety/inspections/{id}` | `safety:inspection:list` | 详情（含关联隐患 `hazards`） |
+| POST | `/safety/inspections` | `safety:inspection:create` | 登记（默认草稿） |
+| PUT | `/safety/inspections/{id}` | `safety:inspection:edit` | 修改（仅草稿） |
+| DELETE | `/safety/inspections/{id}` | `safety:inspection:delete` | 软删（仅草稿） |
+| POST | `/safety/inspections/{id}/submit` | `safety:inspection:submit` | 提交：**按异常项自动生成隐患**，返回 `{record, hazards:[id]}` |
+| POST | `/safety/inspections/{id}/close` | `safety:inspection:submit` | 闭环：关联隐患必须全部关闭 |
+| GET | `/safety/hazards` | `safety:inspection:list` | 列表：`q`（编号·描述·责任人）、`filters[level]`、`filters[source]`、`filters[status]`、`range[deadline]`、`range[found_at]` |
+| GET | `/safety/hazards/counts` | `safety:inspection:list` | 计数：`all` / `open` / `rectifying` / `verified` / `closed` / `overdue` |
+| GET | `/safety/hazards/{id}` | `safety:inspection:list` | 详情 |
+| POST | `/safety/hazards` | `safety:hazard:create` | 上报隐患（手工） |
+| PUT | `/safety/hazards/{id}` | `safety:hazard:create` | 修改（已关闭不可改） |
+| POST | `/safety/hazards/{id}/rectify` | `safety:hazard:rectify` | 整改：`{measure}` **必填**；`open → rectifying`，其余 → `verified` |
+| POST | `/safety/hazards/{id}/verify` | `safety:hazard:verify` | 验证：`{verifyResult, pass}`；通过 → `closed`，不通过 → `rectifying` |
+| GET | `/safety/board` | `safety:inspection:list` | 看板：等级 / 状态 / 区域分布、逾期 Top、近 30 天完成率、近 6 个月隐患趋势 |
+
+入参统一 camelCase（`CamelModel`）：巡检记录逐项结果字段为 `itemsJson`（= `items_json`），
+计划巡检项清单为 `checkItems`（字符串数组或 JSON 文本均可）。
+
+### 3. 状态机
+
+```
+巡检记录：draft ──submit──> submitted ──close（关联隐患全关闭）──> closed
+隐患：    open ──rectify──> rectifying ──rectify──> verified ──verify(pass)──> closed
+                                              └──verify(不通过)──> rectifying
+```
+
+### 4. 编号规则
+
+`sys_number_rule` 新增三条（由 `app/seeds/init_data.py::NUMBER_RULES` 登记，规则缺失时后端按
+「前缀 + YYYYMMDD + 4 位流水」兜底）：`safety_plan`（`JH`）、`safety_inspection`（`XJ`）、
+`safety_hazard`（`YH`）。**软删的单据编号不允许复用**（避免回收站恢复时撞唯一键）。
+
+### 5. 新增错误码
+
+| 码 | 名称 | 文案 |
+|---|---|---|
+| 98020 | `SAFETY_NOT_FOUND` | 安全巡检单据不存在 |
+| 98021 | `SAFETY_INVALID_STATE` | 当前安全巡检单据状态不允许该操作 |
+
+### 6. 迁移
+
+`backend/alembic/versions/nh2b3c4d5e6_safety_inspection.py`（`down_revision = ng2b3c4d5e6`，手写；
+`alembic/env.py` 未 import safety 域 models，autogenerate 会误删表）。降级顺序：
+`saf_hazard` → `saf_inspection` → `saf_inspection_plan`。
+
+## B7 营收分析看板（CSV 第 3 项）
+
+后端 `app/modules/sales/revenue_router.py`（独立 router，变量名 `revenue_router`，
+在 `main.py` 以 `app.include_router(revenue_router, prefix="/api/v1")` 挂载，与 `sales/router.py`
+同前缀 `/sales`）；前端 `src/modules/sales/pages/RevenueBoard.vue`
+（componentKey `sales/RevenueBoard`，菜单 `menu.revenue`，权限 `sales:revenue:view`）。
+
+**本看板不建表**，全部金额从既有业务表实时汇总：`ctr_contract` / `fin_settlement` / `fin_payment` /
+`task_task` / `sys_dict_item`（`biz_block` 字典）。
+
+### 1. 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/sales/revenue/board` | `sales:revenue:view` | 看板：按期间 / 业务线 / 客户 / 合同 / 月度四维汇总 |
+| GET | `/sales/revenue/caliber` | `sales:revenue:view` | 口径说明文本（`{caliber, caliberEn}`，与 board 的 caliber 一致） |
+| GET | `/sales/revenue/export` | `sales:revenue:view` | 导出「按客户」明细 xlsx（写审计 `module=sales` / `action=revenue_export`） |
+
+**查询参数**（全部可选，缺省 = 最近 12 个自然月）：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `from` | `YYYY-MM-DD` | 起始日期（含） |
+| `to` | `YYYY-MM-DD` | 截止日期（含） |
+| `biz_block` | string | 业务线（字典 `biz_block` 的 value），作用在三条流上 |
+| `customer_id` | int | 客户 `crm_customer.id`，作用在三条流上 |
+
+### 2. 统计口径（**三口径不可相加**）
+
+> 合同额 ≠ 收入确认口径。本看板按**签订 / 结算 / 收款**三种归期口径分别统计。
+
+| 口径 | 数据来源 | 计入条件 | 归期列 |
+|---|---|---|---|
+| **合同额** | `ctr_contract.amount` | `status = 'approved'`（已审批通过 = 已签订）；排除 `deleted != 0`、`draft` / `approving` / `rejected` / `voided` | `coalesce(start_date, date(create_time))` —— 合同表**没有** `sign_date` 列，取合同起始日，为空回落合同建立日 |
+| **结算额** | `fin_settlement.amount` | `status ∈ {pending, invoicing, invoiced, paid}` **且**（`confirm_status = 'confirmed'` 或 `status ∈ {invoicing, invoiced, paid}`）；排除 `deleted != 0`、`approving`（审批中）、`rejected`（驳回）、客户未确认 / 有异议的 pending 单 | `date(create_time)` —— 结算单**没有**日期列，取结算单建立日 |
+| **回款额** | `fin_payment.amount` | `status = 'confirmed'`（已复核确认到账）；排除 `deleted != 0`、`draft`（待复核）、`approving`（复核中）、`rejected`（驳回） | `paid_at`（到账日期） |
+
+派生指标：`已签未结算 = 合同额 − 结算额`、`已结算未回款 = 结算额 − 回款额`、
+`结算率 % = 结算额 / 合同额`、`回款率 % = 回款额 / 结算额`（分母为 0 时返回 0）。
+**无对应数据时返回 0 与空数组，不报错。**
+
+### 3. 业务线（`biz_block`）归类
+
+`biz_block` **只存在于 `task_task.biz_block`**，合同表与结算单都没有该列。归类规则
+（统一适用三条流，保证同一笔业务在三个口径里落到同一个桶）：
+
+- 合同：取其关联任务（`task_task.contract_id`）的 `biz_block` 去重集合；恰好 1 个 → 该业务线；
+  多个 → `multi`（混合）；0 个 → 回落其结算单所挂任务的 `biz_block`；仍无 → `unknown`（未分类）。
+- 结算单：先看其合同（按上面的合同归类），无合同时看其任务（`settlement.task_id`）。
+- 回款单：沿其结算单归类。
+
+字典 `biz_block` 的**真实取值**（`app/seeds/init_data.py::DICTS`，不臆造）：
+
+| value | 中文标签 | 英文标签 |
+|---|---|---|
+| `consulting_dept` | 工程咨询部 | Consulting Dept |
+| `model_center` | 模型加工中心 | Model Center |
+| `windtunnel_dept` | 风洞试验部 | Wind Tunnel Dept |
+| `cfd` | CFD仿真中心 | CFD Simulation Center |
+
+### 4. 响应结构
+
+`GET /sales/revenue/board` 返回：
+
+```jsonc
+{
+  "range":   { "from": "2026-01-01", "to": "2026-11-26" },
+  "summary": { "contractAmount": 0, "settledAmount": 0, "receivedAmount": 0,
+               "unsettledAmount": 0, "unreceivedAmount": 0,
+               "contractCount": 0, "customerCount": 0, "avgContractAmount": 0,
+               "receivableRate": 0, "collectionRate": 0 },
+  "byBizBlock":  [ { "bizBlock": "cfd", "bizBlockText": "CFD仿真中心", "bizBlockTextEn": "...",
+                     "contractAmount": 0, "settledAmount": 0, "receivedAmount": 0,
+                     "contractCount": 0, "customerCount": 0,
+                     "collectionRate": 0, "receivableRate": 0 } ],
+  "byCustomer":  [ { "customerId": 1, "customerName": "…",
+                     "contractAmount": 0, "settledAmount": 0, "receivedAmount": 0,
+                     "unsettledAmount": 0, "unreceivedAmount": 0, "contractCount": 0,
+                     "bizBlocks": ["CFD仿真中心"], "bizBlockCodes": ["cfd"],
+                     "collectionRate": 0, "receivableRate": 0 } ],
+  "byMonth":     [ { "month": "2026-01", "contractAmount": 0, "settledAmount": 0,
+                     "receivedAmount": 0, "contractCount": 0,
+                     "collectionRate": 0, "receivableRate": 0 } ],
+  "byContract":  [ { "contractId": 1, "contractNo": "…", "contractName": "…",
+                     "customerId": 1, "customerName": "…",
+                     "bizBlock": "cfd", "bizBlockText": "…", "bizBlockTextEn": "…",
+                     "amount": 0, "contractAmount": 0, "settledAmount": 0, "receivedAmount": 0,
+                     "signDate": "2026-01-01",
+                     "collectionRate": 0, "receivableRate": 0 } ],
+  "caliber":    { "contractAmount": "…", "settledAmount": "…", "receivedAmount": "…" },
+  "caliberEn":  { "contractAmount": "…", "settledAmount": "…", "receivedAmount": "…" }
+}
+```
+
+`caliber`（中）/ `caliberEn`（英）是**服务端下发的口径说明文案**，前端按 locale 展示，
+不把口径写死在前端。
+
+### 5. 前端 DTO（`frontend/src/api/sales.ts`，待合并到 `api/types.ts`）
+
+`RevenueQuery`、`RevenueRange`、`RevenueSummary`、`RevenueBizBlock`、`RevenueCustomer`、
+`RevenueMonth`、`RevenueContract`、`RevenueCaliber`、`RevenueBoard`；
+API 函数 `getRevenueBoard(params)` / `getRevenueCaliber()` / `exportRevenue(params)`。
+
+### 6. 错误码
+
+| 码 | 名称 | 文案 | 用途 |
+|---|---|---|---|
+| 64005 | `SALES_REVENUE_INVALID_STATE` | 当前营收统计口径不允许该操作 | 非法日期 / 起始日期晚于截止日期 |
+
+（`64005` 已在 `app/core/response.py` 与 `frontend/src/api/types.ts` 登记，**无需新增**。）
+
+
+## B6 设备台账 / 能耗采集 / 设备预警（CSV 67-69）
+
+后端 `app/modules/asset/equipment_models.py` + `equipment_schemas.py` + `equipment_router.py`
+（**asset 域的第三个 router**，与 `asset/router.py` / `finance_router.py` / `bom_router.py` 同前缀 `/asset`，
+在 `main.py` 以 `app.include_router(equipment_router, prefix="/api/v1")` 挂载）；
+前端 `src/modules/asset/pages/EquipmentList.vue`（componentKey `asset/EquipmentList`，菜单 `menu.equipment`）。
+
+### 1. 数据模型（`ast_` 前缀，均继承 `BaseModel`，删除走 `app/common/recycle.py::soft_delete`）
+
+| 表 | 说明 |
+|---|---|
+| `ast_equipment` | 设备台账：编号（唯一）/ 名称 / 类别（wind_tunnel·cfd·machining·test·other）/ 型号 / 规格 / 车间 / 安装位置 / 供应商（`crm_customer.id` + 名冗余）/ 购置日期 / 投产日期 / 原值 / 状态（idle·running·maintenance·fault·scrapped）/ 责任人 / 使用部门（`sys_dept`）/ 保养周期（天）/ 上次保养 / 下次保养 / 累计运行工时 |
+| `ast_equipment_metric` | 能耗与运行数据：设备 / 统计日 / 班次（day·night）/ 运行工时 / 停机工时 / 能耗 / 产量 / 来源（manual·schedule） |
+| `ast_equipment_alert` | 设备预警：预警编号 / 设备 / 规则类型（maintain_overdue·energy_abnormal·low_utilization·fault·status_abnormal）/ 级别（info·warning·critical）/ 标题 / 内容 / 状态（open·processing·closed）/ 触发时间 / 处理人 / 处理时间 / 处理结果 |
+
+**不新建组织 / 公司 / 权限表**：部门取 `sys_dept`，供应公司取 `crm_customer`，权限走 `sys_menu`。
+
+### 2. 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/asset/equipments` | `asset:equipment:list` | 列表：`q`（编号·名称·型号·规格）、`filters[status]` / `[category]` / `[workshop]` / `[dept_id]` / `[vendor_id]`、`range[purchase_date]` / `[commission_date]` / `[next_maintain_date]`、`sort` |
+| GET | `/asset/equipments/counts` | `asset:equipment:list` | 计数：`all` / `idle` / `running` / `maintenance` / `fault` / `scrapped` |
+| GET | `/asset/equipments/{id}` | `asset:equipment:list` | 详情 |
+| POST | `/asset/equipments` | `asset:equipment:create` | 新建（编号留空自动生成） |
+| PUT | `/asset/equipments/{id}` | `asset:equipment:edit` | 修改 |
+| DELETE | `/asset/equipments/{id}` | `asset:equipment:delete` | 软删（进回收站） |
+| GET | `/asset/equipment-metrics` | `asset:equipment:list` | 列表：`q`、`filters[equipment_id]` / `[shift]` / `[source]`、`range[stat_date]`、`sort`（默认 `stat_date` 倒序） |
+| POST | `/asset/equipment-metrics` | `asset:equipment:metric:create` | 采集一条能耗 / 运行数据 |
+| GET | `/asset/equipment-alerts` | `asset:equipment:list` | 列表：`q`（编号·设备·标题）、`filters[equipment_id]` / `[rule_type]` / `[level]` / `[status]`、`range[triggered_at]` |
+| GET | `/asset/equipment-alerts/counts` | `asset:equipment:list` | 计数：`all` / `open` / `processing` / `closed` |
+| POST | `/asset/equipment-alerts` | `asset:equipment:alert:create` | 手工登记预警 |
+| POST | `/asset/equipment-alerts/{id}/handle` | `asset:equipment:alert:handle` | 处理：`{status: processing\|closed, handleResult}`；已关闭不可重复处理 → `97011` |
+| POST | `/asset/equipment-alerts/scan` | `asset:equipment:alert:create` | 规则扫描生成预警，**幂等**（同设备同规则已有未关闭预警则跳过） |
+| GET | `/asset/equipment-board` | `asset:equipment:list` | 看板：状态分布 / 类别分布 / 能耗趋势 / Top5 能耗设备 / 预警级别分布 / 保养逾期数 |
+
+> **`/counts` 必须注册在 `/{id}` 之前**（FastAPI 按声明顺序匹配，先声明 `/{id}` 会把 `counts` 当 id 解析 → 422）。
+
+### 3. 预警扫描规则（`POST /asset/equipment-alerts/scan`）
+
+| 规则 | 触发条件 | 级别 |
+|---|---|---|
+| `maintain_overdue` 保养逾期 | `next_maintain_date < 今天` | warning |
+| `energy_abnormal` 能耗异常 | 近 30 天日均能耗 × 1.5 < 当日能耗（且有效样本 ≥ 3 天） | warning |
+| `low_utilization` 利用率偏低 | 近 30 天实际工时 < 8h/天 × 30 天 × 30%（= 72h） | info |
+| `fault` 设备故障 | 设备状态 = `fault` | critical |
+| `status_abnormal` 状态异常 | 状态 = `maintenance` 超过保养周期 / 投产日期为空等异常组合 | info |
+
+扫描**跳过已报废设备**（`scrapped`）。
+
+### 4. 错误码
+
+| 码 | 名称 | 文案 |
+|---|---|---|
+| 97010 | `ASSET_EQUIPMENT_NOT_FOUND` | 设备台账不存在 |
+| 97011 | `ASSET_EQUIPMENT_ALERT_INVALID_STATE` | 当前设备预警状态不允许该操作 |
+
+### 5. 迁移与清单
+
+- 迁移 `backend/alembic/versions/ng2b3c4d5e6_equipment_ledger.py`（`down_revision = nf2b3c4d5e6`，手写；
+  `alembic/env.py` 未 import asset 域的新模型文件，autogenerate 会误删表）。
+- 三张表已登记进 `app/modules/maintenance/service.py::_PURGE_TABLES`（子表在前：
+  `EquipmentAlert` → `EquipmentMetric` → `Equipment`）。
+- 编号规则 `equipment_alert`（前缀 `YJ`），由 `app/seeds/init_data.py::NUMBER_RULES` 登记。
+
+## B7 产能利用率看板（CSV 第 4 项）
+
+后端 `app/modules/production/capacity_router.py`（独立 router，变量名 `capacity_router`，
+在 `main.py` 以 `app.include_router(capacity_router, prefix="/api/v1")` 挂载，与 `production/router.py`
+同前缀 `/production`）；前端 `src/modules/production/pages/CapacityBoard.vue`
+（componentKey `production/CapacityBoard`，菜单 `menu.capacity`，权限 `production:capacity:list`）。
+
+**本看板不建表**，全部由 `prd_schedule`（生产排程明细）+ `ast_equipment`（设备台账）实时汇总。
+
+### 1. 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/production/capacity/board` | `production:capacity:list` | 总览：汇总 + 分类 / 车间 / 趋势 / 设备明细 / 冲突清单 |
+| GET | `/production/capacity/equipment/{equipmentId}` | `production:capacity:list` | 单设备下钻：设备指标 + 期间排程明细 + 每日利用率曲线 |
+
+**查询参数**（全部可选）：`from`（`YYYY-MM-DD`，默认最近 30 天）、`to`（默认今天）、
+`workshop`（车间过滤）、`category`（设备分类过滤）。
+
+### 2. 利用率口径
+
+1. **占用工时** = `prd_schedule` 中 `resource_type='equipment'` 且 `status ∈ {scheduled, published, confirmed, done}`
+   的 `duration_hours` 求和（缺失时按 `plan_end - plan_start` 推算）。
+   `status='conflict'` 的行**单独计入冲突数、不占用工时**；`cancelled` 不计入任何口径。
+   统计范围按 **`plan_start`** 落在 `[from 00:00:00, to 23:59:59]` 内。
+2. **可用工时** = 期间天数 × 24 × 设备可用系数：`idle`/`running` = 1.0，
+   `maintenance`/`fault` = 0.5（维护与故障按半算力折算），`scrapped` = 0（不计可用工时，利用率按 0）。
+3. **利用率** = 占用工时 ÷ 可用工时 × 100%，**允许 > 100%**（表示超负荷），> 100% 计入「超负荷设备数」。
+4. **平均利用率** = 期间内所有「可用工时 > 0」的设备的利用率算术平均（含零排程的闲置设备）。
+5. **台次利用率**：风洞等按台次计量的业务，用**排程行数**（`scheduleCount`）表达；
+   分类维度的 `scheduleCount` 即该分类期间内的风洞台次数。
+6. **排程行 ↔ 台账关联优先级**：**编号（`resource_code` = `equipment_no`） > 名称（`resource_name` = `name`） > id**。
+   排程行给了编号但台账查不到 → 按「未登记设备」处理（**不按 id 猜**，避免误配）。
+7. **趋势分桶**：区间 ≤ 31 天按日，否则按自然周（key 用该周周一日期）。
+
+**降级策略**：`ast_equipment` 缺失或查询失败时（表未建）按「无台账数据」降级 ——
+只按排程行的 `resource_id` / `resource_name` 聚合，`equipmentId` 为 null，可用工时按 24h/天计；
+查询用 SAVEPOINT 包裹，MySQL 报表不存在（1146）时回滚到保存点，接口不会 500。
+
+### 3. 响应结构
+
+```jsonc
+{
+  "range": { "from": "2026-10-28", "to": "2026-11-26" },
+  "summary": { "equipmentTotal": 0, "scheduledEquipment": 0, "avgUtilization": 0,
+               "totalScheduleHours": 0, "conflictCount": 0, "idleEquipment": 0,
+               "overloadEquipment": 0, "periodCount": 30 },
+  "byCategory":  [ { "category": "wind_tunnel", "categoryText": "风洞", "equipmentCount": 0,
+                     "scheduleHours": 0, "availableHours": 0, "utilization": 0,
+                     "scheduleCount": 0 } ],
+  "byWorkshop":  [ { "workshop": "一车间", "equipmentCount": 0, "scheduleHours": 0,
+                     "availableHours": 0, "utilization": 0 } ],
+  "equipment":   [ { "equipmentId": 1, "equipmentNo": "…", "equipmentName": "…",
+                     "category": "wind_tunnel", "categoryText": "风洞", "workshop": "…",
+                     "status": "running", "statusText": "运行中",
+                     "scheduleHours": 0, "availableHours": 0, "utilization": 0,
+                     "scheduleCount": 0, "conflictCount": 0, "taskCount": 0,
+                     "runHours": 0, "lastScheduleEnd": "…", "overloaded": false } ],
+  "trend":       [ { "bucket": "2026-11-01", "scheduleHours": 0, "availableHours": 0,
+                     "utilization": 0, "scheduleCount": 0, "conflictCount": 0 } ],
+  "conflicts":   [ { "scheduleNo": "…", "equipmentId": 1, "equipmentNo": "…",
+                     "equipmentName": "…", "taskNo": "…", "taskName": "…",
+                     "planStart": "…", "planEnd": "…", "reason": "…" } ]
+}
+```
+
+`GET /production/capacity/equipment/{id}` 返回 `{equipment, schedules[], metrics[]}`
+（`schedules` 为期间排程明细，`metrics` 为**按日**利用率曲线）。
+
+### 4. 错误码
+
+| 码 | 名称 | 文案 | 用途 |
+|---|---|---|---|
+| 99006 | `PRODUCTION_CAPACITY_NOT_FOUND` | 设备产能数据不存在 | 下钻的设备不在统计范围内 |
+
+（`99006` 已在 `app/core/response.py` 与 `frontend/src/api/types.ts` 双侧登记。）
+
+## B8 作业申请流程（叉车 / 吊装 / 高处 / 动火，CSV 第 32 项）
+
+**不新建模块** —— 复用 OA 域能力：单据落 `oa_instance`（`category='work_apply'`），
+流程定义走 `approval_definition`（`biz_type='oa'`，`code = work_apply_<x>_approve`）。
+种子 `app/seeds/work_apply_forms.py::import_work_apply_forms`（幂等，按 `OaForm.key` 跳过已存在的模板）。
+
+### 1. 模板（4 类）
+
+| `OaForm.key` | 名称 | 专属字段 |
+|---|---|---|
+| `work_apply_forklift` | 叉车作业申请 | 叉车编号/车牌、叉车司机、搬运物品说明 |
+| `work_apply_lifting` | 吊装作业申请 | 吊装设备/索具、吊装物重量（吨）、起重指挥/司索人员 |
+| `work_apply_height` | 高处作业申请 | 作业高度（米）、作业平台/防护设施、防坠落措施 |
+| `work_apply_hot_work` | 动火作业申请 | 动火方式（电焊/气割/明火加热/其他）、动火部位、气体瓶管理 |
+
+**四类共用字段**（OA 设计器直接消费）：申请人、作业部门、作业地点、作业时间（daterange）、
+作业内容、涉及设备/车辆、风险等级（低/中/高）、安全措施、应急联系人、联系电话。
+
+### 2. 审批链
+
+```
+开始 → 安全员审核（ROLE = security_officer，签署模式 or） → 部门负责人审批（DEPT_LEADER）
+```
+
+流程定义带 **10 项通用选项**（`ApprovalDefinition.options`，与 E1 企微模板同结构，
+缺省不配置即保持引擎既有行为）。
+
+### 3. 端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/oa/work-applies` | `oa:workapply:list` | 列表：`q`（单号·模板名·申请人）、`filters[status]` / `[form_key]`、`range[create_time]`、`sort` |
+| GET | `/oa/work-applies/counts` | `oa:workapply:list` | 计数：`all` / `running` / `approved` / `rejected` / `withdrawn` / `terminated` |
+| GET | `/oa/work-apply-catalog` | `oa:workapply:list` | 模板目录（4 类，含归一化后的字段结构 `fields`） |
+| GET | `/oa/work-applies/{id}` | `oa:workapply:list` | 详情：单据 + 表单结构 `schema` + 表单数据 `formData` + 审批时间线 `timeline` |
+| POST | `/oa/work-applies` | `oa:workapply:create` | 发起：`{formKey, data}`；走 `oa/service.py::apply`（发 OA 号 + 落库 + 进审批引擎），写审计 `work_apply_create` |
+| POST | `/oa/work-applies/{id}/cancel` | `oa:workapply:create` | 撤销：**仅申请人本人**且**仅审批中**可撤销（走 `approval/service.py::withdraw`），写审计 `work_apply_cancel` |
+
+**可见范围**：作业申请是「全厂可见的作业许可」，持有 `oa:workapply:list` 即可查看全量；
+撤销仅申请人本人（非本人 → `AUTH_FORBIDDEN` 403）。
+
+### 4. 错误码
+
+| 码 | 名称 | 文案 |
+|---|---|---|
+| 62006 | `OA_WORK_APPLY_INVALID_STATE` | 当前作业申请状态不允许该操作 |
+| 62007 | `OA_WORK_APPLY_NOT_FOUND` | 作业申请单不存在 |

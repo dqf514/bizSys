@@ -153,6 +153,62 @@ current: User = Depends(get_current_user)              # 仅登录
 - `app/modules/project/` — 项目与项目任务（甘特行）（`prj_project` + `prj_project_task`，`PJ` 单号）：项目状态机 `draft→planning→executing→accepting→closed`（仅 draft/cancelled 可删，99101）；甘特行可从任务自动生成（起止日期优先取已发布排程），进度按权重加权回算。
 - 三者**已通过流程注册表接入审批引擎**（项目立项、工时填报、回款复核、到货验收、资产处置均有 `POST .../submit`；见上文「流程注册表与事件开关」）。
 
+### 设备台账 / 能耗 / 预警（B6）与分析看板（B7）
+
+**B6 设备台账**（`app/modules/asset/equipment_models.py` + `equipment_schemas.py` + `equipment_router.py`，**asset 域第 4 个同前缀 router**，prefix `/asset`，变量名 `equipment_router`）：
+
+| 表 | 说明 |
+| --- | --- |
+| `ast_equipment` | 设备台账：编号（唯一）/ 名称 / 类别（wind_tunnel·cfd·machining·test·other）/ 型号 / 规格 / 车间 / 供应商（`crm_customer`）/ 状态（idle·running·maintenance·fault·scrapped）/ 责任人 / 使用部门（`sys_dept`）/ 保养周期 / 上次·下次保养 / 累计运行工时 |
+| `ast_equipment_metric` | 能耗与运行数据（按日 + 班次）：运行工时 / 停机工时 / 能耗 / 产量 / 来源（manual·schedule） |
+| `ast_equipment_alert` | 设备预警：保养逾期 / 能耗异常 / 利用率偏低 / 故障 / 状态异常，状态 `open→processing→closed` |
+
+- **不新建组织 / 公司 / 权限表**（同 asset 域惯例）：部门取 `sys_dept`，供应公司取 `crm_customer`。
+- `POST /asset/equipment-alerts/scan` **幂等**：同设备同规则已有未关闭预警则跳过；跳过已报废设备。
+- 三张表已登记进 `maintenance/service.py::_PURGE_TABLES`（子表在前：`EquipmentAlert` → `EquipmentMetric` → `Equipment`）。
+- 迁移 `ng2b3c4d5e6_equipment_ledger.py`（手写；`alembic/env.py` 未 import asset 域的新模型文件，autogenerate 会误删表）。
+
+**B7 产能利用率看板**（`app/modules/production/capacity_router.py`，prefix `/production`，变量名 `capacity_router`，**不建表**，实时汇总 `prd_schedule` + `ast_equipment`）：
+
+- **占用工时** = `prd_schedule` 中 `resource_type='equipment'` 且 `status ∈ {scheduled,published,confirmed,done}` 的 `duration_hours` 之和；`conflict` 行**单独计冲突数、不占工时**；`cancelled` 不计。按 `plan_start` 落在区间内统计。
+- **可用工时** = 天数 × 24 × 可用系数（idle/running = 1.0，maintenance/fault = 0.5，scrapped = 0）。
+- **利用率** = 占用 ÷ 可用 × 100%，**允许 > 100%**（超负荷）；台次利用率用**排程行数**表达。
+- **排程行 ↔ 台账匹配优先级：编号 > 名称 > id**（`resource_code`=equipment_no → `resource_name`=name → `resource_id`）；给了编号却查不到台账 → 按「未登记设备」处理，**不按 id 猜**。
+- **降级**：`ast_equipment` 表未建 / 查询失败时按「无台账数据」降级（SAVEPOINT 包裹查询，回滚到保存点，接口不 500）。
+
+**B7 营收分析看板**（`app/modules/sales/revenue_router.py`，prefix `/sales`，变量名 `revenue_router`，**不建表**）：
+
+- **三口径不可相加**：合同额（`ctr_contract` 且 `status='approved'`，归期 `coalesce(start_date, date(create_time))` —— 合同表**无** `sign_date` 列）/ 结算额（`fin_settlement` 且客户已确认或已开票收付款，归期 `date(create_time)` —— 结算单**无**日期列）/ 回款额（`fin_payment` 且 `status='confirmed'`，归期 `paid_at`）。
+- **业务线 `biz_block` 只存在于 `task_task`**；合同 → 其任务 `biz_block` 去重集合（多值 = `multi`，无值 = `unknown`），结算单沿合同或自身任务，回款沿结算单 —— 保证同一笔业务三个口径落同一个桶。
+- 字典 `biz_block` 真实取值：`consulting_dept` / `model_center` / `windtunnel_dept` / `cfd`（**不是** `wind_tunnel` / `machining`）。
+- 口径说明由服务端下发（`caliber` / `caliberEn`），**前端不写死口径文案**。
+
+### 安全巡检与作业申请（B8）
+
+**安全巡检域**（`app/modules/safety/`，四件套齐全，prefix `/safety`，表前缀 `saf_`）：
+
+| 表 | 说明 |
+| --- | --- |
+| `saf_inspection_plan` | 巡检计划：类型（daily·weekly·monthly·special）/ 区域 / 巡检项（JSON 文本）/ 周期天数 / 下次巡检日 / 负责人 / 状态（active·paused·finished） |
+| `saf_inspection` | 巡检记录：结果（normal·abnormal）/ 异常项数 / 逐项结果（JSON 文本）/ 状态（draft·submitted·closed） |
+| `saf_hazard` | 隐患：等级（low·medium·high·critical）/ 状态（open·rectifying·verified·closed）/ 责任人 / 整改期限 / 整改措施 / 验证结论 |
+
+- 状态机：`saf_inspection` `draft → submit → submitted → close（关联隐患全关闭）→ closed`；
+  `saf_hazard` `open → rectify → rectifying → rectify → verified → verify(pass) → closed`（verify 不通过退回 `rectifying`）。
+- **巡检记录提交时按异常项自动生成隐患**（`POST /safety/inspections/{id}/submit` 返回 `{record, hazards:[id]}`）。
+- 单号 `JH`（计划）/ `XJ`（记录）/ `YH`（隐患），由 `NUMBER_RULES` 登记；软删编号不复用。
+- 迁移 `nh2b3c4d5e6_safety_inspection.py`（手写；`alembic/env.py` 未 import safety 域 models）。
+- 权限码 `safety:inspection:{list,create,edit,delete,submit}` + `safety:hazard:{list,create,rectify,verify}`，角色 `security_officer` 已带全。
+
+**作业申请流程**（B8 CSV 32）—— **不新建模块**，复用 OA 域：单据落 `oa_instance`（`category='work_apply'`），
+流程定义走 `approval_definition`（`biz_type='oa'`，`code = work_apply_<x>_approve`）。
+
+- 4 类模板：`work_apply_forklift` / `work_apply_lifting` / `work_apply_height` / `work_apply_hot_work`
+  （叉车 / 吊装 / 高处 / 动火），共用字段（申请人·作业部门·作业地点·作业时间·作业内容·涉及设备·风险等级·安全措施·应急联系人·联系电话）+ 各自专属字段。
+- 审批链：**安全员审核（ROLE=`security_officer`）→ 部门负责人审批（DEPT_LEADER）**；带 10 项通用选项。
+- 种子 `app/seeds/work_apply_forms.py::import_work_apply_forms`（幂等，按 `OaForm.key` 跳过已存在模板）。
+- 路由 `app/modules/oa/workapply_router.py`（prefix `/oa`，变量名 `router`）；**撤销仅申请人本人且仅审批中**。
+
 ### HR L1 组织与人事（B10-1）
 
 > 对应《人力资源管理模块功能说明》**L1 基础人事**。组织架构与员工主数据是其余所有域的地基 ——
@@ -362,6 +418,13 @@ current: User = Depends(get_current_user)              # 仅登录
 - **multipart 表单字段用 snake_case**（B11）：知识库上传是 `space_id` / `folder_id` / `category_id`（**不是** camelCase）—— 与 contract / crm / portal / report 的上传一致；**只有查询参数走 camelCase 别名**。
 - **外部分享链接的 `access` 令牌走查询参数**（B11）：公开端点没有 Authorization 头，令牌由 `POST /knowledge/public/links/{token}/verify` 换取（Redis，2 小时），后续公开请求用 `?access=` 带上。前端公开页 `/knowledge/share/:token` 是**免登录公开路由**（`guards.ts::PUBLIC_PREFIX_PATHS`），不要给它加登录守卫。
 - **B11 新表（`kb_*` / `sys_recycle_bin`）不在 `alembic/env.py` 的 metadata 里** —— 迁移**必须手写**（`ne2b3c4d5e6_knowledge_recycle.py`），autogenerate 会误删表。`sys_recycle_bin` 要登记进 `maintenance/service.py::_PURGE_TABLES`；`kb_link_log` 是只追加的合规留痕，登记进 `RETAINED_AUDIT_TABLES`（**不清空**）。
+- **`ListTable` 不透出 `#cell` 具名槽**（B8）：`ListTable` 内部把 `ResponsiveTable` 的 `cell` 槽翻译成**按列名派发**的具名槽（名字 = `col.slot || col.prop`），所以页面里写 `<template #cell="{ row, col }">` 会被**静默忽略**（既不报错也不渲染）。自定义单元格要用**列名槽**：`<template #planNo="{ row }">…</template>`，或给列加 `slot: 'xxx'` 后用 `#xxx`。`#cell` 只有直接用 `ResponsiveTable` 时才有效。
+- **`/counts` 这类静态路径必须注册在 `/{id}` 之前**（B8）：FastAPI 按**声明顺序**匹配，先声明 `/{id}` 会把 `counts` 当路径参数解析 → 422。设备台账 / 巡检 / 隐患 / 作业申请四个列表都踩过这个坑。
+- **`ast_equipment` 与 `saf_*` 表不在 `alembic/env.py` 的 metadata 里** —— 迁移**必须手写**（`ng2b3c4d5e6_equipment_ledger.py` / `nh2b3c4d5e6_safety_inspection.py`），autogenerate 会误删表。迁移链单线无分支，当前 head = `nh2b3c4d5e6`。
+- **产能看板读 `ast_equipment` 必须能降级**（B7）：`production/capacity_router.py` 用 SAVEPOINT 包裹查询，表未建时回滚到保存点并按「无台账数据」降级，**不要改成直接抛错** —— 否则设备台账批次没上线时整个看板 500。
+- **`biz_block` 只在 `task_task` 上**（B7）：合同表与结算单都没有业务线列。归类必须走「合同 → 任务 → `biz_block`」，且三口径（合同额/结算额/回款额）用**同一套归类规则**，否则同一笔业务在三个口径里落到不同桶。字典真实取值是 `consulting_dept` / `model_center` / `windtunnel_dept` / `cfd`。
+- **安全巡检的 `itemsJson` 是 camelCase 别名**（B8）：逐项结果字段在接口层叫 `itemsJson`（库列 `items_json`），计划巡检项清单叫 `checkItems` —— multipart / 表单字段用 snake_case、查询参数才用 camelCase，本仓惯例别混。
+- **作业申请复用 OA 域**（B8）：单据是 `oa_instance`（`category='work_apply'`），**不要另建单据表**；撤销走 `approval/service.py::withdraw`（仅申请人本人 + 仅审批中）。
 
 ## 合规基线（B9）
 

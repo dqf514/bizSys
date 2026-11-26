@@ -104,6 +104,7 @@ from app.modules.aicenter.router import cap_router as ai_cap_router  # noqa: E40
 from app.modules.aicenter.router import router as aicenter_router  # noqa: E402
 from app.modules.approval.router import router as approval_router  # noqa: E402
 from app.modules.asset.bom_router import router as asset_bom_router  # noqa: E402  BOM 物料清单（B4）
+from app.modules.asset.equipment_router import equipment_router  # noqa: E402  设备台账/能耗/预警（B6）
 from app.modules.asset.finance_router import router as asset_finance_router  # noqa: E402
 from app.modules.asset.router import router as asset_router  # noqa: E402
 from app.modules.auth.router import router as auth_router  # noqa: E402
@@ -122,15 +123,19 @@ from app.modules.integration.router import router as integration_router  # noqa:
 from app.modules.knowledge.router import router as knowledge_router  # noqa: E402  知识与文档中心（B11）
 from app.modules.maintenance.router import router as maintenance_router  # noqa: E402
 from app.modules.oa.router import router as oa_router  # noqa: E402  OA 审批流程（F5 订阅由 wiring.install 装配）
+from app.modules.oa.workapply_router import router as oa_workapply_router  # noqa: E402  作业申请流程（B8）
 from app.modules.portal.experience_router import router as portal_exp_router  # noqa: E402  门户对外能力（F6）
 from app.modules.portal.router import router as portal_router  # noqa: E402  合作方门户（独立认证）
 from app.modules.portal.visit_router import router as portal_visit_router  # noqa: E402  门户访客预约（F6）
 from app.modules.procurement.router import router as procurement_router  # noqa: E402  采购审批（F5 订阅见 wiring）
 from app.modules.procurement.tender_router import router as tender_router  # noqa: E402
+from app.modules.production.capacity_router import capacity_router  # noqa: E402  产能利用率看板（B7）
 from app.modules.production.router import router as production_router  # noqa: E402  生产排程（B5）
 from app.modules.project.router import router as project_router  # noqa: E402  项目与甘特（B5）
 from app.modules.recycle.router import router as recycle_router  # noqa: E402  全站回收站（B11）
 from app.modules.report.router import router as report_router  # noqa: E402
+from app.modules.safety.router import router as safety_router  # noqa: E402  安全巡检管理（B8）
+from app.modules.sales.revenue_router import router as revenue_router  # noqa: E402  营收分析看板（B7）
 from app.modules.sales.router import router as sales_router  # noqa: E402  报价审批（F5 订阅由 wiring.install 装配）
 from app.modules.settings.router import public_router  # noqa: E402
 from app.modules.settings.router import router as settings_router  # noqa: E402
@@ -160,23 +165,28 @@ app.include_router(hr_emp_router, prefix="/api/v1")
 app.include_router(hr_employment_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
+app.include_router(revenue_router, prefix="/api/v1")
 app.include_router(aicenter_router, prefix="/api/v1")
 app.include_router(ai_cap_router, prefix="/api/v1")
 app.include_router(oa_router, prefix="/api/v1")
+app.include_router(oa_workapply_router, prefix="/api/v1")
 app.include_router(procurement_router, prefix="/api/v1")
 app.include_router(tender_router, prefix="/api/v1")
 app.include_router(asset_router, prefix="/api/v1")
 app.include_router(asset_bom_router, prefix="/api/v1")
 app.include_router(asset_finance_router, prefix="/api/v1")
+app.include_router(equipment_router, prefix="/api/v1")
 app.include_router(portal_router, prefix="/api/v1")
 app.include_router(portal_visit_router, prefix="/api/v1")
 app.include_router(portal_exp_router, prefix="/api/v1")
 app.include_router(production_router, prefix="/api/v1")
+app.include_router(capacity_router, prefix="/api/v1")
 app.include_router(project_router, prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
 app.include_router(maintenance_router, prefix="/api/v1")
 app.include_router(recycle_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
+app.include_router(safety_router, prefix="/api/v1")
 
 # F5：流程与事件订阅的**显式装配**。
 # 以前各域在 service.py 模块级 subscribe()，靠上面那些 noqa import 才会生效 ——

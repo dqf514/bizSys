@@ -35,6 +35,11 @@ from app.modules.approval.models import (
     ApprovalTask,
     ApprovalViewState,
 )
+from app.modules.asset.equipment_models import (
+    Equipment,
+    EquipmentAlert,
+    EquipmentMetric,
+)
 from app.modules.asset.models import (
     Bom,
     BomLine,
@@ -117,6 +122,7 @@ from app.modules.production.models import ProdPlan, ProdSchedule
 from app.modules.project.models import Project, ProjectTask
 from app.modules.recycle.models import RecycleBin
 from app.modules.report.models import Report, ReportFile
+from app.modules.safety.models import SafetyHazard, SafetyInspection, SafetyInspectionPlan
 from app.modules.sales.models import SalesQuotation, SalesQuotationItem, SalesQuoteSendLog, SalesQuoteTemplate
 from app.modules.settings.service import get_value, set_value
 from app.modules.task.models import (
@@ -155,6 +161,14 @@ DEFAULT_RETENTION = 7
 
 # 清空表清单（子表在前，注意外键顺序）
 _PURGE_TABLES = [
+    # 设备台账 / 能耗 / 预警（B6，子表在前）
+    EquipmentAlert,
+    EquipmentMetric,
+    Equipment,
+    # 安全巡检域（B8，子表在前）
+    SafetyHazard,
+    SafetyInspection,
+    SafetyInspectionPlan,
     # 知识与文档中心（B11，子表在前）；kb_link_log 是只追加的外部访问留痕 —— 见 RETAINED_AUDIT_TABLES
     KnowledgeVersion,
     KnowledgePermission,

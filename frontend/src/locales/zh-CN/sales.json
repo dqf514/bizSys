@@ -166,5 +166,67 @@
     "signature": "供方（签章）：",
     "customerSign": "需方（签章）：",
     "draftWatermark": "草稿（未审批）"
+  },
+  "revenue": {
+    "title": "营收分析看板",
+    "subtitle": "按业务线 / 客户 / 合同 / 期间分析营收",
+    "range": "统计期间",
+    "rangeStart": "开始日期",
+    "rangeEnd": "结束日期",
+    "bizBlock": "业务线",
+    "bizBlockAll": "全部业务线",
+    "customer": "客户",
+    "customerAll": "全部客户",
+    "refresh": "刷新",
+    "export": "导出客户明细",
+    "amountUnit": "元",
+    "rateUnit": "%",
+    "bizMulti": "混合",
+    "bizUnknown": "未分类",
+    "summary": {
+      "contractAmount": "合同总额",
+      "settledAmount": "结算总额",
+      "receivedAmount": "回款总额",
+      "unsettledAmount": "已签未结算",
+      "unreceivedAmount": "已结算未回款",
+      "receivableRate": "回款率",
+      "contractCount": "合同数",
+      "customerCount": "客户数",
+      "avgContractAmount": "合同均值"
+    },
+    "chart": {
+      "trend": "月度三口径趋势",
+      "byBlock": "业务线营收构成",
+      "rate": "回款率 vs 结算率",
+      "empty": "当前期间暂无数据"
+    },
+    "series": {
+      "contractAmount": "合同额",
+      "settledAmount": "结算额",
+      "receivedAmount": "回款额",
+      "collectionRate": "结算率",
+      "receivableRate": "回款率"
+    },
+    "table": {
+      "customerTitle": "客户营收排名",
+      "contractTitle": "合同明细",
+      "customer": "客户",
+      "contractName": "合同名称",
+      "contractNo": "合同编号",
+      "signDate": "签订日期",
+      "contractCount": "合同数",
+      "bizBlocks": "业务线",
+      "collectionRate": "结算率",
+      "receivableRate": "回款率",
+      "empty": "当前期间暂无数据"
+    },
+    "caliber": {
+      "title": "口径说明",
+      "contractAmount": "合同额",
+      "settledAmount": "结算额",
+      "receivedAmount": "回款额",
+      "tip": "合同额 ≠ 收入确认口径：本看板按签订 / 结算 / 收款三种归期口径分别统计，三者不可直接相加或相减得「收入」。",
+      "tipTitle": "口径提示"
+    }
   }
 }

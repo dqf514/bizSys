@@ -203,7 +203,14 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "asset/EquipmentList",
                 "Monitor",
                 "asset:equipment:list",
-                [],
+                [
+                    (None, "eq-create", "", "", "", "asset:equipment:create", []),
+                    (None, "eq-edit", "", "", "", "asset:equipment:edit", []),
+                    (None, "eq-delete", "", "", "", "asset:equipment:delete", []),
+                    (None, "eq-metric-create", "", "", "", "asset:equipment:metric:create", []),
+                    (None, "eq-alert-create", "", "", "", "asset:equipment:alert:create", []),
+                    (None, "eq-alert-handle", "", "", "", "asset:equipment:alert:handle", []),
+                ],
             ),
             (
                 "menu.schedule",
@@ -864,7 +871,9 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
             ("menu.oaRelated", "OaRelated", "/oa/related", "oa/Related", "Bell", "oa:related", []),
             ("menu.oaStats", "OaStats", "/oa/stats", "oa/StatsBoard", "DataAnalysis", "oa:stats:view", []),
             # 作业申请（叉车/吊装/高处/动火）：权限码独立，避免与新申请的 oa:apply 撞车
-            ("menu.workApply", "WorkApply", "/oa/work-apply", "oa/WorkApplyList", "Tools", "oa:workapply:list", []),
+            ("menu.workApply", "WorkApply", "/oa/work-apply", "oa/WorkApplyList", "Tools", "oa:workapply:list", [
+                (None, "workapply-create", "", "", "", "oa:workapply:create", []),
+            ]),
             # 流程待办：原顶层隐藏菜单，解除隐藏并迁入「流程与办公」
             ("menu.approval", "ApprovalCenter", "/approval", "approval/TodoList", "Stamp", "approval:view", []),
             ("menu.messages", "Messages", "/messages", "message/MessageCenter", "Bell", "message:center:view", []),
@@ -984,7 +993,16 @@ MENU_TREE = [    ("menu.workbench", "Workbench", "/workbench", "workbench/Dashbo
                 "safety/InspectionList",
                 "FirstAidKit",
                 "safety:inspection:list",
-                [],
+                [
+                    (None, "sf-inspection-create", "", "", "", "safety:inspection:create", []),
+                    (None, "sf-inspection-edit", "", "", "", "safety:inspection:edit", []),
+                    (None, "sf-inspection-delete", "", "", "", "safety:inspection:delete", []),
+                    (None, "sf-inspection-submit", "", "", "", "safety:inspection:submit", []),
+                    (None, "sf-hazard-list", "", "", "", "safety:hazard:list", []),
+                    (None, "sf-hazard-create", "", "", "", "safety:hazard:create", []),
+                    (None, "sf-hazard-rectify", "", "", "", "safety:hazard:rectify", []),
+                    (None, "sf-hazard-verify", "", "", "", "safety:hazard:verify", []),
+                ],
             ),
         ],
     ),
@@ -1593,6 +1611,12 @@ NUMBER_RULES = [
     ("hr_authorization", "", "AU", 4, 2, 2, 4, 1, "", "daily", "AU202611230001"),
     # 人事事务单号（B10-1 入职/调岗/离职/返聘）
     ("hr_employment", "", "EM", 4, 2, 2, 4, 1, "", "daily", "EM202611230001"),
+    # 设备台账与预警单号（B6 设备预警 / 能耗）
+    ("equipment_alert", "", "YJ", 4, 2, 2, 4, 1, "", "daily", "YJ202611260001"),
+    # 安全巡检域单号（B8 巡检计划 / 巡检记录 / 隐患）
+    ("safety_plan", "", "JH", 4, 2, 2, 4, 1, "", "daily", "JH202611260001"),
+    ("safety_inspection", "", "XJ", 4, 2, 2, 4, 1, "", "daily", "XJ202611260001"),
+    ("safety_hazard", "", "YH", 4, 2, 2, 4, 1, "", "daily", "YH202611260001"),
 ]
 
 # (name, code, parent_code)：总经办为根，演示上下级多级审批
@@ -1727,6 +1751,19 @@ VISITOR_PERMS = [
     "visitor:handover:create",
     "visitor:alert:list",
     "visitor:alert:handle",
+]
+
+# 安全巡检域权限（B8 CSV 24）—— 安保员是巡检与隐患整改的主责岗位
+SAFETY_PERMS = [
+    "safety:inspection:list",
+    "safety:inspection:create",
+    "safety:inspection:edit",
+    "safety:inspection:delete",
+    "safety:inspection:submit",
+    "safety:hazard:list",
+    "safety:hazard:create",
+    "safety:hazard:rectify",
+    "safety:hazard:verify",
 ]
 
 
@@ -1867,6 +1904,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         "sales:revenue:view",
         "hr:staff:list",
         "oa:workapply:list",
+        "oa:workapply:create",
         "portal:self:view",
         "portal:order:create",
         # —— 客户自助体系（B2）——
@@ -1941,7 +1979,7 @@ def _seed_roles(db: Session, perm_to_id: dict[str, int]) -> Role:
         db.add(security_role)
         db.flush()
     db.query(RoleMenu).filter(RoleMenu.role_id == security_role.id).delete()
-    for p in VISITOR_PERMS:
+    for p in [*VISITOR_PERMS, *SAFETY_PERMS, "approval:view"]:
         if p in perm_to_id:
             db.add(RoleMenu(role_id=security_role.id, menu_id=perm_to_id[p]))
 
@@ -2883,9 +2921,25 @@ def main() -> None:
 
         wt_summary = wecom_templates.import_templates(db)
         db.commit()
+        # B6 设备台账 / 能耗 / 预警（幂等）
+        from app.seeds import equipment_seed  # noqa: PLC0415 避免种子与模块加载循环
+
+        eq_summary = equipment_seed.import_equipment(db)
+        db.commit()
+        # B8 安全巡检：计划 / 记录 / 隐患（幂等）
+        from app.seeds import safety_seed  # noqa: PLC0415 避免种子与模块加载循环
+
+        sf_summary = safety_seed.import_safety(db)
+        db.commit()
+        # B8 作业申请流程：叉车 / 吊装 / 高处 / 动火 4 类表单 + 审批定义（幂等）
+        from app.seeds import work_apply_forms  # noqa: PLC0415 避免种子与模块加载循环
+
+        wa_summary = work_apply_forms.import_work_apply_forms(db)
+        db.commit()
         print(
             f"seed ok: menus={len(perm_to_id)} perms, dicts={len(DICTS)}, rules={len(NUMBER_RULES)}, "
-            f"wecom_org={wc_summary}, wecom_templates={wt_summary}"
+            f"wecom_org={wc_summary}, wecom_templates={wt_summary}, "
+            f"equipment={eq_summary}, safety={sf_summary}, work_apply={wa_summary}"
         )
     except Exception:
         db.rollback()

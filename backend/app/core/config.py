@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     debug: bool = False
     # 应用版本号（语义化版本）：必须与 CHANGELOG.md 顶部版本、frontend/package.json、
     # backend/pyproject.toml 三处一致（tests/test_changelog.py 校验）
-    app_version: str = "0.13.2"
+    app_version: str = "0.14.0"
 
     db_url: str = "mysql+pymysql://root:bizsys123@127.0.0.1:3307/bizsys?charset=utf8mb4"
     redis_url: str = "redis://127.0.0.1:6379/0"
