@@ -112,7 +112,6 @@
     "sidenavWidth": "200px",
     "sidenavCollapsedWidth": "64px",
     "contentPadding": "16px",
-    "contentNarrowMaxWidth": "960px",
     "contentMaxWidth": "1200px",
     "formMaxWidth": "640px",
     "fieldMaxWidth": "420px",

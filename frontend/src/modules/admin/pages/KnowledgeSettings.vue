@@ -65,7 +65,7 @@ async function save() {
       </template>
     </PageHeader>
 
-    <div class="bs-page-card bs-page--narrow">
+    <div class="bs-page-card">
       <el-form label-position="top" v-loading="loading">
         <el-form-item :label="t('knowledge.settings.allowedExt')">
           <el-select

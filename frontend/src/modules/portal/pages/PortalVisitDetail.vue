@@ -80,7 +80,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="bs-page bs-page--narrow portal-visit-detail">
+  <div v-loading="loading" class="bs-page portal-visit-detail">
     <div class="bs-page-header">
       <h2 class="bs-page-title">{{ t('portal.portal.visits.detail.title') }}</h2>
       <div class="bs-page-actions">

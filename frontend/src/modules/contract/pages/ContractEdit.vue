@@ -436,7 +436,7 @@ function appendReviewToRemark() {
 </script>
 
 <template>
-  <div class="bs-page bs-page--scroll bs-page--narrow" v-loading="loading">
+  <div class="bs-page bs-page--scroll" v-loading="loading">
     <div class="bs-page-header">
       <h2 class="bs-page-title">{{ isEdit ? t('contract.contract.edit') : t('contract.contract.create') }}</h2>
       <div class="bs-page-actions">
@@ -746,6 +746,11 @@ function appendReviewToRemark() {
 </template>
 
 <style scoped>
+/* 表单列收窄到全站表单宽度（页面根满宽，表单自身限宽） */
+.edit-form {
+  max-width: var(--bs-layout-form-max-width);
+}
+
 .att-groups {
   display: flex;
   flex-direction: column;

@@ -440,12 +440,13 @@ canvas/SVG 里 `var()` 无效，用 `src/utils/chartTheme.ts::resolveToken(name,
 | `.bs-page` | 页面根容器：16px 内边距（`--bs-layout-content-padding`）、`--bs-color-bg-app` 底色、12px 区块间距 |
 | `.bs-page--fill` | 填满滚动视口（列表页模型，表格内部滚动） |
 | `.bs-page--scroll` | 页面自身滚动（详情页模型） |
-| `.bs-page--narrow` | **页面根的修饰类**（与 `.bs-page` 同时使用）：单栏表单/文档页把内容列限宽 960px 居中 |
 | `.bs-page--flush` | 去掉内边距（容器已由 `ListPage` 提供） |
 | `.bs-page-card` / `--flush` | 页面内的白卡内容块 |
 | `.bs-page-header` / `.bs-page-title` / `.bs-page-actions` | 页面头部（用 `components/common/PageHeader.vue`，不要重复定义标题样式） |
 
-宽度令牌（`pnpm token:build` 生成）：`--bs-layout-content-padding`（16px，窄屏回落 12px）、`--bs-layout-content-narrow-max-width`（960px）、`--bs-layout-form-max-width`（640px）、`--bs-layout-field-max-width`（420px）、`--bs-layout-section-gap`（12px）、抽屉 5 档 `--bs-layout-drawer-{xs,sm,md,lg,xl}`、弹窗 5 档 `--bs-layout-dialog-{xs,sm,md,lg,xl}`。**抽屉/弹窗宽度只能引用这 10 个令牌**，禁止裸 px / 百分比。
+宽度令牌（`pnpm token:build` 生成）：`--bs-layout-content-padding`（16px，窄屏回落 12px）、`--bs-layout-content-max-width`（1200px，门户内容列）、`--bs-layout-form-max-width`（640px）、`--bs-layout-field-max-width`（420px）、`--bs-layout-section-gap`（12px）、抽屉 5 档 `--bs-layout-drawer-{xs,sm,md,lg,xl}`、弹窗 5 档 `--bs-layout-dialog-{xs,sm,md,lg,xl}`。**抽屉/弹窗宽度只能引用这 9 个令牌**，禁止裸 px / 百分比。
+
+**页面根一律满宽，不有限宽修饰类**（`bs-page--narrow` 与 `--bs-layout-content-narrow-max-width` 令牌已于 0.13.2 删除）。表单列要收窄就在**表单自身**上用 `--bs-layout-form-max-width`（640px）/ `--bs-layout-field-max-width`（420px）—— 限宽的页面根会让内容挤在页面中间一小块、两侧大片留白，与全站其它页面不一致（「流程与事件开关」就是这样被挤窄的）。设置页的区块卡沿用 `SystemSettings` 的写法：`el-card shadow="never"` + `#header` 里包一层 `card-title`（`font-weight: 600`）。
 
 **三条不变量（改错就崩）**：
 

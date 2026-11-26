@@ -365,7 +365,7 @@ onMounted(() => void aiCaps.ensureLoaded())
 }
 
 .apply-body {
-  max-width: var(--bs-layout-content-narrow-max-width);
+  max-width: var(--bs-layout-form-max-width);
   margin: 0 auto;
   width: 100%;
 }

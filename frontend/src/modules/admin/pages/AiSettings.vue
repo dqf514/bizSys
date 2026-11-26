@@ -115,7 +115,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="bs-page bs-page--scroll bs-page--narrow" v-loading="loading">
+  <div class="bs-page bs-page--scroll" v-loading="loading">
     <PageHeader :title="t('ai.settings.title')" />
 
     <el-alert

@@ -31,7 +31,7 @@ async function ask() {
 </script>
 
 <template>
-  <div class="bs-page bs-page--narrow kb-ask">
+  <div class="bs-page kb-ask">
     <div class="kb-ask-head">
       <h3 class="kb-title">{{ t('ai.knowledge.askTitle') }}</h3>
     </div>

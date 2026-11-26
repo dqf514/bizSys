@@ -249,7 +249,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="bs-page bs-page--narrow" v-loading="loading">
+  <div class="bs-page" v-loading="loading">
     <section class="profile-hero">
       <button
         class="avatar-wrap"

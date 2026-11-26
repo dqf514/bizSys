@@ -68,13 +68,15 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="bs-page bs-page--scroll bs-page--narrow" v-loading="loading">
+  <div class="bs-page bs-page--scroll" v-loading="loading">
     <PageHeader :title="t('admin.automation.title')" />
 
     <el-alert type="info" :closable="false" :title="t('admin.automation.intro')" class="intro-alert" />
 
     <el-card shadow="never" class="section-card">
-      <template #header>{{ t('admin.automation.flowSection') }}</template>
+      <template #header>
+        <span class="card-title">{{ t('admin.automation.flowSection') }}</span>
+      </template>
       <div class="field-tip">{{ t('admin.automation.flowTip') }}</div>
       <el-table :data="flows" size="small">
         <el-table-column :label="t('admin.automation.bizType')" min-width="130">
@@ -133,7 +135,9 @@ onMounted(load)
     </el-card>
 
     <el-card shadow="never" class="section-card">
-      <template #header>{{ t('admin.automation.eventSection') }}</template>
+      <template #header>
+        <span class="card-title">{{ t('admin.automation.eventSection') }}</span>
+      </template>
       <div class="field-tip">{{ t('admin.automation.eventTip') }}</div>
       <div v-for="ev in events" :key="ev.event" class="event-group">
         <div class="event-head">
@@ -176,6 +180,10 @@ onMounted(load)
 <style scoped>
 .intro-alert {
   margin-bottom: var(--bs-space-3);
+}
+
+.card-title {
+  font-weight: 600;
 }
 
 .section-card {
