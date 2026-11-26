@@ -265,6 +265,7 @@ current: User = Depends(get_current_user)              # 仅登录
 - **分类 / 空间管理不再是独立导航入口**：能力并入文档中心页面的抽屉（`modules/knowledge/components/CategoryManager.vue` / `SpaceManager.vue`）；分类树仍是多级可定义的，**留作后续企业门户展示制度文档的可选项**。
 - **菜单下线机制**：种子 `init_data.py::REMOVED_MENUS` + `_retire_menus()` —— 逻辑删除菜单并**物理删除 `sys_role_menu`** 后把授权改挂到同权限码的新按钮上（`sys_role_menu` 不按 `deleted` 过滤，软删收不回权限）。
 - 权限码 `knowledge:category:list` / `:edit` / `knowledge:space:list` / `:edit` 改挂在 `menu.knowledgeDocuments` 的**按钮子项**（`knowledge-doc-category-*` / `knowledge-doc-space-*`）。
+- **左右两栏的根容器必须显式 `flex-direction: row`**：页面根同时挂了 `.bs-page`（基类是 `flex-direction: column`）—— scoped 样式虽特异性更高，但**没写到的属性仍继承基类**。漏写会让左栏被纵向排列，且左栏的 `flex: 0 0 240px` 变成**高度**约束（被压成 240px 高、目录挤成一团），主区被挤到左栏下方。左栏内部：搜索 / 页签 / 页脚 `flex: none`，导航区是唯一可滚动段（`flex: 1 1 auto; min-height: 0; overflow-y: auto`）。
 
 ### 全站统一回收站（B11）
 

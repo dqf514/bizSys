@@ -1450,30 +1450,42 @@ async function copyLink() {
 </template>
 
 <style scoped>
+/* 根容器：左右两栏（微盘式）。
+   注意 `.bs-page` 基类是 `flex-direction: column`，这里必须显式改回 row，
+   否则左栏会被当成纵向排列、主区落到下方。 */
 .drive {
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
   gap: 0;
   padding: 0;
   overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }
 
 /* ---------------- 左栏 ---------------- */
 .drive-side {
-  width: 240px;
-  flex: 0 0 240px;
+  width: 260px;
+  flex: 0 0 260px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
   padding: var(--bs-space-3) var(--bs-space-2);
   border-right: 1px solid var(--bs-color-border-subtle);
   background: var(--bs-color-bg-surface);
 }
 
 .drive-search {
+  flex: none;
   margin-bottom: var(--bs-space-2);
 }
 
 .drive-tabs {
+  flex: none;
   display: flex;
   gap: var(--bs-space-1);
   padding-bottom: var(--bs-space-2);
@@ -1501,10 +1513,12 @@ async function copyLink() {
   font-weight: 600;
 }
 
+/* 导航区：唯一可滚动的一段，与页脚互不重叠 */
 .drive-nav {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--bs-space-2) 0;
 }
 
@@ -1534,10 +1548,11 @@ async function copyLink() {
   display: flex;
   align-items: center;
   gap: var(--bs-space-2);
-  padding: var(--bs-space-1) var(--bs-space-2);
+  padding: var(--bs-space-2);
   border-radius: var(--bs-radius-sm);
   color: var(--bs-color-fg-default);
   font-size: var(--bs-typography-font-size-sm);
+  line-height: 1.5;
   cursor: pointer;
 }
 
@@ -1565,12 +1580,18 @@ async function copyLink() {
 }
 
 .drive-side-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bs-space-2);
   padding-top: var(--bs-space-2);
   border-top: 1px solid var(--bs-color-border-subtle);
 }
 
 .drive-usage {
-  padding: var(--bs-space-1) var(--bs-space-2) 0;
+  width: 100%;
+  padding: var(--bs-space-1) 0 0;
   font-size: var(--bs-typography-font-size-xs);
   color: var(--bs-color-fg-muted);
 }
@@ -1580,12 +1601,14 @@ async function copyLink() {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   padding: var(--bs-layout-content-padding);
 }
 
 .drive-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1743,18 +1766,21 @@ async function copyLink() {
 @media (max-width: 767px) {
   .drive {
     flex-direction: column;
+    height: auto;
     overflow: auto;
   }
 
   .drive-side {
     width: 100%;
     flex: 0 0 auto;
+    height: auto;
     border-right: none;
     border-bottom: 1px solid var(--bs-color-border-subtle);
     max-height: 40vh;
   }
 
   .drive-main {
+    height: auto;
     padding: var(--bs-space-3);
     min-height: 60vh;
   }
