@@ -424,4 +424,132 @@
     "asChild": "Referenced by BOMs",
     "noBom": "No BOM reference"
   }
+,
+  "equipment": {
+    "keyword": "Keyword",
+    "title": "Equipment Ledger",
+    "create": "New Equipment",
+    "edit": "Edit Equipment",
+    "detailTitle": "Equipment Detail",
+    "tabs": {
+      "ledger": "Equipment Ledger",
+      "metric": "Energy Data",
+      "alert": "Equipment Alerts"
+    },
+    "stat": {
+      "total": "Total Equipment",
+      "running": "Running",
+      "maintenance": "In Maintenance",
+      "fault": "Fault"
+    },
+    "equipmentNo": "Equipment No.",
+    "name": "Equipment Name",
+    "category": "Category",
+    "model": "Model",
+    "spec": "Specification",
+    "workshop": "Workshop",
+    "location": "Location",
+    "vendor": "Vendor",
+    "purchaseDate": "Purchase Date",
+    "commissionDate": "Commission Date",
+    "originalValue": "Original Value",
+    "status": "Status",
+    "owner": "Owner",
+    "dept": "Department",
+    "maintainCycleDays": "Maintenance Cycle (days)",
+    "lastMaintainDate": "Last Maintenance Date",
+    "nextMaintainDate": "Next Maintenance Date",
+    "runHours": "Accumulated Run Hours",
+    "remark": "Remark",
+    "statusOptions": {
+      "idle": "Idle",
+      "running": "Running",
+      "maintenance": "In Maintenance",
+      "fault": "Fault",
+      "scrapped": "Scrapped"
+    },
+    "categoryOptions": {
+      "wind_tunnel": "Wind Tunnel",
+      "cfd": "CFD Computing",
+      "machining": "Machining Center",
+      "test": "Test Bench",
+      "other": "Other"
+    },
+    "metric": {
+      "statDate": "Date",
+      "shift": "Shift",
+      "runHours": "Run Hours",
+      "downtimeHours": "Downtime Hours",
+      "energy": "Energy (kWh)",
+      "outputQty": "Output",
+      "source": "Source",
+      "register": "Record Data",
+      "registerTip": "Recording automatically accumulates into the accumulated run hours of the equipment ledger",
+      "shiftOptions": {
+        "morning": "Morning",
+        "day": "Day",
+        "night": "Night"
+      },
+      "sourceOptions": {
+        "manual": "Manual Entry",
+        "schedule": "Schedule Derived"
+      }
+    },
+    "alert": {
+      "alertNo": "Alert No.",
+      "content": "Alert Content",
+      "title": "Alert Title",
+      "ruleType": "Rule",
+      "level": "Level",
+      "status": "Status",
+      "ruleOptions": {
+        "maintain_overdue": "Maintenance Overdue",
+        "energy_abnormal": "Abnormal Energy Use",
+        "low_utilization": "Low Utilization",
+        "fault": "Equipment Fault",
+        "status_abnormal": "Abnormal Status"
+      },
+      "levelOptions": {
+        "info": "Info",
+        "warning": "Warning",
+        "critical": "Critical"
+      },
+      "statusOptions": {
+        "open": "Open",
+        "processing": "Processing",
+        "closed": "Closed"
+      },
+      "triggeredAt": "Triggered At",
+      "handler": "Handler",
+      "handledAt": "Handled At",
+      "handleResult": "Handling Result",
+      "scan": "Scan Alerts",
+      "scanTip": "Scan by maintenance overdue / low utilization / abnormal energy rules; unclosed alerts of the same rule on the same equipment are not duplicated",
+      "handle": "Handle Alert",
+      "handleTitle": "Handle Equipment Alert",
+      "handleResultPlaceholder": "Describe the handling measures and result",
+      "register": "Register Alert",
+      "registerTitle": "Register Equipment Alert"
+    },
+    "detail": {
+      "metrics": "Energy Records of Last 30 Days",
+      "alerts": "Unclosed Alerts",
+      "emptyMetrics": "No energy records",
+      "emptyAlerts": "No unclosed alerts"
+    },
+    "board": {
+      "statusDist": "Status Distribution",
+      "categoryDist": "Category Distribution",
+      "energyTrend": "Energy Trend",
+      "topEnergy": "Top 5 Energy Consumers",
+      "alertLevelDist": "Alert Level Distribution",
+      "maintainOverdue": "Equipment with Overdue Maintenance",
+      "totalEnergy": "Total Energy in Range (kWh)"
+    },
+    "message": {
+      "scanDone": "Scan finished: {created} created, {skipped} skipped",
+      "registerSuccess": "Recorded successfully",
+      "handleSuccess": "Handled successfully"
+    }
+  }
 }

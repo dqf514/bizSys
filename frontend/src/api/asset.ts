@@ -671,3 +671,206 @@ export function exportToolLoans(params: ListQuery) {
     'asset-tool-loans.xlsx',
   )
 }
+
+/* ---------- 设备台账 / 能耗采集 / 设备预警（B6） ---------- */
+
+export interface Equipment {
+  id: number
+  equipmentNo: string
+  name: string
+  category: string
+  categoryText: string
+  model: string
+  spec: string
+  workshop: string
+  location: string
+  vendorId?: number | null
+  vendorName: string
+  purchaseDate: string
+  commissionDate: string
+  originalValue?: number | null
+  status: string
+  statusText: string
+  ownerId?: number | null
+  ownerName: string
+  deptId?: number | null
+  deptName: string
+  maintainCycleDays: number
+  lastMaintainDate: string
+  nextMaintainDate: string
+  runHours?: number | null
+  remark: string
+  version?: number | null
+  createTime: string
+  updateTime: string
+}
+
+export interface EquipmentMetric {
+  id: number
+  equipmentId: number
+  equipmentNo: string
+  equipmentName: string
+  statDate: string
+  shift: string
+  shiftText: string
+  runHours?: number | null
+  downtimeHours?: number | null
+  energy?: number | null
+  outputQty?: number | null
+  source: string
+  sourceText: string
+  remark: string
+  createTime: string
+}
+
+export interface EquipmentAlert {
+  id: number
+  alertNo: string
+  equipmentId: number
+  equipmentNo: string
+  equipmentName: string
+  ruleType: string
+  ruleTypeText: string
+  level: string
+  levelText: string
+  title: string
+  content: string
+  status: string
+  statusText: string
+  triggeredAt: string
+  handlerId?: number | null
+  handlerName: string
+  handledAt: string
+  handleResult: string
+  remark: string
+  createTime: string
+}
+
+export interface EquipmentDetail extends Equipment {
+  metrics: EquipmentMetric[]
+  alerts: EquipmentAlert[]
+}
+
+export interface EquipmentCounts {
+  all: number
+  idle: number
+  running: number
+  maintenance: number
+  fault: number
+  scrapped: number
+}
+
+export interface EquipmentAlertCounts {
+  all: number
+  open: number
+  processing: number
+  closed: number
+}
+
+export interface EquipmentAlertScanResult {
+  created: number
+  skipped: number
+  items: EquipmentAlert[]
+}
+
+export interface EquipmentBoard {
+  from: string
+  to: string
+  totalEquipments: number
+  statusDist: { status: string; statusText: string; count: number }[]
+  categoryDist: { category: string; categoryText: string; count: number }[]
+  energyTrend: { statDate: string; energy: number }[]
+  totalEnergy: number
+  topEnergy: { equipmentId: number; equipmentNo: string; equipmentName: string; energy: number }[]
+  alertLevelDist: { level: string; levelText: string; count: number }[]
+  maintainOverdueCount: number
+}
+
+export function listEquipments(params: ListQuery) {
+  return request<PageResult<Equipment>>({
+    url: '/asset/equipments',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function equipmentCounts() {
+  return request<EquipmentCounts>({ url: '/asset/equipments/counts', method: 'get' })
+}
+
+export function getEquipment(id: number) {
+  return request<EquipmentDetail>({ url: `/asset/equipments/${id}`, method: 'get' })
+}
+
+export function createEquipment(data: Partial<Equipment>) {
+  return request<Equipment>({ url: '/asset/equipments', method: 'post', data })
+}
+
+export function updateEquipment(id: number, data: Partial<Equipment>) {
+  return request<Equipment>({ url: `/asset/equipments/${id}`, method: 'put', data })
+}
+
+export function deleteEquipment(id: number) {
+  return request<void>({ url: `/asset/equipments/${id}`, method: 'delete' })
+}
+
+export function listEquipmentMetrics(params: ListQuery) {
+  return request<PageResult<EquipmentMetric>>({
+    url: '/asset/equipment-metrics',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function createEquipmentMetric(data: {
+  equipmentId: number
+  statDate?: string
+  shift?: string
+  runHours?: number
+  downtimeHours?: number
+  energy?: number
+  outputQty?: number
+  source?: string
+  remark?: string
+}) {
+  return request<EquipmentMetric>({ url: '/asset/equipment-metrics', method: 'post', data })
+}
+
+export function listEquipmentAlerts(params: ListQuery) {
+  return request<PageResult<EquipmentAlert>>({
+    url: '/asset/equipment-alerts',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}
+
+export function equipmentAlertCounts() {
+  return request<EquipmentAlertCounts>({ url: '/asset/equipment-alerts/counts', method: 'get' })
+}
+
+export function createEquipmentAlert(data: {
+  equipmentId: number
+  ruleType: string
+  level?: string
+  title?: string
+  content?: string
+  remark?: string
+}) {
+  return request<EquipmentAlert>({ url: '/asset/equipment-alerts', method: 'post', data })
+}
+
+export function handleEquipmentAlert(id: number, data: { status: string; handleResult?: string }) {
+  return request<EquipmentAlert>({ url: `/asset/equipment-alerts/${id}/handle`, method: 'post', data })
+}
+
+export function scanEquipmentAlerts() {
+  return request<EquipmentAlertScanResult>({ url: '/asset/equipment-alerts/scan', method: 'post' })
+}
+
+export function getEquipmentBoard(params: { from?: string; to?: string }) {
+  return request<EquipmentBoard>({
+    url: '/asset/equipment-board',
+    method: 'get',
+    params: toQuery(params as Record<string, unknown>),
+  })
+}

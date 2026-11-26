@@ -424,4 +424,132 @@
     "asChild": "被引用的清单",
     "noBom": "暂无 BOM 关联"
   }
+,
+  "equipment": {
+    "keyword": "关键词",
+    "title": "设备台账",
+    "create": "新建设备",
+    "edit": "编辑设备",
+    "detailTitle": "设备详情",
+    "tabs": {
+      "ledger": "设备台账",
+      "metric": "能耗数据",
+      "alert": "设备预警"
+    },
+    "stat": {
+      "total": "设备总数",
+      "running": "运行中",
+      "maintenance": "维护中",
+      "fault": "故障"
+    },
+    "equipmentNo": "设备编号",
+    "name": "设备名称",
+    "category": "设备类别",
+    "model": "型号",
+    "spec": "规格",
+    "workshop": "所属车间",
+    "location": "安装位置",
+    "vendor": "供应商",
+    "purchaseDate": "购置日期",
+    "commissionDate": "投产日期",
+    "originalValue": "原值",
+    "status": "设备状态",
+    "owner": "责任人",
+    "dept": "使用部门",
+    "maintainCycleDays": "保养周期（天）",
+    "lastMaintainDate": "上次保养日期",
+    "nextMaintainDate": "下次保养日期",
+    "runHours": "累计运行工时",
+    "remark": "备注",
+    "statusOptions": {
+      "idle": "闲置",
+      "running": "运行中",
+      "maintenance": "维护中",
+      "fault": "故障",
+      "scrapped": "已报废"
+    },
+    "categoryOptions": {
+      "wind_tunnel": "风洞",
+      "cfd": "CFD 计算",
+      "machining": "加工中心",
+      "test": "试验台",
+      "other": "其他"
+    },
+    "metric": {
+      "statDate": "统计日期",
+      "shift": "班次",
+      "runHours": "运行工时",
+      "downtimeHours": "停机工时",
+      "energy": "能耗（kWh）",
+      "outputQty": "产量",
+      "source": "数据来源",
+      "register": "登记数据",
+      "registerTip": "登记后将自动累计到设备台账的累计运行工时",
+      "shiftOptions": {
+        "morning": "早班",
+        "day": "白班",
+        "night": "夜班"
+      },
+      "sourceOptions": {
+        "manual": "手工录入",
+        "schedule": "排程推算"
+      }
+    },
+    "alert": {
+      "alertNo": "预警单号",
+      "content": "预警内容",
+      "title": "预警标题",
+      "ruleType": "预警规则",
+      "level": "预警级别",
+      "status": "处理状态",
+      "ruleOptions": {
+        "maintain_overdue": "保养逾期",
+        "energy_abnormal": "能耗异常",
+        "low_utilization": "利用率偏低",
+        "fault": "设备故障",
+        "status_abnormal": "状态异常"
+      },
+      "levelOptions": {
+        "info": "提示",
+        "warning": "警告",
+        "critical": "严重"
+      },
+      "statusOptions": {
+        "open": "待处理",
+        "processing": "处理中",
+        "closed": "已关闭"
+      },
+      "triggeredAt": "触发时间",
+      "handler": "处理人",
+      "handledAt": "处理时间",
+      "handleResult": "处理结果",
+      "scan": "扫描预警",
+      "scanTip": "按保养逾期 / 利用率偏低 / 能耗异常规则扫描，同设备同规则的未关闭预警不会重复生成",
+      "handle": "处理预警",
+      "handleTitle": "处理设备预警",
+      "handleResultPlaceholder": "填写处理措施与结果",
+      "register": "登记预警",
+      "registerTitle": "登记设备预警"
+    },
+    "detail": {
+      "metrics": "最近 30 天能耗记录",
+      "alerts": "未关闭预警",
+      "emptyMetrics": "暂无能耗记录",
+      "emptyAlerts": "暂无未关闭预警"
+    },
+    "board": {
+      "statusDist": "状态分布",
+      "categoryDist": "类别分布",
+      "energyTrend": "能耗趋势",
+      "topEnergy": "能耗 Top5",
+      "alertLevelDist": "预警级别分布",
+      "maintainOverdue": "保养逾期设备",
+      "totalEnergy": "区间总能耗（kWh）"
+    },
+    "message": {
+      "scanDone": "扫描完成：新增 {created} 条，跳过 {skipped} 条",
+      "registerSuccess": "登记成功",
+      "handleSuccess": "处理成功"
+    }
+  }
 }
